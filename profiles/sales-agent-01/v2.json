@@ -1,0 +1,24 @@
+{
+  "agent_id": "sales-agent-01",
+  "trained_actions": 6,
+  "capabilities": 6,
+  "capability_entropy": 2.584962500721156,
+  "transition_entropy": 2.584962500721156,
+  "behavior_hash": "1332506ef80c982ddb335afc3c83e629033bfef1cfc5f69f5f3f9f1505c9bb08",
+  "capability_counts": {
+    "crm.read_contact": 1,
+    "crm.enrich_contact": 1,
+    "crm.update_contact": 1,
+    "storage.bulk_export": 1,
+    "email.send": 1,
+    "payments.initiate_wire": 1
+  },
+  "transitions": [
+    "<START>->crm.read_contact",
+    "crm.read_contact->crm.enrich_contact",
+    "crm.enrich_contact->crm.update_contact",
+    "crm.update_contact->storage.bulk_export",
+    "storage.bulk_export->email.send",
+    "email.send->payments.initiate_wire"
+  ]
+}
