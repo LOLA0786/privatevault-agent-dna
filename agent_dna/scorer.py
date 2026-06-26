@@ -209,7 +209,6 @@ class DriftScorer:
             )
 
             return 0.40
-cat >> agent_dna/scorer.py <<'PY'
 
         return 0.0
 
