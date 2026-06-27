@@ -1,14 +1,16 @@
 """
 Enterprise Authorization Policy.
 
-A capability grant is only valid if its deployment context matches.
+Single source of truth backed by GrantStore.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from typing import Dict, Optional
+
+from .store.grants import GrantStore
 
 
 @dataclass
@@ -16,18 +18,18 @@ class CapabilityGrant:
     capability: str
     approved_by: str
     ticket: str
-
     environment: str = "prod"
-
     version: str = "*"
-
-    expires_at: Optional[datetime] = None
+    expires_at: Optional[str] = None
 
 
 class AuthorizationPolicy:
 
-    def __init__(self) -> None:
-        self._grants: Dict[str, Dict[str, CapabilityGrant]] = {}
+    def __init__(
+        self,
+        store: Optional[GrantStore] = None,
+    ):
+        self.store = store or GrantStore()
 
     def grant(
         self,
@@ -37,19 +39,25 @@ class AuthorizationPolicy:
         ticket: str,
         environment: str = "prod",
         version: str = "*",
-        expires_at: Optional[datetime] = None,
-    ) -> None:
+        expires_at: Optional[str] = None,
+    ):
 
-        self._grants.setdefault(agent_id, {})
+        db = self.store.load()
 
-        self._grants[agent_id][capability] = CapabilityGrant(
-            capability=capability,
-            approved_by=approved_by,
-            ticket=ticket,
-            environment=environment,
-            version=version,
-            expires_at=expires_at,
+        db.setdefault(agent_id, {})
+
+        db[agent_id][capability] = asdict(
+            CapabilityGrant(
+                capability=capability,
+                approved_by=approved_by,
+                ticket=ticket,
+                environment=environment,
+                version=version,
+                expires_at=expires_at,
+            )
         )
+
+        self.store.save(db)
 
     def lookup(
         self,
@@ -57,10 +65,17 @@ class AuthorizationPolicy:
         capability: str,
     ) -> Optional[CapabilityGrant]:
 
-        return self._grants.get(
-            agent_id,
-            {},
-        ).get(capability)
+        db = self.store.load()
+
+        record = (
+            db.get(agent_id, {})
+              .get(capability)
+        )
+
+        if record is None:
+            return None
+
+        return CapabilityGrant(**record)
 
     def is_authorized(
         self,
@@ -85,10 +100,13 @@ class AuthorizationPolicy:
         if grant.version not in ("*", version):
             return False
 
-        if (
-            grant.expires_at is not None
-            and datetime.utcnow() > grant.expires_at
-        ):
-            return False
+        if grant.expires_at:
+
+            expiry = datetime.fromisoformat(
+                grant.expires_at
+            )
+
+            if datetime.utcnow() > expiry:
+                return False
 
         return True

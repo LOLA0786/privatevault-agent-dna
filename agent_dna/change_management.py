@@ -1,24 +1,13 @@
 """
-Enterprise Change Management Adapters.
+Enterprise Change Management Importers.
 
-These adapters convert approved enterprise change records into
-AuthorizationPolicy grants.
-
-Initially supports generic dicts.
-
-Later adapters can be added for:
-
-- ServiceNow
-- Jira
-- GitHub Releases
-- Azure DevOps
-- PagerDuty
-- Internal CAB systems
+Every imported approval is persisted into the shared GrantStore via
+AuthorizationPolicy.
 """
 
 from __future__ import annotations
 
-from typing import Dict, Any
+from typing import Any, Dict
 
 from .authorization import AuthorizationPolicy
 
@@ -27,13 +16,14 @@ class ChangeManagementImporter:
 
     def __init__(
         self,
-        policy: AuthorizationPolicy,
+        policy: AuthorizationPolicy | None = None,
     ) -> None:
-        self.policy = policy
 
-    # ----------------------------------------------------------
-    # Generic JSON import
-    # ----------------------------------------------------------
+        self.policy = policy or AuthorizationPolicy()
+
+    # ---------------------------------------------------------
+    # Generic
+    # ---------------------------------------------------------
 
     def import_change(
         self,
@@ -49,14 +39,18 @@ class ChangeManagementImporter:
                 "environment",
                 "prod",
             ),
+            version=record.get(
+                "version",
+                "*",
+            ),
             expires_at=record.get(
                 "expires_at",
             ),
         )
 
-    # ----------------------------------------------------------
+    # ---------------------------------------------------------
     # ServiceNow
-    # ----------------------------------------------------------
+    # ---------------------------------------------------------
 
     def import_servicenow(
         self,
@@ -73,12 +67,16 @@ class ChangeManagementImporter:
                     "environment",
                     "prod",
                 ),
+                "version": record.get(
+                    "version",
+                    "*",
+                ),
             }
         )
 
-    # ----------------------------------------------------------
+    # ---------------------------------------------------------
     # Jira
-    # ----------------------------------------------------------
+    # ---------------------------------------------------------
 
     def import_jira(
         self,
@@ -94,6 +92,10 @@ class ChangeManagementImporter:
                 "environment": issue.get(
                     "environment",
                     "prod",
+                ),
+                "version": issue.get(
+                    "version",
+                    "*",
                 ),
             }
         )

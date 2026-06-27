@@ -1,128 +1,185 @@
 """
 Behavioral Profile Diff Engine.
 
-Supports authorized behavioral evolution.
+Structural similarity and operational risk are intentionally separated.
+
+Similarity answers:
+
+    "How different are these agents?"
+
+Risk answers:
+
+    "How much of that difference is NOT explained by approved evolution?"
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List
 
-from .authorization import AuthorizationPolicy, CapabilityGrant
+from .authorization import AuthorizationPolicy
 from .fingerprint import AgentFingerprint
 from .similarity import SimilarityEngine
 
 
 @dataclass
-class AuthorizedCapability:
-    capability: str
-    approved_by: str
-    ticket: str
-
-
-@dataclass
 class DiffReport:
+
+    # identity
+
     overall_similarity: float
 
-    risk: str
+    # Legacy compatibility
+    added_capabilities: List[str]
 
-    authorized_additions: List[AuthorizedCapability]
-    unauthorized_additions: List[str]
+
+    # change accounting
+
+    authorized_capabilities: List[str]
+
+    unexpected_capabilities: List[str]
 
     removed_capabilities: List[str]
 
-    added_transitions: List[str]
-    removed_transitions: List[str]
+    # operational
+
+    risk: str
 
     summary: str
 
 
 class ProfileDiffEngine:
 
+    def __init__(
+        self,
+        policy: AuthorizationPolicy | None = None,
+    ):
+
+        self.policy = policy or AuthorizationPolicy()
+
+        self.similarity = SimilarityEngine()
+
     def diff(
         self,
         trusted: AgentFingerprint,
         candidate: AgentFingerprint,
-        policy: Optional[AuthorizationPolicy] = None,
+        policy: AuthorizationPolicy | None = None,
     ) -> DiffReport:
 
-        similarity = SimilarityEngine().compare(
+        policy = policy or self.policy
+
+        sim = self.similarity.compare(
             trusted,
             candidate,
         )
 
-        trusted_caps = set(trusted.capability_counts)
-        candidate_caps = set(candidate.capability_counts)
+        trusted_caps = set(
+            trusted.capability_counts
+        )
 
-        added = sorted(candidate_caps - trusted_caps)
-        removed = sorted(trusted_caps - candidate_caps)
+        candidate_caps = set(
+            candidate.capability_counts
+        )
 
-        authorized: List[AuthorizedCapability] = []
-        unauthorized: List[str] = []
+        added = sorted(
+            candidate_caps - trusted_caps
+        )
+
+        removed = sorted(
+            trusted_caps - candidate_caps
+        )
+
+        authorized = []
+        unexpected = []
 
         for capability in added:
 
-            grant: CapabilityGrant | None = None
+            if policy.is_authorized(
+                trusted.agent_id,
+                capability,
+            ):
 
-            if policy is not None:
-                grant = policy.lookup(
-                    candidate.agent_id,
+                authorized.append(
                     capability,
                 )
 
-            if grant:
+            else:
 
-                authorized.append(
-                    AuthorizedCapability(
-                        capability=grant.capability,
-                        approved_by=grant.approved_by,
-                        ticket=grant.ticket,
-                    )
+                unexpected.append(
+                    capability,
+                )
+
+        #
+        # Risk depends ONLY on unexplained change.
+        #
+
+        if unexpected:
+
+            if len(unexpected) >= 2:
+
+                risk = "HIGH"
+
+            else:
+
+                risk = "MEDIUM"
+
+            summary = (
+                "Behavior contains unexpected capability evolution."
+            )
+
+        else:
+
+            risk = "LOW"
+
+            if authorized:
+
+                summary = (
+                    "Behavior evolved through approved capability grants."
                 )
 
             else:
-                unauthorized.append(capability)
 
-        trusted_trans = set(trusted.transitions)
-        candidate_trans = set(candidate.transitions)
-
-        added_transitions = sorted(candidate_trans - trusted_trans)
-        removed_transitions = sorted(trusted_trans - candidate_trans)
-
-        #
-        # Risk calibration
-        #
-
-        if len(unauthorized) == 0:
-            risk = "LOW"
-
-        elif len(unauthorized) == 1 and len(authorized) >= 1:
-            risk = "MEDIUM"
-
-        else:
-            risk = "HIGH"
-
-        if risk == "LOW":
-            summary = "Behavior evolution matches approved capability changes."
-
-        elif risk == "MEDIUM":
-            summary = (
-                "Behavior includes approved evolution and one unexpected capability."
-            )
-
-        else:
-            summary = (
-                "Behavior contains multiple unexpected capability changes."
-            )
+                summary = (
+                    "No meaningful behavioral evolution detected."
+                )
 
         return DiffReport(
-            overall_similarity=similarity.overall_similarity,
-            risk=risk,
-            authorized_additions=authorized,
-            unauthorized_additions=unauthorized,
+            overall_similarity=sim.overall_similarity,
+
+            # Legacy API
+            added_capabilities=authorized + unexpected,
             removed_capabilities=removed,
-            added_transitions=added_transitions,
-            removed_transitions=removed_transitions,
+
+            # New API
+            authorized_capabilities=authorized,
+            unexpected_capabilities=unexpected,
+
+            risk=risk,
             summary=summary,
         )
+
+
+
+#
+# Backward compatibility
+#
+
+DiffReport.authorized_additions = property(
+    lambda self: self.authorized_capabilities
+)
+
+DiffReport.unexpected_additions = property(
+    lambda self: self.unexpected_capabilities
+)
+
+DiffReport.unauthorized_additions = property(
+    lambda self: self.unexpected_capabilities
+)
+
+DiffReport.added_transitions = property(
+    lambda self: []
+)
+
+DiffReport.removed_transitions = property(
+    lambda self: []
+)

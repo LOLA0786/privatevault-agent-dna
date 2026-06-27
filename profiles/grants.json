@@ -1,0 +1,20 @@
+{
+  "sales-agent-01": {
+    "payments.initiate_wire": {
+      "approved_by": "Operations",
+      "capability": "payments.initiate_wire",
+      "environment": "prod",
+      "expires_at": null,
+      "ticket": "CHG-20481",
+      "version": "*"
+    },
+    "storage.bulk_export": {
+      "approved_by": "Security Team",
+      "capability": "storage.bulk_export",
+      "environment": "prod",
+      "expires_at": null,
+      "ticket": "OPS-842",
+      "version": "*"
+    }
+  }
+}

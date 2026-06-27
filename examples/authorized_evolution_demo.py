@@ -61,11 +61,24 @@ print("\nAuthorized Evolution")
 print("--------------------")
 
 if report.authorized_additions:
-    for grant in report.authorized_additions:
-        print(
-            f"✓ {grant.capability}"
-            f"  ({grant.approved_by}, {grant.ticket})"
+
+    policy = AuthorizationPolicy()
+
+    for capability in report.authorized_additions:
+
+        grant = policy.lookup(
+            trusted.agent_id,
+            capability,
         )
+
+        if grant:
+            print(
+                f"✓ {grant.capability}"
+                f"  ({grant.approved_by}, {grant.ticket})"
+            )
+        else:
+            print(f"✓ {capability}")
+
 else:
     print("None")
 
