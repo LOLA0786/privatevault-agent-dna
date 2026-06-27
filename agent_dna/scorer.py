@@ -34,6 +34,7 @@ from .dynamics import (
 )
 from .manifold import CapabilityManifold
 from .rate import RateAnomalyDetector
+from .invariant_engine import InvariantEngine
 from .trace import AgentAction
 
 _RARE_FREQ = 0.005
@@ -51,6 +52,7 @@ class DriftScorer:
         self,
         manifold: CapabilityManifold,
         dynamics: BehaviorDynamics,
+        invariants: InvariantEngine | None = None,
     ) -> None:
 
         if not manifold.fitted:
@@ -68,6 +70,8 @@ class DriftScorer:
         self.rate_detector = RateAnomalyDetector(
             manifold,
         )
+
+        self.invariants = invariants
 
     def score(
         self,
@@ -94,6 +98,33 @@ class DriftScorer:
             action,
             reasons,
         )
+
+        #
+        # behavioral invariants
+        #
+
+        if self.invariants is not None:
+
+            violation = self.invariants.validate(
+                action.capability,
+                prev_capability,
+            )
+
+            if violation.violated:
+
+                components["invariant"] = 1.0
+
+                reasons.append(
+                    violation.message,
+                )
+
+            else:
+
+                components["invariant"] = 0.0
+
+        else:
+
+            components["invariant"] = 0.0
 
         #
         # timing

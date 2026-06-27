@@ -11,6 +11,8 @@ from agent_dna import (
     CapabilityManifold,
     DriftScorer,
     RuntimeMonitor,
+    InvariantLearner,
+    InvariantEngine,
 )
 
 from agent_dna.adapters import (
@@ -29,9 +31,17 @@ def train():
     manifold = CapabilityManifold().fit(training)
     dynamics = BehaviorDynamics().fit(training)
 
+    learner = InvariantLearner()
+    invariants = learner.fit(training)
+
+    engine = InvariantEngine(
+        invariants,
+    )
+
     return DriftScorer(
         manifold,
         dynamics,
+        engine,
     )
 
 
