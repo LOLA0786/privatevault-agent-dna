@@ -17,6 +17,7 @@ from typing import Iterable
 
 from .authority import AuthorityInvariant
 from .base import Verdict
+from .consensus import ConsensusInvariant
 from .events import InteractionEvent
 from .graph_builder import GraphBuilder
 from .interaction_graph import InteractionGraph
@@ -26,12 +27,13 @@ from .topology import TopologyInvariant
 
 
 def default_engine() -> InvariantEngine:
-    """The Phase-1 invariant stack: topology + temporal + authority."""
+    """The Phase-1 + consensus invariant stack."""
     return InvariantEngine(
         invariants=[
             TopologyInvariant(),
             TemporalInvariant(),
             AuthorityInvariant(),
+            ConsensusInvariant(),
         ]
     )
 

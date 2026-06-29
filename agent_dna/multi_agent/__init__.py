@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from .authority import AuthorityInvariant
 from .base import Invariant, InvariantResult, Verdict
+from .consensus import ConsensusInvariant
 from .events import InteractionEvent
 from .graph_builder import GraphBuilder
 from .interaction_graph import InteractionGraph
@@ -29,6 +30,7 @@ __all__ = [
     "TopologyInvariant",
     "TemporalInvariant",
     "AuthorityInvariant",
+    "ConsensusInvariant",
     "InvariantEngine",
     "EngineVerdict",
     "RuntimeValidator",
