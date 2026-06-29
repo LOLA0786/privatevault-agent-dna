@@ -10,6 +10,7 @@ from typing import List, Optional, Protocol, runtime_checkable
 
 from .advisory import AdvisorySignal, Severity
 from .trace import AgentAction
+from .evidence import EvidenceReport, EvidenceEngine
 
 
 class Decision(str, Enum):
@@ -38,6 +39,8 @@ class DecisionResult:
     invariant_message: str = ""
 
     advisory_reasons: List[str] = field(default_factory=list)
+
+    evidence: EvidenceReport | None = None
 
     def to_dict(self):
 
@@ -100,6 +103,8 @@ class DecisionEngine:
 
         self.drift_threshold = drift_threshold
 
+        self.evidence_engine = EvidenceEngine()
+
     def decide_from(
         self,
         *,
@@ -131,6 +136,15 @@ class DecisionEngine:
                     else ""
                 ),
                 advisory_reasons=list(signal.reasons),
+                evidence=self.evidence_engine.build(
+                    drift_score=signal.drift_score,
+                    invariant=(
+                        invariant is not None
+                        and
+                        invariant.violated
+                    ),
+                    authorized=authorized,
+                ),
             )
 
         #
