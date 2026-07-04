@@ -54,7 +54,10 @@ def banner(title):
 def main():
 
     scorer = train()
-    monitor = RuntimeMonitor(scorer)
+    from agent_dna.decision import DecisionEngine
+
+    engine = DecisionEngine(scorer=scorer)
+    monitor = RuntimeMonitor(engine)
 
     banner("LIVE STREAM")
 

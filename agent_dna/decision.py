@@ -54,6 +54,24 @@ class DecisionResult:
             "severity": self.severity.value,
             "invariant_message": self.invariant_message,
             "advisory_reasons": self.advisory_reasons,
+            "evidence": (
+                [
+                    {
+                        "name": i.name,
+                        "score": i.score,
+                        "confidence": i.confidence,
+                        "summary": i.summary,
+                    }
+                    for i in self.evidence.items
+                ]
+                if self.evidence is not None
+                else []
+            ),
+            "evidence_strength": (
+                self.evidence.overall_strength
+                if self.evidence is not None
+                else 0.0
+            ),
         }
 
 
