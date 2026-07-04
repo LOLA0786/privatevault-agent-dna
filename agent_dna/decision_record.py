@@ -64,6 +64,10 @@ class DecisionRecord:
     approval_ref: Optional[str] = None
     receipt_ref: Optional[str] = None
 
+    # graph edges — hash-covered. Only "follows" is produced today.
+    # New edge types may be added ONLY when a component produces them.
+    edges: List[Dict[str, str]] = field(default_factory=list)
+
     # chain
     timestamp: float = field(default_factory=time.time)
     prev_hash: str = GENESIS_HASH
@@ -92,6 +96,7 @@ class DecisionRecord:
             "policy_id": self.policy_id,
             "approval_ref": self.approval_ref,
             "receipt_ref": self.receipt_ref,
+            "edges": self.edges,
             "timestamp": self.timestamp,
             "prev_hash": self.prev_hash,
         }
@@ -157,4 +162,9 @@ def build_record(
         evidence_strength=result_dict["evidence_strength"],
         arguments_digest=_digest_arguments(action.arguments),
         outcome="pending",
+        edges=(
+            [{"type": "follows", "target": parent_decision}]
+            if parent_decision is not None
+            else []
+        ),
     ).apply_chain(prev_hash)

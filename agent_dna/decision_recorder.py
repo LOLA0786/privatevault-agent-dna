@@ -28,8 +28,13 @@ class _ChainState:
 
 
 class DecisionRecorder:
-    def __init__(self, graph: Optional[DecisionGraph] = None) -> None:
+    def __init__(
+        self,
+        graph: Optional[DecisionGraph] = None,
+        store=None,                       # optional DecisionStore
+    ) -> None:
         self.graph = graph if graph is not None else DecisionGraph()
+        self.store = store
         self._chains: Dict[str, _ChainState] = {}
 
     def record(
@@ -46,6 +51,8 @@ class DecisionRecorder:
             prev_hash=chain.last_hash,
         )
         self.graph.add(rec)
+        if self.store is not None:
+            self.store.append(rec)
 
         chain.last_decision_id = rec.decision_id
         chain.last_hash = rec.record_hash
