@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://privatevault.ai/spec/schemas/decision_record.schema.json",
+  "title": "DecisionRecord",
+  "description": "A sealed, hash-chained pre-execution authorization decision. record_hash = SHA-256 of the canonical JSON payload (all properties except record_hash, sorted keys, compact separators). Per-agent chain: prev_hash equals the previous decision's record_hash for the same agent_id; genesis is 64 zeros.",
+  "type": "object",
+  "required": [
+    "kind", "decision_id", "parent_decision", "agent_id", "capability",
+    "decision", "triggered_by", "reason", "severity", "drift_score",
+    "evidence", "evidence_strength", "arguments_digest", "outcome",
+    "goal", "intent", "policy_id", "approval_ref", "receipt_ref",
+    "edges", "timestamp", "prev_hash", "record_hash"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "kind": { "const": "decision" },
+    "decision_id": { "type": "string", "minLength": 1 },
+    "parent_decision": {
+      "type": ["string", "null"],
+      "description": "decision_id of this agent's previous decision; null for the first record in an agent chain."
+    },
+    "agent_id": { "type": "string", "minLength": 1 },
+    "capability": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Fully-qualified tool/action name, e.g. payments.initiate_wire."
+    },
+    "decision": { "enum": ["allow", "require_approval", "block"] },
+    "triggered_by": {
+      "type": "string",
+      "description": "Which precedence rule produced the decision, e.g. invariant, authorization, drift, baseline."
+    },
+    "reason": { "type": "string" },
+    "severity": { "type": "string" },
+    "drift_score": { "type": "number", "minimum": 0 },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "score", "confidence", "summary"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "score": { "type": "number" },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "summary": { "type": "string" }
+        }
+      }
+    },
+    "evidence_strength": { "type": "number", "minimum": 0 },
+    "arguments_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 of canonical action arguments. Raw arguments are never stored."
+    },
+    "outcome": {
+      "const": "pending",
+      "description": "Always pending on a sealed decision. Execution results are separate ExecutionEvent records; decisions are never mutated."
+    },
+    "goal": { "type": ["string", "null"], "description": "Schema-reserved; no producer yet." },
+    "intent": { "type": ["string", "null"], "description": "Schema-reserved; no producer yet." },
+    "policy_id": { "type": ["string", "null"], "description": "Schema-reserved; no producer yet." },
+    "approval_ref": { "type": ["string", "null"], "description": "Schema-reserved; no producer yet." },
+    "receipt_ref": { "type": ["string", "null"], "description": "Schema-reserved; signing layer reference." },
+    "edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type", "target"],
+        "additionalProperties": false,
+        "properties": {
+          "type": { "enum": ["follows"] },
+          "target": { "type": "string" }
+        }
+      },
+      "description": "Graph edges produced for decisions today: follows (target = parent_decision)."
+    },
+    "timestamp": { "type": "number" },
+    "prev_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "record_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

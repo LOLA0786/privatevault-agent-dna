@@ -42,6 +42,15 @@ Edge types are added only when a component produces them.
 The last row is the one that matters: a runtime that lies about
 refusing is caught from the audit file alone.
 
+## Schemas
+
+`schemas/` contains JSON Schema (draft 2020-12) definitions for both
+record kinds. Every record in every test vector validates against
+them; `additionalProperties: false` means unknown (unhashed) fields
+are nonconformant by construction. The `outcome: pending` constant on
+decisions makes immutability machine-checkable: implementations that
+mutate decisions in place fail schema validation.
+
 ## Test vectors
 
 `test-vectors/` contains four canonical files and their required
