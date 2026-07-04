@@ -1,23 +1,25 @@
 #!/usr/bin/env python3
 """
-Independent verifier for DecisionRecord JSONL files.
+Independent verifier for decision/execution JSONL audit files.
 
 Uses ONLY the Python standard library and does NOT import agent_dna.
-An auditor can run this against a decision log with nothing but this
-file and Python 3.
 
-Checks, per file:
+Checks:
   1. Every line is valid JSON.
   2. Every record's record_hash equals sha256 of its canonical payload
-     (all fields except record_hash, JSON-serialized with sorted keys
-     and compact separators).
-  3. Per agent, in file order: each record's prev_hash equals the
-     previous record's record_hash; first record chains from the
-     genesis hash (64 zeros).
-  4. Every "follows" edge target equals parent_decision.
+     (all fields except record_hash, sorted keys, compact separators).
+  3. kind=="decision": per agent, in file order, prev_hash equals the
+     previous decision's record_hash (genesis = 64 zeros).
+  4. kind=="execution": prev_hash equals the record_hash of the
+     referenced decision (anchor binding); decision must appear
+     earlier in the file; at most one execution event per decision.
+  5. Edge consistency: "follows" target == parent_decision;
+     "resulted_in" target == decision_ref.
+  6. ENFORCEMENT DIVERGENCE: an execution event with status "ok"
+     whose decision was "block" fails verification — the runtime
+     refused and the world executed anyway.
 
-Exit codes: 0 = all checks pass, 1 = verification failure, 2 = usage.
-
+Exit codes: 0 pass, 1 fail, 2 usage.
 Usage: python3 verify_records.py <records.jsonl>
 """
 
@@ -36,7 +38,9 @@ def compute_hash(record: dict) -> str:
 
 def verify(path: str) -> int:
     failures = []
-    chains = {}      # agent_id -> expected prev_hash
+    chains = {}            # agent_id -> expected prev_hash (decisions only)
+    decisions = {}         # decision_id -> {"hash": .., "decision": ..}
+    executed = set()       # decision_ids that already have an execution event
     total = 0
 
     with open(path, "r", encoding="utf-8") as f:
@@ -52,38 +56,86 @@ def verify(path: str) -> int:
                 failures.append(f"line {lineno}: invalid JSON")
                 continue
 
-            rid = rec.get("decision_id", f"<line {lineno}>")
-            agent = rec.get("agent_id", "<missing>")
-
-            # 2. per-record hash
+            kind = rec.get("kind", "decision")
             stored = rec.get("record_hash", "")
             computed = compute_hash(rec)
             if stored != computed:
                 failures.append(
-                    f"line {lineno} [{rid}]: record_hash mismatch "
+                    f"line {lineno}: record_hash mismatch "
                     f"(stored {stored[:12]}.., computed {computed[:12]}..)"
                 )
 
-            # 3. per-agent chain
-            expected_prev = chains.get(agent, GENESIS_HASH)
-            if rec.get("prev_hash") != expected_prev:
-                failures.append(
-                    f"line {lineno} [{rid}]: chain break for agent "
-                    f"{agent!r} (prev_hash != previous record_hash)"
-                )
-            chains[agent] = stored
+            if kind == "decision":
+                rid = rec.get("decision_id", f"<line {lineno}>")
+                agent = rec.get("agent_id", "<missing>")
 
-            # 4. follows edge consistency
-            for edge in rec.get("edges", []):
-                if edge.get("type") == "follows":
-                    if edge.get("target") != rec.get("parent_decision"):
+                expected_prev = chains.get(agent, GENESIS_HASH)
+                if rec.get("prev_hash") != expected_prev:
+                    failures.append(
+                        f"line {lineno} [{rid}]: chain break for agent "
+                        f"{agent!r}"
+                    )
+                chains[agent] = stored
+                decisions[rid] = {
+                    "hash": stored,
+                    "decision": rec.get("decision"),
+                }
+
+                for edge in rec.get("edges", []):
+                    if edge.get("type") == "follows":
+                        if edge.get("target") != rec.get("parent_decision"):
+                            failures.append(
+                                f"line {lineno} [{rid}]: follows edge "
+                                "target != parent_decision"
+                            )
+
+            elif kind == "execution":
+                eid = rec.get("event_id", f"<line {lineno}>")
+                dref = rec.get("decision_ref")
+
+                if dref not in decisions:
+                    failures.append(
+                        f"line {lineno} [{eid}]: execution references "
+                        f"unknown/later decision {dref}"
+                    )
+                else:
+                    if rec.get("prev_hash") != decisions[dref]["hash"]:
                         failures.append(
-                            f"line {lineno} [{rid}]: follows edge target "
-                            "!= parent_decision"
+                            f"line {lineno} [{eid}]: anchor mismatch — "
+                            "prev_hash != decision record_hash"
                         )
+                    if dref in executed:
+                        failures.append(
+                            f"line {lineno} [{eid}]: duplicate execution "
+                            f"event for decision {dref}"
+                        )
+                    executed.add(dref)
+
+                    # 6. enforcement divergence
+                    if (
+                        decisions[dref]["decision"] == "block"
+                        and rec.get("status") == "ok"
+                    ):
+                        failures.append(
+                            f"line {lineno} [{eid}]: ENFORCEMENT DIVERGENCE "
+                            f"— decision {dref} was BLOCK but execution "
+                            "status is ok"
+                        )
+
+                for edge in rec.get("edges", []):
+                    if edge.get("type") == "resulted_in":
+                        if edge.get("target") != dref:
+                            failures.append(
+                                f"line {lineno} [{eid}]: resulted_in edge "
+                                "target != decision_ref"
+                            )
+            else:
+                failures.append(f"line {lineno}: unknown kind {kind!r}")
 
     print(f"records checked : {total}")
     print(f"agents          : {len(chains)}")
+    print(f"decisions       : {len(decisions)}")
+    print(f"executions      : {len(executed)}")
     print(f"failures        : {len(failures)}")
     for msg in failures:
         print(f"  FAIL {msg}")

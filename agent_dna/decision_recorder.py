@@ -18,6 +18,7 @@ from typing import Dict, Optional
 from .decision import DecisionResult
 from .decision_graph import DecisionGraph
 from .decision_record import GENESIS_HASH, DecisionRecord, build_record
+from .execution_record import ExecutionEvent, build_execution_event
 from .trace import AgentAction
 
 
@@ -57,3 +58,25 @@ class DecisionRecorder:
         chain.last_decision_id = rec.decision_id
         chain.last_hash = rec.record_hash
         return rec
+
+    def report_outcome(
+        self,
+        decision_id: str,
+        status: str,
+        detail: str = "",
+    ) -> ExecutionEvent:
+        """Executor feedback: append an ExecutionEvent anchored to the
+        decision it reports on. Does NOT touch the decision chain —
+        events chain off their decision's hash, not the agent chain."""
+        decision = self.graph.get(decision_id)
+        event = build_execution_event(
+            agent_id=decision.agent_id,
+            decision_id=decision.decision_id,
+            decision_hash=decision.record_hash,
+            status=status,
+            detail=detail,
+        )
+        self.graph.add_execution(event)
+        if self.store is not None:
+            self.store.append(event)
+        return event

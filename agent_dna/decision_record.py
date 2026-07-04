@@ -39,6 +39,7 @@ GENESIS_HASH = "0" * 64
 @dataclass
 class DecisionRecord:
     # identity / lineage
+    kind: str = field(default="decision", init=False)   # record discriminator
     decision_id: str
     parent_decision: Optional[str]      # previous record for this agent (chain, not DAG — yet)
     agent_id: str
@@ -78,6 +79,7 @@ class DecisionRecord:
     def payload(self) -> Dict[str, Any]:
         """Everything covered by the hash, in canonical order."""
         return {
+            "kind": self.kind,
             "decision_id": self.decision_id,
             "parent_decision": self.parent_decision,
             "agent_id": self.agent_id,

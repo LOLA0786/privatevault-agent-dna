@@ -18,6 +18,7 @@ from typing import Iterator, List, Union
 
 from .decision_graph import DecisionGraph
 from .decision_record import DecisionRecord
+from .execution_record import ExecutionEvent
 
 
 class DecisionStore:
@@ -27,7 +28,9 @@ class DecisionStore:
 
     # ---- write --------------------------------------------------------
 
-    def append(self, record: DecisionRecord) -> None:
+    def append(self, record) -> None:
+        """Accepts any sealed record with verify()/to_dict()
+        (DecisionRecord or ExecutionEvent)."""
         if not record.verify():
             raise ValueError(
                 f"record {record.decision_id} is unsealed or tampered; "
@@ -59,19 +62,26 @@ class DecisionStore:
                         f"{self.path}:{lineno}: corrupt JSONL line"
                     ) from e
 
-    def load(self) -> List[DecisionRecord]:
-        records: List[DecisionRecord] = []
+    def load(self) -> List:
+        records: List = []
         for d in self._iter_dicts():
             record_hash = d.pop("record_hash")
-            rec = DecisionRecord(**d)
+            kind = d.pop("kind", "decision")
+            if kind == "execution":
+                rec = ExecutionEvent(**d)
+            else:
+                rec = DecisionRecord(**d)
             rec.record_hash = record_hash
             records.append(rec)
         return records
 
     def load_graph(self) -> DecisionGraph:
-        """Rebuild the full DecisionGraph from disk. DecisionGraph.add
-        verifies every record, so a tampered file fails loudly here."""
+        """Rebuild the full DecisionGraph from disk. add/add_execution
+        verify every record, so a tampered file fails loudly here."""
         g = DecisionGraph()
         for rec in self.load():
-            g.add(rec)
+            if rec.kind == "execution":
+                g.add_execution(rec)
+            else:
+                g.add(rec)
         return g

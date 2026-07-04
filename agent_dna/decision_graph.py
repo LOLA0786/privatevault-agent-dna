@@ -24,6 +24,7 @@ from collections import defaultdict
 from typing import Dict, Iterator, List, Optional
 
 from .decision_record import GENESIS_HASH, DecisionRecord
+from .execution_record import ExecutionEvent
 
 
 class DecisionGraph:
@@ -35,6 +36,7 @@ class DecisionGraph:
         self._by_capability: Dict[str, List[str]] = defaultdict(list)
         self._by_decision: Dict[str, List[str]] = defaultdict(list)
         self._by_trigger: Dict[str, List[str]] = defaultdict(list)
+        self._executions: Dict[str, ExecutionEvent] = {}   # decision_id -> event
 
     # ---- construction ---------------------------------------------------
 
@@ -65,6 +67,43 @@ class DecisionGraph:
         self._by_decision[record.decision].append(record.decision_id)
         self._by_trigger[record.triggered_by].append(record.decision_id)
         return self
+
+    def add_execution(self, event: ExecutionEvent) -> "DecisionGraph":
+        if not event.verify():
+            raise ValueError(
+                f"execution event {event.event_id} is unsealed or tampered"
+            )
+        if event.decision_ref not in self._records:
+            raise ValueError(
+                f"execution event references unknown decision "
+                f"{event.decision_ref}"
+            )
+        decision = self._records[event.decision_ref]
+        if event.prev_hash != decision.record_hash:
+            raise ValueError(
+                f"execution event anchor mismatch: prev_hash does not "
+                f"equal decision {event.decision_ref} record_hash"
+            )
+        if event.decision_ref in self._executions:
+            raise ValueError(
+                f"decision {event.decision_ref} already has an execution event"
+            )
+        self._executions[event.decision_ref] = event
+        return self
+
+    def outcome_of(self, decision_id: str) -> str:
+        ev = self._executions.get(decision_id)
+        return ev.status if ev is not None else "pending"
+
+    def find_divergent(self) -> List[DecisionRecord]:
+        """Decisions the runtime BLOCKed that the executor reports as
+        executed anyway — enforcement divergence."""
+        out = []
+        for did, ev in self._executions.items():
+            rec = self._records[did]
+            if rec.decision == "block" and ev.status == "ok":
+                out.append(rec)
+        return out
 
     # ---- lineage ----------------------------------------------------------
 
