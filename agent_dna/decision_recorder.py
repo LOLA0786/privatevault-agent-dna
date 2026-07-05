@@ -33,9 +33,12 @@ class DecisionRecorder:
         self,
         graph: Optional[DecisionGraph] = None,
         store=None,                       # optional DecisionStore
+        signer=None,                      # optional ReceiptSigner
     ) -> None:
         self.graph = graph if graph is not None else DecisionGraph()
         self.store = store
+        self.signer = signer
+        self.envelopes: Dict[str, dict] = {}   # record_hash -> envelope
         self._chains: Dict[str, _ChainState] = {}
 
     def record(
@@ -54,6 +57,9 @@ class DecisionRecorder:
         self.graph.add(rec)
         if self.store is not None:
             self.store.append(rec)
+        if self.signer is not None:
+            env = self.signer.sign_record(rec)
+            self.envelopes[rec.record_hash] = env.to_dict()
 
         chain.last_decision_id = rec.decision_id
         chain.last_hash = rec.record_hash
