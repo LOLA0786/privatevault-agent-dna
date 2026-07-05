@@ -111,6 +111,7 @@ class DecisionEngine:
         invariants: Optional[InvariantChecker] = None,
         authorizer: Optional[Authorizer] = None,
         drift_threshold: float = 0.50,
+        uaal=None,                     # optional UAALConstraintChecker (L0)
     ):
 
         self.scorer = scorer
@@ -120,6 +121,8 @@ class DecisionEngine:
         self.authorizer = authorizer
 
         self.drift_threshold = drift_threshold
+
+        self.uaal = uaal
 
         self.evidence_engine = EvidenceEngine()
 
@@ -225,12 +228,36 @@ class DecisionEngine:
         self,
         action: AgentAction,
         prev_capability: Optional[str] = None,
+        evidence: Optional[dict] = None,
     ) -> DecisionResult:
 
         signal = self.scorer.score(
             action,
             prev_capability,
         )
+
+        #
+        # 0. UAAL enterprise constraints — above everything.
+        #
+        if self.uaal is not None:
+            u = self.uaal.check(action, evidence)
+            if u.violated:
+                return DecisionResult(
+                    decision=Decision.BLOCK,
+                    triggered_by="uaal_constraint",
+                    reason=u.message,
+                    capability=action.capability,
+                    agent_id=action.agent_id,
+                    drift_score=signal.drift_score,
+                    severity=signal.severity,
+                    invariant_message=u.message,
+                    advisory_reasons=list(signal.reasons),
+                    evidence=self.evidence_engine.build(
+                        drift_score=signal.drift_score,
+                        invariant=True,
+                        authorized=True,
+                    ),
+                )
 
         invariant = None
 
