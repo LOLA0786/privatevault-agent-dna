@@ -1,64 +1,124 @@
-# PrivateVault Agent DNA™ — Behavioural Identity Core
+# PrivateVault Agent DNA™ — Behavioral Identity & Decision Security Runtime
 
-> Identity tells you *who* an agent is. Agent DNA tells you whether the agent is
-> still behaving like *itself*.
+Identity tells you who an agent is. Agent DNA tells you whether the
+agent is still behaving like itself — and refuses, records, and proves
+it when it isn't.
 
-A zero-dependency Python core that learns an autonomous agent's trusted
-operational profile from execution traces and emits **advisory** evidence when
-the agent starts behaving unlike itself. The learned model never enforces; the
-deterministic firewall does.
-
-## Why this exists
-
-The rest of the PrivateVault stack (Decision Integrity Engine, Trust Fabric,
-Approval Binding, Replay Engine) is *deterministic* — it enforces policy and
-produces tamper-evident audit. Agent DNA is the layer those don't cover:
-**behavioural drift detection**. It answers a question deterministic rules
-can't: "every individual action here is technically permitted — but is this
-still the same agent we profiled?"
-
-It is built from inspectable statistics (capability vocabulary, a Markov
-transition model, per-argument distributions) rather than a black box, because in
-BFSI/healthcare every flag must come with a one-sentence "why".
+A Python runtime that (1) learns an autonomous agent's trusted
+operational profile from execution traces, (2) enforces decisions
+pre-execution through a deterministic precedence model, and (3) emits
+a tamper-evident, independently verifiable decision audit trail.
 
 ## The non-negotiable property
 
-`advisory.py` makes the research-vision promise — *"the learned model is advisory
-only and never replaces policy enforcement"* — a **code-level invariant**:
+The learned model is advisory. The deterministic layers decide.
+`decision.py` encodes this as a strict precedence order — observable
+in every record's `triggered_by` field:
 
-1. A deterministic policy `DENY` is final. Agent DNA can never turn it into an `ALLOW`.
-2. Agent DNA can only *raise* scrutiny (escalate `ALLOW` → `require_approval`),
-   never lower it.
+    1. behavioral invariants   (deterministic contract)  -> BLOCK
+    2. capability grants       (deterministic authz)     -> REQUIRE_APPROVAL
+    3. learned drift           (probabilistic advisory)  -> REQUIRE_APPROVAL
+    4. baseline                                          -> ALLOW
 
-That keeps the security boundary deterministic and auditable; the ML adds earlier
-warning, not a new bypass. This is a selling point, not a limitation.
+A deterministic DENY is final: drift scores can never turn it into an
+ALLOW. Learned signals can only raise scrutiny, never lower it. The ML
+adds earlier warning, not a new bypass. In BFSI/healthcare terms:
+the security boundary is deterministic and auditable; the model
+explains, the rules decide.
 
 ## Architecture
 
-execution traces ──► CapabilityManifold (CML)   what's normal: vocab + arg distributions
-                 └─► BehaviorDynamics  (BDM)     normal ordering: Markov transition model
-                            │
-                            ▼
-                       DriftScorer ──► AdvisorySignal   (score + severity + reasons)
-                            │
-                            ▼
-                     DeterministicGate ──► authoritative decision
-                     (policy wins; advisory can only escalate)
+    execution traces
+          |
+    CapabilityManifold (what's normal: vocab + arg distributions)
+    BehaviorDynamics   (normal ordering: Markov transition model)
+          |
+    DriftScorer -> AdvisorySignal (score + severity + reasons)
+          |
+    DecisionEngine     precedence: invariant > authz > drift > allow
+          |
+    RuntimeMonitor     enforcing streaming path; denied actions
+          |            never advance the behavioral baseline
+    DecisionRecorder -> sealed, hash-chained DecisionRecords
+          |
+    DecisionStore      append-only (JSONL or SQLite/WAL)
+          |
+    ExecutionEvents    executor feedback, hash-anchored per decision
+          |
+    DecisionGraph      queryable lineage / blocked / divergence
+          |
+    tools/verify_records.py   stdlib-only independent auditor
+
+## What the audit layer proves
+
+| Attack on the log                     | Caught by              |
+|---------------------------------------|------------------------|
+| Edit any field of any record          | record_hash mismatch   |
+| Delete or reorder records             | per-agent chain break  |
+| Forge an execution result             | anchor mismatch        |
+| Runtime says BLOCK, action ran anyway | ENFORCEMENT DIVERGENCE |
+
+Verification requires nothing but Python 3 and one file — no
+dependency on this codebase. Canonical test vectors and JSON Schemas
+live in `spec/`.
+
+## HTTP API
+
+The enforcement surface is `POST /v1/decide`; the HTTP status code IS
+the signal:
+
+    200  allow
+    202  require_approval
+    403  block
+
+Plus `/v1/outcome` (anchored executor feedback), query endpoints
+(`/v1/blocked`, `/v1/divergent`, `/v1/lineage/{id}`), and an audit
+surface (`/v1/verify`, `/v1/audit/export` — verifier-ready JSONL).
+
+## Run it
+
+    # dev
+    pip install -e ".[dev]" --break-system-packages
+    python -m pytest -q                      # 100 tests
+    python examples/end_to_end_demo.py       # full pipeline + tamper demo
+
+    # service
+    docker compose up
+    curl -i -X POST localhost:8000/v1/decide \
+      -H 'Content-Type: application/json' \
+      -d '{"agent_id":"a1","capability":"crm.read_contact","timestamp":0}'
+
+## Modules
 
 | Module | Role |
 |---|---|
-| `trace.py` | The data contract: `AgentAction`, `ExecutionTrace`. |
-| `manifold.py` | Capability Manifold Learning — vocabulary, argument feature distributions, timing. |
-| `dynamics.py` | Behavior Dynamics — Laplace-smoothed Markov model over capability order. |
-| `scorer.py` | Decomposed drift score (novelty / sequence / arguments) with reasons. |
-| `advisory.py` | `AdvisorySignal` + `DeterministicGate` — the enforcement boundary. |
-| `adapters.py` | Real-trace integration point + clearly-labelled synthetic generators. |
+| `trace.py` | Data contract: `AgentAction`, `ExecutionTrace` |
+| `manifold.py` / `dynamics.py` | Learned profile: capability vocabulary, argument distributions, Markov ordering |
+| `scorer.py` / `advisory.py` | Decomposed drift score with one-sentence reasons |
+| `decision.py` | Precedence engine — the enforcement boundary |
+| `runtime.py` | Enforcing streaming monitor |
+| `decision_record.py` / `execution_record.py` | Sealed, hash-chained record kinds |
+| `decision_graph.py` / `decision_recorder.py` | Queryable lineage, chain verification |
+| `decision_store.py` / `sqlite_store.py` | Append-only persistence (JSONL / SQLite WAL) |
+| `multi_agent/` | Cross-agent behavioral invariants (topology, temporal, authority, consensus) |
+| `api/server.py` | FastAPI decision service |
+| `spec/` | Open wire format: JSON Schemas + canonical test vectors |
+| `tools/verify_records.py` | Independent, stdlib-only audit verifier |
 
-## Quickstart
+## Calibration honesty
 
-```bash
-cat <<'EOF' > /tmp/run_agent_dna.sh
-cd privatevault-agent-dna
-python -m pip install -e ".[dev]" --break-system-packages
-python -m pytest -q
-python -m examples.demo
+Behavioral profiles in the demos and the default API are trained on
+clearly-labelled synthetic traces (`adapters.py`). Thresholds and
+accuracy figures are synthetic-calibrated; production deployment
+requires profiling on real execution traces. This is stated in the
+API's root endpoint (`calibration` field) deliberately.
+
+## Relationship to the PrivateVault runtime
+
+This repo is the behavioral identity and decision-graph layer. The
+PrivateVault enforcement runtime adds Ed25519 receipt signing,
+approval binding, and replay on top of the same record format. The
+wire format itself is being extracted to a standalone open
+specification (`spec/` is its staging ground). `receipt_ref` on
+DecisionRecords is the signing seam — schema-reserved until the
+binding lands.
