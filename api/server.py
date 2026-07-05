@@ -62,7 +62,11 @@ def _train_scorer() -> DriftScorer:
 async def lifespan(app: FastAPI):
     store = SQLiteDecisionStore(DB_PATH)
     recorder = DecisionRecorder(store=store)
-    engine = DecisionEngine(scorer=_train_scorer())
+    from agent_dna.uaal_layer import UAALConstraintChecker
+    engine = DecisionEngine(
+        scorer=_train_scorer(),
+        uaal=UAALConstraintChecker(),
+    )
     # one monitor per agent_id: behavioral state is per-agent
     state["store"] = store
     state["recorder"] = recorder
@@ -97,6 +101,8 @@ class DecideRequest(BaseModel):
     timestamp: float
     arguments: Dict[str, Any] = Field(default_factory=dict)
     context: Dict[str, Any] = Field(default_factory=dict)
+    evidence: Dict[str, Any] = Field(default_factory=dict)
+    request_id: Optional[str] = None
 
 
 class OutcomeRequest(BaseModel):
@@ -117,7 +123,7 @@ def decide(req: DecideRequest):
         context=req.context,
     )
     monitor = _monitor_for(req.agent_id)
-    result = monitor.process(action)
+    result = monitor.process(action, evidence=req.evidence or None)
     record = list(state["recorder"].graph.find_by_agent(req.agent_id))[-1]
 
     return JSONResponse(

@@ -42,8 +42,14 @@ class RuntimeMonitor:
         self.previous_capability: Optional[str] = None
         self.events: List[RuntimeEvent] = []
 
-    def process(self, action: AgentAction) -> DecisionResult:
-        result = self.engine.decide(action, self.previous_capability)
+    def process(
+        self,
+        action: AgentAction,
+        evidence: dict | None = None,
+    ) -> DecisionResult:
+        result = self.engine.decide(
+            action, self.previous_capability, evidence=evidence
+        )
 
         # decide() already scored internally; rebuild the advisory once for
         # the event record so downstream consumers see what the engine saw.
