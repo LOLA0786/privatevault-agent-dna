@@ -31,9 +31,13 @@ from typing import Any, Dict, List
 VALID_STATUS = ("ok", "error", "refused")
 
 
+PROTOCOL_VERSION = "drp/0.1"
+
+
 @dataclass
 class ExecutionEvent:
     kind: str = field(default="execution", init=False)
+    protocol_version: str = field(default=PROTOCOL_VERSION, init=False)
     event_id: str = ""
     agent_id: str = ""
     decision_ref: str = ""              # decision_id this reports on
@@ -47,6 +51,7 @@ class ExecutionEvent:
     def payload(self) -> Dict[str, Any]:
         return {
             "kind": self.kind,
+            "protocol_version": self.protocol_version,
             "event_id": self.event_id,
             "agent_id": self.agent_id,
             "decision_ref": self.decision_ref,

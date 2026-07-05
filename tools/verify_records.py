@@ -56,6 +56,12 @@ def verify(path: str) -> int:
                 failures.append(f"line {lineno}: invalid JSON")
                 continue
 
+            pv = rec.get("protocol_version")
+            if pv != "drp/0.1":
+                failures.append(
+                    f"line {lineno}: protocol_version {pv!r} is not drp/0.1"
+                )
+
             kind = rec.get("kind", "decision")
             stored = rec.get("record_hash", "")
             computed = compute_hash(rec)

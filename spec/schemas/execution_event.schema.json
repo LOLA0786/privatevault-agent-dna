@@ -1,44 +1,86 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://privatevault.ai/spec/schemas/execution_event.schema.json",
+  "$id": "https://drp.privatevault.ai/schemas/execution_event.schema.json",
   "title": "ExecutionEvent",
   "description": "Executor feedback for exactly one decision. prev_hash is the record_hash of the referenced decision (anchor binding), NOT part of the agent decision chain. At most one execution event per decision. A status of ok on a decision that was block constitutes enforcement divergence and MUST fail verification.",
   "type": "object",
   "required": [
-    "kind", "event_id", "agent_id", "decision_ref", "status",
-    "detail", "edges", "timestamp", "prev_hash", "record_hash"
+    "protocol_version",
+    "kind",
+    "event_id",
+    "agent_id",
+    "decision_ref",
+    "status",
+    "detail",
+    "edges",
+    "timestamp",
+    "prev_hash",
+    "record_hash"
   ],
   "additionalProperties": false,
   "properties": {
-    "kind": { "const": "execution" },
-    "event_id": { "type": "string", "minLength": 1 },
-    "agent_id": { "type": "string", "minLength": 1 },
+    "protocol_version": {
+      "const": "drp/0.1"
+    },
+    "kind": {
+      "const": "execution"
+    },
+    "event_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "agent_id": {
+      "type": "string",
+      "minLength": 1
+    },
     "decision_ref": {
       "type": "string",
       "minLength": 1,
       "description": "decision_id of the decision this event reports on. Must appear earlier in the file."
     },
-    "status": { "enum": ["ok", "error", "refused"] },
-    "detail": { "type": "string" },
+    "status": {
+      "enum": [
+        "ok",
+        "error",
+        "refused"
+      ]
+    },
+    "detail": {
+      "type": "string"
+    },
     "edges": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["type", "target"],
+        "required": [
+          "type",
+          "target"
+        ],
         "additionalProperties": false,
         "properties": {
-          "type": { "enum": ["resulted_in"] },
-          "target": { "type": "string" }
+          "type": {
+            "enum": [
+              "resulted_in"
+            ]
+          },
+          "target": {
+            "type": "string"
+          }
         }
       },
       "description": "resulted_in edge: target = decision_ref."
     },
-    "timestamp": { "type": "number" },
+    "timestamp": {
+      "type": "number"
+    },
     "prev_hash": {
       "type": "string",
       "pattern": "^[0-9a-f]{64}$",
       "description": "record_hash of the referenced decision (anchor)."
     },
-    "record_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+    "record_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
   }
 }

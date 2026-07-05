@@ -67,6 +67,7 @@ class DecisionStore:
         for d in self._iter_dicts():
             record_hash = d.pop("record_hash")
             kind = d.pop("kind", "decision")
+            d.pop("protocol_version", None)   # init=False, restored by dataclass
             if kind == "execution":
                 rec = ExecutionEvent(**d)
             else:

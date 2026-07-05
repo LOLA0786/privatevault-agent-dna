@@ -36,10 +36,14 @@ from .trace import AgentAction
 GENESIS_HASH = "0" * 64
 
 
+PROTOCOL_VERSION = "drp/0.1"
+
+
 @dataclass
 class DecisionRecord:
     # identity / lineage
     kind: str = field(default="decision", init=False)   # record discriminator
+    protocol_version: str = field(default=PROTOCOL_VERSION, init=False)
     decision_id: str
     parent_decision: Optional[str]      # previous record for this agent (chain, not DAG — yet)
     agent_id: str
@@ -59,6 +63,7 @@ class DecisionRecord:
     outcome: str                        # "pending" until an executor reports back
 
     # schema-reserved: nothing produces these yet (see module docstring)
+    request_id: Optional[str] = None    # link to originating ActionRequest
     goal: Optional[str] = None
     intent: Optional[str] = None
     policy_id: Optional[str] = None
@@ -80,6 +85,7 @@ class DecisionRecord:
         """Everything covered by the hash, in canonical order."""
         return {
             "kind": self.kind,
+            "protocol_version": self.protocol_version,
             "decision_id": self.decision_id,
             "parent_decision": self.parent_decision,
             "agent_id": self.agent_id,
@@ -93,6 +99,7 @@ class DecisionRecord:
             "evidence_strength": self.evidence_strength,
             "arguments_digest": self.arguments_digest,
             "outcome": self.outcome,
+            "request_id": self.request_id,
             "goal": self.goal,
             "intent": self.intent,
             "policy_id": self.policy_id,
@@ -147,6 +154,7 @@ def build_record(
     *,
     parent_decision: Optional[str] = None,
     prev_hash: str = GENESIS_HASH,
+    request_id: Optional[str] = None,
 ) -> DecisionRecord:
     """Reduce (AgentAction, DecisionResult) to a sealed DecisionRecord."""
     result_dict = result.to_dict()
@@ -164,6 +172,7 @@ def build_record(
         evidence_strength=result_dict["evidence_strength"],
         arguments_digest=_digest_arguments(action.arguments),
         outcome="pending",
+        request_id=request_id,
         edges=(
             [{"type": "follows", "target": parent_decision}]
             if parent_decision is not None

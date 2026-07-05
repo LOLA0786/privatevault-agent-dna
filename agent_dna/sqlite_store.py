@@ -90,6 +90,7 @@ class SQLiteDecisionStore:
             d = json.loads(body)
             record_hash = d.pop("record_hash")
             kind = d.pop("kind", "decision")
+            d.pop("protocol_version", None)   # init=False, restored by dataclass
             rec = ExecutionEvent(**d) if kind == "execution" else DecisionRecord(**d)
             rec.record_hash = record_hash
             out.append(rec)
