@@ -1,0 +1,13 @@
+services:
+  privatevault:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - pv_data:/data
+    environment:
+      - PV_DB_PATH=/data/privatevault.db
+    restart: unless-stopped
+
+volumes:
+  pv_data:

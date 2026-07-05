@@ -1,0 +1,49 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: |
+          pip install -r requirements.txt
+          pip install pytest httpx
+          pip install -e .
+
+      - name: Test suite
+        run: python -m pytest tests/ -q
+
+      - name: Regenerate + verify spec test vectors
+        run: |
+          python tools/generate_test_vectors.py
+          python tools/verify_records.py spec/test-vectors/clean.jsonl
+          ! python tools/verify_records.py spec/test-vectors/tampered_field.jsonl
+          ! python tools/verify_records.py spec/test-vectors/deleted_record.jsonl
+          ! python tools/verify_records.py spec/test-vectors/divergent.jsonl
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t privatevault-agent-dna .
+      - name: Container smoke test
+        run: |
+          docker run -d --name pv -p 8000:8000 privatevault-agent-dna
+          sleep 8
+          curl -sf localhost:8000/health
+          code=$(curl -s -o /dev/null -w "%{http_code}" -X POST localhost:8000/v1/decide \
+            -H 'Content-Type: application/json' \
+            -d '{"agent_id":"ci","capability":"crm.read_contact","timestamp":1751700000}')
+          test "$code" = "200"
+          docker stop pv
