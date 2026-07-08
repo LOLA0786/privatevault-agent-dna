@@ -11,3 +11,8 @@ build/
 __pycache__/
 *.pyc
 .pytest_cache/
+*.tar.gz
+audit.csv
+audit.json
+audit.parquet
+files.txt
