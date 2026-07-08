@@ -51,9 +51,22 @@ class RuntimeMonitor:
             action, self.previous_capability, evidence=evidence
         )
 
-        # decide() already scored internally; rebuild the advisory once for
-        # the event record so downstream consumers see what the engine saw.
-        signal = self.engine.scorer.score(action, self.previous_capability)
+        # decide() already scored internally and is itself fail-closed.
+        # Rebuild the advisory for the event record too, but never let
+        # a second, redundant scoring call bypass fail-closed behavior
+        # that decide() already enforced.
+        try:
+            signal = self.engine.scorer.score(action, self.previous_capability)
+        except Exception:
+            # decide() already produced the authoritative (fault-closed)
+            # result above; the advisory rebuild is best-effort only.
+            signal = AdvisorySignal(
+                agent_id=action.agent_id,
+                capability=action.capability,
+                drift_score=result.drift_score,
+                severity=result.severity,
+                reasons=list(result.advisory_reasons),
+            )
 
         self.events.append(
             RuntimeEvent(
