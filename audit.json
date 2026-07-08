@@ -1,0 +1,12 @@
+[
+  {
+    "decision_id": "1",
+    "status": "approved",
+    "risk": 0.02
+  },
+  {
+    "decision_id": "2",
+    "status": "blocked",
+    "risk": 0.91
+  }
+]

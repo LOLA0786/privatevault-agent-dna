@@ -269,16 +269,28 @@ class DecisionEngine:
             )
 
         authorized = True
+        auth_reason = None
 
         if self.authorizer is not None:
+            if hasattr(self.authorizer, "explain"):
+                amount = (action.arguments or {}).get("amount")
+                try:
+                    amount = float(amount) if amount is not None else None
+                except (TypeError, ValueError):
+                    amount = None
+                authorized, auth_reason, grant_id = self.authorizer.explain(
+                    action.agent_id, action.capability, amount=amount
+                )
+            else:
+                authorized = self.authorizer.is_authorized(
+                    action.agent_id, action.capability
+                )
 
-            authorized = self.authorizer.is_authorized(
-                action.agent_id,
-                action.capability,
-            )
-
-        return self.decide_from(
+        result = self.decide_from(
             signal=signal,
             invariant=invariant,
             authorized=authorized,
         )
+        if auth_reason is not None and result.triggered_by == "authorization":
+            result.reason = auth_reason
+        return result
