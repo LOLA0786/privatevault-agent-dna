@@ -214,9 +214,9 @@ If the enforcement layer described here is adjacent to that line,
 everything referenced above is available for direct review:
 
 - Runtime + demos + 120-test suite:
-  https://github.com/privatevault-ai/privatevault-agent-dna
+  https://github.com/LOLA0786/privatevault-agent-dna
 - DRP specification (schemas, test vectors, stdlib verifier, AARM
-  crosswalk): https://github.com/privatevault-ai/drp-spec
+  crosswalk): https://github.com/LOLA0786/drp-spec
 - The composed demo (§5): `examples/composed_line_demo.py`; the
   independent verifier: `tools/verify_records.py`
 
