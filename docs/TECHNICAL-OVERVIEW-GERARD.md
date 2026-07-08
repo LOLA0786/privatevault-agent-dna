@@ -213,12 +213,12 @@ authorization disagree?
 If the enforcement layer described here is adjacent to that line,
 everything referenced above is available for direct review:
 
-- Runtime + demos + 120-test suite:
-  https://github.com/LOLA0786/privatevault-agent-dna
-- DRP specification (schemas, test vectors, stdlib verifier, AARM
-  crosswalk): https://github.com/LOLA0786/drp-spec
-- The composed demo (§5): `examples/composed_line_demo.py`; the
-  independent verifier: `tools/verify_records.py`
+- DRP specification — schemas, canonical test vectors, and the
+  standard-library-only verifier — is public:
+  https://github.com/LOLA0786/drp-spec
+- The runtime (five-level engine, composed demo, 120-test suite) is
+  a commercial codebase; private repository access for your team's
+  review is available on request, as is a live working session.
 
 A working session can run the composed line against scenarios of your
 choosing.
