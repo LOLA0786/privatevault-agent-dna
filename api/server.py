@@ -39,7 +39,6 @@ from agent_dna.sqlite_store import SQLiteDecisionStore
 from agent_dna.trace import AgentAction
 
 from fastapi import Response
-from agent_dna.observability import metrics
 DB_PATH = os.environ.get("PV_DB_PATH", "data/privatevault.db")
 
 STATUS_MAP = {
@@ -222,7 +221,6 @@ def health():
 @app.get("/metrics")
 def prometheus_metrics():
 
-    body, content_type = metrics.export()
 
     return Response(
         content=body,
