@@ -230,6 +230,39 @@ class DecisionEngine:
         prev_capability: Optional[str] = None,
         evidence: Optional[dict] = None,
     ) -> DecisionResult:
+        try:
+            return self._decide_unsafe(action, prev_capability, evidence)
+        except Exception as exc:
+            #
+            # Fail-closed: ANY exception inside the decision path — a
+            # buggy scorer, invariant checker, authorizer, or UAAL
+            # evidence source — must never propagate (denial of
+            # enforcement) and must never be silently swallowed into
+            # an ALLOW. The fault itself becomes an auditable BLOCK.
+            #
+            return DecisionResult(
+                decision=Decision.BLOCK,
+                triggered_by="engine_fault",
+                reason=f"{type(exc).__name__}: {exc}",
+                capability=action.capability,
+                agent_id=action.agent_id,
+                drift_score=0.0,
+                severity=Severity.CRITICAL,
+                invariant_message="",
+                advisory_reasons=[],
+                evidence=self.evidence_engine.build(
+                    drift_score=0.0,
+                    invariant=True,
+                    authorized=True,
+                ),
+            )
+
+    def _decide_unsafe(
+        self,
+        action: AgentAction,
+        prev_capability: Optional[str] = None,
+        evidence: Optional[dict] = None,
+    ) -> DecisionResult:
 
         signal = self.scorer.score(
             action,
