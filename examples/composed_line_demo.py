@@ -120,7 +120,9 @@ def main():
         signed = verify_envelope(env, rec.record_hash)
         print(
             f"{desc:<34} {result.decision.value.upper():<17}"
-            f" L={result.triggered_by:<16} signed={'Y' if signed else 'N'}"
+            f" L={result.triggered_by:<16}"
+            f" drift={result.drift_score:.2f}"
+            f" signed={'Y' if signed else 'N'}"
         )
 
     g = recorder.graph
