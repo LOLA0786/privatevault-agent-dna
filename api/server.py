@@ -22,7 +22,9 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
+
+from agent_dna.apikeys import ApiKeyRegistry
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
@@ -59,8 +61,23 @@ def _train_scorer() -> DriftScorer:
     return DriftScorer(manifold, dynamics)
 
 
+def require_api_key(x_api_key: str | None = Header(default=None)):
+    reg: ApiKeyRegistry = state.get("apikeys")
+    if reg is None or not reg.enabled:
+        return "auth-disabled"
+    name = reg.verify(x_api_key)
+    if name is None:
+        raise HTTPException(status_code=401, detail="invalid or missing API key")
+    return name
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    state["apikeys"] = ApiKeyRegistry()
+    if not state["apikeys"].enabled:
+        import sys
+        print("WARNING: PV_API_KEYS_FILE unset — API auth is DISABLED",
+              file=sys.stderr)
     store = SQLiteDecisionStore(DB_PATH)
     recorder = DecisionRecorder(store=store)
     from agent_dna.uaal_layer import UAALConstraintChecker
@@ -114,7 +131,7 @@ class OutcomeRequest(BaseModel):
 
 # ---------- enforcement surface ---------------------------------------------
 
-@app.post("/v1/decide")
+@app.post("/v1/decide", dependencies=[Depends(require_api_key)])
 def decide(req: DecideRequest):
     action = AgentAction(
         agent_id=req.agent_id,
@@ -138,7 +155,7 @@ def decide(req: DecideRequest):
     )
 
 
-@app.post("/v1/outcome")
+@app.post("/v1/outcome", dependencies=[Depends(require_api_key)])
 def outcome(req: OutcomeRequest):
     try:
         event = state["recorder"].report_outcome(
@@ -151,7 +168,7 @@ def outcome(req: OutcomeRequest):
 
 # ---------- query surface ----------------------------------------------------
 
-@app.get("/v1/records/{agent_id}")
+@app.get("/v1/records/{agent_id}", dependencies=[Depends(require_api_key)])
 def records(agent_id: str):
     g = state["recorder"].graph
     return {
@@ -160,19 +177,19 @@ def records(agent_id: str):
     }
 
 
-@app.get("/v1/blocked")
+@app.get("/v1/blocked", dependencies=[Depends(require_api_key)])
 def blocked():
     g = state["recorder"].graph
     return {"blocked": [r.to_dict() for r in g.find_blocked()]}
 
 
-@app.get("/v1/divergent")
+@app.get("/v1/divergent", dependencies=[Depends(require_api_key)])
 def divergent():
     g = state["recorder"].graph
     return {"divergent": [r.to_dict() for r in g.find_divergent()]}
 
 
-@app.get("/v1/lineage/{decision_id}")
+@app.get("/v1/lineage/{decision_id}", dependencies=[Depends(require_api_key)])
 def lineage(decision_id: str):
     g = state["recorder"].graph
     try:
@@ -184,12 +201,12 @@ def lineage(decision_id: str):
 
 # ---------- audit surface -------------------------------------------------------
 
-@app.get("/v1/verify")
+@app.get("/v1/verify", dependencies=[Depends(require_api_key)])
 def verify():
     return {"chains": state["recorder"].graph.verify_all()}
 
 
-@app.get("/v1/audit/export")
+@app.get("/v1/audit/export", dependencies=[Depends(require_api_key)])
 def audit_export():
     tmp = Path(tempfile.mkstemp(suffix=".jsonl")[1])
     state["store"].export_jsonl(tmp)
