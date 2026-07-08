@@ -25,6 +25,7 @@ from typing import Any, Dict, Optional
 from fastapi import Depends, FastAPI, Header, HTTPException
 
 from agent_dna.apikeys import ApiKeyRegistry
+from agent_dna.signer import KEY_ENV, ReceiptSigner
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
@@ -79,7 +80,15 @@ async def lifespan(app: FastAPI):
         print("WARNING: PV_API_KEYS_FILE unset — API auth is DISABLED",
               file=sys.stderr)
     store = SQLiteDecisionStore(DB_PATH)
-    recorder = DecisionRecorder(store=store)
+    signer = None
+    if os.getenv(KEY_ENV):
+        signer = ReceiptSigner()
+    else:
+        import sys
+        print(f"WARNING: {KEY_ENV} unset — decisions will NOT be signed",
+              file=sys.stderr)
+    recorder = DecisionRecorder(store=store, signer=signer)
+    state["signer"] = signer
     from agent_dna.uaal_layer import UAALConstraintChecker
     engine = DecisionEngine(
         scorer=_train_scorer(),
@@ -201,6 +210,19 @@ def lineage(decision_id: str):
 
 # ---------- audit surface -------------------------------------------------------
 
+@app.get("/v1/envelope/{record_hash}", dependencies=[Depends(require_api_key)])
+def envelope(record_hash: str):
+    env = state["recorder"].envelopes.get(record_hash)
+    if env is None:
+        raise HTTPException(
+            status_code=404,
+            detail="no envelope for this hash (unsigned mode, pre-restart "
+                   "record, or unknown hash — envelope persistence is a "
+                   "documented roadmap item)",
+        )
+    return {"envelope": env}
+
+
 @app.get("/v1/verify", dependencies=[Depends(require_api_key)])
 def verify():
     return {"chains": state["recorder"].graph.verify_all()}
@@ -226,6 +248,10 @@ def root():
         "category": "Decision Security Runtime",
         "enforcement": "POST /v1/decide (200 allow / 202 approval / 403 block)",
         "calibration": "synthetic behavioral profile — pilot trace pending",
+        "signing": (
+            {"algorithm": "Ed25519", "public_key": state["signer"].public_key}
+            if state.get("signer") else "disabled"
+        ),
         "status": "running",
     }
 
