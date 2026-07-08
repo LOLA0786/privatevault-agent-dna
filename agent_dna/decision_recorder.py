@@ -40,6 +40,25 @@ class DecisionRecorder:
         self.signer = signer
         self.envelopes: Dict[str, dict] = {}   # record_hash -> envelope
         self._chains: Dict[str, _ChainState] = {}
+        if store is not None:
+            self.restore_chains()
+
+    def restore_chains(self) -> int:
+        """Rebuild the in-memory graph and per-agent chain heads from the
+        store. Without this, a process restart would chain the next
+        record from GENESIS instead of the last persisted hash — a
+        chain break in our own audit trail. Returns records restored."""
+        restored = self.store.load_graph()
+        # adopt the restored graph wholesale (verified record-by-record
+        # inside load_graph via graph.add / add_execution)
+        self.graph = restored
+        count = 0
+        for rec in restored:
+            chain = self._chains.setdefault(rec.agent_id, _ChainState())
+            chain.last_decision_id = rec.decision_id
+            chain.last_hash = rec.record_hash
+            count += 1
+        return count
 
     def record(
         self,
