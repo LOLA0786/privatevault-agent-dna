@@ -136,7 +136,7 @@ def main():
         recorder.report_outcome(rec.decision_id, status)
         env = recorder.envelopes[rec.record_hash]
         signed = verify_envelope(env, rec.record_hash)
-        rows.append((desc, result.decision.value.upper(),
+        rows.append((desc, action.agent_id, result.decision.value.upper(),
                      result.triggered_by, signed))
         print(f"{desc}")
         print(f"    -> {result.decision.value.upper():<17} "
@@ -160,20 +160,28 @@ def main():
 
     banner("ATTACK — re-chain a signed record")
     victim = list(g)[0]
+    original_hash = victim.record_hash
     original_env = recorder.envelopes[victim.record_hash]
     victim.prev_hash = "f" * 64
     victim.record_hash = victim.compute_hash()
-    print(f"record re-seals cleanly : {victim.verify()}")
-    print(f"signature still binds   : "
-          f"{verify_envelope(original_env, victim.record_hash)}")
+    print(f"original record_hash    : {original_hash}")
+    print(f"prev_hash forged to     : {'f' * 64}")
+    print(f"new record_hash (re-seal): {victim.record_hash}")
+    print(f"record re-seals cleanly  : {victim.verify()}  <- the record")
+    print(f"                                                is internally consistent")
+    print(f"signature still binds    : "
+          f"{verify_envelope(original_env, victim.record_hash)}  <- but the")
+    print(f"                                                signature was issued")
+    print(f"                                                for {original_hash[:16]}..,")
+    print(f"                                                not {victim.record_hash[:16]}..")
     print("-> individually valid record, cryptographically disowned history")
 
     banner("SUMMARY")
-    print(f"{'Scenario':<58} {'Verdict':<17} {'Level':<14} {'Signed'}")
-    print("-" * 100)
-    for desc, verdict, trigger, signed in rows:
+    print(f"{'Scenario':<45} {'Agent':<16} {'Verdict':<17} {'Level':<14} {'Signed'}")
+    print("-" * 105)
+    for desc, agent_id, verdict, trigger, signed in rows:
         short = desc.split("—")[0].strip()
-        print(f"{short:<58} {verdict:<17} {trigger:<14} "
+        print(f"{short:<45} {agent_id:<16} {verdict:<17} {trigger:<14} "
               f"{'Y' if signed else 'N'}")
     print()
     print("Every verdict above is deterministic except L4 (drift). "
