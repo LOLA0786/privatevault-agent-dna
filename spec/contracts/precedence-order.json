@@ -1,48 +1,25 @@
 {
   "contract": "precedence-order",
-  "version": "1.0",
-  "description": "The authoritative, ordered list of decision precedence levels. Evaluated strictly in this order; the first violation terminates evaluation. This file is the single source of truth for the claim 'a deterministic DENY is final and cannot be overridden by a lower level.' CI fails if decision.py's actual branch order diverges from this list without this file being updated in the same commit.",
+  "version": "2.0",
+  "description": "The authoritative, ordered list of decision precedence levels. Evaluated strictly in this order; the first violation terminates evaluation. v2.0 adds the economics level (cost anomaly / ROI floor) between authorization and drift. A deterministic DENY remains final and cannot be overridden by a lower level.",
   "levels": [
-    {
-      "order": 0,
-      "name": "uaal_constraint",
-      "class": "deterministic",
-      "outcome_on_violation": "block",
-      "description": "Enterprise constraints — evidence-checked predicates against caller-supplied state (amount conservation, canonical-target identity, approval-token presence)."
-    },
-    {
-      "order": 1,
-      "name": "invariant",
-      "class": "deterministic",
-      "outcome_on_violation": "block",
-      "description": "Behavioral contracts — forbidden capability set-membership and transition constraints."
-    },
-    {
-      "order": 2,
-      "name": "authorization",
-      "class": "deterministic",
-      "outcome_on_violation": "require_approval",
-      "description": "Capability grants — expiry, revocation, budget. Absence or invalidity of a grant escalates to human approval, does not hard-block."
-    },
-    {
-      "order": 3,
-      "name": "drift",
-      "class": "probabilistic",
-      "outcome_on_violation": "require_approval",
-      "description": "Learned behavioral drift. The ONLY non-deterministic level. Can escalate ALLOW to REQUIRE_APPROVAL; can NEVER produce or override a BLOCK, and can never turn a deterministic REQUIRE_APPROVAL or BLOCK back into ALLOW."
-    },
-    {
-      "order": 4,
-      "name": "baseline",
-      "class": "deterministic",
-      "outcome_on_violation": "allow",
-      "description": "No violation at any prior level."
-    }
+    {"order": 0, "name": "uaal_constraint", "class": "deterministic", "outcome_on_violation": "block",
+     "description": "Enterprise constraints — evidence-checked predicates against caller-supplied state."},
+    {"order": 1, "name": "invariant", "class": "deterministic", "outcome_on_violation": "block",
+     "description": "Behavioral contracts — forbidden capability set-membership and transition constraints."},
+    {"order": 2, "name": "authorization", "class": "deterministic", "outcome_on_violation": "require_approval",
+     "description": "Capability grants — expiry, revocation, budget."},
+    {"order": 3, "name": "economics", "class": "deterministic", "outcome_on_violation": "require_approval",
+     "description": "Cost-ratio anomaly and ROI floor against caller-supplied estimates and historical baseline. Never blocks — efficiency signal, not a security violation."},
+    {"order": 4, "name": "drift", "class": "probabilistic", "outcome_on_violation": "require_approval",
+     "description": "Learned behavioral drift. The ONLY non-deterministic level."},
+    {"order": 5, "name": "baseline", "class": "deterministic", "outcome_on_violation": "allow",
+     "description": "No violation at any prior level."}
   ],
   "invariants": [
     "Evaluation is strictly sequential in ascending 'order'; the first level whose condition fires terminates evaluation.",
-    "Every level with class=deterministic can only ever escalate or block; only 'drift' (class=probabilistic) has any dependency on a learned model.",
-    "A 'block' outcome at any level is final: no subsequent level, including drift, can convert it to 'require_approval' or 'allow'.",
-    "The 'drift' level's outcome_on_violation is 'require_approval', never 'block' — the ML layer cannot independently deny an action; it can only ask for human review."
+    "Every level except 'drift' is deterministic and can only escalate or block.",
+    "A 'block' outcome at any level is final: no subsequent level can convert it to 'require_approval' or 'allow'.",
+    "'economics' and 'drift' both have outcome_on_violation 'require_approval' — neither can independently BLOCK an action; only uaal_constraint and invariant can."
   ]
 }

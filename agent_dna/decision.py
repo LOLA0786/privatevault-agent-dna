@@ -112,6 +112,7 @@ class DecisionEngine:
         authorizer: Optional[Authorizer] = None,
         drift_threshold: float = 0.50,
         uaal=None,                     # optional UAALConstraintChecker (L0)
+        economics=None,                # optional CostAnomalyChecker (new level)
     ):
 
         self.scorer = scorer
@@ -123,6 +124,7 @@ class DecisionEngine:
         self.drift_threshold = drift_threshold
 
         self.uaal = uaal
+        self.economics = economics
 
         self.evidence_engine = EvidenceEngine()
 
@@ -132,6 +134,7 @@ class DecisionEngine:
         signal: AdvisorySignal,
         invariant: Optional[InvariantResultLike] = None,
         authorized: bool = True,
+        evidence: Optional[dict] = None,
     ) -> DecisionResult:
 
         capability = signal.capability
@@ -198,6 +201,21 @@ class DecisionEngine:
                     "is not covered by an approved grant."
                 ),
             )
+
+        #
+        # 2.5. Economics — cost anomaly / ROI floor. Deterministic,
+        # never BLOCKs; ceiling is REQUIRE_APPROVAL, same as
+        # authorization and drift.
+        #
+
+        if self.economics is not None:
+            econ = self.economics.check(evidence=evidence)
+            if econ.flagged:
+                return make(
+                    Decision.REQUIRE_APPROVAL,
+                    "economics",
+                    "; ".join(econ.reasons),
+                )
 
         #
         # 3. Learned behavioral drift.
@@ -323,6 +341,7 @@ class DecisionEngine:
             signal=signal,
             invariant=invariant,
             authorized=authorized,
+            evidence=evidence,
         )
         if auth_reason is not None and result.triggered_by == "authorization":
             result.reason = auth_reason
