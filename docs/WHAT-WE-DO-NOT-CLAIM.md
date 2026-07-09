@@ -27,6 +27,7 @@ What exists today, verifiable directly:
 - Fail-closed enforcement: any internal fault — a buggy scorer,
   invariant checker, authorizer, or evidence source — becomes a
   deterministic BLOCK, never a silent pass or an unhandled crash.
+- MCP support: 6 tools over the composed decision line (pv_decide, pv_report_outcome, pv_verify, pv_lineage, pv_blocked, pv_divergent), tested directly at the gateway layer. Standard MCP stdio transport; not yet load-tested under concurrent MCP clients.
 - No production secrets in source control (git history has been
   scrubbed of a prior exposure and rotated; `PV_RECEIPT_SIGNING_KEY`
   and `PV_API_KEYS_FILE` are environment/file-based, never committed).
