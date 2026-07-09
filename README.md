@@ -1,8 +1,8 @@
 # PrivateVault Agent DNA™ — Behavioral Identity & Decision Security Runtime
 
 Identity tells you who an agent is. Agent DNA tells you whether the
-agent is still behaving like itself — and refuses, records, and proves
-it when it isn't.
+agent is still behaving like itself — and refuses, records, and
+proves it when it isn't.
 
 A Python runtime that (1) learns an autonomous agent's trusted
 operational profile from execution traces, (2) enforces decisions
@@ -15,16 +15,24 @@ The learned model is advisory. The deterministic layers decide.
 `decision.py` encodes this as a strict precedence order — observable
 in every record's `triggered_by` field:
 
-    1. behavioral invariants   (deterministic contract)  -> BLOCK
-    2. capability grants       (deterministic authz)     -> REQUIRE_APPROVAL
-    3. learned drift           (probabilistic advisory)  -> REQUIRE_APPROVAL
-    4. baseline                                          -> ALLOW
+    0. enterprise constraints  (deterministic, evidence-checked)  -> BLOCK
+    1. behavioral invariants   (deterministic contract)           -> BLOCK
+    2. capability grants       (deterministic authz)               -> REQUIRE_APPROVAL
+    3. economics               (deterministic cost/ROI check)      -> REQUIRE_APPROVAL
+    4. learned drift           (probabilistic advisory)            -> REQUIRE_APPROVAL
+    5. baseline                                                    -> ALLOW
 
-A deterministic DENY is final: drift scores can never turn it into an
-ALLOW. Learned signals can only raise scrutiny, never lower it. The ML
-adds earlier warning, not a new bypass. In BFSI/healthcare terms:
-the security boundary is deterministic and auditable; the model
-explains, the rules decide.
+A deterministic DENY is final: nothing below it — including drift or
+cost signals — can ever turn it into an ALLOW. Learned signals can
+only raise scrutiny, never lower it. The ML adds earlier warning, not
+a new bypass. In BFSI/healthcare terms: the security boundary is
+deterministic and auditable; the model explains, the rules decide.
+
+The exact order above is not just documented — it's a committed,
+hash-pinned contract (`spec/contracts/precedence-order.json`) that CI
+verifies against the actual code on every push. If the order ever
+drifts from the contract without a deliberate, reviewed update, the
+build fails.
 
 ## Architecture
 
@@ -35,13 +43,16 @@ explains, the rules decide.
           |
     DriftScorer -> AdvisorySignal (score + severity + reasons)
           |
-    DecisionEngine     precedence: invariant > authz > drift > allow
-          |
+    DecisionEngine     precedence: L0-L5 above; fail-closed on any
+          |            internal fault (engine_fault -> BLOCK, never
+          |            a silent pass or unhandled crash)
     RuntimeMonitor     enforcing streaming path; denied actions
           |            never advance the behavioral baseline
     DecisionRecorder -> sealed, hash-chained DecisionRecords
-          |
+          |            (chain state restored from store on restart)
     DecisionStore      append-only (JSONL or SQLite/WAL)
+          |
+    ReceiptSigner      optional Ed25519 signing over record_hash
           |
     ExecutionEvents    executor feedback, hash-anchored per decision
           |
@@ -51,16 +62,17 @@ explains, the rules decide.
 
 ## What the audit layer proves
 
-| Attack on the log                     | Caught by              |
-|---------------------------------------|------------------------|
-| Edit any field of any record          | record_hash mismatch   |
-| Delete or reorder records             | per-agent chain break  |
-| Forge an execution result             | anchor mismatch        |
-| Runtime says BLOCK, action ran anyway | ENFORCEMENT DIVERGENCE |
+| Attack on the log                       | Caught by               |
+|------------------------------------------|--------------------------|
+| Edit any field of any record              | record_hash mismatch     |
+| Delete or reorder records                 | per-agent chain break    |
+| Forge an execution result                 | anchor mismatch          |
+| Runtime says BLOCK, action ran anyway     | ENFORCEMENT DIVERGENCE   |
 
 Verification requires nothing but Python 3 and one file — no
 dependency on this codebase. Canonical test vectors and JSON Schemas
-live in `spec/`.
+live in `spec/`, published separately as the open DRP specification:
+github.com/LOLA0786/drp-spec (Apache-2.0 / CC-BY-4.0).
 
 ## HTTP API
 
@@ -71,16 +83,27 @@ the signal:
     202  require_approval
     403  block
 
-Plus `/v1/outcome` (anchored executor feedback), query endpoints
-(`/v1/blocked`, `/v1/divergent`, `/v1/lineage/{id}`), and an audit
-surface (`/v1/verify`, `/v1/audit/export` — verifier-ready JSONL).
+API-key authenticated (SHA-256 hashed at rest); companion endpoints
+for outcome reporting (`/v1/outcome`), signature retrieval
+(`/v1/envelope/{hash}`), queries (`/v1/blocked`, `/v1/divergent`,
+`/v1/lineage/{id}`), and audit (`/v1/verify`,
+`/v1/audit/export` — verifier-ready JSONL).
+
+## MCP
+
+The composed decision line is also exposed as MCP tools
+(`agent_dna/mcp_server.py`): `pv_decide`, `pv_report_outcome`,
+`pv_verify`, `pv_lineage`, `pv_blocked`, `pv_divergent`. Run
+standalone: `python -m agent_dna.mcp_server`.
 
 ## Run it
 
     # dev
     pip install -e ".[dev]" --break-system-packages
-    python -m pytest -q                      # 100 tests
-    python examples/end_to_end_demo.py       # full pipeline + tamper demo
+    python -m pytest -q                            # 181 tests
+    python examples/composed_line_demo.py           # full 6-level pipeline + tamper demo
+    python tools/run_adversarial.py                 # 11-scenario adversarial corpus
+    python tools/benchmark.py 5000                  # reproducible throughput benchmark
 
     # service
     docker compose up
@@ -95,15 +118,24 @@ surface (`/v1/verify`, `/v1/audit/export` — verifier-ready JSONL).
 | `trace.py` | Data contract: `AgentAction`, `ExecutionTrace` |
 | `manifold.py` / `dynamics.py` | Learned profile: capability vocabulary, argument distributions, Markov ordering |
 | `scorer.py` / `advisory.py` | Decomposed drift score with one-sentence reasons |
-| `decision.py` | Precedence engine — the enforcement boundary |
+| `decision.py` | Precedence engine — the enforcement boundary, fail-closed |
+| `uaal_layer.py` | L0 enterprise constraints (vendored + tested from UAAL's EAV engine) |
+| `grants.py` | Capability grants — expiry, revocation, budget, named-reason denials |
+| `economics/` | L3 pre-execution cost-ratio anomaly + ROI floor check |
+| `consensus/` | Weighted and signed (HMAC) multi-agent voting — tested, not yet wired into the enforcement path |
 | `runtime.py` | Enforcing streaming monitor |
-| `decision_record.py` / `execution_record.py` | Sealed, hash-chained record kinds |
-| `decision_graph.py` / `decision_recorder.py` | Queryable lineage, chain verification |
+| `decision_record.py` / `execution_record.py` | Sealed, hash-chained record kinds (drp/0.1) |
+| `decision_graph.py` / `decision_recorder.py` | Queryable lineage, chain verification, restores from store on startup |
 | `decision_store.py` / `sqlite_store.py` | Append-only persistence (JSONL / SQLite WAL) |
-| `multi_agent/` | Cross-agent behavioral invariants (topology, temporal, authority, consensus) |
+| `signer.py` | Ed25519 signing over record_hash per drp-spec SIGNING.md |
+| `apikeys.py` | Hashed API-key authentication |
+| `multi_agent/` | Cross-agent behavioral invariants (topology, temporal, authority, consensus) — tested library, not yet wired into the serving path |
 | `api/server.py` | FastAPI decision service |
-| `spec/` | Open wire format: JSON Schemas + canonical test vectors |
+| `mcp_server.py` / `mcp_gateway.py` | MCP tool exposure of the composed decision line |
+| `spec/` | Open wire format: JSON Schemas, canonical test vectors, adversarial corpus, precedence-order contract |
 | `tools/verify_records.py` | Independent, stdlib-only audit verifier |
+| `tools/benchmark.py` | Reproducible throughput benchmark with stated methodology |
+| `tools/run_adversarial.py` | 11-scenario adversarial corpus runner, built for external review |
 
 ## Calibration honesty
 
@@ -113,12 +145,18 @@ accuracy figures are synthetic-calibrated; production deployment
 requires profiling on real execution traces. This is stated in the
 API's root endpoint (`calibration` field) deliberately.
 
-## Relationship to the PrivateVault runtime
+See `docs/WHAT-WE-DO-NOT-CLAIM.md` for the full, explicit list of
+what is not yet shipped, including certification status, deployment
+maturity, and multi-agent enforcement.
 
-This repo is the behavioral identity and decision-graph layer. The
-PrivateVault enforcement runtime adds Ed25519 receipt signing,
-approval binding, and replay on top of the same record format. The
-wire format itself is being extracted to a standalone open
-specification (`spec/` is its staging ground). `receipt_ref` on
-DecisionRecords is the signing seam — schema-reserved until the
-binding lands.
+## Relationship to PrivateVault.ai
+
+This is the canonical, tested runtime. Several components here were
+vendored from the PrivateVault.ai repository's less mature modules
+after those modules were found to have zero test coverage on
+inspection — `uaal_layer.py` (from UAAL's EAV engine), `consensus/`
+(from `pv_runtime_v2` and `coordination/mesh`), and `economics/`
+(from `pv_economics`) were each re-verified with tests written fresh
+against the vendored logic before being trusted here. One real
+security bug (a timing side-channel in HMAC signature comparison) was
+found and fixed during that process.
