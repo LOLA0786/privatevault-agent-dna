@@ -16,3 +16,6 @@ audit.csv
 audit.json
 audit.parquet
 files.txt
+data/*.db
+data/*.db-wal
+data/*.db-shm
