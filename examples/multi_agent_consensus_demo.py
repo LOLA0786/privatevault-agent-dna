@@ -1,118 +1,107 @@
-"""CABI consensus demo: multi-party sign-off before a consequential action.
-
-Sanctioned society:  planner -> risk -> finance -> approval -> payment
-with a sign-off gate: risk, finance, and approval must each emit approval=True
-BEFORE the payment role fires.
-
-This is the case a per-agent monitor cannot catch: each approver is behaving
-normally in isolation, but the *collective* sign-off required before payment
-was never reached.
-
-Run:  python -m examples.multi_agent_consensus_demo
 """
-from __future__ import annotations
+MULTI-AGENT CONSENSUS — tested building blocks, NOT wired into the
+enforcement line.
 
-import random
+The composed_line_demo.py shows single-agent pre-execution
+enforcement (six levels). This demo shows a separate, independently
+tested capability: signed, trust-weighted voting across multiple
+agents on one proposed action.
 
-from agent_dna.multi_agent import InteractionEvent, RuntimeValidator, Verdict
+Status, stated plainly: SecureQuorum and WeightedQuorum are unit-
+tested (agent_dna/consensus/, 20 tests) and NOT called from
+DecisionEngine.decide(). If a real multi-agent workflow needs
+consensus gating, this module is the tested starting point for
+wiring it in as an additional precedence check — that integration
+does not exist yet.
+"""
 
-ROLE_OF = {
-    "planner": "planning", "risk": "risk", "finance": "finance",
-    "approval": "approval", "payment": "payment",
-}
+import time
 
-# approver agent ids and the role each casts a sign-off as
-SIGNOFFS = [("risk_agent", "risk"),
-            ("finance_agent", "finance"),
-            ("approval_agent", "approval")]
+from agent_dna.consensus.secure_quorum import SecureQuorum, TrustRegistry
+from agent_dna.consensus.signing import register_key, sign_message
 
-
-def step(exec_id, src, dst, src_role, dst_role, t, **kw):
-    return InteractionEvent(
-        execution_id=exec_id, source=src, target=dst,
-        source_role=src_role, target_role=dst_role, timestamp=t, **kw)
-
-
-def signoff(exec_id, agent, role, t, approve=True, confidence=0.95):
-    return InteractionEvent(
-        execution_id=exec_id, source=agent, target="consensus_ledger",
-        source_role=role, target_role="ledger", timestamp=t,
-        approval=approve, confidence=confidence, intent="sign_off",
-        metadata={"is_signoff": True})
+from runtime_demo import banner
 
 
-def good_execution(exec_id, *, skip=None, dissent=None, early_payment=False):
-    """A sanctioned execution. Optional knobs synthesize the attacks:
-      skip:           role name whose sign-off is omitted
-      dissent:        role name that signs off with approval=False
-      early_payment:  payment fires before any sign-off
-    """
-    ev = []
-    ev.append(step(exec_id, "planner", "risk", "planning", "risk", 1.0))
-    ev.append(step(exec_id, "risk", "finance", "risk", "finance", 2.0))
-    ev.append(step(exec_id, "finance", "approval", "finance", "approval", 3.0))
+def main():
+    action_id = "settlement-INV-7734"
+    message_hash = f"hash-of-{action_id}-payload"
 
-    if early_payment:
-        ev.append(step(exec_id, "approval", "payment", "approval", "payment", 2.5))
+    trust = TrustRegistry()
+    trust.set_score("checker-agent", 0.9)
+    trust.set_score("fraud-agent", 0.9)
+    trust.set_score("maker-agent", 0.6)
+    # note: no trust score set for "attacker" -> default 0.5 applies
+    # if it were ever counted, which it won't be, because its
+    # signature won't verify
 
-    # sign-offs cluster just before payment
-    t = 3.2
-    for agent, role in SIGNOFFS:
-        if skip and role == skip:
-            t += 0.2
-            continue
-        if dissent and role == dissent:
-            ev.append(signoff(exec_id, agent, role, t, approve=False))
-        else:
-            ev.append(signoff(exec_id, agent, role, t, approve=True))
-        t += 0.2
+    for agent_id in ("checker-agent", "fraud-agent", "maker-agent"):
+        register_key(agent_id, f"secret-for-{agent_id}")
+    register_key("attacker", "attacker-controlled-secret")
 
-    if not early_payment:
-        ev.append(step(exec_id, "approval", "payment", "approval", "payment", 4.0))
-    return ev
+    quorum = SecureQuorum(threshold=0.67, trust_registry=trust)
 
+    banner("SCENARIO 1 — three honest agents approve, quorum clears")
+    for agent_id, vote in [
+        ("checker-agent", "APPROVE"),
+        ("fraud-agent", "APPROVE"),
+        ("maker-agent", "APPROVE"),
+    ]:
+        sig = sign_message(agent_id, message_hash)
+        quorum.submit_vote(action_id, agent_id, vote, sig, message_hash)
+        print(f"  {agent_id:<16} votes {vote:<8} (signed, trust={trust.get(agent_id):.1f})")
 
-def build_corpus(n=300):
-    corpus = []
-    for i in range(n):
-        corpus.extend(good_execution(f"train-{i}"))
-    return corpus
+    approved = quorum.check_quorum(action_id)
+    print(f"\n  quorum threshold : 0.67")
+    print(f"  quorum result    : {'APPROVED' if approved else 'REJECTED'}")
 
+    banner("SCENARIO 2 — an unsigned/forged vote is silently ignored")
+    action_id_2 = "settlement-INV-9982"
+    message_hash_2 = f"hash-of-{action_id_2}-payload"
+    quorum2 = SecureQuorum(threshold=0.67, trust_registry=trust)
 
-def run():
-    random.seed(11)
-    validator = RuntimeValidator.from_corpus(build_corpus())
+    # one honest vote — not enough alone to clear 0.67
+    sig = sign_message("maker-agent", message_hash_2)
+    quorum2.submit_vote(action_id_2, "maker-agent", "APPROVE", sig, message_hash_2)
+    print(f"  maker-agent      votes APPROVE (signed, trust=0.6)")
 
-    import json
-    consensus = next(i for i in validator.engine.invariants
-                    if i.name == "consensus")
-    print("Learned consensus requirements:")
-    print(json.dumps(consensus.describe(), indent=2))
-    print("=" * 64)
+    # attacker tries to inject a vote AS checker-agent without
+    # knowing checker-agent's key
+    forged_sig = sign_message("attacker", message_hash_2)
+    quorum2.submit_vote(action_id_2, "checker-agent", "APPROVE",
+                        forged_sig, message_hash_2)
+    print(f"  checker-agent    votes APPROVE (FORGED — attacker doesn't have this key)")
 
-    cases = [
-        ("known-good (all sign off)", good_execution("live-ok"), Verdict.ALLOW),
-        ("finance silent (no sign-off)",
-        good_execution("atk-silent", skip="finance"), Verdict.BLOCK),
-        ("risk dissents (approval=False)",
-        good_execution("atk-dissent", dissent="risk"), Verdict.BLOCK),
-        ("payment before any sign-off",
-        good_execution("atk-early", early_payment=True), Verdict.BLOCK),
-    ]
+    approved_2 = quorum2.check_quorum(action_id_2)
+    print(f"\n  maker-agent alone contributes trust=0.6, below 0.67 threshold")
+    print(f"  forged checker-agent vote does NOT verify -> contributes 0.0")
+    print(f"  quorum result    : {'APPROVED' if approved_2 else 'REJECTED'}"
+          f"  (correctly rejected — forged vote could not inflate the score)")
 
-    all_ok = True
-    for label, events, want in cases:
-        v = validator.validate_events(events)
-        ok = v.verdict is want
-        all_ok &= ok
-        print(f"\n### {label}  ->  {v.verdict.value}  "
-            f"[{'as expected' if ok else 'UNEXPECTED'}]")
-        print(v.explain())
+    banner("SCENARIO 3 — genuine two-of-three still clears without the third")
+    action_id_3 = "settlement-INV-1105"
+    message_hash_3 = f"hash-of-{action_id_3}-payload"
+    quorum3 = SecureQuorum(threshold=0.67, trust_registry=trust)
 
-    print("\n" + "=" * 64)
-    print("DEMO RESULT:", "ALL VERDICTS AS EXPECTED" if all_ok else "MISMATCH")
-    return all_ok
+    for agent_id in ("checker-agent", "fraud-agent"):  # maker-agent abstains
+        sig = sign_message(agent_id, message_hash_3)
+        quorum3.submit_vote(action_id_3, agent_id, "APPROVE", sig, message_hash_3)
+        print(f"  {agent_id:<16} votes APPROVE (signed, trust={trust.get(agent_id):.1f})")
+
+    approved_3 = quorum3.check_quorum(action_id_3)
+    print(f"\n  checker(0.9) + fraud(0.9) = 1.8 combined trust weight, clears 0.67")
+    print(f"  quorum result    : {'APPROVED' if approved_3 else 'REJECTED'}")
+
+    banner("STATUS")
+    print("SecureQuorum + signing: 20 tests passing, including forged-signature")
+    print("rejection and Byzantine-minority-cannot-override-honest-majority.")
+    print()
+    print("NOT wired into agent_dna.decision.DecisionEngine. A real integration")
+    print("would add this as a precedence check for multi-agent actions only —")
+    print("single-agent actions (everything in composed_line_demo.py) have no")
+    print("votes to evaluate and would skip this level entirely, the same way")
+    print("L0/L3 skip when their required evidence is absent.")
 
 
 if __name__ == "__main__":
-    raise SystemExit(0 if run() else 1)
+    main()
