@@ -63,12 +63,37 @@ def _train_scorer() -> DriftScorer:
 
 
 def require_api_key(x_api_key: str | None = Header(default=None)):
+    """For enforcement endpoints (/v1/decide, /v1/outcome, and every
+    other endpoint that exercises or reveals enforcement authority).
+    Requires scope="full" explicitly -- an audit-scoped key (the
+    credential handed to a third-party auditor) MUST be rejected
+    here. verify_scope("full") only matches an entry whose scope is
+    literally "full"; it does not accept "audit" for a "full"
+    requirement (see ApiKeyRegistry.verify_scope)."""
     reg: ApiKeyRegistry = state.get("apikeys")
     if reg is None or not reg.enabled:
         return "auth-disabled"
-    name = reg.verify(x_api_key)
+    name = reg.verify_scope(x_api_key, required_scope="full")
     if name is None:
         raise HTTPException(status_code=401, detail="invalid or missing API key")
+    return name
+
+
+def require_audit_or_full_key(x_api_key: str | None = Header(default=None)):
+    """For read-only audit endpoints (/v1/verify, /v1/audit/export)
+    only. Accepts EITHER a full-scope operator key OR an audit-scoped
+    key. Full-scope satisfies this because an operator can do
+    everything an auditor can; the reverse is enforced by
+    require_api_key above, which rejects audit-scoped keys."""
+    reg: ApiKeyRegistry = state.get("apikeys")
+    if reg is None or not reg.enabled:
+        return "auth-disabled"
+    name = reg.verify_scope(x_api_key, required_scope="audit")
+    if name is None:
+        raise HTTPException(
+            status_code=401,
+            detail="invalid API key, or key scope does not permit audit access",
+        )
     return name
 
 
@@ -223,12 +248,12 @@ def envelope(record_hash: str):
     return {"envelope": env}
 
 
-@app.get("/v1/verify", dependencies=[Depends(require_api_key)])
+@app.get("/v1/verify", dependencies=[Depends(require_audit_or_full_key)])
 def verify():
     return {"chains": state["recorder"].graph.verify_all()}
 
 
-@app.get("/v1/audit/export", dependencies=[Depends(require_api_key)])
+@app.get("/v1/audit/export", dependencies=[Depends(require_audit_or_full_key)])
 def audit_export():
     tmp = Path(tempfile.mkstemp(suffix=".jsonl")[1])
     state["store"].export_jsonl(tmp)
