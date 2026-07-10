@@ -1,0 +1,43 @@
+# Example customer policy file. This is a WORKED EXAMPLE, not a
+# shipped default -- every real deployment supplies its own.
+#
+# Rules are evaluated in order; the first rule that matches
+# (capability + optional agent_id) AND fires (condition true, or no
+# condition) wins. A rule's outcome is exactly what's declared here --
+# this is the one precedence level whose severity is data-driven.
+
+version: "1.0"
+
+policies:
+  - id: "large-wire-dual-approval"
+    capability: "payment.initiate_wire"
+    condition:
+      field: "arguments.amount"
+      operator: ">"
+      value: 50000
+    outcome: "require_approval"
+    reason: "Wire transfers over $50,000 require dual approval per company policy"
+
+  - id: "finance-agent-no-bulk-export"
+    capability: "storage.bulk_export"
+    agent_id: "finance-agent"
+    outcome: "block"
+    reason: "finance-agent is contractually forbidden from bulk export"
+
+  - id: "high-risk-score-hold"
+    capability: "payment.initiate_wire"
+    condition:
+      field: "evidence.enterprise_state.risk_score"
+      operator: ">"
+      value: 0.8
+    outcome: "require_approval"
+    reason: "Risk score exceeds 0.8 threshold, manual review required"
+
+  - id: "sanctioned-country-block"
+    capability: "*"
+    condition:
+      field: "evidence.enterprise_state.receiver_country"
+      operator: "in"
+      value: ["SANCTIONED_COUNTRY_CODE_1", "SANCTIONED_COUNTRY_CODE_2"]
+    outcome: "block"
+    reason: "Transactions to sanctioned jurisdictions are prohibited"

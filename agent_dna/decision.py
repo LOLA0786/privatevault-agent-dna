@@ -113,7 +113,8 @@ class DecisionEngine:
         drift_threshold: float = 0.50,
         uaal=None,                     # optional UAALConstraintChecker (L0)
         economics=None,                # optional CostAnomalyChecker
-        consensus=None,                # optional ConsensusChecker (new level)
+        consensus=None,                # optional ConsensusChecker
+        policy=None,                   # optional PolicyChecker (customer YAML/JSON rules)
     ):
 
         self.scorer = scorer
@@ -127,6 +128,7 @@ class DecisionEngine:
         self.uaal = uaal
         self.economics = economics
         self.consensus = consensus
+        self.policy = policy
 
         self.evidence_engine = EvidenceEngine()
 
@@ -137,6 +139,7 @@ class DecisionEngine:
         invariant: Optional[InvariantResultLike] = None,
         authorized: bool = True,
         evidence: Optional[dict] = None,
+        arguments: Optional[dict] = None,
     ) -> DecisionResult:
 
         capability = signal.capability
@@ -188,6 +191,32 @@ class DecisionEngine:
                 "invariant",
                 invariant.message,
             )
+        #
+        # 1.4. Customer policy -- data-driven rules (YAML/JSON), not
+        # hardcoded Python. Evidence-gated per-rule: a rule whose
+        # condition field is absent is skipped, never silently
+        # matched or non-matched. UNLIKE every other level, this
+        # level's OUTCOME is data-driven: the matched rule declares
+        # whether it blocks or requires approval -- the one
+        # asymmetry in the precedence chain.
+        #
+        if self.policy is not None:
+            pol = self.policy.check(
+                agent_id=agent_id,
+                capability=capability,
+                arguments=arguments,
+                evidence=evidence,
+            )
+            if pol.fired:
+                pol_decision = (
+                    Decision.BLOCK if pol.outcome == "block"
+                    else Decision.REQUIRE_APPROVAL
+                )
+                return make(
+                    pol_decision,
+                    "policy",
+                    pol.reason,
+                )
 
         #
         # 1.5. Consensus — multi-agent quorum, when evidence is
@@ -360,6 +389,7 @@ class DecisionEngine:
             invariant=invariant,
             authorized=authorized,
             evidence=evidence,
+            arguments=action.arguments,
         )
         if auth_reason is not None and result.triggered_by == "authorization":
             result.reason = auth_reason
