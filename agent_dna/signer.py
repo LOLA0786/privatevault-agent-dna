@@ -74,11 +74,19 @@ class ReceiptSigner:
         (Rule 4: a signature over an unverifiable record is meaningless)."""
         if not record.verify():
             raise ValueError("record is unsealed or tampered; refusing to sign")
-        sig = self._sk.sign(record.record_hash.encode()).signature.hex()
+        return self.sign_hash(record.record_hash)
+
+    def sign_hash(self, hash_hex: str) -> SignatureEnvelope:
+        """Sign an arbitrary hex-encoded hash directly -- the general
+        primitive sign_record uses internally. Used for signing
+        artifacts that aren't DecisionRecords (e.g. export manifests)
+        but still want the same envelope shape and verify_envelope
+        compatibility."""
+        sig = self._sk.sign(hash_hex.encode()).signature.hex()
         return SignatureEnvelope(
             envelope_id=f"sig-{uuid.uuid4()}",
             algorithm="Ed25519",
-            signed_hash=record.record_hash,
+            signed_hash=hash_hex,
             signature=sig,
             public_key=self.public_key,
             key_id=self.key_id,
