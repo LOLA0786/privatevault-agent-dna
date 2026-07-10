@@ -141,3 +141,54 @@ def test_duplicate_ids_rejected():
             {"id": "dup", "capability": "a", "outcome": "block", "reason": "n/a"},
             {"id": "dup", "capability": "b", "outcome": "block", "reason": "n/a"},
         ])
+
+
+def test_rules_not_matched_tracks_evaluated_but_false_rules():
+    """A rule whose capability/agent matched and whose condition was
+    evaluable but false must appear in rules_not_matched -- distinct
+    from rules_skipped (missing evidence) and rules_evaluated (which
+    only reflects the winning/fired rule on early return)."""
+    doc = _doc([
+        {"id": "low-threshold", "capability": "payment.pay",
+         "condition": {"field": "arguments.amount", "operator": ">", "value": 1000000},
+         "outcome": "block", "reason": "too high, never happens"},
+        {"id": "actual-match", "capability": "payment.pay",
+         "condition": {"field": "arguments.amount", "operator": ">", "value": 100},
+         "outcome": "require_approval", "reason": "moderate amount"},
+    ])
+    checker = PolicyChecker(doc)
+    result = checker.check("a1", "payment.pay", arguments={"amount": 5000})
+
+    assert result.fired
+    assert result.matched_rule_id == "actual-match"
+    # the first rule was genuinely considered, evaluated False, and
+    # correctly recorded as not-matched -- not silently ignored
+    assert "low-threshold" in result.rules_not_matched
+    assert "low-threshold" not in result.rules_skipped
+
+
+def test_rules_not_matched_populated_even_when_nothing_fires():
+    doc = _doc([{
+        "id": "never-fires", "capability": "payment.pay",
+        "condition": {"field": "arguments.amount", "operator": ">", "value": 999999},
+        "outcome": "block", "reason": "n/a",
+    }])
+    checker = PolicyChecker(doc)
+    result = checker.check("a1", "payment.pay", arguments={"amount": 5000})
+    assert not result.fired
+    assert "never-fires" in result.rules_not_matched
+
+
+def test_irrelevant_rules_appear_in_no_bucket():
+    """A rule whose capability doesn't even match this action is not
+    'checked' in any meaningful sense -- it should not appear in
+    evaluated, skipped, OR not_matched."""
+    doc = _doc([{
+        "id": "irrelevant-capability", "capability": "email.send",
+        "outcome": "block", "reason": "n/a",
+    }])
+    checker = PolicyChecker(doc)
+    result = checker.check("a1", "payment.pay")
+    assert "irrelevant-capability" not in result.rules_evaluated
+    assert "irrelevant-capability" not in result.rules_skipped
+    assert "irrelevant-capability" not in result.rules_not_matched

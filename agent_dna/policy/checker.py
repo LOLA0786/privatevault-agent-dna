@@ -75,6 +75,17 @@ class PolicyCheckResult:
     reason: str = ""
     rules_evaluated: List[str] = field(default_factory=list)
     rules_skipped: List[str] = field(default_factory=list)
+    rules_not_matched: List[str] = field(default_factory=list)
+    # rules_not_matched: capability/agent matched, condition was
+    # evaluable, but evaluated False -- the rule was genuinely
+    # considered and did not apply. Distinct from rules_skipped
+    # (evidence was missing, rule could not be evaluated at all).
+    # Exists so nothing goes silently unconsidered: every rule in the
+    # policy document ends up in exactly one of rules_evaluated
+    # (fired or checked), rules_skipped, or -- for rules whose
+    # capability/agent_id didn't even match this action -- none of
+    # the three, which is itself correct (irrelevant rules are not
+    # "checked" in any meaningful sense).
 
 
 class PolicyChecker:
@@ -94,6 +105,7 @@ class PolicyChecker:
         }
         evaluated: List[str] = []
         skipped: List[str] = []
+        not_matched: List[str] = []
 
         for rule in self.document.policies:
             if rule.capability != "*" and rule.capability != capability:
@@ -107,6 +119,7 @@ class PolicyChecker:
                     fired=True, matched_rule_id=rule.id,
                     outcome=rule.outcome, reason=rule.reason,
                     rules_evaluated=evaluated, rules_skipped=skipped,
+                    rules_not_matched=not_matched,
                 )
 
             result = _evaluate_condition(rule.condition, context)
@@ -120,8 +133,12 @@ class PolicyChecker:
                     fired=True, matched_rule_id=rule.id,
                     outcome=rule.outcome, reason=rule.reason,
                     rules_evaluated=evaluated, rules_skipped=skipped,
+                    rules_not_matched=not_matched,
                 )
+            else:
+                not_matched.append(rule.id)
 
         return PolicyCheckResult(
             fired=False, rules_evaluated=evaluated, rules_skipped=skipped,
+            rules_not_matched=not_matched,
         )
