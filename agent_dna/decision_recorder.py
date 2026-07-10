@@ -64,7 +64,9 @@ class DecisionRecorder:
         self,
         action: AgentAction,
         result: DecisionResult,
+        anchor_hash: Optional[str] = None,
     ) -> DecisionRecord:
+        is_fresh_chain = action.agent_id not in self._chains
         chain = self._chains.setdefault(action.agent_id, _ChainState())
 
         rec = build_record(
@@ -72,6 +74,7 @@ class DecisionRecorder:
             result,
             parent_decision=chain.last_decision_id,
             prev_hash=chain.last_hash,
+            anchor_hash=anchor_hash if is_fresh_chain else None,
         )
         self.graph.add(rec)
         if self.store is not None:

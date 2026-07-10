@@ -155,6 +155,7 @@ def build_record(
     parent_decision: Optional[str] = None,
     prev_hash: str = GENESIS_HASH,
     request_id: Optional[str] = None,
+    anchor_hash: Optional[str] = None,
 ) -> DecisionRecord:
     """Reduce (AgentAction, DecisionResult) to a sealed DecisionRecord."""
     result_dict = result.to_dict()
@@ -178,4 +179,7 @@ def build_record(
             if parent_decision is not None
             else []
         ),
-    ).apply_chain(prev_hash)
+    ).apply_chain(
+        anchor_hash if (parent_decision is None and anchor_hash is not None)
+        else prev_hash
+    )

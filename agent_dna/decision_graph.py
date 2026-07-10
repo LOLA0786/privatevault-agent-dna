@@ -163,15 +163,28 @@ class DecisionGraph:
 
     def verify_chain(self, agent_id: str) -> bool:
         """Walk one agent's records in insertion order and confirm the
-        hash chain is intact: each record verifies individually and its
-        prev_hash equals the previous record's record_hash."""
+        hash chain is intact from the second record onward: each
+        record verifies individually and its prev_hash equals the
+        previous record's record_hash.
+
+        The first record's prev_hash is accepted as given -- either
+        GENESIS_HASH (unanchored chain) or an external provenance
+        anchor (see decision_record.build_record's anchor_hash). This
+        method verifies INTERNAL chain continuity only; it cannot
+        independently confirm an anchor corresponds to a real
+        upstream artifact -- that requires checking against the
+        external provenance source separately."""
         ids = self._by_agent.get(agent_id, [])
-        prev = GENESIS_HASH
+        if not ids:
+            return True
+        prev = None
         for i in ids:
             rec = self._records[i]
             if not rec.verify():
                 return False
-            if rec.prev_hash != prev:
+            if prev is None:
+                prev = rec.prev_hash
+            elif rec.prev_hash != prev:
                 return False
             prev = rec.record_hash
         return True
