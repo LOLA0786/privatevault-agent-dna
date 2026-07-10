@@ -136,3 +136,60 @@ def test_l4_only_wins_when_nothing_above_it_fires():
     result = engine.decide(action, evidence=None)
     assert result.decision == Decision.REQUIRE_APPROVAL
     assert result.triggered_by == "drift"
+
+
+def test_consensus_wins_over_authorization_economics_drift():
+    """Quorum shortfall + no grant + cost anomaly + high drift, all
+    would independently fire. Consensus (order 2) must win over
+    authorization (3), economics (4), drift (5)."""
+    from agent_dna.consensus import ConsensusChecker
+    from agent_dna.consensus.signing import register_key, sign_message
+    from agent_dna.economics import CostAnomalyChecker
+
+    register_key("a", "secret-a")
+    sig = sign_message("a", "hh")
+    votes = [{"agent_id": "a", "vote": "REJECT",
+             "signature": sig, "message_hash": "hh"}]
+
+    engine = DecisionEngine(
+        scorer=HighDriftScorer(), invariants=Invariants(),
+        authorizer=GrantRegistry(),  # empty
+        uaal=UAALConstraintChecker(),
+        economics=CostAnomalyChecker(),
+        consensus=ConsensusChecker(),
+    )
+    action = _act("crm.read_contact")
+    result = engine.decide(action, evidence={
+        "consensus": {"action_id": "x", "threshold": 0.9,
+                      "votes": votes, "trust_scores": {"a": 1.0}},
+        "economics": {"estimated_cost_usd": 500.0,
+                      "historical_avg_cost_usd": 0.01},
+    })
+    assert result.decision == Decision.REQUIRE_APPROVAL
+    assert result.triggered_by == "consensus"
+
+
+def test_l1_invariant_still_wins_over_consensus():
+    """Forbidden capability (L1) + quorum shortfall (consensus) both
+    would fire. L1 must still win — it's earlier and it's a BLOCK."""
+    from agent_dna.consensus import ConsensusChecker
+    from agent_dna.consensus.signing import register_key, sign_message
+
+    register_key("a", "secret-a")
+    sig = sign_message("a", "hh2")
+    votes = [{"agent_id": "a", "vote": "REJECT",
+             "signature": sig, "message_hash": "hh2"}]
+
+    engine = DecisionEngine(
+        scorer=HighDriftScorer(), invariants=Invariants(),
+        authorizer=GrantRegistry(),
+        uaal=UAALConstraintChecker(),
+        consensus=ConsensusChecker(),
+    )
+    action = _act("storage.bulk_export")
+    result = engine.decide(action, evidence={
+        "consensus": {"action_id": "y", "threshold": 0.9,
+                      "votes": votes, "trust_scores": {"a": 1.0}},
+    })
+    assert result.decision == Decision.BLOCK
+    assert result.triggered_by == "invariant"

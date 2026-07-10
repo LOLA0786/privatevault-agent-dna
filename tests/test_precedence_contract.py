@@ -19,7 +19,7 @@ ENGINE_PATH = ROOT / "agent_dna" / "decision.py"
 # The literal trigger strings used in _decide_unsafe / decide_from,
 # in the order they must appear as return statements / string
 # literals within the function bodies.
-EXPECTED_ORDER = ["uaal_constraint", "invariant", "authorization", "economics", "drift", "baseline"]
+EXPECTED_ORDER = ["uaal_constraint", "invariant", "consensus", "authorization", "economics", "drift", "baseline"]
 
 
 def _load_contract():
@@ -41,7 +41,7 @@ def test_contract_hash_is_pinned():
     silent drift."""
     content = CONTRACT_PATH.read_bytes()
     digest = hashlib.sha256(content).hexdigest()
-    PINNED = "815834faacbe348280d2735b2703cfa299309ced80f86d6224e1c1fe3a04653f"
+    PINNED = "89481e7ab7b2a1372b8346561f9c98b6e9ce68b32d5c8010d81b34ba340b9fbc"
     if PINNED == "__PINNED_HASH__":
         # first run: print the real hash so it can be pinned below
         print(f"\nACTUAL CONTRACT HASH: {digest}")

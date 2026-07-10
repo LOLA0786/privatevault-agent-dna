@@ -112,7 +112,8 @@ class DecisionEngine:
         authorizer: Optional[Authorizer] = None,
         drift_threshold: float = 0.50,
         uaal=None,                     # optional UAALConstraintChecker (L0)
-        economics=None,                # optional CostAnomalyChecker (new level)
+        economics=None,                # optional CostAnomalyChecker
+        consensus=None,                # optional ConsensusChecker (new level)
     ):
 
         self.scorer = scorer
@@ -125,6 +126,7 @@ class DecisionEngine:
 
         self.uaal = uaal
         self.economics = economics
+        self.consensus = consensus
 
         self.evidence_engine = EvidenceEngine()
 
@@ -186,6 +188,22 @@ class DecisionEngine:
                 "invariant",
                 invariant.message,
             )
+
+        #
+        # 1.5. Consensus — multi-agent quorum, when evidence is
+        # supplied. Evidence-gated: absent evidence means SKIPPED,
+        # never silently passed. Never BLOCKs; a quorum shortfall is
+        # a governance signal, not a proven security violation.
+        #
+
+        if self.consensus is not None:
+            con = self.consensus.check(evidence=evidence)
+            if con.flagged:
+                return make(
+                    Decision.REQUIRE_APPROVAL,
+                    "consensus",
+                    con.reason,
+                )
 
         #
         # 2. Unauthorized capability.

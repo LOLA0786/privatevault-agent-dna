@@ -1,25 +1,27 @@
 {
   "contract": "precedence-order",
-  "version": "2.0",
-  "description": "The authoritative, ordered list of decision precedence levels. Evaluated strictly in this order; the first violation terminates evaluation. v2.0 adds the economics level (cost anomaly / ROI floor) between authorization and drift. A deterministic DENY remains final and cannot be overridden by a lower level.",
+  "version": "3.0",
+  "description": "The authoritative, ordered list of decision precedence levels. Evaluated strictly in this order; the first violation terminates evaluation. v3.0 adds the consensus level (multi-agent quorum, evidence-gated) between invariant and authorization. A deterministic DENY remains final and cannot be overridden by a lower level.",
   "levels": [
     {"order": 0, "name": "uaal_constraint", "class": "deterministic", "outcome_on_violation": "block",
      "description": "Enterprise constraints — evidence-checked predicates against caller-supplied state."},
     {"order": 1, "name": "invariant", "class": "deterministic", "outcome_on_violation": "block",
      "description": "Behavioral contracts — forbidden capability set-membership and transition constraints."},
-    {"order": 2, "name": "authorization", "class": "deterministic", "outcome_on_violation": "require_approval",
+    {"order": 2, "name": "consensus", "class": "deterministic", "outcome_on_violation": "require_approval",
+     "description": "Multi-agent quorum, evidence-gated. Absent evidence skips (never silently passes). Never blocks — a quorum shortfall is a governance signal, not a proven security violation."},
+    {"order": 3, "name": "authorization", "class": "deterministic", "outcome_on_violation": "require_approval",
      "description": "Capability grants — expiry, revocation, budget."},
-    {"order": 3, "name": "economics", "class": "deterministic", "outcome_on_violation": "require_approval",
-     "description": "Cost-ratio anomaly and ROI floor against caller-supplied estimates and historical baseline. Never blocks — efficiency signal, not a security violation."},
-    {"order": 4, "name": "drift", "class": "probabilistic", "outcome_on_violation": "require_approval",
+    {"order": 4, "name": "economics", "class": "deterministic", "outcome_on_violation": "require_approval",
+     "description": "Cost-ratio anomaly and ROI floor against caller-supplied estimates and historical baseline."},
+    {"order": 5, "name": "drift", "class": "probabilistic", "outcome_on_violation": "require_approval",
      "description": "Learned behavioral drift. The ONLY non-deterministic level."},
-    {"order": 5, "name": "baseline", "class": "deterministic", "outcome_on_violation": "allow",
+    {"order": 6, "name": "baseline", "class": "deterministic", "outcome_on_violation": "allow",
      "description": "No violation at any prior level."}
   ],
   "invariants": [
     "Evaluation is strictly sequential in ascending 'order'; the first level whose condition fires terminates evaluation.",
     "Every level except 'drift' is deterministic and can only escalate or block.",
     "A 'block' outcome at any level is final: no subsequent level can convert it to 'require_approval' or 'allow'.",
-    "'economics' and 'drift' both have outcome_on_violation 'require_approval' — neither can independently BLOCK an action; only uaal_constraint and invariant can."
+    "'consensus', 'economics', and 'drift' all have outcome_on_violation 'require_approval' — none can independently BLOCK; only uaal_constraint and invariant can."
   ]
 }
