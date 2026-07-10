@@ -17,10 +17,11 @@ in every record's `triggered_by` field:
 
     0. enterprise constraints  (deterministic, evidence-checked)  -> BLOCK
     1. behavioral invariants   (deterministic contract)           -> BLOCK
-    2. capability grants       (deterministic authz)               -> REQUIRE_APPROVAL
-    3. economics               (deterministic cost/ROI check)      -> REQUIRE_APPROVAL
-    4. learned drift           (probabilistic advisory)            -> REQUIRE_APPROVAL
-    5. baseline                                                    -> ALLOW
+    2. multi-agent consensus   (evidence-gated, signed voting)     -> REQUIRE_APPROVAL
+    3. capability grants       (deterministic authz)               -> REQUIRE_APPROVAL
+    4. economics               (deterministic cost/ROI check)      -> REQUIRE_APPROVAL
+    5. learned drift           (probabilistic advisory)            -> REQUIRE_APPROVAL
+    6. baseline                                                    -> ALLOW
 
 A deterministic DENY is final: nothing below it — including drift or
 cost signals — can ever turn it into an ALLOW. Learned signals can
@@ -122,7 +123,7 @@ standalone: `python -m agent_dna.mcp_server`.
 | `uaal_layer.py` | L0 enterprise constraints (vendored + tested from UAAL's EAV engine) |
 | `grants.py` | Capability grants — expiry, revocation, budget, named-reason denials |
 | `economics/` | L3 pre-execution cost-ratio anomaly + ROI floor check |
-| `consensus/` | Weighted and signed (HMAC) multi-agent voting — tested, not yet wired into the enforcement path |
+| `consensus/` | Weighted and signed (HMAC) multi-agent voting — L2 in the precedence order, evidence-gated (absent evidence skips) |
 | `runtime.py` | Enforcing streaming monitor |
 | `decision_record.py` / `execution_record.py` | Sealed, hash-chained record kinds (drp/0.1) |
 | `decision_graph.py` / `decision_recorder.py` | Queryable lineage, chain verification, restores from store on startup |

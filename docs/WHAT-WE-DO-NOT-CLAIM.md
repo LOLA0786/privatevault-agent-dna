@@ -84,15 +84,23 @@ first phase of our pilot process, not an afterthought.
 
 ## Multi-agent capability
 
-**We do not claim cross-agent consensus, topology, temporal, and
+**Multi-agent consensus (signed, trust-weighted quorum voting) is
+wired into the live precedence order** as an evidence-gated level:
+absent vote evidence, the check is skipped, never silently passed; a
+quorum shortfall escalates to REQUIRE_APPROVAL, it can never
+independently BLOCK. Forged and unsigned votes are proven to
+contribute zero weight (`tests/test_secure_quorum.py`,
+`tests/test_consensus_checker.py`).
+
+**We do not claim cross-agent topology, temporal-ordering, and
 authority invariants are wired into the live enforcement path today.**
-This layer exists as a tested library (unit-tested, including a
+This is a separate library (`multi_agent/`) — unit-tested, including a
 BFSI multi-agent payment-swarm scenario mapped to named regulatory
-controls) but is not yet composed into the single-agent runtime
+controls — but not yet composed into the single-agent runtime
 described in our technical overview. Integrating it is scoped and
-architecturally compatible — it slots in as one more deterministic
-checker in the existing precedence order — but it is not a shipped
-claim until it is.
+architecturally compatible — it would slot in as one more deterministic
+checker in the existing precedence order, following the same pattern
+used to wire in consensus — but it is not a shipped claim until it is.
 
 ## Compliance
 
