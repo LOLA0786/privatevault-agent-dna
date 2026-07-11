@@ -24,6 +24,10 @@ import subprocess
 import sys
 import tempfile
 import time
+
+from agent_dna.circuit_breaker import (
+    BreakerConfig, CircuitBreaker, GuardedEngine,
+)
 from pathlib import Path
 
 from agent_dna.consensus import ConsensusChecker
@@ -91,7 +95,17 @@ def main():
         economics=CostAnomalyChecker(),
         consensus=ConsensusChecker(),
     )
-    monitor = RuntimeMonitor(engine, recorder=recorder)
+    breaker = CircuitBreaker(
+        log.parent / "breaker.db",
+        BreakerConfig(
+            max_decisions=None,             # rate trip off for the demo
+            window_seconds=60.0,
+            max_cumulative_amount=1000.0,   # salami-drain cap
+            max_consecutive_refusals=None,  # thrash trip off for the demo
+        ),
+    )
+    guarded = GuardedEngine(engine, breaker)
+    monitor = RuntimeMonitor(guarded, recorder=recorder)
 
     register_key("finance-agent", "secret-finance")
     settle_votes = [{
@@ -168,6 +182,44 @@ def main():
         print(f"    reason: {result.reason}")
         print()
 
+    banner("L-1 CIRCUIT BREAKER — suspension outranks everything  |CISO CRO|")
+    print("treasury-agent-07: 17 payments of $60 — each individually")
+    print("in-profile, per-action economics (L4) sees nothing wrong.")
+    print()
+    drained = 0.0
+    for i in range(17):
+        a = intent_to_action(
+            actor_id="treasury-agent-07", verb="pay_invoice",
+            target={"type": "payment", "id": f"INV-2{i:03d}"},
+            parameters={"amount": 60.0},
+            timestamp=time.time(),
+        )
+        a.amount = 60.0
+        r = monitor.process(a, evidence=HONEST_EVIDENCE)
+        drained += 60.0
+        if breaker.is_tripped("treasury-agent-07"):
+            print(f"    payment {i + 1}: cumulative ${drained:,.0f} "
+                  f"> $1,000 window cap -> BREAKER TRIPPED")
+            break
+    a = intent_to_action(
+        actor_id="treasury-agent-07", verb="pay_invoice",
+        target={"type": "payment", "id": "INV-2999"},
+        parameters={"amount": 60.0},
+        timestamp=time.time(),
+    )
+    result = monitor.process(a, evidence=HONEST_EVIDENCE)
+    rec = recorder.graph.find_by_agent("treasury-agent-07")[-1]
+    env = recorder.envelopes[rec.record_hash]
+    signed = verify_envelope(env, rec.record_hash)
+    rows.append(("L-1 circuit breaker", "treasury-agent-07",
+                 result.decision.value.upper(), result.triggered_by, signed))
+    print(f"    next action -> {result.decision.value.upper()} "
+          f"trigger={result.triggered_by} signed={'Y' if signed else 'N'}")
+    print(f"    reason: {result.reason}")
+    print("    -> blocked BEFORE uaal_constraint evaluates: suspension is")
+    print("       a standing pre-gate, not a ninth precedence level.")
+    print(f"    trip/reset chain verifies: {breaker.verify_log()}")
+    print()
     g = recorder.graph
 
     banner("INTEGRITY & PROOF  |CISO CRO|")
@@ -203,11 +255,13 @@ def main():
         print(f"{short:<50} {verdict:<17} {trigger:<12} "
               f"{'Y' if signed else 'N'}")
     print()
-    print("CTO   : every level is a tested code path, 198+ automated tests, CI-guarded.")
+    print("CTO   : every level is a tested code path, 264 automated tests, CI-guarded.")
     print("CAIO  : drift (L5) is the only probabilistic level — it can escalate, never")
     print("        override a deterministic BLOCK above it.")
     print("CISO  : the ATTACK section above is a live exploit attempt against our own")
     print("        signed records, defeated in front of you, not claimed in a slide.")
+    print("        The circuit breaker's suspension survives process restart and")
+    print("        reset requires an explicit signed capability grant.")
     print("CRO   : every verdict, including every refusal, is a hash-chained, signed,")
     print("        independently verifiable record — admissible evidence, not a log line.")
 
