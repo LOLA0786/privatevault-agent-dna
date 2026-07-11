@@ -24,6 +24,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -57,9 +58,12 @@ class CircuitBreaker:
     ) -> None:
         self.config = config
         self._clock = clock
-        self._conn = sqlite3.connect(str(path), check_same_thread=False)
-        self._conn.execute("PRAGMA journal_mode=WAL")
-        self._conn.execute("PRAGMA busy_timeout=5000")
+        self._path = str(path)
+        # Thread-local connections — same rationale as
+        # SQLiteDecisionStore: sqlite3 connections are not
+        # thread-safe; a pre_gate read racing an observe write on a
+        # shared connection corrupts cursor state.
+        self._local = threading.local()
         self._conn.executescript(
             """
             CREATE TABLE IF NOT EXISTS breaker_events (
@@ -273,8 +277,21 @@ class CircuitBreaker:
     def is_tripped(self, agent_id: str) -> bool:
         return self.pre_gate(agent_id) is not None
 
+    @property
+    def _conn(self) -> sqlite3.Connection:
+        conn = getattr(self._local, "conn", None)
+        if conn is None:
+            conn = sqlite3.connect(self._path)
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA busy_timeout=5000")
+            self._local.conn = conn
+        return conn
+
     def close(self) -> None:
-        self._conn.close()
+        conn = getattr(self._local, "conn", None)
+        if conn is not None:
+            conn.close()
+            self._local.conn = None
 
 
 def _default_amount(action, evidence: Optional[dict]) -> Optional[float]:
@@ -301,6 +318,12 @@ class GuardedEngine:
         self.engine = engine
         self.breaker = breaker
         self._amount_fn = amount_fn
+
+    def __getattr__(self, name):
+        # Transparent proxy: anything the wrapper doesn't define
+        # (evidence_engine, scorer, ...) resolves to the real engine,
+        # so RuntimeMonitor and friends see an unchanged surface.
+        return getattr(self.engine, name)
 
     def decide(
         self,

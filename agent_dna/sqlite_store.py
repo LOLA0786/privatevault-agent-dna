@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import threading
 from pathlib import Path
 from typing import List, Union
 
@@ -55,11 +56,28 @@ class SQLiteDecisionStore:
     def __init__(self, path: Union[str, Path]) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(self.path, check_same_thread=False)
-        self._conn.execute("PRAGMA journal_mode=WAL")
+        #
+        # Thread-local connections: sqlite3 connections are NOT
+        # thread-safe even with check_same_thread=False — concurrent
+        # use of one connection corrupts cursor state (empty tuples
+        # from fetchall(), the exact race caught by the pinning
+        # test). Each thread gets its own connection to the same WAL
+        # database; WAL provides the actual concurrency model.
+        #
+        self._local = threading.local()
         self._migrate_add_prev_hash_column()
         self._conn.executescript(_SCHEMA)
         self._conn.commit()
+
+    @property
+    def _conn(self) -> sqlite3.Connection:
+        conn = getattr(self._local, "conn", None)
+        if conn is None:
+            conn = sqlite3.connect(self.path)
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA busy_timeout=5000")
+            self._local.conn = conn
+        return conn
 
     def _migrate_add_prev_hash_column(self) -> None:
         """Add prev_hash to a pre-existing records table that predates
@@ -233,4 +251,7 @@ class SQLiteDecisionStore:
         return path
 
     def close(self) -> None:
-        self._conn.close()
+        conn = getattr(self._local, "conn", None)
+        if conn is not None:
+            conn.close()
+            self._local.conn = None

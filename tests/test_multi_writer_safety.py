@@ -5,6 +5,7 @@ actually serializes concurrent writes, not just that the code runs
 without error."""
 
 import threading
+import traceback
 import time
 
 import pytest
@@ -89,7 +90,7 @@ def test_concurrent_writers_same_agent_no_fork(tmp_path):
             )
             local_recorder.record(action, engine.decide(action))
         except Exception as e:
-            errors.append((thread_id, e))
+            errors.append((thread_id, e, traceback.format_exc()))
 
     threads = [threading.Thread(target=writer, args=(i,)) for i in range(N_THREADS)]
     for t in threads:
