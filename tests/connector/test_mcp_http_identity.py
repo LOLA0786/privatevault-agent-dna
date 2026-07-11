@@ -22,6 +22,7 @@ import time
 import pytest
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
+from mcp.shared._httpx_utils import create_mcp_http_client
 
 from agent_dna.apikeys import generate_key
 
@@ -96,12 +97,13 @@ async def _call(url, key):
     deadline = time.time() + 15
     while True:
         try:
-            async with streamable_http_client(url, headers=headers) as (r, w, _):
-                async with ClientSession(r, w) as s:
-                    await s.initialize()
-                    return await s.call_tool(
-                        "read_contact", {"contact_id": "C-1"}
-                    )
+            async with create_mcp_http_client(headers=headers) as hc:
+                async with streamable_http_client(url, http_client=hc) as (r, w, _):
+                    async with ClientSession(r, w) as s:
+                        await s.initialize()
+                        return await s.call_tool(
+                            "read_contact", {"contact_id": "C-1"}
+                        )
         except Exception:
             if time.time() > deadline:
                 raise
