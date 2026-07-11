@@ -59,8 +59,15 @@ class ConnectorMiddleware:
     def _monitor_for(self, agent_id: str) -> tuple:
         with self._registry_lock:
             if agent_id not in self._monitors:
+                # recorder=None: the middleware records explicitly below
+                # and needs record()'s return value (the DecisionRecord).
+                # Letting the monitor record would discard it, forcing a
+                # fragile graph lookup that BREAKS under multi_writer_safe
+                # recorders (the in-memory graph is not populated there;
+                # the store is the truth). Found by
+                # tests/connector/test_multi_agent_isolation.py.
                 self._monitors[agent_id] = RuntimeMonitor(
-                    self.engine, recorder=self.recorder
+                    self.engine, recorder=None
                 )
                 self._locks[agent_id] = threading.Lock()
             return self._monitors[agent_id], self._locks[agent_id]
@@ -104,7 +111,7 @@ class ConnectorMiddleware:
         monitor, lock = self._monitor_for(agent_id)
         with lock:
             result = monitor.process(action, evidence=request.evidence)
-            rec = self.recorder.graph.find_by_agent(agent_id)[-1]
+            rec = self.recorder.record(action, result)
 
         return ToolCallVerdict(
             decision=result.decision.value,
