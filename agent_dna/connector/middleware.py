@@ -26,6 +26,8 @@ import threading
 from typing import Dict, Optional
 
 from ..apikeys import ApiKeyRegistry
+from ..decision import Decision, DecisionResult, Severity
+from ..multi_agent import Verdict as CabiVerdict
 from ..runtime import RuntimeMonitor
 from ..trace import AgentAction
 from .models import ToolCallRequest, ToolCallVerdict
@@ -34,7 +36,8 @@ import time
 
 
 class ConnectorMiddleware:
-    def __init__(self, engine, recorder, keys: ApiKeyRegistry) -> None:
+    def __init__(self, engine, recorder, keys: ApiKeyRegistry,
+                 cross_agent=None) -> None:
         """engine: GuardedEngine (or DecisionEngine-compatible).
         recorder: DecisionRecorder — required, the verdict must carry
         a chain record_hash. keys: ApiKeyRegistry with enabled=True;
@@ -50,6 +53,7 @@ class ConnectorMiddleware:
         self.engine = engine
         self.recorder = recorder
         self.keys = keys
+        self.cross_agent = cross_agent   # optional CrossAgentEnforcer
         self._monitors: Dict[str, RuntimeMonitor] = {}
         self._locks: Dict[str, threading.Lock] = {}
         self._registry_lock = threading.Lock()
@@ -111,6 +115,7 @@ class ConnectorMiddleware:
         monitor, lock = self._monitor_for(agent_id)
         with lock:
             result = monitor.process(action, evidence=request.evidence)
+            result = self._cross_agent_escalate(request, agent_id, result)
             rec = self.recorder.record(action, result)
 
         return ToolCallVerdict(
@@ -120,4 +125,46 @@ class ConnectorMiddleware:
             agent_id=agent_id,
             record_hash=rec.record_hash,
             signed=rec.record_hash in self.recorder.envelopes,
+        )
+
+    # -- cross-agent invariants: escalation-only ------------------------
+
+    _ESCALATION_RANK = {"allow": 0, "require_approval": 1, "block": 2}
+
+    def _cross_agent_escalate(self, request, agent_id, result):
+        """CABI can only escalate a verdict, never relax one. Calls
+        without a declared execution_id are not evaluated (documented
+        scope: cross-agent invariants require declared correlation).
+        Attempted-but-blocked calls still enter the window."""
+        if self.cross_agent is None:
+            return result
+        execution_id = (request.context or {}).get("execution_id")
+        if not execution_id:
+            return result
+        engine_verdict = self.cross_agent.observe(
+            execution_id, agent_id, request.tool
+        )
+        if engine_verdict.verdict is CabiVerdict.ALLOW:
+            return result
+        target = (
+            Decision.BLOCK
+            if engine_verdict.verdict is CabiVerdict.BLOCK
+            else Decision.REQUIRE_APPROVAL
+        )
+        if (self._ESCALATION_RANK[target.value]
+                <= self._ESCALATION_RANK[result.decision.value]):
+            return result                # never relax
+        return DecisionResult(
+            decision=target,
+            triggered_by="cross_agent_invariant",
+            reason="; ".join(engine_verdict.reasons)
+                   or f"cross-agent invariant verdict "
+                      f"{engine_verdict.verdict.value} "
+                      f"(score={engine_verdict.score:.3f})",
+            capability=request.tool,
+            agent_id=agent_id,
+            drift_score=result.drift_score,
+            severity=(Severity.CRITICAL if target is Decision.BLOCK
+                      else result.severity),
+            advisory_reasons=list(result.advisory_reasons),
         )
