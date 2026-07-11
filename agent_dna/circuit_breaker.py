@@ -1,0 +1,328 @@
+"""
+Circuit breaker (TUE-05 / RBM-06).
+
+Two-phase control, distinct from per-action economics (L4):
+
+  1. pre_gate   — a tripped agent is BLOCKed before any precedence
+                  level evaluates. Deterministic, fail-closed,
+                  survives process restart (SQLite-backed).
+  2. observe    — counters update off the verdict stream after every
+                  decision; crossing a threshold trips the breaker.
+
+Trip conditions:
+  rate            > max_decisions within window_seconds   (runaway loop)
+  volume          cumulative amount within window > cap   (salami drain)
+  refusal_thrash  K consecutive non-ALLOW verdicts        (probing agent)
+
+Reset is explicit, capability-gated (breaker.reset), and itself a
+hash-chained record. There is no silent auto-reset; an optional
+cooldown may be configured but defaults to manual-only.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import sqlite3
+import time
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Callable, Optional, Union
+
+from .decision import Decision, DecisionResult, Severity
+
+RESET_CAPABILITY = "breaker.reset"
+GENESIS = "0" * 64
+
+
+@dataclass(frozen=True)
+class BreakerConfig:
+    max_decisions: Optional[int] = 100          # rate trip; None disables
+    window_seconds: float = 10.0
+    max_cumulative_amount: Optional[float] = None   # volume trip; None disables
+    max_consecutive_refusals: Optional[int] = 5     # thrash trip; None disables
+    cooldown_seconds: Optional[float] = None        # None = manual reset only
+
+
+class CircuitBreaker:
+    """SQLite-backed per-agent circuit breaker with a hash-chained
+    trip/reset log. In-memory state is deliberately not offered:
+    a restart must never clear a trip (restart-as-evasion)."""
+
+    def __init__(
+        self,
+        path: Union[str, Path],
+        config: BreakerConfig = BreakerConfig(),
+        clock: Callable[[], float] = time.time,
+    ) -> None:
+        self.config = config
+        self._clock = clock
+        self._conn = sqlite3.connect(str(path), check_same_thread=False)
+        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn.execute("PRAGMA busy_timeout=5000")
+        self._conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS breaker_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                agent_id TEXT NOT NULL,
+                ts REAL NOT NULL,
+                decision TEXT NOT NULL,
+                amount REAL
+            );
+            CREATE INDEX IF NOT EXISTS idx_events_agent_ts
+                ON breaker_events (agent_id, ts);
+            CREATE TABLE IF NOT EXISTS breaker_state (
+                agent_id TEXT PRIMARY KEY,
+                tripped INTEGER NOT NULL,
+                reason TEXT NOT NULL,
+                tripped_at REAL NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS breaker_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                agent_id TEXT NOT NULL,
+                event_type TEXT NOT NULL,   -- trip | reset
+                reason TEXT NOT NULL,
+                actor TEXT NOT NULL,
+                ts REAL NOT NULL,
+                prev_hash TEXT NOT NULL,
+                record_hash TEXT NOT NULL
+            );
+            """
+        )
+        self._conn.commit()
+
+    # ------------------------------------------------------------------
+    # phase 1: pre-gate
+    # ------------------------------------------------------------------
+
+    def pre_gate(self, agent_id: str) -> Optional[str]:
+        """Return trip reason if the agent is suspended, else None."""
+        row = self._conn.execute(
+            "SELECT tripped, reason, tripped_at FROM breaker_state WHERE agent_id = ?",
+            (agent_id,),
+        ).fetchone()
+        if row is None or not row[0]:
+            return None
+        tripped, reason, tripped_at = row
+        cd = self.config.cooldown_seconds
+        if cd is not None and (self._clock() - tripped_at) >= cd:
+            self._write_reset(agent_id, actor="system:cooldown",
+                              reason=f"cooldown {cd}s elapsed")
+            return None
+        return reason
+
+    # ------------------------------------------------------------------
+    # phase 2: observe verdict stream, evaluate trips
+    # ------------------------------------------------------------------
+
+    def observe(
+        self,
+        agent_id: str,
+        decision: str,
+        amount: Optional[float] = None,
+    ) -> Optional[str]:
+        """Record one verdict; trip if any threshold is crossed.
+        Returns the trip reason if this observation tripped the breaker."""
+        now = self._clock()
+        self._conn.execute(
+            "INSERT INTO breaker_events (agent_id, ts, decision, amount) "
+            "VALUES (?, ?, ?, ?)",
+            (agent_id, now, decision, amount),
+        )
+        self._conn.commit()
+        reason = self._evaluate(agent_id, now)
+        if reason is not None:
+            self._trip(agent_id, reason, now)
+        return reason
+
+    def _evaluate(self, agent_id: str, now: float) -> Optional[str]:
+        cfg = self.config
+        since = now - cfg.window_seconds
+
+        if cfg.max_decisions is not None:
+            (n,) = self._conn.execute(
+                "SELECT COUNT(*) FROM breaker_events "
+                "WHERE agent_id = ? AND ts >= ?",
+                (agent_id, since),
+            ).fetchone()
+            if n > cfg.max_decisions:
+                return (
+                    f"rate_trip: {n} decisions in {cfg.window_seconds}s "
+                    f"window (limit {cfg.max_decisions})"
+                )
+
+        if cfg.max_cumulative_amount is not None:
+            (total,) = self._conn.execute(
+                "SELECT COALESCE(SUM(amount), 0) FROM breaker_events "
+                "WHERE agent_id = ? AND ts >= ? AND amount IS NOT NULL",
+                (agent_id, since),
+            ).fetchone()
+            if total > cfg.max_cumulative_amount:
+                return (
+                    f"volume_trip: cumulative {total:.2f} in "
+                    f"{cfg.window_seconds}s window "
+                    f"(cap {cfg.max_cumulative_amount:.2f})"
+                )
+
+        if cfg.max_consecutive_refusals is not None:
+            k = cfg.max_consecutive_refusals
+            rows = self._conn.execute(
+                "SELECT decision FROM breaker_events "
+                "WHERE agent_id = ? ORDER BY id DESC LIMIT ?",
+                (agent_id, k),
+            ).fetchall()
+            if len(rows) == k and all(r[0] != Decision.ALLOW.value for r in rows):
+                return (
+                    f"refusal_thrash: {k} consecutive non-allow verdicts"
+                )
+
+        return None
+
+    # ------------------------------------------------------------------
+    # trip / reset — both are chained records
+    # ------------------------------------------------------------------
+
+    def _trip(self, agent_id: str, reason: str, now: float) -> None:
+        self._conn.execute(
+            "INSERT OR REPLACE INTO breaker_state "
+            "(agent_id, tripped, reason, tripped_at) VALUES (?, 1, ?, ?)",
+            (agent_id, reason, now),
+        )
+        self._append_log(agent_id, "trip", reason, actor="system:breaker", ts=now)
+        self._conn.commit()
+
+    def reset(
+        self,
+        agent_id: str,
+        actor_id: str,
+        authorize: Callable[[str, str], bool],
+    ) -> dict:
+        """Explicit reset. `authorize(actor_id, RESET_CAPABILITY)` must
+        return True — wire this to the real Authorizer/CapabilityRegistry.
+        The reset itself becomes a chained record. Raises PermissionError
+        on unauthorized attempts; the trip state is untouched."""
+        if not authorize(actor_id, RESET_CAPABILITY):
+            raise PermissionError(
+                f"actor '{actor_id}' lacks capability '{RESET_CAPABILITY}'"
+            )
+        return self._write_reset(agent_id, actor=actor_id,
+                                 reason="authorized manual reset")
+
+    def _write_reset(self, agent_id: str, actor: str, reason: str) -> dict:
+        now = self._clock()
+        self._conn.execute(
+            "UPDATE breaker_state SET tripped = 0 WHERE agent_id = ?",
+            (agent_id,),
+        )
+        record = self._append_log(agent_id, "reset", reason, actor=actor, ts=now)
+        self._conn.commit()
+        return record
+
+    def _append_log(
+        self, agent_id: str, event_type: str, reason: str, actor: str, ts: float
+    ) -> dict:
+        row = self._conn.execute(
+            "SELECT record_hash FROM breaker_log ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+        prev_hash = row[0] if row else GENESIS
+        body = {
+            "agent_id": agent_id,
+            "event_type": event_type,
+            "reason": reason,
+            "actor": actor,
+            "ts": ts,
+            "prev_hash": prev_hash,
+        }
+        record_hash = hashlib.sha256(
+            json.dumps(body, sort_keys=True).encode()
+        ).hexdigest()
+        self._conn.execute(
+            "INSERT INTO breaker_log "
+            "(agent_id, event_type, reason, actor, ts, prev_hash, record_hash) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (agent_id, event_type, reason, actor, ts, prev_hash, record_hash),
+        )
+        body["record_hash"] = record_hash
+        return body
+
+    def verify_log(self) -> bool:
+        """Walk the trip/reset chain; True iff every link binds."""
+        prev = GENESIS
+        for row in self._conn.execute(
+            "SELECT agent_id, event_type, reason, actor, ts, prev_hash, "
+            "record_hash FROM breaker_log ORDER BY id"
+        ):
+            agent_id, event_type, reason, actor, ts, prev_hash, record_hash = row
+            if prev_hash != prev:
+                return False
+            body = {
+                "agent_id": agent_id,
+                "event_type": event_type,
+                "reason": reason,
+                "actor": actor,
+                "ts": ts,
+                "prev_hash": prev_hash,
+            }
+            if hashlib.sha256(
+                json.dumps(body, sort_keys=True).encode()
+            ).hexdigest() != record_hash:
+                return False
+            prev = record_hash
+        return True
+
+    def is_tripped(self, agent_id: str) -> bool:
+        return self.pre_gate(agent_id) is not None
+
+    def close(self) -> None:
+        self._conn.close()
+
+
+def _default_amount(action, evidence: Optional[dict]) -> Optional[float]:
+    amt = getattr(action, "amount", None)
+    if amt is None and evidence:
+        amt = evidence.get("amount")
+    try:
+        return float(amt) if amt is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+class GuardedEngine:
+    """Composable wrapper: pre-gates a DecisionEngine (or anything with
+    the same .decide contract) behind a CircuitBreaker, and feeds every
+    verdict back into it. No edits to decision.py required."""
+
+    def __init__(
+        self,
+        engine,
+        breaker: CircuitBreaker,
+        amount_fn: Callable = _default_amount,
+    ) -> None:
+        self.engine = engine
+        self.breaker = breaker
+        self._amount_fn = amount_fn
+
+    def decide(
+        self,
+        action,
+        prev_capability: Optional[str] = None,
+        evidence: Optional[dict] = None,
+    ) -> DecisionResult:
+        reason = self.breaker.pre_gate(action.agent_id)
+        if reason is not None:
+            return DecisionResult(
+                decision=Decision.BLOCK,
+                triggered_by="circuit_breaker",
+                reason=f"agent suspended: {reason}",
+                capability=action.capability,
+                agent_id=action.agent_id,
+                drift_score=0.0,
+                severity=Severity.CRITICAL,
+            )
+        result = self.engine.decide(action, prev_capability, evidence)
+        self.breaker.observe(
+            action.agent_id,
+            result.decision.value,
+            self._amount_fn(action, evidence),
+        )
+        return result
