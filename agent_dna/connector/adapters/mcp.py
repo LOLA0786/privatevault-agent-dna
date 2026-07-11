@@ -46,10 +46,35 @@ class EnforcementBlocked(Exception):
 
 
 def guard_fastmcp(server, middleware, api_key: Optional[str] = None):
-    """Returns the same server instance, with enforcement installed."""
-    key = api_key if api_key is not None else os.environ.get(PV_KEY_ENV)
+    """Returns the same server instance, with enforcement installed.
+
+    Identity resolution, per call:
+      1. HTTP transports (streamable-http / SSE): the session's
+         'Authorization: Bearer <key>' header — true per-session
+         identity; different sessions on one server are different
+         agents.
+      2. Explicit api_key argument.
+      3. PV_AGENT_KEY env var (stdio: one process = one agent).
+    Bearer keys in headers require TLS in deployment — noted in
+    WHAT-WE-DO-NOT-CLAIM.md; the connector does not terminate TLS.
+    """
+    static_key = (
+        api_key if api_key is not None else os.environ.get(PV_KEY_ENV)
+    )
     tm = server._tool_manager
     original_call_tool = tm.call_tool
+
+    def _resolve_key() -> Optional[str]:
+        try:
+            ctx = server._mcp_server.request_context
+            req = getattr(ctx, "request", None)
+            if req is not None:
+                auth = req.headers.get("authorization", "")
+                if auth.lower().startswith("bearer "):
+                    return auth[7:]
+        except LookupError:
+            pass          # no request context bound (stdio / in-memory)
+        return static_key
 
     async def enforced_call_tool(
         name: str, arguments: dict[str, Any], *args, **kwargs
@@ -58,7 +83,7 @@ def guard_fastmcp(server, middleware, api_key: Optional[str] = None):
             ToolCallRequest(
                 adapter="mcp",
                 tool=name,
-                api_key=key,
+                api_key=_resolve_key(),
                 arguments=dict(arguments or {}),
             )
         )
