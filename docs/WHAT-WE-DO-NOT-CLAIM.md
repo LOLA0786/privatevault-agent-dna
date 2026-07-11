@@ -20,14 +20,22 @@ What exists today, verifiable directly:
   no dependency on our code to check our claims. See
   [drp-spec](https://github.com/LOLA0786/drp-spec) and
   `tools/verify_records.py`.
-- 138 automated tests, run in CI on every commit
+- 286 automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
 - Fail-closed enforcement: any internal fault — a buggy scorer,
   invariant checker, authorizer, or evidence source — becomes a
   deterministic BLOCK, never a silent pass or an unhandled crash.
-- MCP support: 6 tools over the composed decision line (pv_decide, pv_report_outcome, pv_verify, pv_lineage, pv_blocked, pv_divergent), tested directly at the gateway layer. Standard MCP stdio transport; not yet load-tested under concurrent MCP clients.
+- MCP support, two distinct layers: (1) 6 advisory tools over the
+  composed decision line (pv_decide, pv_report_outcome, pv_verify,
+  pv_lineage, pv_blocked, pv_divergent); (2) transport-level
+  enforcement — any FastMCP server wrapped by our connector routes
+  EVERY tools/call through the full precedence line before the tool
+  executes, with per-session agent identity over streamable HTTP
+  (Authorization bearer) and signed refusals in-band
+  (`tests/connector/`). Not yet load-tested under high concurrent
+  MCP client counts.
 - No production secrets in source control (git history has been
   scrubbed of a prior exposure and rotated; `PV_RECEIPT_SIGNING_KEY`
   and `PV_API_KEYS_FILE` are environment/file-based, never committed).
@@ -50,12 +58,15 @@ couldn't stand behind.
 
 ## Deployment maturity
 
-**We do not claim multi-writer production deployment today.** The
-reference deployment is single-process. Chain state correctly
-survives a process restart (test-covered — a prior version of this
-runtime did not guarantee this, and we fixed and tested it before
-claiming it). Concurrent multi-instance writes to one datastore are a
-scoped next step, not a shipped property.
+**Multi-writer safety to one datastore is now shipped and tested**
+(atomic chain-head transactions, thread-local SQLite connections
+after a real shared-connection cursor race was caught by our own
+suite, root-caused, and pinned —
+`tests/test_multi_writer_safety.py`,
+`tests/test_connection_thread_safety.py`). Chain state survives
+process restart (test-covered). **We still do not claim horizontally
+scaled multi-instance deployment**: no load-balancer story, no
+concurrent-load benchmark, no shared-nothing design decided.
 
 **We do not claim signature envelopes persist across restarts today.**
 Decision and execution records do — restart-safety here is
@@ -92,15 +103,46 @@ independently BLOCK. Forged and unsigned votes are proven to
 contribute zero weight (`tests/test_secure_quorum.py`,
 `tests/test_consensus_checker.py`).
 
-**We do not claim cross-agent topology, temporal-ordering, and
-authority invariants are wired into the live enforcement path today.**
-This is a separate library (`multi_agent/`) — unit-tested, including a
-BFSI multi-agent payment-swarm scenario mapped to named regulatory
-controls — but not yet composed into the single-agent runtime
-described in our technical overview. Integrating it is scoped and
-architecturally compatible — it would slot in as one more deterministic
-checker in the existing precedence order, following the same pattern
-used to wire in consensus — but it is not a shipped claim until it is.
+**Cross-agent invariants (topology, temporal-ordering, authority)
+are now wired into the live connector enforcement path** as an
+escalation-only post-decision check: a violating interaction window
+can escalate a verdict (allow -> block/require_approval), never relax
+one, and escalated verdicts are chained and signed
+(`tests/connector/test_cross_agent.py` — maker!=checker dual-control
+proven through the connector). Honest scope of that claim:
+
+- **Correlation is declared, not inferred.** Cross-agent evaluation
+  requires the caller to supply an `execution_id`; uncorrelated calls
+  get the full single-agent precedence line and breakers, but no
+  cross-agent evaluation. We do not claim to detect coordination
+  across calls we were not told are related.
+- **Group circuit-breaker membership is declared config, not
+  behavioral inference.** The distributed-drain trip (N agents
+  jointly exceeding a group volume cap, each individually under its
+  per-agent cap — `tests/test_group_breaker.py`) enforces stated
+  swarm structure. Detecting undeclared coordination is a
+  drift/anomaly problem, and we do not claim the deterministic
+  breaker solves it.
+- **Agent roles and tool targets are declared config.**
+
+## Connector & transport security
+
+**We do not claim transport encryption.** Connector identity binds
+agents to API keys carried as HTTP bearer headers; the connector does
+not terminate TLS. Deploying without TLS in front of it sends keys in
+plaintext. TLS is the deployment's responsibility and we say so
+rather than imply otherwise.
+
+**We do not claim live key rotation or revocation.** Key changes are
+registry-file reloads. No secrets-manager integration, no rotation
+mechanism (see PRODUCTION-HARDENING.md).
+
+**Two private third-party SDK surfaces are load-bearing** in the MCP
+adapter (`FastMCP._tool_manager`, `mcp.shared._httpx_utils`), pinned
+to mcp>=1.0 and guarded by integration tests that fail loudly on an
+SDK surface change (`tests/connector/test_mcp_adapter.py`,
+`tests/connector/test_mcp_http_identity.py`). A future SDK major
+version will break tests, not enforcement.
 
 ## Compliance
 

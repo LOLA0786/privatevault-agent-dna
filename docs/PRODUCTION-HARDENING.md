@@ -29,10 +29,10 @@ points at the test file that proves it.
 | Capability | Status | Notes |
 |---|---|---|
 | Single-writer correctness | **SHIPPED** | All existing tests assume one process; correct in that mode |
-| Multi-writer safety (concurrent processes, same store) | **NOT STARTED** | Chain-head read-then-write is not currently atomic across processes. A race between two writers for the same agent could produce a chain fork. Scoped fix: move chain-head lookup into the store's own transaction (SQLite: `BEGIN IMMEDIATE` + read-modify-write in one transaction). Estimated 1 session with tests once a real multi-process requirement exists. |
-| Horizontal scaling (multiple app instances) | **NOT STARTED** | Depends on multi-writer safety above. No load balancer story, no shared-nothing design decided yet. |
+| Multi-writer safety (concurrent processes, same store) | **SHIPPED** | Atomic chain-head via `append_atomic`/`get_chain_head` in one store transaction; thread-local SQLite connections after a shared-connection cursor race was caught, root-caused, and pinned. `tests/test_multi_writer_safety.py`, `tests/test_connection_thread_safety.py` |
+| Horizontal scaling (multiple app instances) | **NOT STARTED** | Multi-writer safety (its prerequisite) is now shipped. No load balancer story, no shared-nothing design decided yet. |
 | Throughput benchmark, single process | **SHIPPED** | `tools/benchmark.py` — stated methodology, rerunnable, no unverified numbers cited |
-| Throughput benchmark, concurrent/production load | **NOT STARTED** | Requires multi-writer safety first; a concurrency benchmark on a single-writer system would not be meaningful |
+| Throughput benchmark, concurrent/production load | **NOT STARTED** | Prerequisite (multi-writer safety) now shipped; benchmark itself not built |
 
 ## Persistence & storage
 
@@ -55,6 +55,21 @@ points at the test file that proves it.
 | Third-party security certification (SOC 2, ISO 27001) | **NOT STARTED** | See `docs/WHAT-WE-DO-NOT-CLAIM.md` — pre-seed, no funded timeline yet. |
 | Penetration testing | **NOT STARTED** | No formal external pentest has been performed. Internal adversarial corpus (`spec/adversarial/`) is not a substitute and is not claimed as one. |
 | Vulnerability disclosure process | **NOT STARTED** | No `security.txt`, no formal disclosure channel yet. Low effort, should be done regardless of pilot timing. |
+
+## Connector (agent-harness enforcement)
+
+| Capability | Status | Evidence |
+|---|---|---|
+| Single enforcement path, identity fail-closed | **SHIPPED** | `tests/connector/test_middleware.py` — no/invalid/audit-scoped key -> BLOCK; audit keys proven unable to exercise enforcement |
+| MCP transport-level enforcement | **SHIPPED** | `tests/connector/test_mcp_adapter.py` — real client/server, allowed call executes, suspended agent refused with signed hash in-band |
+| Per-session HTTP identity | **SHIPPED** | `tests/connector/test_mcp_http_identity.py` — real streamable HTTP, sessions on one server are distinct agents |
+| Multi-agent isolation under concurrency | **SHIPPED** | `tests/connector/test_multi_agent_isolation.py` — found and forced the fix of a real middleware bug under multi_writer_safe recorders |
+| Group (swarm) circuit breaker | **SHIPPED** | `tests/test_group_breaker.py` — distributed drain across declared groups, group-atomic gated reset |
+| Cross-agent invariants at the transport | **SHIPPED** | `tests/connector/test_cross_agent.py` — escalation-only, declared execution windows |
+| No-mocks-on-enforcement-path CI guard | **SHIPPED** | `tests/connector/test_standard_no_mocks.py` (docs/ENGINEERING-STANDARD.md rule 1) |
+| Private SDK surface pins | **DECLARED** | `FastMCP._tool_manager`, `mcp.shared._httpx_utils` — mcp>=1.0, integration tests fail loudly on surface change |
+| TLS termination | **NOT STARTED** | Deployment responsibility; bearer keys require TLS in front of the connector |
+| Framework adapters beyond MCP (OpenAI SDK, LangGraph, CrewAI) | **SCOPED** | Same middleware, thin per-framework translation (~40-line adapters); built when a pilot names one |
 
 ## Observability
 
