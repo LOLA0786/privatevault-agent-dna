@@ -28,11 +28,12 @@ import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Optional, Union
+from typing import Callable, Dict, List, Optional, Union
 
 from .decision import Decision, DecisionResult, Severity
 
 RESET_CAPABILITY = "breaker.reset"
+RESET_GROUP_CAPABILITY = "breaker.reset_group"
 GENESIS = "0" * 64
 
 
@@ -43,6 +44,14 @@ class BreakerConfig:
     max_cumulative_amount: Optional[float] = None   # volume trip; None disables
     max_consecutive_refusals: Optional[int] = 5     # thrash trip; None disables
     cooldown_seconds: Optional[float] = None        # None = manual reset only
+    #
+    # Group (swarm) trip conditions. Membership is DECLARED config,
+    # not behavioral inference -- the breaker enforces stated
+    # structure; detecting undeclared coordination is a drift/DEPA
+    # problem and claiming otherwise would be dishonest.
+    #
+    groups: Optional[Dict[str, List[str]]] = None
+    group_volume_caps: Optional[Dict[str, float]] = None
 
 
 class CircuitBreaker:
@@ -137,7 +146,8 @@ class CircuitBreaker:
         reason = self._evaluate(agent_id, now)
         if reason is not None:
             self._trip(agent_id, reason, now)
-        return reason
+            return reason
+        return self._evaluate_groups(agent_id, now)
 
     def _evaluate(self, agent_id: str, now: float) -> Optional[str]:
         cfg = self.config
@@ -195,6 +205,85 @@ class CircuitBreaker:
         self._append_log(agent_id, "trip", reason, actor="system:breaker", ts=now)
         self._conn.commit()
 
+    def _evaluate_groups(self, agent_id: str, now: float) -> Optional[str]:
+        """Distributed-drain detection: cumulative volume across a
+        DECLARED agent group. Each member's actions may individually
+        pass every per-agent check; the aggregate trips the swarm."""
+        cfg = self.config
+        if not cfg.groups or not cfg.group_volume_caps:
+            return None
+        since = now - cfg.window_seconds
+        for gid, members in cfg.groups.items():
+            if agent_id not in members:
+                continue
+            cap = cfg.group_volume_caps.get(gid)
+            if cap is None:
+                continue
+            marks = ",".join("?" * len(members))
+            (total,) = self._conn.execute(
+                f"SELECT COALESCE(SUM(amount), 0) FROM breaker_events "
+                f"WHERE agent_id IN ({marks}) AND ts >= ? "
+                f"AND amount IS NOT NULL",
+                (*members, since),
+            ).fetchone()
+            if total > cap:
+                reason = (
+                    f"group_trip:{gid}: cumulative {total:.2f} across "
+                    f"{len(members)} agents in {cfg.window_seconds}s "
+                    f"window (cap {cap:.2f})"
+                )
+                self._trip_group(gid, members, reason, now)
+                return reason
+        return None
+
+    def _trip_group(
+        self, gid: str, members: List[str], reason: str, now: float
+    ) -> None:
+        """One chained group_trip record naming the collective cause;
+        every member suspended at the existing per-agent pre-gate --
+        zero new enforcement machinery."""
+        for m in members:
+            self._conn.execute(
+                "INSERT OR REPLACE INTO breaker_state "
+                "(agent_id, tripped, reason, tripped_at) VALUES (?, 1, ?, ?)",
+                (m, reason, now),
+            )
+        self._append_log(gid, "group_trip", reason,
+                         actor="system:breaker", ts=now)
+        self._conn.commit()
+
+    def reset_group(
+        self,
+        group_id: str,
+        actor_id: str,
+        authorize: Callable[[str, str], bool],
+    ) -> dict:
+        """Group-atomic reset: all members or none, one chained
+        record. Requires breaker.reset_group -- deliberately distinct
+        from breaker.reset: dissolving a swarm suspension is a bigger
+        decision than resetting one noisy agent."""
+        if not authorize(actor_id, RESET_GROUP_CAPABILITY):
+            raise PermissionError(
+                f"actor '{actor_id}' lacks capability "
+                f"'{RESET_GROUP_CAPABILITY}'"
+            )
+        members = (self.config.groups or {}).get(group_id)
+        if not members:
+            raise ValueError(f"unknown group '{group_id}'")
+        now = self._clock()
+        for m in members:
+            self._conn.execute(
+                "UPDATE breaker_state SET tripped = 0 WHERE agent_id = ?",
+                (m,),
+            )
+        record = self._append_log(
+            group_id, "group_reset",
+            f"authorized group reset ({len(members)} members)",
+            actor=actor_id, ts=now,
+        )
+        self._conn.commit()
+        return record
+
     def reset(
         self,
         agent_id: str,
@@ -208,6 +297,17 @@ class CircuitBreaker:
         if not authorize(actor_id, RESET_CAPABILITY):
             raise PermissionError(
                 f"actor '{actor_id}' lacks capability '{RESET_CAPABILITY}'"
+            )
+        row = self._conn.execute(
+            "SELECT reason FROM breaker_state "
+            "WHERE agent_id = ? AND tripped = 1",
+            (agent_id,),
+        ).fetchone()
+        if row and row[0].startswith("group_trip:"):
+            raise PermissionError(
+                "agent is under a GROUP suspension; a per-agent reset "
+                "must not dissolve a swarm suspension one member at a "
+                "time -- use reset_group (capability breaker.reset_group)"
             )
         return self._write_reset(agent_id, actor=actor_id,
                                  reason="authorized manual reset")
