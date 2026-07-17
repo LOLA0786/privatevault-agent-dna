@@ -384,11 +384,14 @@ class DecisionEngine:
                     action.agent_id, action.capability
                 )
 
+        merged_evidence = dict(action.evidence or {})
+        if evidence is not None:
+            merged_evidence.update(evidence)
         result = self.decide_from(
             signal=signal,
             invariant=invariant,
             authorized=authorized,
-            evidence=evidence,
+            evidence=merged_evidence,
             arguments=action.arguments,
         )
         if auth_reason is not None and result.triggered_by == "authorization":

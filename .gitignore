@@ -19,3 +19,5 @@ files.txt
 data/*.db
 data/*.db-wal
 data/*.db-shm
+*.egg-info
+__pycache__/

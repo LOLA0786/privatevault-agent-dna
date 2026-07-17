@@ -34,6 +34,7 @@ class AgentAction:
     timestamp: float
     arguments: Dict[str, Any] = field(default_factory=dict)
     context: Dict[str, Any] = field(default_factory=dict)
+    evidence: Dict[str, Any] = field(default_factory=dict)
     outcome: str = "ok"  # "ok" | "error" | "blocked"
 
     def __post_init__(self) -> None:

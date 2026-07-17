@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 from .advisory import AdvisorySignal
+from .observability.metrics import MetricsExporter
 from .decision import Decision, DecisionEngine, DecisionResult
 from .trace import AgentAction
 
@@ -39,6 +40,7 @@ class RuntimeMonitor:
             )
         self.engine = engine
         self.recorder = recorder     # optional DecisionRecorder; never required
+        self.metrics = MetricsExporter()
         self.previous_capability: Optional[str] = None
         self.events: List[RuntimeEvent] = []
 
@@ -83,6 +85,8 @@ class RuntimeMonitor:
         # to execute.
         if result.decision == Decision.ALLOW:
             self.previous_capability = action.capability
+
+        self.metrics.record(result.decision.value, result.drift_score, result.reason)
 
         return result
 

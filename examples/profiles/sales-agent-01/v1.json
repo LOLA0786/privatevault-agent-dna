@@ -1,0 +1,23 @@
+{
+  "agent_id": "sales-agent-01",
+  "trained_actions": 240,
+  "capabilities": 5,
+  "capability_entropy": 2.321928094887362,
+  "transition_entropy": 2.4519325792170332,
+  "behavior_hash": "dd97f9411e9ccb523067beaefeea8d8dac7f59e5e91ee52f78a142251dc559f0",
+  "capability_counts": {
+    "crm.read_contact": 48,
+    "crm.enrich_contact": 48,
+    "crm.update_contact": 48,
+    "email.send": 48,
+    "calendar.create_event": 48
+  },
+  "transitions": [
+    "<START>->crm.read_contact",
+    "crm.read_contact->crm.enrich_contact",
+    "crm.enrich_contact->crm.update_contact",
+    "crm.update_contact->email.send",
+    "email.send->calendar.create_event",
+    "calendar.create_event->crm.read_contact"
+  ]
+}

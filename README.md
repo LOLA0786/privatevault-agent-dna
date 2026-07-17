@@ -161,3 +161,11 @@ inspection — `uaal_layer.py` (from UAAL's EAV engine), `consensus/`
 against the vendored logic before being trusted here. One real
 security bug (a timing side-channel in HMAC signature comparison) was
 found and fixed during that process.
+
+## Build Status (v0.2.0 industrial update)
+
+- Packaging: `pyproject.toml` strict (`ruff`, `mypy`, `pydantic`, `cryptography`)
+- Consensus: `AgentAction` native `evidence` + `DecisionEngine` auto-merge
+- Observability: `agent_dna/observability/` (JSON logger, metrics exporter)
+- Security: `docs/SECURITY.md`, Ed25519 rotation stub (`signer.py`)
+- Fail-closed: any exception in decision path -> BLOCK

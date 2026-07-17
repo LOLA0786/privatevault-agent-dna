@@ -93,6 +93,29 @@ class ReceiptSigner:
         )
 
 
+
+def rotate_key(old_seed_hex: str, new_seed_hex: Optional[str] = None) -> Dict[str, str]:
+    """Explicit key rotation: produces a new envelope binding old->new.
+    Industrial standard requires rotation events to be audit-logged."""
+    old_sk = SigningKey(old_seed_hex, encoder=HexEncoder)
+    new_seed = new_seed_hex or SigningKey.generate().encode(encoder=HexEncoder).decode()
+    new_sk = SigningKey(new_seed, encoder=HexEncoder)
+    rotation_hash = hashlib.sha256((old_seed_hex + new_seed).encode()).hexdigest()
+    envelope = SignatureEnvelope(
+        envelope_id=f"rotate-{uuid.uuid4()}",
+        algorithm="Ed25519-key-rotation",
+        signed_hash=rotation_hash,
+        signature=old_sk.sign(rotation_hash.encode()).signature.hex(),
+        public_key=old_sk.verify_key.encode(encoder=HexEncoder).decode(),
+        key_id=f"rotated-to-{new_sk.verify_key.encode(encoder=HexEncoder).decode()[:16]}",
+    )
+    return {
+        "rotation_envelope": envelope.to_dict(),
+        "new_public_key": new_sk.verify_key.encode(encoder=HexEncoder).decode(),
+        "new_seed_hint": "store securely; not in logs",
+    }
+
+
 def verify_envelope(envelope: Dict[str, Any], record_hash: str) -> bool:
     """Standalone verification: envelope + the record_hash it claims to
     sign. No dependency on the signer instance or the record class."""
