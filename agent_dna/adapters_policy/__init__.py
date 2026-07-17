@@ -13,4 +13,6 @@ from .local import LocalPolicyAdapter
 from .git_bundle import GitBundleAdapter
 from .opa import OPAPolicyAdapter
 
-__all__ = ["LocalPolicyAdapter", "GitBundleAdapter", "OPAPolicyAdapter"]
+__all__ = ["LocalPolicyAdapter", "GitBundleAdapter", "OPAPolicyAdapter", "SkillAdapter"]
+
+from .skill_adapter import SkillAdapter
