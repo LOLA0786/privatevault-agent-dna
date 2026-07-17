@@ -16,4 +16,6 @@ below is the actual voting logic.
 from .weighted_quorum import LeaderState, Vote, WeightedQuorum
 from .checker import ConsensusChecker, ConsensusResult
 
-__all__ = ["LeaderState", "Vote", "WeightedQuorum", "ConsensusChecker", "ConsensusResult"]
+__all__ = ["LeaderState", "Vote", "WeightedQuorum", "ConsensusChecker", "ConsensusResult", "ByzantineQuorum"]
+
+from .byzantine import ByzantineQuorum
