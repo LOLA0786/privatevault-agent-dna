@@ -217,11 +217,6 @@ def test_key_cannot_report_outcome_for_another_agent(tmp_path, monkeypatch):
 # P0-4  independent verifier lineage
 # =====================================================================
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="P0-4: verifier never checks that parent_decision exists -- "
-           "a fabricated parent with valid hashes passes",
-)
 def test_verifier_rejects_nonexistent_parent(tmp_path):
     r1 = _record("d-1")
     r2 = _record("d-2", parent="ghost-decision-id",
@@ -236,11 +231,6 @@ def test_verifier_rejects_nonexistent_parent(tmp_path):
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="P0-4: verifier indexes decisions by id in a dict -- a "
-           "duplicate decision_id silently overwrites and passes",
-)
 def test_verifier_rejects_duplicate_decision_id(tmp_path):
     r1 = _record("d-dup")
     r2 = _record("d-dup", prev_hash=r1.record_hash)   # same id, chained
@@ -254,12 +244,6 @@ def test_verifier_rejects_duplicate_decision_id(tmp_path):
     )
 
 
-@pytest.mark.xfail(
-    strict=False,   # resolution is a DRP spec decision; either side may move
-    reason="P0-4: DecisionGraph accepts an externally anchored first "
-           "record while the public verifier rejects it -- the two "
-           "verifiers disagree about the same chain",
-)
 def test_anchor_verdict_is_consistent_between_verifiers(tmp_path):
     from agent_dna.decision_graph import DecisionGraph
 

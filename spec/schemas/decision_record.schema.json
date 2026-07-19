@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://drp.privatevault.ai/schemas/decision_record.schema.json",
   "title": "DecisionRecord",
-  "description": "A sealed, hash-chained pre-execution authorization decision (DRP protocol). record_hash = SHA-256 of the canonical JSON payload (all properties except record_hash, sorted keys, compact separators (',', ':'), no type coercion). Per-agent chain: prev_hash equals the previous decision's record_hash for the same agent_id; genesis is 64 zeros. The chain link is INSIDE the hashed payload: signatures over record_hash therefore cover history, making silent re-ordering impossible.",
+  "description": "A sealed, hash-chained pre-execution authorization decision (DRP protocol). record_hash = SHA-256 of the canonical JSON payload (all properties except record_hash, sorted keys, compact separators (',', ':'), no type coercion). Per-agent chain: prev_hash equals the previous decision's record_hash for the same agent_id. The FIRST record of an agent establishes that agent's origin: 64 zeros means unanchored genesis; any other value is an external provenance anchor (e.g. the head of a prior export). Verifiers MUST verify continuity from the origin and MUST report anchored agents; anchor authenticity is attested out of band. The chain link is INSIDE the hashed payload: signatures over record_hash therefore cover history, making silent re-ordering impossible.",
   "type": "object",
   "required": [
     "protocol_version",

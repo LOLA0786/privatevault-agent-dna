@@ -78,3 +78,16 @@ signing belongs to the enforcement runtime layer above this format),
 approval workflows, policy versioning, or delegation (branching
 lineage). Fields for these are schema-reserved and null until a
 producing component exists.
+
+## External provenance anchors (drp/0.1)
+
+The first record of an agent's chain establishes its origin. A
+`prev_hash` of 64 zeros is an unanchored genesis; any other value is
+an external provenance anchor, binding this chain to state outside
+the file (typically the head of a prior export). The file alone
+proves continuity FROM the origin; it cannot prove the origin's
+legitimacy -- that is an out-of-band attestation. Conforming
+verifiers therefore accept anchored first records and MUST report
+which agents are anchored (see `tools/verify_records.py`, "anchored
+agents"). `DecisionGraph.verify_chain` and the public verifier apply
+the same rule.
