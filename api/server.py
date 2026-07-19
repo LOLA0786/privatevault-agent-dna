@@ -273,12 +273,14 @@ def lineage(decision_id: str, ident: str = Depends(require_api_key)):
 @app.get("/v1/envelope/{record_hash}", dependencies=[Depends(require_api_key)])
 def envelope(record_hash: str):
     env = state["recorder"].envelopes.get(record_hash)
+    if env is None and hasattr(state["store"], "get_envelope"):
+        env = state["store"].get_envelope(record_hash)
     if env is None:
         raise HTTPException(
             status_code=404,
-            detail="no envelope for this hash (unsigned mode, pre-restart "
-                   "record, or unknown hash — envelope persistence is a "
-                   "documented roadmap item)",
+            detail="no envelope for this hash (unsigned mode or unknown "
+                   "hash; envelopes are persisted transactionally with "
+                   "their records and survive restart)",
         )
     return {"envelope": env}
 

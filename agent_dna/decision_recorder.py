@@ -69,6 +69,8 @@ class DecisionRecorder:
         record from GENESIS instead of the last persisted hash — a
         chain break in our own audit trail. Returns records restored."""
         restored = self.store.load_graph()
+        if getattr(self.store, "SUPPORTS_ENVELOPES", False):
+            self.envelopes = self.store.load_envelopes()
         # adopt the restored graph wholesale (verified record-by-record
         # inside load_graph via graph.add / add_execution)
         self.graph = restored
@@ -98,12 +100,27 @@ class DecisionRecorder:
             prev_hash=chain.last_hash,
             anchor_hash=anchor_hash if is_fresh_chain else None,
         )
-        self.graph.add(rec)
-        if self.store is not None:
-            self.store.append(rec)
+        # Audit set 4 ordering: sign first (pure function of the
+        # sealed record), then persist record AND envelope in ONE
+        # store transaction, then update the in-memory graph/heads.
+        # A store failure leaves memory untouched; a memory failure
+        # after commit leaves the store -- the source of truth --
+        # complete, repaired by restore_chains() on restart. The old
+        # order (graph -> store -> sign) could commit a record whose
+        # envelope lived only in memory.
+        env_dict = None
         if self.signer is not None:
-            env = self.signer.sign_record(rec)
-            self.envelopes[rec.record_hash] = env.to_dict()
+            env_dict = self.signer.sign_record(rec).to_dict()
+        if self.store is not None:
+            if env_dict is not None and getattr(
+                self.store, "SUPPORTS_ENVELOPES", False
+            ):
+                self.store.append(rec, envelope=env_dict)
+            else:
+                self.store.append(rec)
+        self.graph.add(rec)
+        if env_dict is not None:
+            self.envelopes[rec.record_hash] = env_dict
 
         chain.last_decision_id = rec.decision_id
         chain.last_hash = rec.record_hash
@@ -134,7 +151,13 @@ class DecisionRecorder:
                 prev_hash=last_hash,
                 anchor_hash=anchor_hash if is_fresh_chain else None,
             )
-            if self.store.append_atomic(rec):
+            env_dict = (
+                self.signer.sign_record(rec).to_dict()
+                if self.signer is not None else None
+            )
+            if self.store.append_atomic(rec, envelope=env_dict):
+                if env_dict is not None:
+                    self.envelopes[rec.record_hash] = env_dict
                 # Deliberately do NOT call self.graph.add(rec) here.
                 # In multi-writer mode, this recorder's local in-memory
                 # graph cannot be kept consistent with what OTHER
@@ -143,9 +166,6 @@ class DecisionRecorder:
                 # the source of truth; call restore_chains() or
                 # store.load_graph() to get a fresh, correct view when
                 # you need one (e.g. for verify_chain or queries).
-                if self.signer is not None:
-                    env = self.signer.sign_record(rec)
-                    self.envelopes[rec.record_hash] = env.to_dict()
                 return rec
             # lost the race -- brief randomized backoff before retrying
             # so competing writers don't immediately re-collide in
@@ -166,6 +186,24 @@ class DecisionRecorder:
         """Executor feedback: append an ExecutionEvent anchored to the
         decision it reports on. Does NOT touch the decision chain —
         events chain off their decision's hash, not the agent chain."""
+        if self.multi_writer_safe:
+            # The in-memory graph is deliberately unpopulated in this
+            # mode; the store is authoritative (audit set 4). The
+            # graph.get path would KeyError on every outcome here.
+            d = self.store.get_decision(decision_id)
+            if d is None:
+                raise KeyError(decision_id)
+            event = build_execution_event(
+                agent_id=d["agent_id"],
+                decision_id=d["decision_id"],
+                decision_hash=d["record_hash"],
+                status=status,
+                detail=detail,
+            )
+            # UNIQUE(decision_ref) makes duplicate outcomes a
+            # database-level ValueError across processes
+            self.store.append(event)
+            return event
         decision = self.graph.get(decision_id)
         event = build_execution_event(
             agent_id=decision.agent_id,
@@ -174,7 +212,7 @@ class DecisionRecorder:
             status=status,
             detail=detail,
         )
-        self.graph.add_execution(event)
         if self.store is not None:
-            self.store.append(event)
+            self.store.append(event)   # durability + DB uniqueness first
+        self.graph.add_execution(event)
         return event

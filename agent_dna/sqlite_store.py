@@ -49,6 +49,23 @@ CREATE INDEX IF NOT EXISTS idx_decision ON records(decision);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_prevhash
     ON records(agent_id, prev_hash)
     WHERE kind = 'decision';
+-- Audit set 4: at most ONE execution event per decision, enforced by
+-- the database across processes -- the in-memory graph's duplicate
+-- check cannot see another writer. NOTE: creating this index on a
+-- pre-existing store already containing duplicate executions fails
+-- loudly at open; a store violating the invariant should refuse to
+-- start, not paper over it.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_execution_per_decision
+    ON records(decision_ref)
+    WHERE kind = 'execution';
+-- Signature envelopes persisted in the SAME transaction as their
+-- record: a signed decision without its envelope (or an envelope for
+-- a record that was never committed) is unrepresentable.
+CREATE TABLE IF NOT EXISTS envelopes (
+    record_hash TEXT PRIMARY KEY,
+    agent_id    TEXT NOT NULL,
+    envelope    TEXT NOT NULL
+);
 """
 
 
@@ -96,34 +113,95 @@ class SQLiteDecisionStore:
 
     # ---- write ----------------------------------------------------------
 
-    def append(self, record) -> None:
+    SUPPORTS_ENVELOPES = True
+
+    @staticmethod
+    def _integrity_detail(exc: sqlite3.IntegrityError) -> str:
+        msg = str(exc)
+        if "records.decision_ref" in msg:
+            return "duplicate execution event for this decision"
+        if "records.record_id" in msg:
+            return "duplicate record id"
+        return msg
+
+    def append(self, record, envelope: dict | None = None) -> None:
+        """Persist one record -- and, when provided, its signature
+        envelope -- in a SINGLE transaction (audit set 4). The failure
+        windows 'record committed, envelope only in memory' and
+        'envelope written, record insert failed' are closed by the
+        transaction boundary, not by call ordering."""
         if not record.verify():
             raise ValueError(
-                f"record is unsealed or tampered; refusing to persist"
+                "record is unsealed or tampered; refusing to persist"
             )
         d = record.to_dict()
         body = json.dumps(d, sort_keys=True, separators=(",", ":"))
         kind = d.get("kind", "decision")
-        self._conn.execute(
-            "INSERT INTO records "
-            "(kind, record_id, agent_id, capability, decision, "
-            " decision_ref, prev_hash, record_hash, body) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (
-                kind,
-                d.get("decision_id") or d.get("event_id"),
-                d["agent_id"],
-                d.get("capability"),
-                d.get("decision"),
-                d.get("decision_ref"),
-                d.get("prev_hash"),
-                d["record_hash"],
-                body,
-            ),
+        env_body = (
+            json.dumps(envelope, sort_keys=True, separators=(",", ":"))
+            if envelope is not None else None
         )
-        self._conn.commit()
+        conn = self._conn
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            conn.execute(
+                "INSERT INTO records "
+                "(kind, record_id, agent_id, capability, decision, "
+                " decision_ref, prev_hash, record_hash, body) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    kind,
+                    d.get("decision_id") or d.get("event_id"),
+                    d["agent_id"],
+                    d.get("capability"),
+                    d.get("decision"),
+                    d.get("decision_ref"),
+                    d.get("prev_hash"),
+                    d["record_hash"],
+                    body,
+                ),
+            )
+            if env_body is not None:
+                conn.execute(
+                    "INSERT INTO envelopes (record_hash, agent_id, envelope) "
+                    "VALUES (?, ?, ?)",
+                    (d["record_hash"], d["agent_id"], env_body),
+                )
+            conn.commit()
+        except sqlite3.IntegrityError as e:
+            conn.rollback()
+            raise ValueError(self._integrity_detail(e)) from e
+        except Exception:
+            conn.rollback()
+            raise
 
-    def append_atomic(self, record) -> bool:
+    def get_envelope(self, record_hash: str) -> dict | None:
+        row = self._conn.execute(
+            "SELECT envelope FROM envelopes WHERE record_hash = ?",
+            (record_hash,),
+        ).fetchone()
+        return json.loads(row[0]) if row else None
+
+    def load_envelopes(self) -> dict:
+        return {
+            h: json.loads(env)
+            for h, env in self._conn.execute(
+                "SELECT record_hash, envelope FROM envelopes"
+            )
+        }
+
+    def get_decision(self, decision_id: str) -> dict | None:
+        """Authoritative decision lookup for multi-writer mode, where
+        the in-memory graph is deliberately not populated (audit: the
+        store, not the graph, is the source of truth there)."""
+        row = self._conn.execute(
+            "SELECT body FROM records WHERE record_id = ? "
+            "AND kind = 'decision'",
+            (decision_id,),
+        ).fetchone()
+        return json.loads(row[0]) if row else None
+
+    def append_atomic(self, record, envelope: dict | None = None) -> bool:
         """Multi-writer-safe append for decision records only. Returns
         True on success, False if another writer already claimed this
         (agent_id, prev_hash) pair -- i.e. someone else extended this
@@ -159,6 +237,10 @@ class SQLiteDecisionStore:
             )
         body = json.dumps(d, sort_keys=True, separators=(",", ":"))
 
+        env_body = (
+            json.dumps(envelope, sort_keys=True, separators=(",", ":"))
+            if envelope is not None else None
+        )
         conn = sqlite3.connect(self.path, timeout=10.0)
         try:
             conn.execute("PRAGMA journal_mode=WAL")
@@ -180,11 +262,25 @@ class SQLiteDecisionStore:
                     body,
                 ),
             )
+            if env_body is not None:
+                conn.execute(
+                    "INSERT INTO envelopes (record_hash, agent_id, envelope) "
+                    "VALUES (?, ?, ?)",
+                    (d["record_hash"], d["agent_id"], env_body),
+                )
             conn.commit()
             return True
-        except sqlite3.IntegrityError:
+        except sqlite3.IntegrityError as e:
             conn.rollback()
-            return False
+            # Audit set 4: ONLY a chain-head race (the (agent_id,
+            # prev_hash) unique index) is a retryable lost race. Every
+            # other integrity failure -- duplicate decision_id,
+            # duplicate execution, duplicate envelope -- is corruption
+            # and must surface, not be silently retried as if another
+            # writer had legitimately advanced the chain.
+            if "records.agent_id, records.prev_hash" in str(e):
+                return False
+            raise ValueError(self._integrity_detail(e)) from e
         finally:
             conn.close()
 
