@@ -76,7 +76,11 @@ pub fn py_float_repr(x: f64) -> Result<String, CanonError> {
         format!("0.{}{}", "0".repeat((-decpt) as usize), digits)
     } else if (decpt as usize) < digits.len() {
         // dd.ddd
-        format!("{}.{}", &digits[..decpt as usize], &digits[decpt as usize..])
+        format!(
+            "{}.{}",
+            &digits[..decpt as usize],
+            &digits[decpt as usize..]
+        )
     } else {
         // ddd000.0  (ADD_DOT_0: integral floats keep ".0")
         format!("{}{}.0", digits, "0".repeat(decpt as usize - digits.len()))

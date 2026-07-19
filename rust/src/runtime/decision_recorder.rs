@@ -14,8 +14,7 @@ use std::collections::HashMap;
 
 use crate::runtime::decision_record::DecisionRecord;
 
-const GENESIS: &str =
-    "0000000000000000000000000000000000000000000000000000000000000000";
+const GENESIS: &str = "0000000000000000000000000000000000000000000000000000000000000000";
 
 #[derive(Clone)]
 struct ChainState {
@@ -37,10 +36,7 @@ impl DecisionRecorder {
         }
     }
 
-    pub fn record(
-        &mut self,
-        mut record: PyRefMut<'_, DecisionRecord>,
-    ) -> PyResult<()> {
+    pub fn record(&mut self, mut record: PyRefMut<'_, DecisionRecord>) -> PyResult<()> {
         let head = self
             .chains
             .get(&record.agent_id)

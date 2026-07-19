@@ -5,8 +5,7 @@ use pv_runtime::runtime::decision_record::DecisionRecord;
 use pv_runtime::runtime::decision_recorder::DecisionRecorder;
 use pv_runtime::runtime::execution_record::ExecutionEvent;
 
-const ZERO_HASH: &str =
-    "0000000000000000000000000000000000000000000000000000000000000000";
+const ZERO_HASH: &str = "0000000000000000000000000000000000000000000000000000000000000000";
 
 fn make_record(
     decision_id: &str,
@@ -34,14 +33,7 @@ fn make_record(
 
 #[test]
 fn decision_record_hash_and_verify() {
-    let mut record = make_record(
-        "decision-1",
-        "agent-1",
-        "payments",
-        "allow",
-        None,
-        "",
-    );
+    let mut record = make_record("decision-1", "agent-1", "payments", "allow", None, "");
 
     record.seal().expect("seal must succeed");
 
@@ -51,14 +43,7 @@ fn decision_record_hash_and_verify() {
 
 #[test]
 fn decision_record_detects_decision_tampering() {
-    let mut record = make_record(
-        "decision-1",
-        "agent-1",
-        "payments",
-        "allow",
-        None,
-        "",
-    );
+    let mut record = make_record("decision-1", "agent-1", "payments", "allow", None, "");
 
     record.seal().expect("seal must succeed");
     record.decision = "block".to_string();
@@ -68,14 +53,7 @@ fn decision_record_detects_decision_tampering() {
 
 #[test]
 fn decision_record_detects_agent_tampering() {
-    let mut record = make_record(
-        "decision-1",
-        "agent-1",
-        "payments",
-        "allow",
-        None,
-        "",
-    );
+    let mut record = make_record("decision-1", "agent-1", "payments", "allow", None, "");
 
     record.seal().expect("seal must succeed");
     record.agent_id = "attacker-agent".to_string();
@@ -85,14 +63,7 @@ fn decision_record_detects_agent_tampering() {
 
 #[test]
 fn decision_record_detects_capability_tampering() {
-    let mut record = make_record(
-        "decision-1",
-        "agent-1",
-        "payments",
-        "allow",
-        None,
-        "",
-    );
+    let mut record = make_record("decision-1", "agent-1", "payments", "allow", None, "");
 
     record.seal().expect("seal must succeed");
     record.capability = "admin".to_string();
@@ -119,23 +90,9 @@ fn decision_record_detects_parent_tampering() {
 
 #[test]
 fn identical_records_produce_identical_hashes() {
-    let mut first = make_record(
-        "decision-1",
-        "agent-1",
-        "payments",
-        "allow",
-        None,
-        "",
-    );
+    let mut first = make_record("decision-1", "agent-1", "payments", "allow", None, "");
 
-    let mut second = make_record(
-        "decision-1",
-        "agent-1",
-        "payments",
-        "allow",
-        None,
-        "",
-    );
+    let mut second = make_record("decision-1", "agent-1", "payments", "allow", None, "");
 
     first.seal().expect("seal must succeed");
     second.seal().expect("seal must succeed");
@@ -145,14 +102,7 @@ fn identical_records_produce_identical_hashes() {
 
 #[test]
 fn changing_prev_hash_changes_record_hash() {
-    let mut first = make_record(
-        "decision-1",
-        "agent-1",
-        "payments",
-        "allow",
-        None,
-        "",
-    );
+    let mut first = make_record("decision-1", "agent-1", "payments", "allow", None, "");
 
     let mut second = make_record(
         "decision-1",
@@ -171,14 +121,7 @@ fn changing_prev_hash_changes_record_hash() {
 
 #[test]
 fn verify_rejects_unsealed_decision_record() {
-    let record = make_record(
-        "decision-1",
-        "agent-1",
-        "payments",
-        "allow",
-        None,
-        "",
-    );
+    let record = make_record("decision-1", "agent-1", "payments", "allow", None, "");
 
     assert!(record.record_hash.is_empty());
     assert!(!record.verify());
@@ -188,11 +131,7 @@ fn verify_rejects_unsealed_decision_record() {
 /* ExecutionEvent tests                                                       */
 /* -------------------------------------------------------------------------- */
 
-fn make_execution_event(
-    event_id: &str,
-    status: &str,
-    decision_hash: &str,
-) -> ExecutionEvent {
+fn make_execution_event(event_id: &str, status: &str, decision_hash: &str) -> ExecutionEvent {
     ExecutionEvent::new(
         event_id.to_string(),
         "agent-1".to_string(),
@@ -207,11 +146,7 @@ fn make_execution_event(
 
 #[test]
 fn execution_event_hash_and_verify() {
-    let mut event = make_execution_event(
-        "event-1",
-        "ok",
-        "decision-record-hash",
-    );
+    let mut event = make_execution_event("event-1", "ok", "decision-record-hash");
 
     event.seal().expect("seal must succeed");
 
@@ -221,11 +156,7 @@ fn execution_event_hash_and_verify() {
 
 #[test]
 fn execution_event_detects_status_tampering() {
-    let mut event = make_execution_event(
-        "event-1",
-        "ok",
-        "decision-record-hash",
-    );
+    let mut event = make_execution_event("event-1", "ok", "decision-record-hash");
 
     event.seal().expect("seal must succeed");
     event.status = "error".to_string();
@@ -235,11 +166,7 @@ fn execution_event_detects_status_tampering() {
 
 #[test]
 fn execution_event_detects_anchor_tampering() {
-    let mut event = make_execution_event(
-        "event-1",
-        "ok",
-        "decision-record-hash",
-    );
+    let mut event = make_execution_event("event-1", "ok", "decision-record-hash");
 
     event.seal().expect("seal must succeed");
     event.prev_hash = "different-decision-hash".to_string();
@@ -249,35 +176,21 @@ fn execution_event_detects_anchor_tampering() {
 
 #[test]
 fn execution_event_detects_edge_tampering() {
-    let mut event = make_execution_event(
-        "event-1",
-        "ok",
-        "decision-record-hash",
-    );
+    let mut event = make_execution_event("event-1", "ok", "decision-record-hash");
 
     event.seal().expect("seal must succeed");
 
-    event.edges = serde_json::from_str(
-        r#"[{"type":"resulted_in","target":"different-decision"}]"#,
-    )
-    .expect("test fixture edges must be valid JSON");
+    event.edges = serde_json::from_str(r#"[{"type":"resulted_in","target":"different-decision"}]"#)
+        .expect("test fixture edges must be valid JSON");
 
     assert!(!event.verify());
 }
 
 #[test]
 fn identical_execution_events_produce_identical_hashes() {
-    let mut first = make_execution_event(
-        "event-1",
-        "ok",
-        "decision-record-hash",
-    );
+    let mut first = make_execution_event("event-1", "ok", "decision-record-hash");
 
-    let mut second = make_execution_event(
-        "event-1",
-        "ok",
-        "decision-record-hash",
-    );
+    let mut second = make_execution_event("event-1", "ok", "decision-record-hash");
 
     first.seal().expect("seal must succeed");
     second.seal().expect("seal must succeed");
@@ -287,11 +200,7 @@ fn identical_execution_events_produce_identical_hashes() {
 
 #[test]
 fn verify_rejects_unsealed_execution_event() {
-    let event = make_execution_event(
-        "event-1",
-        "ok",
-        "decision-record-hash",
-    );
+    let event = make_execution_event("event-1", "ok", "decision-record-hash");
 
     assert!(event.record_hash.is_empty());
     assert!(!event.verify());
@@ -313,19 +222,11 @@ fn decision_graph_adds_and_gets_sealed_record() {
     Python::attach(|py| {
         let mut graph = DecisionGraph::new();
 
-        let mut record = make_record(
-            "decision-1",
-            "agent-1",
-            "payments",
-            "allow",
-            None,
-            "",
-        );
+        let mut record = make_record("decision-1", "agent-1", "payments", "allow", None, "");
 
         record.seal().expect("seal must succeed");
 
-        let python_record =
-            Py::new(py, record).expect("failed to create Python record");
+        let python_record = Py::new(py, record).expect("failed to create Python record");
 
         graph
             .add(py, python_record)
@@ -352,26 +253,16 @@ fn decision_graph_rejects_unsealed_record() {
     Python::attach(|py| {
         let mut graph = DecisionGraph::new();
 
-        let record = make_record(
-            "decision-1",
-            "agent-1",
-            "payments",
-            "allow",
-            None,
-            "",
-        );
+        let record = make_record("decision-1", "agent-1", "payments", "allow", None, "");
 
-        let python_record =
-            Py::new(py, record).expect("failed to create Python record");
+        let python_record = Py::new(py, record).expect("failed to create Python record");
 
         let result = graph.add(py, python_record);
 
         assert!(result.is_err());
         assert_eq!(graph.len(), 0);
 
-        let message = result
-            .expect_err("unsealed record must fail")
-            .to_string();
+        let message = result.expect_err("unsealed record must fail").to_string();
 
         assert!(message.contains("record is not sealed"));
     });
@@ -382,23 +273,9 @@ fn decision_graph_rejects_duplicate_decision_id() {
     Python::attach(|py| {
         let mut graph = DecisionGraph::new();
 
-        let mut first = make_record(
-            "decision-1",
-            "agent-1",
-            "payments",
-            "allow",
-            None,
-            "",
-        );
+        let mut first = make_record("decision-1", "agent-1", "payments", "allow", None, "");
 
-        let mut duplicate = make_record(
-            "decision-1",
-            "agent-2",
-            "admin",
-            "block",
-            None,
-            "",
-        );
+        let mut duplicate = make_record("decision-1", "agent-2", "admin", "block", None, "");
 
         first.seal().expect("seal must succeed");
         duplicate.seal().expect("seal must succeed");
@@ -406,15 +283,13 @@ fn decision_graph_rejects_duplicate_decision_id() {
         graph
             .add(
                 py,
-                Py::new(py, first)
-                    .expect("failed to create first Python record"),
+                Py::new(py, first).expect("failed to create first Python record"),
             )
             .expect("first record should be accepted");
 
         let result = graph.add(
             py,
-            Py::new(py, duplicate)
-                .expect("failed to create duplicate Python record"),
+            Py::new(py, duplicate).expect("failed to create duplicate Python record"),
         );
 
         assert!(result.is_err());
@@ -446,16 +321,13 @@ fn decision_graph_rejects_missing_parent() {
 
         let result = graph.add(
             py,
-            Py::new(py, child)
-                .expect("failed to create child Python record"),
+            Py::new(py, child).expect("failed to create child Python record"),
         );
 
         assert!(result.is_err());
         assert_eq!(graph.len(), 0);
 
-        let message = result
-            .expect_err("missing parent must fail")
-            .to_string();
+        let message = result.expect_err("missing parent must fail").to_string();
 
         assert!(message.contains("parent decision missing"));
     });
@@ -466,14 +338,7 @@ fn decision_graph_accepts_child_after_parent() {
     Python::attach(|py| {
         let mut graph = DecisionGraph::new();
 
-        let mut parent = make_record(
-            "decision-1",
-            "agent-1",
-            "payments",
-            "allow",
-            None,
-            "",
-        );
+        let mut parent = make_record("decision-1", "agent-1", "payments", "allow", None, "");
 
         parent.seal().expect("seal must succeed");
 
@@ -482,8 +347,7 @@ fn decision_graph_accepts_child_after_parent() {
         graph
             .add(
                 py,
-                Py::new(py, parent)
-                    .expect("failed to create parent Python record"),
+                Py::new(py, parent).expect("failed to create parent Python record"),
             )
             .expect("parent should be accepted");
 
@@ -501,8 +365,7 @@ fn decision_graph_accepts_child_after_parent() {
         graph
             .add(
                 py,
-                Py::new(py, child)
-                    .expect("failed to create child Python record"),
+                Py::new(py, child).expect("failed to create child Python record"),
             )
             .expect("child should be accepted");
 
@@ -514,10 +377,7 @@ fn decision_graph_accepts_child_after_parent() {
 
         let child_ref = stored_child.borrow(py);
 
-        assert_eq!(
-            child_ref.parent_decision.as_deref(),
-            Some("decision-1")
-        );
+        assert_eq!(child_ref.parent_decision.as_deref(), Some("decision-1"));
 
         assert_eq!(child_ref.prev_hash, parent_hash);
         assert!(child_ref.verify());
@@ -533,9 +393,7 @@ fn decision_graph_get_rejects_unknown_decision() {
 
         assert!(result.is_err());
 
-        let message = result
-            .expect_err("unknown decision must fail")
-            .to_string();
+        let message = result.expect_err("unknown decision must fail").to_string();
 
         assert!(message.contains("decision not found"));
     });
@@ -559,10 +417,11 @@ fn decision_recorder_seals_record_and_assigns_zero_hash() {
             "incorrect-existing-hash",
         );
 
-        let python_record =
-            Py::new(py, record).expect("failed to create Python record");
+        let python_record = Py::new(py, record).expect("failed to create Python record");
 
-        recorder.record(python_record.borrow_mut(py)).expect("record must succeed");
+        recorder
+            .record(python_record.borrow_mut(py))
+            .expect("record must succeed");
 
         let recorded = python_record.borrow(py);
 
@@ -579,18 +438,13 @@ fn decision_recorder_chains_second_record_to_first_hash() {
 
         let first = Py::new(
             py,
-            make_record(
-                "decision-1",
-                "agent-1",
-                "payments",
-                "allow",
-                None,
-                "",
-            ),
+            make_record("decision-1", "agent-1", "payments", "allow", None, ""),
         )
         .expect("failed to create first Python record");
 
-        recorder.record(first.borrow_mut(py)).expect("record must succeed");
+        recorder
+            .record(first.borrow_mut(py))
+            .expect("record must succeed");
 
         let first_hash = first.borrow(py).record_hash.clone();
 
@@ -607,7 +461,9 @@ fn decision_recorder_chains_second_record_to_first_hash() {
         )
         .expect("failed to create second Python record");
 
-        recorder.record(second.borrow_mut(py)).expect("record must succeed");
+        recorder
+            .record(second.borrow_mut(py))
+            .expect("record must succeed");
 
         let second_ref = second.borrow(py);
 
@@ -648,8 +504,12 @@ fn decision_recorder_maintains_independent_agent_chains() {
         )
         .expect("failed to create agent-two record");
 
-        recorder.record(agent_one_record.borrow_mut(py)).expect("record must succeed");
-        recorder.record(agent_two_record.borrow_mut(py)).expect("record must succeed");
+        recorder
+            .record(agent_one_record.borrow_mut(py))
+            .expect("record must succeed");
+        recorder
+            .record(agent_two_record.borrow_mut(py))
+            .expect("record must succeed");
 
         let agent_one_ref = agent_one_record.borrow(py);
         let agent_two_ref = agent_two_record.borrow(py);
@@ -660,10 +520,7 @@ fn decision_recorder_maintains_independent_agent_chains() {
         assert!(agent_one_ref.verify());
         assert!(agent_two_ref.verify());
 
-        assert_ne!(
-            agent_one_ref.record_hash,
-            agent_two_ref.record_hash
-        );
+        assert_ne!(agent_one_ref.record_hash, agent_two_ref.record_hash);
     });
 }
 
@@ -685,15 +542,14 @@ fn decision_recorder_overwrites_untrusted_prev_hash() {
         )
         .expect("failed to create Python record");
 
-        recorder.record(record.borrow_mut(py)).expect("record must succeed");
+        recorder
+            .record(record.borrow_mut(py))
+            .expect("record must succeed");
 
         let record_ref = record.borrow(py);
 
         assert_eq!(record_ref.prev_hash, ZERO_HASH);
-        assert_ne!(
-            record_ref.prev_hash,
-            "attacker-controlled-prev-hash"
-        );
+        assert_ne!(record_ref.prev_hash, "attacker-controlled-prev-hash");
 
         assert!(record_ref.verify());
     });
@@ -717,10 +573,11 @@ fn decision_recorder_reseals_previously_sealed_record() {
 
         let old_hash = record.record_hash.clone();
 
-        let python_record =
-            Py::new(py, record).expect("failed to create Python record");
+        let python_record = Py::new(py, record).expect("failed to create Python record");
 
-        recorder.record(python_record.borrow_mut(py)).expect("record must succeed");
+        recorder
+            .record(python_record.borrow_mut(py))
+            .expect("record must succeed");
 
         let recorded = python_record.borrow(py);
 
@@ -738,18 +595,13 @@ fn recorder_output_can_be_added_to_graph() {
 
         let record = Py::new(
             py,
-            make_record(
-                "decision-1",
-                "agent-1",
-                "payments",
-                "allow",
-                None,
-                "",
-            ),
+            make_record("decision-1", "agent-1", "payments", "allow", None, ""),
         )
         .expect("failed to create Python record");
 
-        recorder.record(record.borrow_mut(py)).expect("record must succeed");
+        recorder
+            .record(record.borrow_mut(py))
+            .expect("record must succeed");
 
         graph
             .add(py, record.clone_ref(py))

@@ -27,8 +27,7 @@ impl RustReceiptSigner {
     #[new]
     fn new(seed_hex: &str) -> PyResult<Self> {
         let seed = Zeroizing::new(
-            hex::decode(seed_hex)
-                .map_err(|e| PyValueError::new_err(e.to_string()))?,
+            hex::decode(seed_hex).map_err(|e| PyValueError::new_err(e.to_string()))?,
         );
 
         if seed.len() != 32 {
@@ -42,8 +41,7 @@ impl RustReceiptSigner {
 
         let signing_key = SigningKey::from_bytes(&seed_arr);
 
-        let public_key_hex =
-            hex::encode(signing_key.verifying_key().to_bytes());
+        let public_key_hex = hex::encode(signing_key.verifying_key().to_bytes());
 
         Ok(Self {
             signing_key,
@@ -86,10 +84,8 @@ fn verify_signature(
     hash_hex: &str,
     signature_hex: &str,
 ) -> PyResult<bool> {
-    let pk = hex::decode(public_key_hex)
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
-    let sig = hex::decode(signature_hex)
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let pk = hex::decode(public_key_hex).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let sig = hex::decode(signature_hex).map_err(|e| PyValueError::new_err(e.to_string()))?;
 
     let pk_arr: [u8; 32] = pk
         .try_into()
@@ -98,14 +94,12 @@ fn verify_signature(
         .try_into()
         .map_err(|_| PyRuntimeError::new_err("invalid signature"))?;
 
-    let verify_key = VerifyingKey::from_bytes(&pk_arr)
-        .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+    let verify_key =
+        VerifyingKey::from_bytes(&pk_arr).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
     let signature = Signature::from_bytes(&sig_arr);
 
     let hash = hash_hex.to_owned();
-    Ok(py.detach(move || {
-        verify_key.verify(hash.as_bytes(), &signature).is_ok()
-    }))
+    Ok(py.detach(move || verify_key.verify(hash.as_bytes(), &signature).is_ok()))
 }
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

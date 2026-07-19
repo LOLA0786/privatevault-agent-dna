@@ -13,19 +13,17 @@
 
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
 use crate::runtime::canonical_json::canonical;
 
 pub const PROTOCOL_VERSION: &str = "drp/0.1";
-pub const GENESIS_HASH: &str =
-    "0000000000000000000000000000000000000000000000000000000000000000";
+pub const GENESIS_HASH: &str = "0000000000000000000000000000000000000000000000000000000000000000";
 
 fn parse_json_array(label: &str, raw: &str) -> PyResult<Value> {
-    let v: Value = serde_json::from_str(raw).map_err(|e| {
-        PyValueError::new_err(format!("{label} is not valid JSON: {e}"))
-    })?;
+    let v: Value = serde_json::from_str(raw)
+        .map_err(|e| PyValueError::new_err(format!("{label} is not valid JSON: {e}")))?;
     if !v.is_array() {
         return Err(PyValueError::new_err(format!(
             "{label} must be a JSON array, got {v}"
@@ -186,8 +184,7 @@ impl DecisionRecord {
 
     #[getter]
     fn evidence_json(&self) -> PyResult<String> {
-        canonical(&self.evidence)
-            .map_err(|e| PyRuntimeError::new_err(e.to_string()))
+        canonical(&self.evidence).map_err(|e| PyRuntimeError::new_err(e.to_string()))
     }
 
     #[setter]
@@ -198,8 +195,7 @@ impl DecisionRecord {
 
     #[getter]
     fn edges_json(&self) -> PyResult<String> {
-        canonical(&self.edges)
-            .map_err(|e| PyRuntimeError::new_err(e.to_string()))
+        canonical(&self.edges).map_err(|e| PyRuntimeError::new_err(e.to_string()))
     }
 
     #[setter]
@@ -212,8 +208,7 @@ impl DecisionRecord {
     /// canonicalization fault) propagate: a record that cannot
     /// canonicalize cannot seal -- fail-closed, never a panic.
     pub fn seal(&mut self) -> PyResult<()> {
-        self.record_hash =
-            self.compute_hash().map_err(PyRuntimeError::new_err)?;
+        self.record_hash = self.compute_hash().map_err(PyRuntimeError::new_err)?;
         Ok(())
     }
 
@@ -343,8 +338,7 @@ impl DecisionRecord {
                 return Err(format!("non-finite {name} cannot be sealed"));
             }
         }
-        let canonical_str =
-            canonical(&self.payload_value()).map_err(|e| e.to_string())?;
+        let canonical_str = canonical(&self.payload_value()).map_err(|e| e.to_string())?;
         let mut hasher = Sha256::new();
         hasher.update(canonical_str.as_bytes());
         Ok(hex::encode(hasher.finalize()))

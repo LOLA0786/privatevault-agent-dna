@@ -17,10 +17,8 @@ pub struct DecisionGraph {
 
 #[pymethods]
 impl DecisionGraph {
-
     #[new]
     pub fn new() -> Self {
-
         Self {
             records: HashMap::new(),
             order: Vec::new(),
@@ -31,39 +29,20 @@ impl DecisionGraph {
         }
     }
 
-    pub fn add(
-        &mut self,
-        py: Python<'_>,
-        record: Py<DecisionRecord>,
-    ) -> PyResult<()> {
-
+    pub fn add(&mut self, py: Python<'_>, record: Py<DecisionRecord>) -> PyResult<()> {
         let rec = record.borrow(py);
 
         if !rec.verify() {
-            return Err(
-                PyValueError::new_err(
-                    "record is not sealed"
-                )
-            );
+            return Err(PyValueError::new_err("record is not sealed"));
         }
 
         if self.records.contains_key(&rec.decision_id) {
-            return Err(
-                PyValueError::new_err(
-                    "duplicate decision_id"
-                )
-            );
+            return Err(PyValueError::new_err("duplicate decision_id"));
         }
 
         if let Some(parent) = &rec.parent_decision {
-
             if !self.records.contains_key(parent) {
-
-                return Err(
-                    PyValueError::new_err(
-                        "parent decision missing"
-                    )
-                );
+                return Err(PyValueError::new_err("parent decision missing"));
             }
 
             self.children
@@ -95,20 +74,11 @@ impl DecisionGraph {
         Ok(())
     }
 
-    pub fn get(
-        &self,
-        py: Python<'_>,
-        decision_id: String,
-    ) -> PyResult<Py<DecisionRecord>> {
-
+    pub fn get(&self, py: Python<'_>, decision_id: String) -> PyResult<Py<DecisionRecord>> {
         self.records
             .get(&decision_id)
             .map(|r| r.clone_ref(py))
-            .ok_or_else(|| {
-                PyValueError::new_err(
-                    "decision not found"
-                )
-            })
+            .ok_or_else(|| PyValueError::new_err("decision not found"))
     }
 
     pub fn len(&self) -> usize {
@@ -120,11 +90,7 @@ impl DecisionGraph {
     }
 
     fn __repr__(&self) -> String {
-
-        format!(
-            "DecisionGraph(records={})",
-            self.records.len()
-        )
+        format!("DecisionGraph(records={})", self.records.len())
     }
 }
 
@@ -134,10 +100,7 @@ impl Default for DecisionGraph {
     }
 }
 
-pub fn register(
-    m: &Bound<'_, PyModule>,
-) -> PyResult<()> {
-
+pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<DecisionGraph>()?;
 
     Ok(())

@@ -8,7 +8,7 @@
 
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
 use crate::runtime::canonical_json::canonical;
@@ -16,9 +16,8 @@ use crate::runtime::canonical_json::canonical;
 pub const PROTOCOL_VERSION: &str = "drp/0.1";
 
 fn parse_edges(raw: &str) -> PyResult<Value> {
-    let v: Value = serde_json::from_str(raw).map_err(|e| {
-        PyValueError::new_err(format!("edges is not valid JSON: {e}"))
-    })?;
+    let v: Value = serde_json::from_str(raw)
+        .map_err(|e| PyValueError::new_err(format!("edges is not valid JSON: {e}")))?;
     if !v.is_array() {
         return Err(PyValueError::new_err(format!(
             "edges must be a JSON array, got {v}"
@@ -97,8 +96,7 @@ impl ExecutionEvent {
 
     #[getter]
     fn edges_json(&self) -> PyResult<String> {
-        canonical(&self.edges)
-            .map_err(|e| PyRuntimeError::new_err(e.to_string()))
+        canonical(&self.edges).map_err(|e| PyRuntimeError::new_err(e.to_string()))
     }
 
     #[setter]
@@ -108,8 +106,7 @@ impl ExecutionEvent {
     }
 
     pub fn seal(&mut self) -> PyResult<()> {
-        self.record_hash =
-            self.compute_hash().map_err(PyRuntimeError::new_err)?;
+        self.record_hash = self.compute_hash().map_err(PyRuntimeError::new_err)?;
         Ok(())
     }
 
@@ -208,8 +205,7 @@ impl ExecutionEvent {
         if !self.timestamp.is_finite() {
             return Err("non-finite timestamp cannot be sealed".into());
         }
-        let canonical_str =
-            canonical(&self.payload_value()).map_err(|e| e.to_string())?;
+        let canonical_str = canonical(&self.payload_value()).map_err(|e| e.to_string())?;
         let mut hasher = Sha256::new();
         hasher.update(canonical_str.as_bytes());
         Ok(hex::encode(hasher.finalize()))

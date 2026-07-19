@@ -18,10 +18,10 @@ fn float_repr_matches_cpython() {
         (0.1, "0.1"),
         (0.25, "0.25"),
         (1e-4, "0.0001"),
-        (1e-5, "1e-05"),          // CPython pads exponent to 2 digits
+        (1e-5, "1e-05"), // CPython pads exponent to 2 digits
         (1e15, "1000000000000000.0"),
-        (1e16, "1e+16"),          // CPython switches to sci at decpt>16
-        (1e17, "1e+17"),          // serde_json would emit "1e17" -- fork
+        (1e16, "1e+16"), // CPython switches to sci at decpt>16
+        (1e17, "1e+17"), // serde_json would emit "1e17" -- fork
         (1.5e300, "1.5e+300"),
         (-2.5e-7, "-2.5e-07"),
         (1751700000.123, "1751700000.123"),
@@ -29,11 +29,7 @@ fn float_repr_matches_cpython() {
         (0.45, "0.45"),
     ];
     for (x, want) in cases {
-        assert_eq!(
-            py_float_repr(*x).unwrap(),
-            *want,
-            "float repr fork for {x}"
-        );
+        assert_eq!(py_float_repr(*x).unwrap(), *want, "float repr fork for {x}");
     }
 }
 
@@ -48,10 +44,7 @@ fn float_repr_rejects_non_finite() {
 fn ensure_ascii_matches_cpython() {
     // json.dumps({"a":"é"},sort_keys=True,separators=(",",":"))
     //   == '{"a":"\\u00e9"}'
-    assert_eq!(
-        canonical(&json!({"a": "é"})).unwrap(),
-        r#"{"a":"\u00e9"}"#
-    );
+    assert_eq!(canonical(&json!({"a": "é"})).unwrap(), r#"{"a":"\u00e9"}"#);
     // astral plane -> surrogate pair: 😀 U+1F600
     assert_eq!(
         canonical(&json!({"e": "😀"})).unwrap(),
