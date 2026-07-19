@@ -1,3 +1,5 @@
+> **STATUS: EXPERIMENTAL / NOT SHIPPED.** The functionality described below is roadmap. Its code lives in `experimental/` and is excluded from the installable package and from every compliance claim. See `experimental/README.md`.
+
 # Network Effects — Behavioral Profile Marketplace
 
 ## Concept

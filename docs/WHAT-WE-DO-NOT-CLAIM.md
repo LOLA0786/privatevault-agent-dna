@@ -160,6 +160,21 @@ for it.
 
 ---
 
+## Quarantined code (2026-07 audit)
+
+We do NOT claim adversarial benchmark results. The former
+`security_validation` suite contained adversaries that graded
+themselves without invoking the runtime; it is quarantined in
+`experimental/` and its numbers should be treated as void. The honest
+adversarial harness is `tools/run_adversarial.py` against
+`spec/adversarial/`, which exercises the real engine.
+
+We do NOT claim a profile marketplace, PostgreSQL cluster store,
+OPA cluster/TLS/version tooling, or a dashboard product. Placeholders
+for these live in `experimental/` (dashboard: `dashboard/`, a UI
+scaffold) and are excluded from the package;
+`tests/test_quarantine.py` enforces the exclusion.
+
 If something above changes — a certification starts, a feature ships,
 a limitation is resolved — this page updates in the same commit as
 the code that changes it. The git history of this file is itself part
