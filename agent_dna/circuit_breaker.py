@@ -573,6 +573,25 @@ class GuardedEngine:
         if reason is not None:
             return self._blocked(action, reason)
         result = self.engine.decide(action, prev_capability, evidence)
+        # Audit set 4: record budget spend for ALLOWed, grant-covered,
+        # amount-bearing actions. record_spend existed but was wired
+        # into nothing -- budgets were checked against a ledger nobody
+        # wrote to. A failing spend write fails CLOSED: an unrecorded
+        # spend would silently widen every future budget check.
+        if (
+            result.decision is Decision.ALLOW
+            and getattr(result, "grant_id", None)
+            and amount is not None
+        ):
+            authorizer = getattr(self.engine, "authorizer", None)
+            if authorizer is not None and hasattr(authorizer, "record_spend"):
+                try:
+                    authorizer.record_spend(result.grant_id, amount)
+                except Exception as exc:
+                    return self._blocked(
+                        action,
+                        f"grant_spend_fault: {type(exc).__name__}: {exc}",
+                    )
         try:
             self.breaker.finalize(rid, result.decision.value)
         except Exception:

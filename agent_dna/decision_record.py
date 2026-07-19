@@ -175,6 +175,9 @@ def build_record(
         arguments_digest=_digest_arguments(action.arguments),
         outcome="pending",
         request_id=request_id,
+        # audit set 4: the grant this action executed under -- the
+        # schema-reserved approval_ref finally populated
+        approval_ref=getattr(result, "grant_id", None),
         edges=(
             [{"type": "follows", "target": parent_decision}]
             if parent_decision is not None

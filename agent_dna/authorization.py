@@ -1,10 +1,12 @@
 """
 Enterprise Authorization Policy.
 
-Single source of truth backed by GrantStore.
+DEPRECATED as a runtime authorizer (audit set 4) -- the canonical grant model is agent_dna.grants.GrantRegistry. Retained solely as the backend of the change-management capability-evolution workflow (change_management.py, diff.py); it is NOT a single source of truth for authorization.
 """
 
 from __future__ import annotations
+
+import warnings
 
 from dataclasses import asdict, dataclass
 from datetime import datetime
@@ -29,6 +31,9 @@ class AuthorizationPolicy:
         self,
         store: Optional[GrantStore] = None,
     ):
+        warnings.warn(
+            "AuthorizationPolicy is deprecated; use agent_dna.grants.GrantRegistry (audit set 4)",
+            DeprecationWarning, stacklevel=2)
         self.store = store or GrantStore()
 
     def grant(

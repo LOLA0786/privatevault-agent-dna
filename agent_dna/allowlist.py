@@ -20,6 +20,8 @@ explicitly granted through a trusted deployment process.
 
 from __future__ import annotations
 
+import warnings
+
 from dataclasses import dataclass, field
 from typing import Dict, Set
 
@@ -29,6 +31,13 @@ class CapabilityRegistry:
     """
     Records capabilities that have been explicitly approved for an agent.
     """
+
+    def __init__(self, *args, **kwargs):
+        warnings.warn(
+            "CapabilityRegistry is deprecated (audit set 4); use "
+            "agent_dna.grants.GrantRegistry",
+            DeprecationWarning, stacklevel=2)
+        super().__init__()
 
     grants: Dict[str, Set[str]] = field(default_factory=dict)
 

@@ -4,6 +4,8 @@ Reference implementations of invariant and authorization policies.
 
 from __future__ import annotations
 
+import warnings
+
 import time
 from dataclasses import dataclass
 from typing import Iterable, Optional, Tuple
@@ -69,6 +71,9 @@ class GrantAuthorizationPolicy:
         baseline_capabilities,
         grants=(),
     ):
+        warnings.warn(
+            "GrantAuthorizationPolicy is deprecated; use agent_dna.grants.GrantRegistry (audit set 4)",
+            DeprecationWarning, stacklevel=2)
         self.baseline = set(baseline_capabilities)
         self.grants = {
             g.capability: g

@@ -1,7 +1,7 @@
 """
 Persistent authorization grant store.
 
-Single source of truth for all approved capability evolution.
+Persistence backend for the change-management workflow ONLY. DEPRECATED as an authorization source (audit set 4): the canonical grant model is agent_dna.grants.GrantRegistry. Two modules calling themselves 'single source of truth' was itself the finding.
 """
 
 from __future__ import annotations
