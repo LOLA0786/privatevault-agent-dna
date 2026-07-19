@@ -18,6 +18,13 @@ QUARANTINED = [
     "agent_dna.adapters_policy.opa_audit",
     "agent_dna.adapters_policy.patch_opa",
     "agent_dna.store.postgres_cluster",
+    # legacy MCP path (audit set 3): constructed its own partial
+    # engine, took agent_id from the caller, located records by
+    # last-graph-entry -- bypassed identity, grants, UAAL, breaker,
+    # signing. The canonical MCP path is
+    # agent_dna/connector/adapters/mcp.py over ConnectorMiddleware.
+    "agent_dna.mcp_server",
+    "agent_dna.mcp_gateway",
 ]
 
 

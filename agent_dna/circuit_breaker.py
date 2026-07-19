@@ -523,11 +523,24 @@ class GuardedEngine:
         self.breaker = breaker
         self._amount_fn = amount_fn
 
+    _OWN = ("engine", "breaker", "_amount_fn")
+
     def __getattr__(self, name):
         # Transparent proxy: anything the wrapper doesn't define
         # (evidence_engine, scorer, ...) resolves to the real engine,
         # so RuntimeMonitor and friends see an unchanged surface.
         return getattr(self.engine, name)
+
+    def __setattr__(self, name, value):
+        # Symmetric transparency: setting scorer/uaal/policy on the
+        # wrapper must reach the real engine (test harnesses inject
+        # faulting components via state["engine"].scorer -- with an
+        # opaque wrapper those writes would shadow on the wrapper and
+        # silently never fire).
+        if name in self._OWN:
+            object.__setattr__(self, name, value)
+        else:
+            setattr(self.engine, name, value)
 
     def _blocked(self, action, reason: str) -> DecisionResult:
         return DecisionResult(

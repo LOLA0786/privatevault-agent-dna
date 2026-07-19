@@ -53,13 +53,7 @@ STATUS_MAP = {
 state: Dict[str, Any] = {}
 
 
-def _train_scorer() -> DriftScorer:
-    # Synthetic profile until a real trace replaces it — the binding
-    # constraint, stated openly in /  (see "calibration").
-    training = [synthetic_normal_trace(seed=i, loops=6) for i in range(8)]
-    manifold = CapabilityManifold().fit(training)
-    dynamics = BehaviorDynamics().fit(training)
-    return DriftScorer(manifold, dynamics)
+from agent_dna.composition import build_production_runtime
 
 
 def require_api_key(x_api_key: str | None = Header(default=None)):
@@ -99,33 +93,27 @@ def require_audit_or_full_key(x_api_key: str | None = Header(default=None)):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    state["apikeys"] = ApiKeyRegistry()
-    if not state["apikeys"].enabled:
-        import sys
-        print("WARNING: PV_API_KEYS_FILE unset — API auth is DISABLED",
-              file=sys.stderr)
-    store = SQLiteDecisionStore(DB_PATH)
-    signer = None
-    if os.getenv(KEY_ENV):
-        signer = ReceiptSigner()
-    else:
-        import sys
-        print(f"WARNING: {KEY_ENV} unset — decisions will NOT be signed",
-              file=sys.stderr)
-    recorder = DecisionRecorder(store=store, signer=signer)
-    state["signer"] = signer
-    from agent_dna.uaal_layer import UAALConstraintChecker
-    engine = DecisionEngine(
-        scorer=_train_scorer(),
-        uaal=UAALConstraintChecker(),
-    )
-    # one monitor per agent_id: behavioral state is per-agent
-    state["store"] = store
-    state["recorder"] = recorder
-    state["engine"] = engine
+    # One composition root for every transport (audit Commit set 3):
+    # the HTTP API previously constructed scorer+UAAL only, leaving
+    # grants/policy/consensus/economics/breaker in the repo but out of
+    # the product. build_production_runtime is now the single place
+    # the stack is assembled; the connector middleware consumes the
+    # same runtime via runtime.middleware().
+    runtime = build_production_runtime()
+    import sys
+    for level, info in runtime.composition.items():
+        if info["status"] != "attached":
+            print(f"RUNTIME: {level} not attached -- {info['detail']}",
+                  file=sys.stderr)
+    state["runtime"] = runtime
+    state["apikeys"] = runtime.apikeys
+    state["store"] = runtime.store
+    state["recorder"] = runtime.recorder
+    state["engine"] = runtime.engine
+    state["signer"] = runtime.signer
     state["monitors"] = {}
     yield
-    store.close()
+    state["store"].close()
     state.clear()
 
 
@@ -228,6 +216,14 @@ def outcome(req: OutcomeRequest, ident: str = Depends(require_api_key)):
     except (KeyError, ValueError) as e:
         raise HTTPException(status_code=409, detail=str(e))
     return {"event": event.to_dict()}
+
+
+@app.get("/v1/runtime", dependencies=[Depends(require_api_key)])
+def runtime_composition():
+    """The composition manifest: which enforcement levels are attached
+    and why the rest are not. Honesty surface -- an operator or
+    auditor can see exactly what this deployment enforces."""
+    return {"composition": state["runtime"].composition}
 
 
 # ---------- query surface ----------------------------------------------------
