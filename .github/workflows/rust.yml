@@ -1,0 +1,72 @@
+name: rust
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  rust-conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Panic family denied at crate level; warnings are errors here.
+      - name: Clippy (zero warnings)
+        working-directory: rust
+        run: cargo clippy --all-targets -- -D warnings
+
+      # Rust unit + canonical parity suite (links libpython).
+      - name: Rust tests
+        working-directory: rust
+        run: cargo test
+
+      - name: Build wheel
+        working-directory: rust
+        run: |
+          pip install maturin
+          maturin build --release -o /tmp/pv_wheels
+
+      - name: Install project + wheel
+        run: |
+          pip install -r requirements.txt
+          pip install pytest httpx
+          pip install -e .
+          pip install --force-reinstall /tmp/pv_wheels/pv_runtime-*.whl
+
+      # Gate 1: adversarial cross-implementation hash vectors.
+      - name: Python<->Rust hash parity
+        run: python tools/rust_parity_check.py
+
+      # Gate 2: Rust vs the DRP spec vectors themselves.
+      - name: Spec-vector conformance
+        run: python -m pytest tests/test_rust_conformance.py -v
+
+      # Gate 3: deterministic Ed25519 signer parity + fail-closed floats.
+      - name: Signer parity + non-finite guard
+        run: python -m pytest tests/test_rust_signer_parity.py tests/test_nonfinite_guard.py -v
+
+      # Regression guard: the Rust work must never break Python.
+      - name: Full Python suite
+        run: python -m pytest tests/ -q
+
+  rust-supply-chain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install audit tooling
+        run: cargo install cargo-audit cargo-deny --locked
+      - name: Vulnerability audit (RustSec)
+        working-directory: rust
+        run: cargo audit
+      - name: Dependency policy (advisories, licenses, dupes)
+        working-directory: rust
+        run: cargo deny check advisories licenses bans sources

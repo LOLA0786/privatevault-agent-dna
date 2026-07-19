@@ -64,7 +64,7 @@ class ExecutionEvent:
 
     def compute_hash(self) -> str:
         canonical = json.dumps(
-            self.payload(), sort_keys=True, separators=(",", ":")
+            self.payload(), sort_keys=True, separators=(",", ":"), allow_nan=False
         )
         return hashlib.sha256(canonical.encode()).hexdigest()
 

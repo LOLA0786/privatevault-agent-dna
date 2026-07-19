@@ -115,6 +115,7 @@ class DecisionRecord:
             self.payload(),
             sort_keys=True,
             separators=(",", ":"),
+            allow_nan=False,
         )
         return hashlib.sha256(canonical.encode()).hexdigest()
 

@@ -112,3 +112,22 @@ speculative work done in advance of a named need. This is a
 deliberate sequencing choice: building the wrong shape of resilience
 before knowing a customer's actual requirements wastes exactly the
 kind of time a real pilot's clock does not allow for.
+
+## Rust runtime (pv_runtime)
+
+Scope honesty: the Rust crate is the sealed-record hot core (hash /
+seal / chain / sign / verify). It is NOT an enforcement engine port --
+the precedence engine, stores, breakers, and connectors remain
+Python-only. Every row below traces to a named test.
+
+| Property | Status | Evidence |
+|---|---|---|
+| Byte-identical hashing with Python (canonical JSON: sorted keys, compact, ensure_ascii, CPython float repr) | **SHIPPED** | `tools/rust_parity_check.py` (adversarial unicode + float vectors incl. 1e17 / 1e-05 / astral-plane), `rust/tests/canonical_parity.rs` |
+| DRP spec-vector conformance (Rust verifies the exact files `tools/verify_records.py` consumes; per-line verdict identical to Python) | **SHIPPED** | `tests/test_rust_conformance.py` |
+| Fail-closed sealing (no panics on the seal path; non-finite floats refuse to seal in BOTH languages) | **SHIPPED** | `rust/tests/canonical_parity.rs::nan_drift_score_fails_closed`, `tests/test_nonfinite_guard.py`; `#![deny(clippy::unwrap_used/expect_used/panic)]` makes regressions a compile error |
+| Strict edges parsing (invalid JSON errors; two different stored strings can never hash identically) | **SHIPPED** | `rust/tests/canonical_parity.rs::execution_event_invalid_edges_is_error_over_ffi` |
+| Ed25519 signer parity (deterministic RFC 8032: Rust and PyNaCl signatures byte-identical, cross-verifying; `PV_USE_RUST_SIGNER=1` path tested) | **SHIPPED** | `tests/test_rust_signer_parity.py` |
+| Signing-key hygiene (seed in `Zeroizing` memory both paths; dalek `zeroize` feature on; no seed retained Python-side) | **SHIPPED** | `rust/src/signer.rs`, `agent_dna/signer_bridge.py` |
+| Supply-chain gate (RustSec audit; license/source/wildcard policy) | **SHIPPED** | `.github/workflows/rust.yml` `rust-supply-chain` job, `rust/deny.toml` |
+| Rust-side persistence / multi-writer safety / anchors | **NOT STARTED** | Python-only (`agent_dna/sqlite_store.py`, `tests/test_multi_writer_safety.py`). The Rust recorder is in-memory; do not claim otherwise. |
+| Rust-side chain verification / graph queries (verify_all, lineage) | **NOT STARTED** | Python-only. Rust `DecisionGraph` validates seal + parent on add; it is not the audit verifier. |
