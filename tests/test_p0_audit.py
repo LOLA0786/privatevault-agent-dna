@@ -298,12 +298,6 @@ class _Payment:
             self.arguments = arguments
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="P0-5: breaker observes AFTER the inner decision -- the "
-           "payment that crosses the cap is still returned ALLOW; only "
-           "the next one blocks",
-)
 def test_threshold_crossing_payment_blocked_before_execution(tmp_path):
     from agent_dna.circuit_breaker import GuardedEngine
     guarded = GuardedEngine(_AllowEngine(), _breaker(tmp_path / "b.db"))
@@ -318,12 +312,6 @@ def test_threshold_crossing_payment_blocked_before_execution(tmp_path):
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="P0-5: _default_amount reads action.amount and "
-           "evidence['amount'] but never action.arguments['amount'] -- "
-           "the normal AgentAction shape never trips the breaker",
-)
 def test_arguments_amount_reaches_breaker(tmp_path):
     from agent_dna.circuit_breaker import GuardedEngine
     guarded = GuardedEngine(_AllowEngine(), _breaker(tmp_path / "b2.db"))
@@ -337,6 +325,35 @@ def test_arguments_amount_reaches_breaker(tmp_path):
     assert tripped, (
         "300 spent via arguments['amount'] against a 100 cap and the "
         "breaker never saw a single rupee"
+    )
+
+
+def test_concurrent_payments_cannot_all_pass_same_budget(tmp_path):
+    """P0-5 atomicity: N simultaneous payments of 60 against a 100 cap
+    must yield exactly one ALLOW -- reservations serialize inside the
+    breaker's write transaction."""
+    import threading as _threading
+
+    from agent_dna.circuit_breaker import GuardedEngine
+    guarded = GuardedEngine(_AllowEngine(), _breaker(tmp_path / "bc.db"))
+
+    results = []
+    lock = _threading.Lock()
+
+    def fire():
+        r = guarded.decide(_Payment(amount=60.0))
+        with lock:
+            results.append(r.decision)
+
+    threads = [_threading.Thread(target=fire) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    allowed = sum(1 for d in results if d is Decision.ALLOW)
+    assert allowed == 1, (
+        f"{allowed} of 8 concurrent 60-unit payments passed a 100 cap"
     )
 
 

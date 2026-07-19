@@ -100,7 +100,11 @@ def main():
         BreakerConfig(
             max_decisions=None,             # rate trip off for the demo
             window_seconds=60.0,
-            max_cumulative_amount=1000.0,   # salami-drain cap
+            # P0-5: with a real PRE-execution cap, 1000.0 would
+            # (correctly) trip on the 49,000 L0 scenario before
+            # UAAL ever evaluated -- raised so each precedence
+            # level demos its own trigger
+            max_cumulative_amount=100000.0,
             max_consecutive_refusals=None,  # thrash trip off for the demo
         ),
     )

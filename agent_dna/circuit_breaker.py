@@ -182,7 +182,8 @@ class CircuitBreaker:
             k = cfg.max_consecutive_refusals
             rows = self._conn.execute(
                 "SELECT decision FROM breaker_events "
-                "WHERE agent_id = ? ORDER BY id DESC LIMIT ?",
+                "WHERE agent_id = ? AND decision != 'reserved' "
+                "ORDER BY id DESC LIMIT ?",
                 (agent_id, k),
             ).fetchall()
             if len(rows) == k and all(r[0] != Decision.ALLOW.value for r in rows):
@@ -205,10 +206,9 @@ class CircuitBreaker:
         self._append_log(agent_id, "trip", reason, actor="system:breaker", ts=now)
         self._conn.commit()
 
-    def _evaluate_groups(self, agent_id: str, now: float) -> Optional[str]:
-        """Distributed-drain detection: cumulative volume across a
-        DECLARED agent group. Each member's actions may individually
-        pass every per-agent check; the aggregate trips the swarm."""
+    def _find_group_breach(self, agent_id: str, now: float):
+        """Return (gid, members, reason) for the first breached group
+        containing agent_id, or None. Pure query -- no state change."""
         cfg = self.config
         if not cfg.groups or not cfg.group_volume_caps:
             return None
@@ -227,12 +227,111 @@ class CircuitBreaker:
                 (*members, since),
             ).fetchone()
             if total > cap:
-                reason = (
+                return gid, members, (
                     f"group_trip:{gid}: cumulative {total:.2f} across "
                     f"{len(members)} agents in {cfg.window_seconds}s "
                     f"window (cap {cap:.2f})"
                 )
-                self._trip_group(gid, members, reason, now)
+        return None
+
+    def _evaluate_groups(self, agent_id: str, now: float) -> Optional[str]:
+        """Distributed-drain detection: cumulative volume across a
+        DECLARED agent group. Each member's actions may individually
+        pass every per-agent check; the aggregate trips the swarm."""
+        breach = self._find_group_breach(agent_id, now)
+        if breach is None:
+            return None
+        gid, members, reason = breach
+        self._trip_group(gid, members, reason, now)
+        return reason
+
+    # ------------------------------------------------------------------
+    # transactional preflight (P0-5)
+    # ------------------------------------------------------------------
+
+    def reserve(self, agent_id: str, amount: Optional[float]):
+        """Pre-execution gate with PROJECTED counters (P0-5).
+
+        Previously the breaker observed AFTER the inner decision, so
+        the action that crossed a rate/volume threshold was itself
+        returned ALLOW; only the next one blocked -- not a spending
+        cap. reserve() runs BEFORE the engine: it inserts a
+        reservation row inside BEGIN IMMEDIATE (the write lock
+        serializes concurrent callers against the same remaining
+        budget), evaluates every counter INCLUDING this action, and
+        if the projection crosses a threshold, deletes the
+        reservation, trips, and blocks the crossing action itself.
+
+        Returns (trip_reason, None) if blocked, else
+        (None, reservation_id) -- pass the id to finalize() with the
+        verdict."""
+        pre = self.pre_gate(agent_id)
+        if pre is not None:
+            return pre, None
+
+        conn = self._conn
+        conn.execute("PRAGMA busy_timeout = 5000")
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            now = self._clock()
+            cur = conn.execute(
+                "INSERT INTO breaker_events (agent_id, ts, decision, amount) "
+                "VALUES (?, ?, 'reserved', ?)",
+                (agent_id, now, amount),
+            )
+            rid = cur.lastrowid
+            reason = self._evaluate(agent_id, now)      # projected
+            breach = None
+            if reason is None:
+                breach = self._find_group_breach(agent_id, now)
+            if reason is None and breach is None:
+                conn.commit()
+                return None, rid
+            # crossing action: never counts toward the window
+            conn.execute("DELETE FROM breaker_events WHERE id = ?", (rid,))
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        if reason is not None:
+            self._trip(agent_id, reason, now)
+            return reason, None
+        gid, members, greason = breach
+        self._trip_group(gid, members, greason, now)
+        return greason, None
+
+    def finalize(self, reservation_id: Optional[int], decision: str) -> Optional[str]:
+        """Convert a reservation into its verdict row and evaluate the
+        verdict-dependent (refusal-thrash) trip."""
+        if reservation_id is None:
+            return None
+        row = self._conn.execute(
+            "SELECT agent_id FROM breaker_events WHERE id = ?",
+            (reservation_id,),
+        ).fetchone()
+        self._conn.execute(
+            "UPDATE breaker_events SET decision = ? WHERE id = ?",
+            (decision, reservation_id),
+        )
+        self._conn.commit()
+        if row is None:
+            return None
+        agent_id = row[0]
+        now = self._clock()
+        cfg = self.config
+        if cfg.max_consecutive_refusals is not None:
+            k = cfg.max_consecutive_refusals
+            rows = self._conn.execute(
+                "SELECT decision FROM breaker_events "
+                "WHERE agent_id = ? AND decision != 'reserved' "
+                "ORDER BY id DESC LIMIT ?",
+                (agent_id, k),
+            ).fetchall()
+            if len(rows) == k and all(
+                r[0] != Decision.ALLOW.value for r in rows
+            ):
+                reason = f"refusal_thrash: {k} consecutive non-allow verdicts"
+                self._trip(agent_id, reason, now)
                 return reason
         return None
 
@@ -396,6 +495,11 @@ class CircuitBreaker:
 
 def _default_amount(action, evidence: Optional[dict]) -> Optional[float]:
     amt = getattr(action, "amount", None)
+    if amt is None:
+        # P0-5: normal AgentAction amounts live here -- this path was
+        # missing, so ordinary payments never reached the breaker
+        args = getattr(action, "arguments", None) or {}
+        amt = args.get("amount")
     if amt is None and evidence:
         amt = evidence.get("amount")
     try:
@@ -425,27 +529,41 @@ class GuardedEngine:
         # so RuntimeMonitor and friends see an unchanged surface.
         return getattr(self.engine, name)
 
+    def _blocked(self, action, reason: str) -> DecisionResult:
+        return DecisionResult(
+            decision=Decision.BLOCK,
+            triggered_by="circuit_breaker",
+            reason=f"agent suspended: {reason}",
+            capability=action.capability,
+            agent_id=action.agent_id,
+            drift_score=0.0,
+            severity=Severity.CRITICAL,
+        )
+
     def decide(
         self,
         action,
         prev_capability: Optional[str] = None,
         evidence: Optional[dict] = None,
     ) -> DecisionResult:
-        reason = self.breaker.pre_gate(action.agent_id)
-        if reason is not None:
-            return DecisionResult(
-                decision=Decision.BLOCK,
-                triggered_by="circuit_breaker",
-                reason=f"agent suspended: {reason}",
-                capability=action.capability,
-                agent_id=action.agent_id,
-                drift_score=0.0,
-                severity=Severity.CRITICAL,
+        # P0-5: transactional preflight -- the crossing action itself
+        # is blocked; concurrent callers serialize against the same
+        # remaining budget inside the breaker's write transaction.
+        try:
+            amount = self._amount_fn(action, evidence)
+            reason, rid = self.breaker.reserve(action.agent_id, amount)
+        except Exception as exc:
+            # a faulting breaker must never become a bypass
+            return self._blocked(
+                action, f"breaker_fault: {type(exc).__name__}: {exc}"
             )
+        if reason is not None:
+            return self._blocked(action, reason)
         result = self.engine.decide(action, prev_capability, evidence)
-        self.breaker.observe(
-            action.agent_id,
-            result.decision.value,
-            self._amount_fn(action, evidence),
-        )
+        try:
+            self.breaker.finalize(rid, result.decision.value)
+        except Exception:
+            # the verdict stands; a lost thrash-counter update is a
+            # monitoring gap, not an enforcement decision
+            pass
         return result
