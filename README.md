@@ -44,7 +44,7 @@ build fails.
           |
     DriftScorer -> AdvisorySignal (score + severity + reasons)
           |
-    DecisionEngine     precedence: L0-L5 above; fail-closed on any
+    DecisionEngine     precedence: eight contract levels (L0-L7) above; fail-closed on any
           |            internal fault (engine_fault -> BLOCK, never
           |            a silent pass or unhandled crash)
     RuntimeMonitor     enforcing streaming path; denied actions
@@ -123,7 +123,7 @@ standalone: `python -m agent_dna.mcp_server`.
 | `uaal_layer.py` | L0 enterprise constraints (vendored + tested from UAAL's EAV engine) |
 | `grants.py` | Capability grants — expiry, revocation, budget, named-reason denials |
 | `economics/` | L3 pre-execution cost-ratio anomaly + ROI floor check |
-| `consensus/` | Weighted and signed (HMAC) multi-agent voting — L2 in the precedence order, evidence-gated (absent evidence skips) |
+| `consensus/` | Weighted and signed (HMAC) multi-agent voting — L3 in the precedence order (v4.0: policy is L2), evidence-gated (absent evidence skips) |
 | `runtime.py` | Enforcing streaming monitor |
 | `decision_record.py` / `execution_record.py` | Sealed, hash-chained record kinds (drp/0.1) |
 | `decision_graph.py` / `decision_recorder.py` | Queryable lineage, chain verification, restores from store on startup |

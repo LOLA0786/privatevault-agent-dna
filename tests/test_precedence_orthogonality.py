@@ -143,13 +143,11 @@ def test_consensus_wins_over_authorization_economics_drift():
     would independently fire. Consensus (order 2) must win over
     authorization (3), economics (4), drift (5)."""
     from agent_dna.consensus import ConsensusChecker
-    from agent_dna.consensus.signing import register_key, sign_message
+    from agent_dna.consensus.signing import cast_vote, register_key
     from agent_dna.economics import CostAnomalyChecker
 
     register_key("a", "secret-a")
-    sig = sign_message("a", "hh")
-    votes = [{"agent_id": "a", "vote": "REJECT",
-             "signature": sig, "message_hash": "hh"}]
+    votes = [cast_vote("a", "x", "REJECT", "hh")]
 
     engine = DecisionEngine(
         scorer=HighDriftScorer(), invariants=Invariants(),
@@ -173,12 +171,10 @@ def test_l1_invariant_still_wins_over_consensus():
     """Forbidden capability (L1) + quorum shortfall (consensus) both
     would fire. L1 must still win — it's earlier and it's a BLOCK."""
     from agent_dna.consensus import ConsensusChecker
-    from agent_dna.consensus.signing import register_key, sign_message
+    from agent_dna.consensus.signing import cast_vote, register_key
 
     register_key("a", "secret-a")
-    sig = sign_message("a", "hh2")
-    votes = [{"agent_id": "a", "vote": "REJECT",
-             "signature": sig, "message_hash": "hh2"}]
+    votes = [cast_vote("a", "y", "REJECT", "hh2")]
 
     engine = DecisionEngine(
         scorer=HighDriftScorer(), invariants=Invariants(),

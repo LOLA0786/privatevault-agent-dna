@@ -22,7 +22,7 @@ evidence: dict = {
     "planner":          {...},  # SHIPPED — L0
     "approvals":        {...},  # SHIPPED — L0
     "enterprise_state": {...},  # SHIPPED — L0
-    "consensus":        {...},  # SHIPPED — L2 (consensus)
+    "consensus":        {...},  # SHIPPED — L3 (consensus; contract v4.0)
     "economics":        {...},  # SHIPPED — L4 (economics)
 }
 ```
@@ -94,7 +94,7 @@ correctly, later, against a stable contract.
 
 ---
 
-## `consensus`  — SHIPPED (L2)
+## `consensus`  — SHIPPED (L3, contract v4.0)
 
 ```python
 "consensus": {

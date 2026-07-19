@@ -49,6 +49,12 @@ class DecisionResult:
     # authorization did not pass via a grant.
     grant_id: Optional[str] = None
 
+    # Audit set 5 (P1-10): the customer-policy rule that fired --
+    # written into DecisionRecord's schema-reserved policy_id. None
+    # when no policy level is attached, no rule fired, or the backend
+    # (OPA) does not expose rule identity.
+    policy_id: Optional[str] = None
+
     def to_dict(self):
 
         return {
@@ -157,6 +163,7 @@ class DecisionEngine:
             decision: Decision,
             triggered_by: str,
             reason: str,
+            policy_id: Optional[str] = None,
         ) -> DecisionResult:
 
             return DecisionResult(
@@ -164,6 +171,7 @@ class DecisionEngine:
                 triggered_by=triggered_by,
                 reason=reason,
                 grant_id=grant_id,
+                policy_id=policy_id,
                 capability=capability,
                 agent_id=agent_id,
                 drift_score=signal.drift_score,
@@ -225,6 +233,7 @@ class DecisionEngine:
                     pol_decision,
                     "policy",
                     pol.reason,
+                    policy_id=getattr(pol, "matched_rule_id", None),
                 )
 
         #

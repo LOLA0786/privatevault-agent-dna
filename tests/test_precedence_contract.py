@@ -8,6 +8,7 @@ enforces, not just an assertion in prose.
 """
 
 import ast
+import re
 import hashlib
 import json
 from pathlib import Path
@@ -19,7 +20,7 @@ ENGINE_PATH = ROOT / "agent_dna" / "decision.py"
 # The literal trigger strings used in _decide_unsafe / decide_from,
 # in the order they must appear as return statements / string
 # literals within the function bodies.
-EXPECTED_ORDER = ["uaal_constraint", "invariant", "consensus", "authorization", "economics", "drift", "baseline"]
+EXPECTED_ORDER = ["uaal_constraint", "invariant", "policy", "consensus", "authorization", "economics", "drift", "baseline"]
 
 
 def _load_contract():
@@ -41,7 +42,7 @@ def test_contract_hash_is_pinned():
     silent drift."""
     content = CONTRACT_PATH.read_bytes()
     digest = hashlib.sha256(content).hexdigest()
-    PINNED = "89481e7ab7b2a1372b8346561f9c98b6e9ce68b32d5c8010d81b34ba340b9fbc"
+    PINNED = "2150d0f020bba566af62eac51b842958e85cbb0eb75a5506b580d8a87fbee8ca"
     if PINNED == "__PINNED_HASH__":
         # first run: print the real hash so it can be pinned below
         print(f"\nACTUAL CONTRACT HASH: {digest}")
@@ -115,4 +116,23 @@ def test_drift_can_never_block():
     assert all(lvl["class"] == "deterministic" for lvl in others), (
         "every non-drift level must be declared deterministic — "
         "drift is the sole probabilistic level by contract"
+    )
+
+
+def test_no_undeclared_levels_in_engine():
+    """Audit P1-10: the old structural test searched only for the
+    levels it EXPECTED, so an extra hidden level (customer policy,
+    evaluated for months) could not fail it. This guard extracts every
+    trigger literal the engine's make() calls actually declare and
+    requires the set to equal the contract's level set exactly --
+    a level added to code without a contract change fails the build,
+    in either direction."""
+    body = _extract_method_body(ENGINE_PATH.read_text(), "def decide_from(")
+    declared = set(re.findall(
+        r'return make\(\s*[^,]+,\s*\n?\s*"([a-z_]+)"', body
+    ))
+    remaining = set(EXPECTED_ORDER) - {"uaal_constraint"}
+    assert declared == remaining, (
+        f"engine declares {sorted(declared)}, contract declares "
+        f"{sorted(remaining)} -- a level exists on exactly one side"
     )

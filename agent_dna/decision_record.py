@@ -178,6 +178,8 @@ def build_record(
         # audit set 4: the grant this action executed under -- the
         # schema-reserved approval_ref finally populated
         approval_ref=getattr(result, "grant_id", None),
+        # audit set 5 (P1-10): the fired customer-policy rule id
+        policy_id=getattr(result, "policy_id", None),
         edges=(
             [{"type": "follows", "target": parent_decision}]
             if parent_decision is not None
