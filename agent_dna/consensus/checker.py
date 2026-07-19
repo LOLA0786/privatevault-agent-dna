@@ -8,17 +8,22 @@ REQUIRE_APPROVAL, same as authorization/economics/drift, because a
 quorum shortfall is a governance signal, not a proven security
 violation the way a tampered amount is.
 
-Evidence shape:
+Evidence shape (pv-vote/1 -- see consensus/signing.py):
     evidence["consensus"] = {
         "action_id": str,
         "threshold": float,               # default 0.67
         "votes": [
             {"agent_id": str, "vote": "APPROVE"|"REJECT",
-             "signature": str, "message_hash": str},
+             "signature": str, "message_hash": str,
+             "nonce": str, "issued_at": float, "expires_at": float},
             ...
         ],
         "trust_scores": {agent_id: float},  # optional, default 0.5
     }
+
+A vote missing pv-vote/1 fields, carrying an unbound or forged
+signature, expired, duplicated by agent, or reusing a nonce
+contributes ZERO weight -- dropped at submission, never a crash.
 """
 
 from __future__ import annotations
@@ -56,10 +61,7 @@ class ConsensusChecker:
 
         quorum = SecureQuorum(threshold=threshold, trust_registry=registry)
         for v in votes:
-            quorum.submit_vote(
-                action_id, v["agent_id"], v["vote"],
-                v["signature"], v["message_hash"],
-            )
+            quorum.submit(action_id, v)   # invalid votes drop to zero
 
         approved = quorum.check_quorum(action_id)
         if approved:
@@ -70,7 +72,8 @@ class ConsensusChecker:
             reason=(
                 f"quorum_shortfall: action {action_id!r} did not reach "
                 f"threshold {threshold} across {len(votes)} submitted vote(s) "
-                f"(unsigned, unregistered, or dissenting votes contribute zero)"
+                f"(unsigned, unbound, expired, duplicate, or dissenting "
+                f"votes contribute zero)"
             ),
             checks_run=["quorum"],
         )

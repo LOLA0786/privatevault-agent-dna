@@ -53,7 +53,7 @@ proposed actions. **FAIL/N-A** across MEM-01 through MEM-03.
 | Control | Status | Evidence |
 |---|---|---|
 | MAS-01 Inter-agent authentication | **PASS** | HMAC-signed votes in `SecureQuorum`; forged signatures proven rejected (`agent_dna/consensus/secure_quorum.py`, `tests/test_secure_quorum.py`) |
-| MAS-02 Agent communication integrity | **PASS** | Same mechanism — signed votes carry authentication sufficient to validate source before the vote is counted |
+| MAS-02 Agent communication integrity | **PASS** | pv-vote/1: vote signatures bind action_id, vote value, nonce, and expiry — source is authenticated AND replay across actions, duplicate voting, and expired votes are rejected (`tests/test_secure_quorum.py`) |
 | MAS-03 Delegation-chain authority propagation | **FAIL** | No delegation chain mechanism; a named, stated roadmap gap (`docs/WHAT-WE-DO-NOT-CLAIM.md`) |
 | MAS-04 Sub-agent inventory/discovery | **FAIL** | Not applicable/not built — no sub-agent spawning concept in this runtime |
 

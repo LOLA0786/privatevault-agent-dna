@@ -18,7 +18,7 @@ does not exist yet.
 import time
 
 from agent_dna.consensus.secure_quorum import SecureQuorum, TrustRegistry
-from agent_dna.consensus.signing import register_key, sign_message
+from agent_dna.consensus.signing import cast_vote, register_key
 
 from runtime_demo import banner
 
@@ -47,8 +47,8 @@ def main():
         ("fraud-agent", "APPROVE"),
         ("maker-agent", "APPROVE"),
     ]:
-        sig = sign_message(agent_id, message_hash)
-        quorum.submit_vote(action_id, agent_id, vote, sig, message_hash)
+        quorum.submit(action_id,
+                      cast_vote(agent_id, action_id, vote, message_hash))
         print(f"  {agent_id:<16} votes {vote:<8} (signed, trust={trust.get(agent_id):.1f})")
 
     approved = quorum.check_quorum(action_id)
@@ -61,15 +61,15 @@ def main():
     quorum2 = SecureQuorum(threshold=0.67, trust_registry=trust)
 
     # one honest vote — not enough alone to clear 0.67
-    sig = sign_message("maker-agent", message_hash_2)
-    quorum2.submit_vote(action_id_2, "maker-agent", "APPROVE", sig, message_hash_2)
+    quorum2.submit(action_id_2, cast_vote(
+        "maker-agent", action_id_2, "APPROVE", message_hash_2))
     print(f"  maker-agent      votes APPROVE (signed, trust=0.6)")
 
     # attacker tries to inject a vote AS checker-agent without
     # knowing checker-agent's key
-    forged_sig = sign_message("attacker", message_hash_2)
-    quorum2.submit_vote(action_id_2, "checker-agent", "APPROVE",
-                        forged_sig, message_hash_2)
+    forged = cast_vote("attacker", action_id_2, "APPROVE", message_hash_2)
+    forged["agent_id"] = "checker-agent"   # impersonation without the key
+    quorum2.submit(action_id_2, forged)
     print(f"  checker-agent    votes APPROVE (FORGED — attacker doesn't have this key)")
 
     approved_2 = quorum2.check_quorum(action_id_2)
@@ -84,8 +84,8 @@ def main():
     quorum3 = SecureQuorum(threshold=0.67, trust_registry=trust)
 
     for agent_id in ("checker-agent", "fraud-agent"):  # maker-agent abstains
-        sig = sign_message(agent_id, message_hash_3)
-        quorum3.submit_vote(action_id_3, agent_id, "APPROVE", sig, message_hash_3)
+        quorum3.submit(action_id_3, cast_vote(
+            agent_id, action_id_3, "APPROVE", message_hash_3))
         print(f"  {agent_id:<16} votes APPROVE (signed, trust={trust.get(agent_id):.1f})")
 
     approved_3 = quorum3.check_quorum(action_id_3)

@@ -360,51 +360,39 @@ def test_arguments_amount_reaches_breaker(tmp_path):
 # P0-6  quorum dedup + replay
 # =====================================================================
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="P0-6: check_quorum sums every submission without "
-           "deduplicating by voter -- one low-trust agent voting three "
-           "times clears the threshold alone",
-)
 def test_one_voter_cannot_vote_twice():
     from agent_dna.consensus.secure_quorum import SecureQuorum, TrustRegistry
-    from agent_dna.consensus.signing import register_key, sign_message
+    from agent_dna.consensus.signing import cast_vote, register_key
 
     tr = TrustRegistry()
     tr.set_score("solo", 0.3)
     register_key("solo", "secret-solo")
     q = SecureQuorum(threshold=0.67, trust_registry=tr)
 
-    sig = sign_message("solo", "h-1")
+    v = cast_vote("solo", "action-1", "APPROVE", "h-1")
     for _ in range(3):                                 # same vote, thrice
-        q.submit_vote("action-1", "solo", "APPROVE", sig, "h-1")
+        q.submit("action-1", v)
 
     assert not q.check_quorum("action-1"), (
         "one agent with trust 0.3 achieved a 0.67 quorum by voting 3x"
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="P0-6: the vote signature covers only message_hash -- it "
-           "binds neither action_id nor the vote value, so a captured "
-           "vote replays into any other action sharing the hash",
-)
 def test_vote_cannot_replay_across_actions():
     from agent_dna.consensus.secure_quorum import SecureQuorum, TrustRegistry
-    from agent_dna.consensus.signing import register_key, sign_message
+    from agent_dna.consensus.signing import cast_vote, register_key
 
     tr = TrustRegistry()
     tr.set_score("honest", 1.0)
     register_key("honest", "secret-honest")
     q = SecureQuorum(threshold=0.5, trust_registry=tr)
 
-    sig = sign_message("honest", "shared-hash")        # cast for action-1
-    q.submit_vote("action-1", "honest", "APPROVE", sig, "shared-hash")
+    v = cast_vote("honest", "action-1", "APPROVE", "shared-hash")
+    q.submit("action-1", v)
     assert q.check_quorum("action-1")                  # legitimate
 
-    # attacker replays the captured (sig, hash) into a DIFFERENT action
-    q.submit_vote("action-2", "honest", "APPROVE", sig, "shared-hash")
+    # attacker replays the captured vote into a DIFFERENT action
+    q.submit("action-2", v)
     assert not q.check_quorum("action-2"), (
         "a vote cast for action-1 was replayed to approve action-2"
     )
@@ -414,12 +402,6 @@ def test_vote_cannot_replay_across_actions():
 # P0-7  UAAL evidence honesty
 # =====================================================================
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="P0-7: a malformed amount is coerced to None, and "
-           "None-vs-invoice counts as 'amount conserved' -- garbage "
-           "input becomes a PASSED invariant",
-)
 def test_malformed_amount_fails_closed():
     from agent_dna.uaal_layer import UAALConstraintChecker
 
@@ -436,12 +418,6 @@ def test_malformed_amount_fails_closed():
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="P0-7: an EMPTY enterprise_state dict defaults every field "
-           "to the valid state (open, verified, non-duplicate) -- "
-           "absence of evidence evaluated as evidence of validity",
-)
 def test_empty_enterprise_state_is_not_verified_state():
     from agent_dna.uaal_layer import UAALConstraintChecker
 

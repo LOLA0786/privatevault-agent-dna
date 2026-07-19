@@ -31,7 +31,7 @@ from agent_dna.circuit_breaker import (
 from pathlib import Path
 
 from agent_dna.consensus import ConsensusChecker
-from agent_dna.consensus.signing import register_key, sign_message
+from agent_dna.consensus.signing import cast_vote, register_key
 from agent_dna.decision import Decision, DecisionEngine
 from agent_dna.decision_recorder import DecisionRecorder
 from agent_dna.decision_store import DecisionStore
@@ -108,11 +108,8 @@ def main():
     monitor = RuntimeMonitor(guarded, recorder=recorder)
 
     register_key("finance-agent", "secret-finance")
-    settle_votes = [{
-        "agent_id": "finance-agent", "vote": "REJECT",
-        "signature": sign_message("finance-agent", "settle-9982"),
-        "message_hash": "settle-9982",
-    }]
+    settle_votes = [cast_vote(
+        "finance-agent", "settle-9982", "REJECT", "settle-9982")]
 
     scenarios = [
         ("L0  enterprise constraint   |CISO CRO|  amount tampered 5,000 -> 49,000",

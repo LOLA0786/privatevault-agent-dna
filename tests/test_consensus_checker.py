@@ -28,12 +28,11 @@ def _act():
 
 
 def _signed_votes(agents_and_votes, action_id, message_hash):
+    from agent_dna.consensus.signing import cast_vote
     votes = []
     for agent_id, vote in agents_and_votes:
         register_key(agent_id, f"secret-{agent_id}")
-        sig = sign_message(agent_id, message_hash)
-        votes.append({"agent_id": agent_id, "vote": vote,
-                     "signature": sig, "message_hash": message_hash})
+        votes.append(cast_vote(agent_id, action_id, vote, message_hash))
     return votes
 
 

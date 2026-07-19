@@ -31,6 +31,9 @@ class _CEA:
     object_id: Optional[str]
     amount: Optional[float]
     capability: str
+    # P0-7: distinguishes MALFORMED (present but not a number ->
+    # fail closed) from ABSENT (None -> skip honestly)
+    amount_malformed: bool = False
 
 
 @dataclass
@@ -60,15 +63,23 @@ class UAALConstraintChecker:
     def _to_cea(action: AgentAction) -> _CEA:
         args = action.arguments or {}
         raw_amount = args.get("amount")
-        try:
-            amount = float(raw_amount) if raw_amount is not None else None
-        except (TypeError, ValueError):
-            amount = None
+        amount = None
+        amount_malformed = False
+        if raw_amount is not None:
+            try:
+                amount = float(raw_amount)
+            except (TypeError, ValueError):
+                # P0-7: previously coerced to None, which the monetary
+                # invariant then counted as "amount conserved" --
+                # garbage laundered into a passed check. Malformed is
+                # now its own state and fails closed downstream.
+                amount_malformed = True
         return _CEA(
             verb=action.capability.split(".")[-1],
             object_id=args.get("target") or args.get("object_id"),
             amount=amount,
             capability=action.capability,
+            amount_malformed=amount_malformed,
         )
 
     def check(
@@ -90,9 +101,16 @@ class UAALConstraintChecker:
             if needed and not all(k in evidence for k in needed):
                 skipped.append(name)
                 continue
+            if r["passed"] is None:
+                # evaluable evidence key was present but incomplete/
+                # absent at field level -- honestly skipped, reason
+                # preserved in detail
+                skipped.append(name)
+                detail.append(r)
+                continue
             run.append(name)
             detail.append(r)
-            if not r["passed"]:
+            if r["passed"] is False:
                 failures.append(f"{name}: {r['reason']}")
 
         return UAALResult(

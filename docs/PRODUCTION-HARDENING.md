@@ -60,6 +60,8 @@ points at the test file that proves it.
 
 | Capability | Status | Evidence |
 |---|---|---|
+| UAAL evidence tri-state (ABSENT skips honestly, MALFORMED amounts fail closed, INCOMPLETE enterprise_state skips -- garbage or empty evidence can never satisfy an invariant) | **SHIPPED** | `tests/test_p0_audit.py::test_malformed_amount_fails_closed`, `::test_empty_enterprise_state_is_not_verified_state`, `tests/test_uaal_layer.py` |
+| Consensus vote integrity (pv-vote/1: one vote per voter per action, signature bound to action/vote/nonce/expiry, replay and duplicate rejection) | **SHIPPED** | `tests/test_secure_quorum.py`, `tests/test_p0_audit.py::test_one_voter_cannot_vote_twice`, `::test_vote_cannot_replay_across_actions` |
 | OPA fail-closed (unreachable/empty/malformed policy backend raises; engine converts to BLOCK/engine_fault -- never a fabricated policy verdict, never silent ALLOW) | **SHIPPED** | `tests/test_p0_audit.py::test_opa_unavailable_engine_blocks`, `::test_opa_unavailable_adapter_contract`, `::test_opa_empty_result_is_not_allow` |
 | API identity binding (credential is authoritative for agent_id; cross-agent decide/outcome/query rejected) | **SHIPPED** | `tests/test_p0_audit.py::test_key_cannot_decide_as_another_agent`, `::test_key_cannot_report_outcome_for_another_agent` |
 | Single enforcement path, identity fail-closed | **SHIPPED** | `tests/connector/test_middleware.py` — no/invalid/audit-scoped key -> BLOCK; audit keys proven unable to exercise enforcement |
