@@ -60,6 +60,8 @@ points at the test file that proves it.
 
 | Capability | Status | Evidence |
 |---|---|---|
+| OPA fail-closed (unreachable/empty/malformed policy backend raises; engine converts to BLOCK/engine_fault -- never a fabricated policy verdict, never silent ALLOW) | **SHIPPED** | `tests/test_p0_audit.py::test_opa_unavailable_engine_blocks`, `::test_opa_unavailable_adapter_contract`, `::test_opa_empty_result_is_not_allow` |
+| API identity binding (credential is authoritative for agent_id; cross-agent decide/outcome/query rejected) | **SHIPPED** | `tests/test_p0_audit.py::test_key_cannot_decide_as_another_agent`, `::test_key_cannot_report_outcome_for_another_agent` |
 | Single enforcement path, identity fail-closed | **SHIPPED** | `tests/connector/test_middleware.py` — no/invalid/audit-scoped key -> BLOCK; audit keys proven unable to exercise enforcement |
 | MCP transport-level enforcement | **SHIPPED** | `tests/connector/test_mcp_adapter.py` — real client/server, allowed call executes, suspended agent refused with signed hash in-band |
 | Per-session HTTP identity | **SHIPPED** | `tests/connector/test_mcp_http_identity.py` — real streamable HTTP, sessions on one server are distinct agents |

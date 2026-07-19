@@ -165,8 +165,37 @@ class OutcomeRequest(BaseModel):
 
 # ---------- enforcement surface ---------------------------------------------
 
-@app.post("/v1/decide", dependencies=[Depends(require_api_key)])
-def decide(req: DecideRequest):
+def _enforce_identity(ident: str, agent_id: str) -> None:
+    """P0-2: the authenticated credential is the authoritative agent
+    identity (same convention as ConnectorMiddleware, which derives
+    agent_id from the key). A full key for agent A must not act as
+    agent B. In auth-disabled mode (explicit dev-only warning at
+    startup) the body value is used as-is."""
+    if ident != "auth-disabled" and agent_id != ident:
+        raise HTTPException(
+            status_code=403,
+            detail=f"authenticated identity {ident!r} cannot act as "
+                   f"agent {agent_id!r}",
+        )
+
+
+def _owned_decision(ident: str, decision_id: str):
+    """Resolve a decision record and enforce ownership. Cross-agent
+    access returns the same 404 as an unknown id -- no existence
+    oracle across identities."""
+    g = state["recorder"].graph
+    try:
+        record = g.lineage(decision_id)[-1]
+    except KeyError:
+        raise HTTPException(status_code=404, detail="unknown decision_id")
+    if ident != "auth-disabled" and record.agent_id != ident:
+        raise HTTPException(status_code=404, detail="unknown decision_id")
+    return record
+
+
+@app.post("/v1/decide")
+def decide(req: DecideRequest, ident: str = Depends(require_api_key)):
+    _enforce_identity(ident, req.agent_id)
     action = AgentAction(
         agent_id=req.agent_id,
         capability=req.capability,
@@ -189,8 +218,9 @@ def decide(req: DecideRequest):
     )
 
 
-@app.post("/v1/outcome", dependencies=[Depends(require_api_key)])
-def outcome(req: OutcomeRequest):
+@app.post("/v1/outcome")
+def outcome(req: OutcomeRequest, ident: str = Depends(require_api_key)):
+    _owned_decision(ident, req.decision_id)
     try:
         event = state["recorder"].report_outcome(
             req.decision_id, req.status, req.detail
@@ -202,8 +232,10 @@ def outcome(req: OutcomeRequest):
 
 # ---------- query surface ----------------------------------------------------
 
-@app.get("/v1/records/{agent_id}", dependencies=[Depends(require_api_key)])
-def records(agent_id: str):
+@app.get("/v1/records/{agent_id}")
+def records(agent_id: str, ident: str = Depends(require_api_key)):
+    if ident != "auth-disabled" and agent_id != ident:
+        raise HTTPException(status_code=404, detail="unknown agent_id")
     g = state["recorder"].graph
     return {
         "agent_id": agent_id,
@@ -211,26 +243,33 @@ def records(agent_id: str):
     }
 
 
-@app.get("/v1/blocked", dependencies=[Depends(require_api_key)])
-def blocked():
+@app.get("/v1/blocked")
+def blocked(ident: str = Depends(require_api_key)):
     g = state["recorder"].graph
-    return {"blocked": [r.to_dict() for r in g.find_blocked()]}
+    rows = g.find_blocked()
+    if ident != "auth-disabled":
+        rows = [r for r in rows if r.agent_id == ident]
+    return {"blocked": [r.to_dict() for r in rows]}
 
 
-@app.get("/v1/divergent", dependencies=[Depends(require_api_key)])
-def divergent():
+@app.get("/v1/divergent")
+def divergent(ident: str = Depends(require_api_key)):
     g = state["recorder"].graph
-    return {"divergent": [r.to_dict() for r in g.find_divergent()]}
+    rows = g.find_divergent()
+    if ident != "auth-disabled":
+        rows = [r for r in rows if r.agent_id == ident]
+    return {"divergent": [r.to_dict() for r in rows]}
 
 
-@app.get("/v1/lineage/{decision_id}", dependencies=[Depends(require_api_key)])
-def lineage(decision_id: str):
-    g = state["recorder"].graph
-    try:
-        path = g.lineage(decision_id)
-    except KeyError:
-        raise HTTPException(status_code=404, detail="unknown decision_id")
-    return {"lineage": [r.to_dict() for r in path]}
+@app.get("/v1/lineage/{decision_id}")
+def lineage(decision_id: str, ident: str = Depends(require_api_key)):
+    _owned_decision(ident, decision_id)
+    return {
+        "lineage": [
+            r.to_dict()
+            for r in state["recorder"].graph.lineage(decision_id)
+        ]
+    }
 
 
 # ---------- audit surface -------------------------------------------------------

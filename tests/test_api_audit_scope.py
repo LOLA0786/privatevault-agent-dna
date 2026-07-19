@@ -16,7 +16,7 @@ def _client_with_scoped_keys(tmp_path, monkeypatch):
     monkeypatch.setenv("PV_DB_PATH", str(tmp_path / "audit.db"))
     monkeypatch.delenv("PV_RECEIPT_SIGNING_KEY", raising=False)
 
-    full_entry = generate_key("operator-1", scope="full")
+    full_entry = generate_key("a1", scope="full")
     audit_entry = generate_key("auditor-1", scope="audit")
 
     keyfile = tmp_path / "keys.json"

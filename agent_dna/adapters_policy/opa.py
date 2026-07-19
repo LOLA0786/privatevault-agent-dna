@@ -7,7 +7,10 @@ Features:
 - Exponential backoff retry (3 attempts, 0.5s base)
 - Health check endpoint (/healthz equivalent via adapter status)
 - Adapter-level metrics (requests, cache hits, fallback rate, latency)
-- Graceful degradation: fail-to-default configurable (deny/open)
+- Fail-closed: OPA unreachable / empty / malformed result raises
+  PolicyUnavailableError; the DecisionEngine converts it into an
+  auditable BLOCK (triggered_by=engine_fault). A denial is never
+  fabricated as a policy verdict no policy actually issued.
 - Connection reference pooling (simulated for K8s deployment)
 - Full audit logging via agent_dna.observability.logger
 
@@ -26,6 +29,14 @@ from urllib.request import urlopen, Request
 from urllib.error import URLError, HTTPError
 
 
+class PolicyUnavailableError(RuntimeError):
+    """The policy backend could not produce a verdict (unreachable,
+    empty, or malformed response, and no local bundle). Raised so the
+    engine's fail-closed handler turns the fault into a BLOCK with
+    triggered_by=engine_fault -- an infrastructure fault, honestly
+    distinct in the audit trail from a real policy denial."""
+
+
 class OPAPolicyAdapter:
     """
     Enterprise-grade Open Policy Agent connector.
@@ -35,7 +46,9 @@ class OPAPolicyAdapter:
     DEFAULT_TIMEOUT = 2.0  # seconds — real-time enforcement requirement
     DEFAULT_RETRY_COUNT = 3
     DEFAULT_BACKOFF = 0.5  # exponential base
-    DEFAULT_FAIL_DECISION = "block"  # fail-closed for security
+    DEFAULT_FAIL_DECISION = "block"  # retained for API compat; the
+    # unavailable path RAISES (see PolicyUnavailableError) rather than
+    # returning any default verdict
 
     def __init__(
         self,
@@ -155,9 +168,11 @@ class OPAPolicyAdapter:
                 latency = (time.time() - start) * 1000
                 self._update_latency(latency)
                 break
-            except (URLError, HTTPError, Exception) as exc:
-                # Log retry event without exposing payload details
-                # (security: never log capability arguments in retry failures)
+            except (URLError, HTTPError, OSError, ValueError):
+                # Transient transport/parse failure: retry with backoff.
+                # (Never log capability arguments in retry failures.)
+                # Any other exception is a bug, not an outage -- it
+                # propagates to the engine's fail-closed handler.
                 time.sleep(min(backoff, 3.0))
                 backoff *= 2
 
@@ -176,12 +191,18 @@ class OPAPolicyAdapter:
                 else:
                     result = {"fired": False, "outcome": "allow", "reason": "bundle_default"}
             else:
-                # Final fallback
-                result = {
-                    "fired": False,
-                    "outcome": self.default_decision,
-                    "reason": "opa_unavailable_fallback",
-                }
+                # Fail-closed final path: no reachable OPA and no local
+                # bundle means no policy verdict exists. Raising here
+                # (never caching) lets the engine convert the fault
+                # into BLOCK/engine_fault -- the previous behavior
+                # returned fired=False, which the engine ignored,
+                # silently turning the declared deny into an ALLOW.
+                raise PolicyUnavailableError(
+                    f"policy backend unavailable (opa): endpoint "
+                    f"{self.endpoint} unreachable after "
+                    f"{self.DEFAULT_RETRY_COUNT} attempt(s) and no "
+                    f"local bundle configured"
+                )
 
         # Cache for TTL
         self._cache[payload_hash] = (result, time.time())
@@ -198,8 +219,17 @@ class OPAPolicyAdapter:
         )
         with urlopen(req, timeout=self.DEFAULT_TIMEOUT) as resp:
             data = json.loads(resp.read().decode())
-            # OPA standard response format
-            return data.get("result", {"fired": False, "outcome": "allow", "reason": "opa_empty"})
+            # OPA standard response format. An absent, empty, or
+            # non-dict result means the policy engine produced no
+            # verdict: that is a fault, never an implicit allow.
+            result = data.get("result")
+            if not isinstance(result, dict) or not result:
+                raise PolicyUnavailableError(
+                    f"policy backend unavailable (opa): endpoint "
+                    f"{self.endpoint} returned no usable result for "
+                    f"policy path {self.policy_path!r}"
+                )
+            return result
 
     def _normalize_opa_result(self, result: Dict, reason_suffix: str = "") -> type:
         fired = result.get("fired", False)

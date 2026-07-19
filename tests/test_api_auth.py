@@ -15,10 +15,10 @@ def _client(tmp_path, monkeypatch, with_keys=True):
     monkeypatch.setenv("PV_DB_PATH", str(tmp_path / "auth.db"))
     key = None
     if with_keys:
-        entry = generate_key("test")
+        entry = generate_key("auth-agent")
         key = entry["key"]
         kf = tmp_path / "keys.json"
-        kf.write_text(json.dumps({entry["hash"]: "test"}))
+        kf.write_text(json.dumps({entry["hash"]: "auth-agent"}))
         monkeypatch.setenv("PV_API_KEYS_FILE", str(kf))
     else:
         monkeypatch.delenv("PV_API_KEYS_FILE", raising=False)
