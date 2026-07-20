@@ -60,6 +60,7 @@ points at the test file that proves it.
 
 | Capability | Status | Evidence |
 |---|---|---|
+| Policy change gate (`pv policy check`: rule assertions + counterfactual replay against a committed fixture corpus or sealed history, explicit divergence budgets, CI exit-code contract 0/1/2 -- a control change becomes a reviewable pull request) | **SHIPPED** | `tests/test_policy_gate.py` |
 | Shadow policy mode (candidate policies evaluated against the LIVE decision stream, enforcing nothing; divergence report in the bank's own terms; own hash-chained tamper-evident log; a candidate fault cannot touch the enforcement path) | **SHIPPED** | `tests/test_shadow_mode.py` |
 | OPA connector hardening (bundle fallback fail-closed -- a degraded bundle cannot authorize by silence; ONE total deadline across retries, bounded p99; rule identity surfaced into DecisionRecord.policy_id; caching opt-in, bounded, never caches denials or degraded results; mTLS/CA/bearer-token transport for in-VPC deployment) | **SHIPPED** | `tests/test_opa_hardening.py`, `tests/test_p0_audit.py::test_opa_unavailable_engine_blocks` |
 | Policy as a formal precedence level (contract v4.0: order 2 between invariant and consensus, data-driven block/require_approval, fired rule id written into DecisionRecord.policy_id; structural guard now fails on ANY undeclared level in the engine, both directions) | **SHIPPED** | `tests/test_precedence_contract.py::test_no_undeclared_levels_in_engine`, `tests/test_policy_lineage.py` |
