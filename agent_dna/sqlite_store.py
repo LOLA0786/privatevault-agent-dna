@@ -182,6 +182,24 @@ class SQLiteDecisionStore:
         ).fetchone()
         return json.loads(row[0]) if row else None
 
+    def iter_decisions(self, since_ts: float | None = None):
+        """Read-only iteration over sealed decision bodies, oldest
+        first. For analysis tools (policy mining) that must observe the
+        audit trail without ever mutating it."""
+        for (body,) in self._conn.execute(
+            "SELECT body FROM records WHERE kind = 'decision' ORDER BY seq"
+        ):
+            rec = json.loads(body)
+            if since_ts is None or rec.get("timestamp", 0.0) >= since_ts:
+                yield rec
+
+    def iter_executions(self):
+        """Read-only iteration over execution events."""
+        for (body,) in self._conn.execute(
+            "SELECT body FROM records WHERE kind = 'execution' ORDER BY seq"
+        ):
+            yield json.loads(body)
+
     def load_envelopes(self) -> dict:
         return {
             h: json.loads(env)

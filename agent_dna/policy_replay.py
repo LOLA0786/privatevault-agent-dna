@@ -88,6 +88,18 @@ class ReplayInputStore:
         )
         self._conn.commit()
 
+    def iter_inputs(self, since_ts: Optional[float] = None):
+        """Read-only iteration over retained inputs (policy mining)."""
+        q = ("SELECT decision_id, ts, agent_id, capability, retained "
+             "FROM replay_inputs")
+        params: tuple = ()
+        if since_ts is not None:
+            q += " WHERE ts >= ?"
+            params = (since_ts,)
+        for did, ts, agent, cap, retained in self._conn.execute(q, params):
+            yield {"decision_id": did, "ts": ts, "agent_id": agent,
+                   "capability": cap, "retained": json.loads(retained)}
+
     def purge_before(self, cutoff_ts: float) -> int:
         """Retention control: delete retained inputs older than cutoff.
         Returns rows removed. (The immutable decision chain is never

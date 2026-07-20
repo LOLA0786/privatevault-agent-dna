@@ -135,6 +135,72 @@ def cmd_policy_check(args) -> int:
     return EXIT_OK if result.passed else EXIT_FAIL
 
 
+def cmd_policy_suggest(args) -> int:
+    from .policy_miner import mine
+    from .sqlite_store import SQLiteDecisionStore
+
+    store = SQLiteDecisionStore(args.history_db)
+    replay = None
+    if args.replay_db or args.replay_fields:
+        if not args.replay_fields:
+            print("error: --replay-fields is required to mine numeric "
+                  "thresholds (field-scoped, opt-in; see "
+                  "docs/POLICY-REPLAY.md)", file=sys.stderr)
+            return EXIT_USAGE
+        from .policy_replay import ReplayInputStore
+        replay = ReplayInputStore(
+            path=args.replay_db or f"{args.history_db}.replay.db",
+            retain_fields=[f.strip() for f in args.replay_fields.split(",")
+                           if f.strip()])
+
+    since = (time.time() - args.since_days * 86400.0
+             if args.since_days else None)
+    candidates = mine(store, replay, since_ts=since,
+                      min_support=args.min_support,
+                      numeric_field=args.field)
+
+    print(f"\npolicy suggestions from sealed history: {args.history_db}")
+    print("=" * 64)
+    if not candidates:
+        print("\nNo candidates above the support threshold "
+              f"(--min-support {args.min_support}). This means the history "
+              "shows no repeated pattern the runtime is missing -- not "
+              "that none exists.")
+    for c in candidates:
+        tag = {"policy": "RULE", "grant": "GRANT",
+               "advisory": "ADVISORY"}[c.kind]
+        print(f"\n[{c.severity}] {tag}  {c.capability}")
+        print(f"  {c.rationale}")
+        print(f"  backed by {c.support} sealed decision(s)")
+        for s in c.evidence.get("sample", c.evidence.get(
+                "sample_refused", []))[:3]:
+            print(f"    {json.dumps(s)}")
+        if c.note:
+            print(f"  note: {c.note}")
+        if args.out:
+            written = c.write(args.out)
+            if written:
+                print(f"  -> {written}")
+                print(f"     gate it:  pv policy check --rule {written} "
+                      f"--history-db {args.history_db} "
+                      f"--replay-fields {args.field}")
+
+    print("\n" + "=" * 64)
+    n_rules = sum(1 for c in candidates if c.kind == "policy")
+    print(f"{len(candidates)} candidate(s): {n_rules} gate-ready rule(s), "
+          f"{sum(1 for c in candidates if c.kind == 'grant')} grant(s), "
+          f"{sum(1 for c in candidates if c.kind == 'advisory')} advisory.")
+    print("Nothing here is applied. Every suggestion is a pull request "
+          "waiting to be gated and acknowledged by a named human.")
+
+    if args.json:
+        from pathlib import Path as _P
+        _P(args.json).write_text(json.dumps(
+            [c.to_dict() for c in candidates], indent=2))
+        print(f"machine-readable: {args.json}")
+    return EXIT_OK
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="pv", description="PrivateVault decision-security runtime")
@@ -172,6 +238,34 @@ def build_parser() -> argparse.ArgumentParser:
                             "may newly allow (default 0)")
     check.add_argument("--json", help="write the report as JSON")
     check.set_defaults(func=cmd_policy_check)
+
+    suggest = psub.add_parser(
+        "suggest",
+        help="mine sealed history for controls that should exist",
+        description="Reads the decision log and proposes candidate rules, "
+                    "each traced to the records that motivated it. Nothing "
+                    "is applied; gate every suggestion with `pv policy "
+                    "check` before it ships.")
+    suggest.add_argument("--history-db", required=True,
+                         help="sealed decision store")
+    suggest.add_argument("--replay-db",
+                         help="replay input sidecar (default: "
+                              "<history-db>.replay.db)")
+    suggest.add_argument("--replay-fields",
+                         help="retained field allowlist; required to mine "
+                              "numeric thresholds")
+    suggest.add_argument("--field", default="amount",
+                         help="numeric field to mine thresholds on "
+                              "(default: amount)")
+    suggest.add_argument("--since-days", type=float, default=90.0,
+                         help="history window in days (default 90)")
+    suggest.add_argument("--min-support", type=int, default=5,
+                         help="minimum decisions backing a suggestion "
+                              "(default 5)")
+    suggest.add_argument("--out",
+                         help="directory to write gate-ready policy files")
+    suggest.add_argument("--json", help="write all candidates as JSON")
+    suggest.set_defaults(func=cmd_policy_suggest)
 
     return p
 
