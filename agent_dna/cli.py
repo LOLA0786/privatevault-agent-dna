@@ -58,7 +58,13 @@ def _print_report(result, rule_path: str) -> None:
             for cap, n in cf["newly_blocked_by_capability"].items():
                 print(f"    {cap:<40} {n}")
         if cf.get("sample_newly_blocked"):
-            print("  sample (traceable to sealed records):")
+            # Honest labelling: fixture rows are a committed corpus and
+            # carry no record_hash; only store-mode samples are
+            # traceable to sealed records.
+            traceable = any(s.get("record_hash")
+                            for s in cf["sample_newly_blocked"])
+            print("  sample (traceable to sealed records):" if traceable
+                  else "  sample (from the committed corpus):")
             for s in cf["sample_newly_blocked"][:5]:
                 rh = s.get("record_hash", "")
                 suffix = f"  {rh}" if rh else ""

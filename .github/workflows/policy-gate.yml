@@ -1,0 +1,73 @@
+name: policy-gate
+
+# Drop this into a policy repository. Any PR touching a rule file gets
+# a divergence report as a comment, and cannot merge if the gate fails.
+on:
+  pull_request:
+    paths:
+      - 'policies/**.json'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PrivateVault
+        run: pip install -e .
+
+      - name: Gate changed policy files
+        id: gate
+        run: |
+          set +e
+          STATUS=0
+          : > gate_report.md
+          for rule in $(git diff --name-only origin/${{ github.base_ref }}... -- 'policies/*.json'); do
+            echo "### \`$rule\`" >> gate_report.md
+            echo '```' >> gate_report.md
+            pv policy check \
+              --rule "$rule" \
+              --fixture policies/corpus.jsonl \
+              --max-new-blocks "${MAX_NEW_BLOCKS:-0}" \
+              --json "gate_$(basename "$rule").json" \
+              >> gate_report.md 2>&1
+            RC=$?
+            echo '```' >> gate_report.md
+            [ $RC -ne 0 ] && STATUS=$RC
+          done
+          cat gate_report.md
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+          exit 0
+        env:
+          # Raise in the PR (or repo settings) to acknowledge a change
+          # that newly blocks previously-allowed decisions.
+          MAX_NEW_BLOCKS: ${{ vars.MAX_NEW_BLOCKS || 0 }}
+
+      - name: Comment the divergence report
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('gate_report.md', 'utf8');
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## PrivateVault policy gate\n\n${body}`,
+            });
+
+      - name: Upload machine-readable reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: policy-gate-reports
+          path: gate_*.json
+
+      - name: Fail the check if the gate failed
+        run: exit ${{ steps.gate.outputs.status }}
