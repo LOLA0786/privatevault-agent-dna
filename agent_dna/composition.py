@@ -129,7 +129,7 @@ class ProductionRuntime:
         middleware convention (one monitor per agent, caller-held)."""
         return RuntimeMonitor(self.engine, recorder=self.recorder)
 
-    def middleware(self, cross_agent=None):
+    def middleware(self, cross_agent=None, shadow=None):
         """The canonical ConnectorMiddleware over this runtime.
         Requires an enabled key registry -- the middleware refuses to
         run open, by design."""
@@ -139,6 +139,7 @@ class ProductionRuntime:
             recorder=self.recorder,
             keys=self.apikeys,
             cross_agent=cross_agent,
+            shadow=shadow,
         )
 
 

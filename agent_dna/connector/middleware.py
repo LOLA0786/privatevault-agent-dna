@@ -37,7 +37,7 @@ import time
 
 class ConnectorMiddleware:
     def __init__(self, engine, recorder, keys: ApiKeyRegistry,
-                 cross_agent=None) -> None:
+                 cross_agent=None, shadow=None) -> None:
         """engine: GuardedEngine (or DecisionEngine-compatible).
         recorder: DecisionRecorder — required, the verdict must carry
         a chain record_hash. keys: ApiKeyRegistry with enabled=True;
@@ -54,6 +54,7 @@ class ConnectorMiddleware:
         self.recorder = recorder
         self.keys = keys
         self.cross_agent = cross_agent   # optional CrossAgentEnforcer
+        self.shadow = shadow
         self._monitors: Dict[str, RuntimeMonitor] = {}
         self._locks: Dict[str, threading.Lock] = {}
         self._registry_lock = threading.Lock()
@@ -117,6 +118,11 @@ class ConnectorMiddleware:
             result = monitor.process(action, evidence=request.evidence)
             result = self._cross_agent_escalate(request, agent_id, result)
             rec = self.recorder.record(action, result)
+            if self.shadow is not None:
+                try:
+                    self.shadow.observe(action, result, request.evidence)
+                except Exception:
+                    pass  # shadow is diagnostic; cannot break enforcement
 
         return ToolCallVerdict(
             decision=result.decision.value,
