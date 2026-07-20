@@ -160,6 +160,21 @@ for it.
 
 ---
 
+## OPA integration boundaries
+
+We DO ship: authenticated (bearer/mTLS) REST evaluation against a
+customer's OPA on the enforcement path, fail-closed on every failure
+mode, a bounded total latency budget, rule identity written into the
+sealed record when the customer's Rego provides it, and a degraded
+capability-allowlist bundle for air-gapped operation.
+
+We do NOT claim: OPA cluster/HA failover, bundle signature
+verification, or local Rego evaluation. The bundle path is a
+capability allowlist, not a policy engine -- it can deny, it can clear
+an explicitly allowlisted capability, and it fails closed on anything
+else. If a customer's Rego does not return a rule identifier,
+`policy_id` in the decision record is null; we do not infer one.
+
 ## Quarantined code (2026-07 audit)
 
 We do NOT claim adversarial benchmark results. The former

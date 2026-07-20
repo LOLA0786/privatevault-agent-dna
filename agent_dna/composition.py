@@ -70,6 +70,14 @@ class RuntimeConfig:
     keys_file: Optional[str] = None
     policy_file: Optional[str] = None       # customer YAML/JSON rules
     opa_endpoint: Optional[str] = None      # OPA adapter (policy_file wins)
+    opa_policy_path: str = "agent/governance"
+    opa_deadline: float = 1.0               # TOTAL budget, all retries
+    opa_cache_ttl: int = 0                  # = max policy revocation lag
+    opa_token: Optional[str] = None
+    opa_client_cert: Optional[str] = None
+    opa_client_key: Optional[str] = None
+    opa_ca_bundle: Optional[str] = None
+    opa_bundle_path: Optional[str] = None   # degraded air-gapped fallback
     grants_file: Optional[str] = None       # JSON list of capability grants
     multi_writer: bool = False
     breaker_db: Optional[str] = None        # default: <db_path>.breaker.db
@@ -85,6 +93,15 @@ class RuntimeConfig:
             keys_file=os.getenv("PV_API_KEYS_FILE"),
             policy_file=os.getenv("PV_POLICY_FILE"),
             opa_endpoint=os.getenv("PV_OPA_ENDPOINT"),
+            opa_policy_path=os.getenv("PV_OPA_POLICY_PATH",
+                                      "agent/governance"),
+            opa_deadline=_env_float("PV_OPA_DEADLINE") or 1.0,
+            opa_cache_ttl=_env_int("PV_OPA_CACHE_TTL") or 0,
+            opa_token=os.getenv("PV_OPA_TOKEN"),
+            opa_client_cert=os.getenv("PV_OPA_CLIENT_CERT"),
+            opa_client_key=os.getenv("PV_OPA_CLIENT_KEY"),
+            opa_ca_bundle=os.getenv("PV_OPA_CA_BUNDLE"),
+            opa_bundle_path=os.getenv("PV_OPA_BUNDLE"),
             grants_file=os.getenv("PV_GRANTS_FILE"),
             multi_writer=os.getenv("PV_MULTI_WRITER", "0") == "1",
             breaker_db=os.getenv("PV_BREAKER_DB"),
@@ -188,10 +205,31 @@ def build_production_runtime(
         }
     elif cfg.opa_endpoint:
         from .adapters_policy.opa import OPAPolicyAdapter
-        policy = OPAPolicyAdapter(endpoint=cfg.opa_endpoint)
+        policy = OPAPolicyAdapter(
+            endpoint=cfg.opa_endpoint,
+            policy_path=cfg.opa_policy_path,
+            bundle_path=cfg.opa_bundle_path,
+            cache_ttl=cfg.opa_cache_ttl,
+            deadline_seconds=cfg.opa_deadline,
+            token=cfg.opa_token,
+            client_cert=cfg.opa_client_cert,
+            client_key=cfg.opa_client_key,
+            ca_bundle=cfg.opa_ca_bundle,
+        )
+        transport = []
+        if cfg.opa_endpoint.startswith("https"):
+            transport.append("mTLS" if cfg.opa_client_cert else "TLS")
+        else:
+            transport.append("plaintext")
+        if cfg.opa_token:
+            transport.append("bearer-auth")
         comp["policy"] = {
             "status": "attached",
-            "detail": f"OPA (fail-closed): {cfg.opa_endpoint}",
+            "detail": (
+                f"OPA (fail-closed): {cfg.opa_endpoint} "
+                f"[{'+'.join(transport)}, deadline {cfg.opa_deadline}s, "
+                f"cache_ttl {cfg.opa_cache_ttl}s = max revocation lag]"
+            ),
         }
     else:
         comp["policy"] = {
