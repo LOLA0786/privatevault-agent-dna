@@ -78,6 +78,8 @@ class RuntimeConfig:
     opa_client_key: Optional[str] = None
     opa_ca_bundle: Optional[str] = None
     opa_bundle_path: Optional[str] = None   # degraded air-gapped fallback
+    replay_fields: Optional[list] = None    # opt-in retrospective-replay input allowlist
+    replay_db: Optional[str] = None
     grants_file: Optional[str] = None       # JSON list of capability grants
     multi_writer: bool = False
     breaker_db: Optional[str] = None        # default: <db_path>.breaker.db
@@ -102,6 +104,12 @@ class RuntimeConfig:
             opa_client_key=os.getenv("PV_OPA_CLIENT_KEY"),
             opa_ca_bundle=os.getenv("PV_OPA_CA_BUNDLE"),
             opa_bundle_path=os.getenv("PV_OPA_BUNDLE"),
+            replay_fields=(
+                [f.strip() for f in os.environ["PV_REPLAY_FIELDS"].split(",")
+                 if f.strip()]
+                if os.getenv("PV_REPLAY_FIELDS") else None
+            ),
+            replay_db=os.getenv("PV_REPLAY_DB"),
             grants_file=os.getenv("PV_GRANTS_FILE"),
             multi_writer=os.getenv("PV_MULTI_WRITER", "0") == "1",
             breaker_db=os.getenv("PV_BREAKER_DB"),
@@ -121,6 +129,7 @@ class ProductionRuntime:
     signer: Optional[ReceiptSigner]
     apikeys: ApiKeyRegistry
     breaker: CircuitBreaker
+    replay: Any = None
     composition: Dict[str, Dict[str, str]] = field(default_factory=dict)
 
     def monitor(self) -> RuntimeMonitor:
@@ -329,7 +338,29 @@ def build_production_runtime(
                    "PV_API_KEYS_FILE unset -- auth DISABLED (dev only)"),
     }
 
+    replay_store = None
+    if cfg.replay_fields:
+        from .policy_replay import ReplayInputStore
+        replay_store = ReplayInputStore(
+            path=cfg.replay_db or f"{cfg.db_path}.replay.db",
+            retain_fields=cfg.replay_fields,
+        )
+        recorder.replay_capture = replay_store.capture
+        comp["policy_replay"] = {
+            "status": "attached",
+            "detail": (f"OPT-IN retrospective replay; retaining fields "
+                       f"{sorted(cfg.replay_fields)} in a SEPARATE store "
+                       f"(privacy boundary: docs/POLICY-REPLAY.md)"),
+        }
+    else:
+        comp["policy_replay"] = {
+            "status": "not_configured",
+            "detail": "retrospective replay OFF (PV_REPLAY_FIELDS unset); "
+                      "no rule-input retention",
+        }
+
     return ProductionRuntime(
         engine=engine, recorder=recorder, store=store, signer=signer,
-        apikeys=apikeys, breaker=breaker, composition=comp,
+        apikeys=apikeys, breaker=breaker, replay=replay_store,
+        composition=comp,
     )

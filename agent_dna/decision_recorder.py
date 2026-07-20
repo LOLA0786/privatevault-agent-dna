@@ -52,6 +52,8 @@ class DecisionRecorder:
         self.signer = signer
         self.multi_writer_safe = multi_writer_safe
         self.envelopes: Dict[str, dict] = {}   # record_hash -> envelope
+        # opt-in retrospective-replay input capture (composition sets this)
+        self.replay_capture = None
         self._chains: Dict[str, _ChainState] = {}
         if multi_writer_safe and store is None:
             raise ValueError("multi_writer_safe=True requires a store")
@@ -124,6 +126,13 @@ class DecisionRecorder:
 
         chain.last_decision_id = rec.decision_id
         chain.last_hash = rec.record_hash
+        if self.replay_capture is not None:
+            try:
+                self.replay_capture(
+                    rec.decision_id, action.agent_id,
+                    action.capability, getattr(action, "arguments", {}))
+            except Exception:
+                pass  # replay capture is diagnostic; never breaks recording
         return rec
 
     def _record_multi_writer_safe(
