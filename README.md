@@ -136,7 +136,7 @@ standalone: `python -m agent_dna.mcp_server`.
 
     # dev
     pip install -e ".[dev]" --break-system-packages
-    python -m pytest -q                            # 181 tests
+    python -m pytest -q                            # 452 tests
     python examples/composed_line_demo.py           # full 6-level pipeline + tamper demo
     python tools/run_adversarial.py                 # 11-scenario adversarial corpus
     python tools/benchmark.py 5000                  # reproducible throughput benchmark

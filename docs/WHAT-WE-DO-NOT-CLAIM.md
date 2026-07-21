@@ -20,7 +20,7 @@ What exists today, verifiable directly:
   no dependency on our code to check our claims. See
   [drp-spec](https://github.com/LOLA0786/drp-spec) and
   `tools/verify_records.py`.
-- 286 automated tests, run in CI on every commit
+- 452 automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
