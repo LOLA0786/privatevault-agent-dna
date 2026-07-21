@@ -325,7 +325,36 @@ def health():
 
 @app.get("/metrics")
 def prometheus_metrics():
+    """Prometheus scrape endpoint.
 
+    Uses prometheus_client when installed; otherwise falls back to a
+    minimal text-format exposition built from the decision store so the
+    endpoint never 500s (fail-open here is safe: metrics are
+    observability, not enforcement).
+    """
+    try:
+        from prometheus_client import (
+            CONTENT_TYPE_LATEST,
+            generate_latest,
+        )
+        body = generate_latest()
+        content_type = CONTENT_TYPE_LATEST
+    except ImportError:
+        counts: dict[str, int] = {}
+        graph = state.get("graph")
+        if graph is not None:
+            for rec in getattr(graph, "records", lambda: [])():
+                d = getattr(rec, "decision", None)
+                key = getattr(d, "value", str(d))
+                counts[key] = counts.get(key, 0) + 1
+        lines = [
+            "# HELP pv_decisions_total Decisions recorded by verdict.",
+            "# TYPE pv_decisions_total counter",
+        ]
+        for verdict, n in sorted(counts.items()):
+            lines.append(f'pv_decisions_total{{verdict="{verdict}"}} {n}')
+        body = ("\n".join(lines) + "\n").encode()
+        content_type = "text/plain; version=0.0.4; charset=utf-8"
 
     return Response(
         content=body,

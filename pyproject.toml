@@ -51,6 +51,8 @@ addopts = "-v --tb=short --strict-markers"
 [tool.ruff]
 line-length = 88
 target-version = "py312"
+
+[tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP", "B", "C90"]
 ignore = ["E501"]
 
