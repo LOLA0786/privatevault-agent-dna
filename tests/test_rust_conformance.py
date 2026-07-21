@@ -29,19 +29,25 @@ VECTOR_DIR = ROOT / "spec" / "test-vectors"
 
 
 @pytest.fixture(scope="module")
-def vectors() -> dict:
-    """Regenerate vectors with the canonical tool (same as CI does),
-    then load them. Regeneration keeps this test honest against the
-    CURRENT Python serialization, not a stale artifact."""
+def vectors(tmp_path_factory) -> dict:
+    """Generate vectors with the canonical tool into a TEMP dir, then
+    load them. Generation keeps this test honest against the CURRENT
+    Python serialization -- but it must never overwrite the committed
+    canonical vectors, which are the protocol's frozen ground truth
+    (pinned by tests/test_vector_immutability.py). This fixture
+    previously wrote into spec/test-vectors/ and silently regenerated
+    the spec on every run; regression-locked by the immutability test."""
+    gen_dir = tmp_path_factory.mktemp("rust_conformance_vectors")
     subprocess.run(
-        [sys.executable, "tools/generate_test_vectors.py"],
+        [sys.executable, "tools/generate_test_vectors.py",
+         "--out", str(gen_dir)],
         cwd=ROOT,
         check=True,
         capture_output=True,
     )
     out = {}
     for name in ("clean", "tampered_field"):
-        path = VECTOR_DIR / f"{name}.jsonl"
+        path = gen_dir / f"{name}.jsonl"
         out[name] = [
             json.loads(line)
             for line in path.read_text().splitlines()

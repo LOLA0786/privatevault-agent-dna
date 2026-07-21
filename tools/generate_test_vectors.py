@@ -24,7 +24,7 @@ from agent_dna.decision_recorder import DecisionRecorder         # noqa: E402
 from agent_dna.decision_store import DecisionStore               # noqa: E402
 from agent_dna.trace import AgentAction                          # noqa: E402
 
-OUT = Path(__file__).resolve().parent.parent / "spec" / "test-vectors"
+DEFAULT_OUT = Path(__file__).resolve().parent.parent / "spec" / "test-vectors"
 
 
 class Scorer:
@@ -85,7 +85,15 @@ def build_stream(path, *, divergent=False):
     return path
 
 
-def main():
+def main(out: Path | None = None):
+    """Write vectors into ``out`` (default: the canonical spec dir).
+
+    Overwriting the canonical dir is a DELIBERATE act (protocol
+    change); tests that only need current-serialization output must
+    pass a temp dir instead — the committed vectors are pinned by
+    tests/test_vector_immutability.py.
+    """
+    OUT = out or DEFAULT_OUT
     OUT.mkdir(parents=True, exist_ok=True)
     for f in OUT.glob("*.jsonl"):
         f.unlink()
@@ -122,4 +130,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    _ap = argparse.ArgumentParser()
+    _ap.add_argument("--out", type=Path, default=None,
+                     help="output dir (default: canonical spec/test-vectors)")
+    _args = _ap.parse_args()
+    main(_args.out)
