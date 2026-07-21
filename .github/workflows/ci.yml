@@ -14,22 +14,24 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install
-        run: |
-          pip install -r requirements.txt
-          pip install pytest httpx
-          pip install -e .
+      - name: Install (canonical command, matches README)
+        run: pip install -e ".[dev]"
 
       - name: Test suite
         run: python -m pytest tests/ -q
 
-      - name: Regenerate + verify spec test vectors
+      - name: Verify COMMITTED spec vectors (what implementers download)
         run: |
-          python tools/generate_test_vectors.py
           python tools/verify_records.py spec/test-vectors/clean.jsonl
           ! python tools/verify_records.py spec/test-vectors/tampered_field.jsonl
           ! python tools/verify_records.py spec/test-vectors/deleted_record.jsonl
           ! python tools/verify_records.py spec/test-vectors/divergent.jsonl
+
+      - name: Generator reproduces a verifiable set without touching the spec
+        run: |
+          python tools/generate_test_vectors.py --out /tmp/ci_vecs
+          python tools/verify_records.py /tmp/ci_vecs/clean.jsonl
+          git diff --exit-code spec/test-vectors/
 
   docker:
     runs-on: ubuntu-latest
