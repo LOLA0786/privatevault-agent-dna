@@ -16,13 +16,26 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "spec" / "adversarial"))
 
-from agent_dna.decision import DecisionEngine, Decision   # noqa: E402
-from agent_dna.grants import GrantRegistry                 # noqa: E402
-from agent_dna.uaal_layer import UAALConstraintChecker      # noqa: E402
-from attack_corpus import build_corpus                       # noqa: E402
+from attack_corpus import build_corpus  # noqa: E402
+
+from agent_dna.decision import DecisionEngine  # noqa: E402
+from agent_dna.grants import GrantRegistry  # noqa: E402
+from agent_dna.uaal_layer import UAALConstraintChecker  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "examples"))
-from runtime_demo import train                                # noqa: E402
+from runtime_demo import train  # noqa: E402
+
+# The deployer's declared behavioral contract. Everything here is a
+# capability this agent may never exercise regardless of stated intent,
+# task context or evidence quality. The eval-boundary escape family
+# tests exactly this: a benign, well-evidenced goal does not soften a
+# declared boundary.
+FORBIDDEN_CAPABILITIES = frozenset({
+    "storage.bulk_export",       # bulk customer data extraction
+    "secrets.read",              # credential / token discovery
+    "infra.exec_remote",         # lateral movement to other hosts
+    "network.egress_external",   # egress beyond the declared scope
+})
 
 
 class Invariants:
@@ -30,8 +43,8 @@ class Invariants:
         class R:
             pass
         r = R()
-        r.violated = capability == "storage.bulk_export"
-        r.message = "forbidden" if r.violated else ""
+        r.violated = capability in FORBIDDEN_CAPABILITIES
+        r.message = f"forbidden capability: {capability}" if r.violated else ""
         return r
 
 
