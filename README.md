@@ -210,7 +210,7 @@ production. The short version:
 ## Security
 
 Threat model, trust assumptions, and residual risks:
-`docs/SECURITY.md`. Vulnerability reports: security@privatevault.ai.
+`docs/SECURITY.md`. Vulnerability reports:  chandan.galani@privatevault.ai.
 Signing keys are environment or file based and never committed;
 found-and-fixed issues (a timing side-channel in HMAC comparison, a
 scope-enforcement regression) are documented there with their
