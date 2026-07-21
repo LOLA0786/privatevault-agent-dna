@@ -17,8 +17,14 @@ jobs:
       - name: Install (canonical command, matches README)
         run: pip install -e ".[dev]"
 
-      - name: Test suite
-        run: python -m pytest tests/ -q
+      - name: Full claim gate (suite + adversarial + verifiers, sealed)
+        run: python tools/prove.py -o /tmp/proof-of-run.json
+
+      - name: Upload sealed proof-of-run
+        uses: actions/upload-artifact@v4
+        with:
+          name: proof-of-run
+          path: /tmp/proof-of-run.json
 
       - name: Verify COMMITTED spec vectors (what implementers download)
         run: |
