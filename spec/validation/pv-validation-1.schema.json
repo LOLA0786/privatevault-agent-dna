@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://privatevault.ai/spec/pv-validation-1.schema.json",
+  "title": "pv-validation/1 report envelope",
+  "type": "object",
+  "required": ["body", "report_hash"],
+  "additionalProperties": false,
+  "properties": {
+    "report_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "body": {
+      "type": "object",
+      "required": ["format", "created_at", "expires_at", "score",
+                   "dataset", "safeguards", "global", "segments",
+                   "calibration", "drift", "limitations"],
+      "additionalProperties": false,
+      "properties": {
+        "format": {"const": "pv-validation/1"},
+        "created_at": {"type": "number"},
+        "expires_at": {"type": "number"},
+        "score": {
+          "type": "object",
+          "required": ["name", "type"],
+          "additionalProperties": false,
+          "properties": {
+            "name": {"type": "string", "minLength": 1},
+            "type": {"enum": ["ranking", "probability"]}
+          }
+        },
+        "dataset": {
+          "type": "object",
+          "required": ["n", "n_pos", "n_neg", "label_source",
+                       "label_source_note"],
+          "additionalProperties": false,
+          "properties": {
+            "n": {"type": "integer", "minimum": 1},
+            "n_pos": {"type": "integer", "minimum": 0},
+            "n_neg": {"type": "integer", "minimum": 0},
+            "label_source": {"const": "independent"},
+            "label_source_note": {"type": "string", "minLength": 1}
+          }
+        },
+        "safeguards": {
+          "type": "object",
+          "required": ["min_samples", "requires_both_classes"],
+          "additionalProperties": false,
+          "properties": {
+            "min_samples": {"type": "integer", "minimum": 1},
+            "requires_both_classes": {"const": true}
+          }
+        },
+        "global": {
+          "oneOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "required": ["auc", "auc_within_contribution",
+                           "auc_between_contribution", "within_pair_share",
+                           "between_pair_share", "n_pairs", "segmentation"],
+              "additionalProperties": false,
+              "properties": {
+                "auc": {"type": "number", "minimum": 0, "maximum": 1},
+                "auc_within_contribution": {"type": "number", "minimum": 0},
+                "auc_between_contribution": {"type": "number", "minimum": 0},
+                "within_pair_share": {"type": "number", "minimum": 0, "maximum": 1},
+                "between_pair_share": {"type": "number", "minimum": 0, "maximum": 1},
+                "n_pairs": {"type": "integer", "minimum": 1},
+                "segmentation": {"type": "string"}
+              }
+            }
+          ]
+        },
+        "segments": {
+          "type": "object",
+          "required": ["by_agent", "by_capability", "by_agent_capability"],
+          "additionalProperties": false,
+          "properties": {
+            "by_agent": {"$ref": "#/$defs/segmentTable"},
+            "by_capability": {"$ref": "#/$defs/segmentTable"},
+            "by_agent_capability": {"$ref": "#/$defs/segmentTable"}
+          }
+        },
+        "calibration": {
+          "oneOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "required": ["brier", "log_loss", "ece", "n_bins"],
+              "additionalProperties": false,
+              "properties": {
+                "brier": {"type": "number", "minimum": 0},
+                "log_loss": {"type": "number", "minimum": 0},
+                "ece": {"type": "number", "minimum": 0, "maximum": 1},
+                "n_bins": {"type": "integer", "minimum": 2}
+              }
+            }
+          ]
+        },
+        "drift": {
+          "oneOf": [{"type": "null"}, {"type": "object"}]
+        },
+        "limitations": {
+          "type": "array",
+          "items": {"type": "string"},
+          "minItems": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"score": {"properties": {"type": {"const": "ranking"}}}}},
+          "then": {"properties": {"calibration": {"type": "null"}}}
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "segmentTable": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["key", "n", "n_pos", "prevalence", "prevalence_ci",
+                     "auc", "status"],
+        "additionalProperties": false,
+        "properties": {
+          "key": {"type": "string"},
+          "n": {"type": "integer", "minimum": 0},
+          "n_pos": {"type": "integer", "minimum": 0},
+          "prevalence": {"oneOf": [{"type": "null"}, {"type": "number"}]},
+          "prevalence_ci": {
+            "oneOf": [
+              {"type": "null"},
+              {"type": "array", "items": {"type": "number"},
+               "minItems": 2, "maxItems": 2}
+            ]
+          },
+          "auc": {"oneOf": [{"type": "null"}, {"type": "number"}]},
+          "status": {"enum": ["ok", "insufficient_samples", "single_class"]}
+        }
+      }
+    }
+  }
+}

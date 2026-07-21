@@ -1,21 +1,11 @@
-fastapi>=0.110
-uvicorn[standard]>=0.29
-pydantic>=2.6
+# Mirror of pyproject core dependencies — pip install -e ".[dev]" is
+# canonical; this file exists for docker and pip -r workflows only.
+# Optional integrations: pip install -e ".[integrations]"
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+pydantic>=2.9.0
+typing-extensions>=4.12
 jsonschema>=4.21
 pynacl>=1.5
-
-PyJWT>=2.10.1
-
-pandas>=2.2.3
-pyarrow>=21.0.0
-
-requests>=2.32.5
-
-kafka-python>=2.2.15
-redis>=6.4.0
-
-prometheus-client>=0.23.1
-opentelemetry-api>=1.37.0
-opentelemetry-sdk>=1.37.0
-mcp>=1.0
 PyYAML>=6.0
+mcp>=1.0

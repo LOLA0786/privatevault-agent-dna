@@ -1,0 +1,167 @@
+{
+  "body": {
+    "calibration": {
+      "brier": 0.03430060689902222,
+      "ece": 0.16159373333333335,
+      "log_loss": 0.18212906502953313,
+      "n_bins": 10
+    },
+    "created_at": 1750000000.0,
+    "dataset": {
+      "label_source": "independent",
+      "label_source_note": "canonical vector: synthetic labels, deterministic seed 2026",
+      "n": 90,
+      "n_neg": 69,
+      "n_pos": 21
+    },
+    "drift": null,
+    "expires_at": 1757776000.0,
+    "format": "pv-validation/1",
+    "global": {
+      "auc": 1.0,
+      "auc_between_contribution": 0.6846100759144237,
+      "auc_within_contribution": 0.31538992408557626,
+      "between_pair_share": 0.6846100759144237,
+      "n_pairs": 1449,
+      "segmentation": "agent",
+      "within_pair_share": 0.31538992408557626
+    },
+    "limitations": [
+      "Metrics describe the evaluated dataset only; they are not a guarantee on future traffic.",
+      "ECE depends on the fixed equal-width binning recorded in this report (n_bins); it is not comparable across binnings.",
+      "Segment metrics below min_samples are withheld by design.",
+      "This report validates the ADVISORY drift signal only. Deterministic levels L0-L4 are outside its scope and are unaffected by its contents."
+    ],
+    "safeguards": {
+      "min_samples": 30,
+      "requires_both_classes": true
+    },
+    "score": {
+      "name": "drift_score",
+      "type": "probability"
+    },
+    "segments": {
+      "by_agent": [
+        {
+          "auc": 1.0,
+          "key": "agent-0",
+          "n": 30,
+          "n_pos": 3,
+          "prevalence": 0.1,
+          "prevalence_ci": [
+            0.03459988874733419,
+            0.25621082579184085
+          ],
+          "status": "ok"
+        },
+        {
+          "auc": 1.0,
+          "key": "agent-1",
+          "n": 30,
+          "n_pos": 8,
+          "prevalence": 0.26666666666666666,
+          "prevalence_ci": [
+            0.1418266331959632,
+            0.44447961695188876
+          ],
+          "status": "ok"
+        },
+        {
+          "auc": 1.0,
+          "key": "agent-2",
+          "n": 30,
+          "n_pos": 10,
+          "prevalence": 0.3333333333333333,
+          "prevalence_ci": [
+            0.19230498083676134,
+            0.5121994835545616
+          ],
+          "status": "ok"
+        }
+      ],
+      "by_agent_capability": [
+        {
+          "auc": null,
+          "key": "agent-0|crm.read",
+          "n": 15,
+          "n_pos": 1,
+          "prevalence": null,
+          "prevalence_ci": null,
+          "status": "insufficient_samples"
+        },
+        {
+          "auc": null,
+          "key": "agent-0|payments.transfer",
+          "n": 15,
+          "n_pos": 2,
+          "prevalence": null,
+          "prevalence_ci": null,
+          "status": "insufficient_samples"
+        },
+        {
+          "auc": null,
+          "key": "agent-1|crm.read",
+          "n": 15,
+          "n_pos": 5,
+          "prevalence": null,
+          "prevalence_ci": null,
+          "status": "insufficient_samples"
+        },
+        {
+          "auc": null,
+          "key": "agent-1|payments.transfer",
+          "n": 15,
+          "n_pos": 3,
+          "prevalence": null,
+          "prevalence_ci": null,
+          "status": "insufficient_samples"
+        },
+        {
+          "auc": null,
+          "key": "agent-2|crm.read",
+          "n": 15,
+          "n_pos": 5,
+          "prevalence": null,
+          "prevalence_ci": null,
+          "status": "insufficient_samples"
+        },
+        {
+          "auc": null,
+          "key": "agent-2|payments.transfer",
+          "n": 15,
+          "n_pos": 5,
+          "prevalence": null,
+          "prevalence_ci": null,
+          "status": "insufficient_samples"
+        }
+      ],
+      "by_capability": [
+        {
+          "auc": 1.0,
+          "key": "crm.read",
+          "n": 45,
+          "n_pos": 11,
+          "prevalence": 0.24444444444444444,
+          "prevalence_ci": [
+            0.1423547943377172,
+            0.3867338005702035
+          ],
+          "status": "ok"
+        },
+        {
+          "auc": 1.0,
+          "key": "payments.transfer",
+          "n": 45,
+          "n_pos": 10,
+          "prevalence": 0.2222222222222222,
+          "prevalence_ci": [
+            0.12544685532626396,
+            0.36269292174756296
+          ],
+          "status": "ok"
+        }
+      ]
+    }
+  },
+  "report_hash": "d0f9b6cbd5b1a4800828e26ade3cd129448999d5585e624702fa57076a26a39b"
+}

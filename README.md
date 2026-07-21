@@ -9,19 +9,54 @@ operational profile from execution traces, (2) enforces decisions
 pre-execution through a deterministic precedence model, and (3) emits
 a tamper-evident, independently verifiable decision audit trail.
 
+## Status & 5-minute demo
+
+**Maturity:** pilot-ready runtime, pre-certification. Enforced today:
+the full 8-level deterministic precedence line (L0-L7), fail-closed
+faults, hash-chained + optionally Ed25519-signed records, scoped API
+keys, MCP transport enforcement, circuit breakers, multi-agent
+invariants/consensus, and a sealed validation format (pv-validation/1)
+for the advisory drift layer. Not claimed: SOC 2/ISO, formal proofs,
+real-trace-calibrated baselines, MCP high-concurrency load — the full
+honest list is in [`docs/WHAT-WE-DO-NOT-CLAIM.md`](docs/WHAT-WE-DO-NOT-CLAIM.md).
+
+Five minutes, three properties, reproducible:
+
+    pip install -e ".[dev]"
+    python -m pytest -q                       # full suite, must be green
+
+    # 1. fail-closed + precedence, end to end with a tamper demo
+    python examples/composed_line_demo.py
+
+    # 2. adversarial corpus: 11 attack scenarios against the ladder
+    python tools/run_adversarial.py
+
+    # 3. independent verification — deliberately NOT our code path:
+    #    verify the audit export with one stdlib-only file
+    python tools/verify_records.py <exported .jsonl from step 1 output dir>
+
+Or as a service:
+
+    docker compose up --wait
+    curl -i -X POST localhost:8000/v1/decide \
+      -H 'Content-Type: application/json' \
+      -d '{"agent_id":"a1","capability":"crm.read_contact","timestamp":0}'
+    # HTTP status IS the verdict: 200 allow / 202 require_approval / 403 block
+
 ## The non-negotiable property
 
 The learned model is advisory. The deterministic layers decide.
 `decision.py` encodes this as a strict precedence order — observable
 in every record's `triggered_by` field:
 
-    0. enterprise constraints  (deterministic, evidence-checked)  -> BLOCK
-    1. behavioral invariants   (deterministic contract)           -> BLOCK
-    2. multi-agent consensus   (evidence-gated, signed voting)     -> REQUIRE_APPROVAL
-    3. capability grants       (deterministic authz)               -> REQUIRE_APPROVAL
-    4. economics               (deterministic cost/ROI check)      -> REQUIRE_APPROVAL
-    5. learned drift           (probabilistic advisory)            -> REQUIRE_APPROVAL
-    6. baseline                                                    -> ALLOW
+    L0. enterprise constraints  (deterministic, evidence-checked)   -> BLOCK
+    L1. behavioral invariants   (deterministic contract)            -> BLOCK
+    L2. customer policy         (deterministic, data-driven rules)  -> BLOCK / REQUIRE_APPROVAL
+    L3. multi-agent consensus   (evidence-gated, signed voting)     -> REQUIRE_APPROVAL
+    L4. capability grants       (deterministic authz)               -> REQUIRE_APPROVAL
+    L5. economics               (deterministic cost/ROI check)      -> REQUIRE_APPROVAL
+    L6. learned drift           (probabilistic advisory)            -> REQUIRE_APPROVAL
+    L7. baseline                                                    -> ALLOW
 
 A deterministic DENY is final: nothing below it — including drift or
 cost signals — can ever turn it into an ALLOW. Learned signals can

@@ -196,3 +196,19 @@ the code that changes it. The git history of this file is itself part
 of the audit trail.
 
 PrivateVault AI (Pentaprime Solutions) · privatevault.ai
+
+## Model validation (pv-validation/1)
+
+**We do not claim the advisory drift scorer is validated on real
+production traffic.** The validation machinery (Wilson intervals,
+AUC decomposition, calibration metrics, drift distinction — see
+`docs/VALIDATION-MATH.md`) is itself fully tested and independently
+verifiable, but until a customer pilot supplies independently
+labelled real outcomes, any published report is computed on synthetic
+labels and says so in `label_source_note`. We also do not claim ECE
+is binning-independent (it is not; `n_bins` is recorded), nor that
+segment metrics below the minimum sample count exist at all — they
+are withheld by design. The validation layer can only ever TIGHTEN
+enforcement at the drift level; we make no claim that it improves
+detection, only that it honestly measures the advisory signal and
+refuses to describe ranking scores as probabilities.
