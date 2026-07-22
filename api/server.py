@@ -20,28 +20,17 @@ import os
 import tempfile
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
-from fastapi import Depends, FastAPI, Header, HTTPException
-
-from agent_dna.apikeys import ApiKeyRegistry
-from agent_dna.signer import KEY_ENV, ReceiptSigner
+from fastapi import Depends, FastAPI, Header, HTTPException, Response
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
-from agent_dna import (
-    BehaviorDynamics,
-    CapabilityManifold,
-    DriftScorer,
-)
-from agent_dna.adapters import synthetic_normal_trace
-from agent_dna.decision import Decision, DecisionEngine
-from agent_dna.decision_recorder import DecisionRecorder
+from agent_dna.apikeys import ApiKeyRegistry
+from agent_dna.decision import Decision
 from agent_dna.runtime import RuntimeMonitor
-from agent_dna.sqlite_store import SQLiteDecisionStore
 from agent_dna.trace import AgentAction
 
-from fastapi import Response
 DB_PATH = os.environ.get("PV_DB_PATH", "data/privatevault.db")
 
 STATUS_MAP = {
@@ -50,10 +39,10 @@ STATUS_MAP = {
     Decision.BLOCK: 403,
 }
 
-state: Dict[str, Any] = {}
+state: dict[str, Any] = {}
 
 
-from agent_dna.composition import build_production_runtime
+from agent_dna.composition import build_production_runtime  # noqa: E402
 
 
 def require_api_key(x_api_key: str | None = Header(default=None)):
@@ -139,10 +128,10 @@ class DecideRequest(BaseModel):
     agent_id: str = Field(min_length=1)
     capability: str = Field(min_length=1)
     timestamp: float
-    arguments: Dict[str, Any] = Field(default_factory=dict)
-    context: Dict[str, Any] = Field(default_factory=dict)
-    evidence: Dict[str, Any] = Field(default_factory=dict)
-    request_id: Optional[str] = None
+    arguments: dict[str, Any] = Field(default_factory=dict)
+    context: dict[str, Any] = Field(default_factory=dict)
+    evidence: dict[str, Any] = Field(default_factory=dict)
+    request_id: str | None = None
 
 
 class OutcomeRequest(BaseModel):
@@ -175,7 +164,7 @@ def _owned_decision(ident: str, decision_id: str):
     try:
         record = g.lineage(decision_id)[-1]
     except KeyError:
-        raise HTTPException(status_code=404, detail="unknown decision_id")
+        raise HTTPException(status_code=404, detail="unknown decision_id") from None
     if ident != "auth-disabled" and record.agent_id != ident:
         raise HTTPException(status_code=404, detail="unknown decision_id")
     return record
@@ -190,6 +179,7 @@ def decide(req: DecideRequest, ident: str = Depends(require_api_key)):
         timestamp=req.timestamp,
         arguments=req.arguments,
         context=req.context,
+        request_id=req.request_id,
     )
     monitor = _monitor_for(req.agent_id)
     result = monitor.process(action, evidence=req.evidence or None)
@@ -214,7 +204,7 @@ def outcome(req: OutcomeRequest, ident: str = Depends(require_api_key)):
             req.decision_id, req.status, req.detail
         )
     except (KeyError, ValueError) as e:
-        raise HTTPException(status_code=409, detail=str(e))
+        raise HTTPException(status_code=409, detail=str(e)) from e
     return {"event": event.to_dict()}
 
 

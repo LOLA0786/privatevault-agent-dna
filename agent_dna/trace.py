@@ -22,7 +22,7 @@ Design notes
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List
+from typing import Any
 
 
 @dataclass
@@ -32,9 +32,10 @@ class AgentAction:
     agent_id: str
     capability: str
     timestamp: float
-    arguments: Dict[str, Any] = field(default_factory=dict)
-    context: Dict[str, Any] = field(default_factory=dict)
-    evidence: Dict[str, Any] = field(default_factory=dict)
+    arguments: dict[str, Any] = field(default_factory=dict)
+    context: dict[str, Any] = field(default_factory=dict)
+    evidence: dict[str, Any] = field(default_factory=dict)
+    request_id: str | None = None  # correlation id from the originating request
     outcome: str = "ok"  # "ok" | "error" | "blocked"
 
     def __post_init__(self) -> None:
@@ -49,9 +50,9 @@ class ExecutionTrace:
     """An ordered sequence of actions for one agent run / session."""
 
     agent_id: str
-    actions: List[AgentAction] = field(default_factory=list)
+    actions: list[AgentAction] = field(default_factory=list)
 
-    def add(self, action: AgentAction) -> "ExecutionTrace":
+    def add(self, action: AgentAction) -> ExecutionTrace:
         if action.agent_id != self.agent_id:
             raise ValueError(
                 f"action.agent_id {action.agent_id!r} != trace.agent_id {self.agent_id!r}"
@@ -61,7 +62,7 @@ class ExecutionTrace:
         return self
 
     @property
-    def capabilities(self) -> List[str]:
+    def capabilities(self) -> list[str]:
         return [a.capability for a in self.actions]
 
     def __len__(self) -> int:

@@ -15,7 +15,6 @@ from __future__ import annotations
 import random
 import time
 from dataclasses import dataclass
-from typing import Dict, Optional
 
 from .decision import DecisionResult
 from .decision_graph import DecisionGraph
@@ -26,14 +25,14 @@ from .trace import AgentAction
 
 @dataclass
 class _ChainState:
-    last_decision_id: Optional[str] = None
+    last_decision_id: str | None = None
     last_hash: str = GENESIS_HASH
 
 
 class DecisionRecorder:
     def __init__(
         self,
-        graph: Optional[DecisionGraph] = None,
+        graph: DecisionGraph | None = None,
         store=None,                       # optional DecisionStore
         signer=None,                      # optional ReceiptSigner
         multi_writer_safe: bool = False,
@@ -51,10 +50,10 @@ class DecisionRecorder:
         self.store = store
         self.signer = signer
         self.multi_writer_safe = multi_writer_safe
-        self.envelopes: Dict[str, dict] = {}   # record_hash -> envelope
+        self.envelopes: dict[str, dict] = {}   # record_hash -> envelope
         # opt-in retrospective-replay input capture (composition sets this)
         self.replay_capture = None
-        self._chains: Dict[str, _ChainState] = {}
+        self._chains: dict[str, _ChainState] = {}
         if multi_writer_safe and store is None:
             raise ValueError("multi_writer_safe=True requires a store")
         if multi_writer_safe and not hasattr(store, "get_chain_head"):
@@ -88,7 +87,7 @@ class DecisionRecorder:
         self,
         action: AgentAction,
         result: DecisionResult,
-        anchor_hash: Optional[str] = None,
+        anchor_hash: str | None = None,
     ) -> DecisionRecord:
         if self.multi_writer_safe:
             return self._record_multi_writer_safe(action, result, anchor_hash)
@@ -101,6 +100,7 @@ class DecisionRecorder:
             parent_decision=chain.last_decision_id,
             prev_hash=chain.last_hash,
             anchor_hash=anchor_hash if is_fresh_chain else None,
+                    request_id=getattr(action, 'request_id', None),
         )
         # Audit set 4 ordering: sign first (pure function of the
         # sealed record), then persist record AND envelope in ONE
@@ -139,7 +139,7 @@ class DecisionRecorder:
         self,
         action: AgentAction,
         result: DecisionResult,
-        anchor_hash: Optional[str] = None,
+        anchor_hash: str | None = None,
         max_retries: int = 20,
     ) -> DecisionRecord:
         """Chain head is read fresh from the store on every call --
@@ -159,7 +159,8 @@ class DecisionRecorder:
                 parent_decision=last_decision_id,
                 prev_hash=last_hash,
                 anchor_hash=anchor_hash if is_fresh_chain else None,
-            )
+                        request_id=getattr(action, 'request_id', None),
+        )
             env_dict = (
                 self.signer.sign_record(rec).to_dict()
                 if self.signer is not None else None
