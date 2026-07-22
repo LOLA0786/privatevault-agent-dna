@@ -16,7 +16,21 @@ class TrustResult:
 
 
 class TrustInvariant:
-    """Learns expected trust relationships between agent pairs."""
+    """Learns expected trust relationships between agent pairs.
+
+    NOT WIRED. This invariant iterates graph.edges expecting edge
+    OBJECTS with .source/.target/.trust_score, but
+    InteractionGraph.edges is a set[tuple[str, str]] -- (source, target)
+    agent-id pairs with no per-edge trust value. So fit()/validate()
+    raise on a real graph, and nothing in the serving path calls it.
+
+    The project's actual trust data is per-AGENT
+    (agent_dna.consensus.TrustRegistry: agent_id -> score in [0,1]),
+    not per-EDGE. Wiring this correctly requires a modelling decision
+    -- how per-agent trust maps to a per-pair edge check -- that is
+    deliberately deferred rather than guessed. Tracked as a roadmap
+    item; pinned by tests/test_trust_invariant.py.
+    """
 
     name = "trust"
 
