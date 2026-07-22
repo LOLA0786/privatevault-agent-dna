@@ -7,6 +7,7 @@ them as local policy rules.
 """
 import json
 from pathlib import Path
+
 from .local import LocalPolicyAdapter
 
 
@@ -17,8 +18,16 @@ class SkillAdapter(LocalPolicyAdapter):
     """
     SKILL_FILE = "skills.json"
 
+    def __init__(self, skill_dir: str = "skills",
+                 policy_dir: str = "profiles") -> None:
+        # skills (harness capability manifests) live in their own tree,
+        # separate from L2 policy files; the parent handles policy_dir.
+        # profile_dir was referenced but never set -- this is the fix.
+        super().__init__(policy_dir)
+        self.skill_dir = Path(skill_dir)
+
     def load_skills(self, agent_id: str) -> dict:
-        skill_path = Path(self.profile_dir) / agent_id / self.SKILL_FILE
+        skill_path = Path(self.skill_dir) / agent_id / self.SKILL_FILE
         if not skill_path.exists():
             return {}
         return json.loads(skill_path.read_text())
