@@ -1,5 +1,5 @@
-import logging
 import json
+import logging
 from datetime import datetime
 
 
@@ -12,7 +12,9 @@ class JSONFormatter(logging.Formatter):
             "message": record.getMessage(),
         }
         if hasattr(record, "extra"):
-            log_obj.update(record.extra)
+            extra = getattr(record, "extra", None)
+            if isinstance(extra, dict):
+                log_obj.update(extra)
         return json.dumps(log_obj)
 
 
