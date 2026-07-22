@@ -212,3 +212,55 @@ are withheld by design. The validation layer can only ever TIGHTEN
 enforcement at the drift level; we make no claim that it improves
 detection, only that it honestly measures the advisory signal and
 refuses to describe ranking scores as probabilities.
+
+## Complete mediation (the window, not the door)
+
+**We do not claim PrivateVault prevents sandbox escape or mediates
+actions that never pass through it.** PrivateVault is a reference
+monitor for actions submitted to it. It is tamper-evident (hash
+chains) and independently verifiable (stdlib verifier), but the third
+reference-monitor property -- complete mediation, that *every* real
+external effect is submitted for a decision -- is not something a
+library inside the agent's own process can provide. An agent that
+opens a raw socket, spawns a subprocess, reaches a cloud metadata
+endpoint, or otherwise produces an external effect without routing it
+through the decision path is not mediated, and our hash chain proves
+nothing about effects we were never asked to decide.
+
+Stated as the property we are working toward, and do NOT yet claim:
+
+    ExternalEffect(x) => exists! d : ALLOW(d) AND Binds(d,x) AND Fresh(d)
+
+"No external effect may occur without exactly one prior, valid ALLOW
+decision bound to that exact action." The universal quantifier over
+external effects is a *completeness* claim, and completeness is
+provable only by an observer OUTSIDE the agent -- infrastructure
+containment (network namespace / eBPF egress capture, syscall
+filtering, a sidecar that sees real traffic) that reconciles observed
+effects against the decision log. Integrity (which we have) is not
+completeness (which requires that observer) is not truth (that the
+producer recorded every real action faithfully).
+
+Concretely, the 2026-07 Hugging Face incident -- an agent escaping an
+evaluation sandbox via code execution, credential harvesting and
+lateral movement -- is NOT an incident PrivateVault is proven to
+stop, because no enforcement layer sat in the action path. Our
+adversarial corpus demonstrates that the *action patterns* (target
+drift, credential access, lateral movement, external egress) are
+refused when submitted to the ladder. It does not demonstrate
+complete mediation, and we do not claim it until an independent
+infrastructure observer is built and shown to reconcile real external
+effects against the ALLOW log.
+
+### Evidence handling is fail-closed for sensitive actions
+
+A related, narrower fix (shipped): L0 evidence handling is
+three-state. Present evidence is evaluated; absent evidence for an
+*optional* invariant is skipped honestly; absent evidence for a
+*mandatory* invariant on a *sensitive* capability class (credentials,
+infra exec, external egress, role assumption) is a BLOCK
+(missing_required_evidence). This closes a fail-open in which an agent
+could defeat the identity-preservation check simply by omitting its
+evidence. The scope is deliberate: missing identity evidence blocks
+only where an unstated intent is itself anomalous, so ordinary
+actions are not forced to carry planner evidence.

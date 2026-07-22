@@ -1,0 +1,2 @@
+{"epoch_id": "ep-1", "kind": "coverage_epoch", "observer_id": "obs-A", "observer_sig": "ed25519:vector-sig", "record_hash": "0c492cdb924ac74f5f46c3c85fee1d1522cfef7d4072cc75a81681f9de714353", "seq_end": 1, "seq_start": 1, "window_end": 1100.0, "window_start": 999.0}
+{"decision_ref": "d-b", "effect_type": "storage.bulk_export", "epoch_id": "ep-1", "kind": "effect", "observer_id": "obs-A", "observer_sig": "ed25519:vector-sig", "record_hash": "0863185452482ec5defd102b89540f24d8b675fb2eb0ff9a806f03f0c9c24798", "seq": 1, "target": "storage.bulk_export", "timestamp": 1002.0}
