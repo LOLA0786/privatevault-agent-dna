@@ -282,7 +282,9 @@ def verify():
 
 @app.get("/v1/audit/export", dependencies=[Depends(require_audit_or_full_key)])
 def audit_export():
-    tmp = Path(tempfile.mkstemp(suffix=".jsonl")[1])
+    _fd, _tmp_path = tempfile.mkstemp(suffix=".jsonl")
+    os.close(_fd)  # mkstemp returns an OPEN fd; we write via the path, so close it or leak
+    tmp = Path(_tmp_path)
     state["store"].export_jsonl(tmp)
     return FileResponse(
         tmp,
