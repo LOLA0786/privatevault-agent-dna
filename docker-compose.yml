@@ -6,6 +6,7 @@ services:
     volumes:
       - pv_data:/data
     environment:
+      - PV_ALLOW_NO_AUTH=1  # dev only: API refuses to start without this or configured keys
       - PV_DB_PATH=/data/privatevault.db
     restart: unless-stopped
     healthcheck:

@@ -17,6 +17,7 @@ Audit surface:
 from __future__ import annotations
 
 import os
+import sys
 import tempfile
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -80,6 +81,31 @@ def require_audit_or_full_key(x_api_key: str | None = Header(default=None)):
     return name
 
 
+def _assert_auth_configured(auth_enabled: bool) -> None:
+    """Fail closed on auth at startup.
+
+    A security runtime must never silently serve enforcement decisions
+    with no authentication. Running without keys is permitted ONLY when
+    the operator explicitly opts in, so a forgotten PV_API_KEYS_FILE is
+    a refused startup rather than an open endpoint -- the same
+    fail-closed principle the runtime enforces on agents, applied to
+    its own front door.
+    """
+    if auth_enabled:
+        return
+    allow = os.getenv("PV_ALLOW_NO_AUTH", "").lower() in ("1", "true", "yes")
+    if not allow:
+        raise RuntimeError(
+            "PrivateVault refuses to start: no API keys configured "
+            "(PV_API_KEYS_FILE unset or empty). Configure at least one key, "
+            "or set PV_ALLOW_NO_AUTH=1 to run WITHOUT authentication "
+            "(development only -- every request runs as its self-declared "
+            "identity).")
+    print("WARNING: PV_ALLOW_NO_AUTH set -- authentication is DISABLED. "
+          "Every request runs as its self-declared identity. Never use this "
+          "in production.", file=sys.stderr)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # One composition root for every transport (audit Commit set 3):
@@ -96,6 +122,8 @@ async def lifespan(app: FastAPI):
                   file=sys.stderr)
     state["runtime"] = runtime
     state["apikeys"] = runtime.apikeys
+
+    _assert_auth_configured(runtime.apikeys.enabled)
     state["store"] = runtime.store
     state["recorder"] = runtime.recorder
     state["engine"] = runtime.engine
@@ -108,7 +136,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="PrivateVault Agent DNA",
-    version="0.2.0",
+    version="0.2.1",
     lifespan=lifespan,
 )
 

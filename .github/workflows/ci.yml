@@ -47,7 +47,7 @@ jobs:
         run: docker build -t privatevault-agent-dna .
       - name: Container smoke test
         run: |
-          docker run -d --name pv -p 8000:8000 privatevault-agent-dna
+          docker run -d --name pv -p 8000:8000 -e PV_ALLOW_NO_AUTH=1 privatevault-agent-dna
           sleep 8
           curl -sf localhost:8000/health
           code=$(curl -s -o /dev/null -w "%{http_code}" -X POST localhost:8000/v1/decide \
