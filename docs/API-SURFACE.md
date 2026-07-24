@@ -124,3 +124,101 @@ If a decision was `block` and its outcome reports `ok`, verification
 fails with ENFORCEMENT DIVERGENCE. Clients should report outcomes
 honestly; the point of the field is to make dishonesty visible, not to
 be a formality.
+
+---
+
+## Query surface
+
+These are the endpoints a console renders. All are scoped to the
+authenticated agent unless the credential is an operator key.
+
+### `GET /v1/records/{agent_id}`
+
+Full decision history for one agent, in chain order.
+
+```json
+{
+  "agent_id": "treasury-agent-07",
+  "records": [ {"...": "DecisionRecord"}, "..." ]
+}
+```
+
+### `GET /v1/blocked`
+
+Every blocked decision.
+
+```json
+{"blocked": [ {"...": "DecisionRecord"}, "..." ]}
+```
+
+### `GET /v1/divergent`
+
+Decisions where the recorded verdict and the reported outcome
+disagree. For an operator console this is the highest-priority view.
+
+```json
+{"divergent": [ {"...": "DecisionRecord"}, "..." ]}
+```
+
+### `GET /v1/lineage/{decision_id}`
+
+The chain of decisions leading to and from one decision.
+
+```json
+{"lineage": [ {"...": "DecisionRecord"}, "..." ]}
+```
+
+### `GET /v1/runtime`
+
+Composition manifest: which enforcement levels are attached and why
+the rest are not. An honesty surface, so an operator can see what a
+deployment actually enforces rather than what it advertises.
+
+```json
+{"composition": {"...": "per-level status and detail"}}
+```
+
+---
+
+## Audit surface
+
+`GET /v1/verify` runs chain verification across all agents.
+`GET /v1/audit/export` streams the full record set as JSONL in the DRP
+wire format. `GET /v1/envelope/{record_hash}` returns the Ed25519
+signature envelope for a sealed record. Export and verify require
+`audit` or `full` scope.
+
+Signatures are over the `record_hash`, never over a re-serialized
+body. Rationale in `drp-spec/docs/SIGNING.md`.
+
+## Operational
+
+`GET /` returns service metadata including a `calibration` field.
+`GET /health` is liveness. `GET /metrics` is Prometheus exposition and
+requires `audit` or `full` scope.
+
+## Verification is independent by design
+
+A record's validity must never depend on the code that displays it.
+
+`drp-spec` ships `verify_records.py`, standard library only, importing
+nothing from this runtime. Any consumer can check an export
+themselves. It verifies record hashes, per-agent chain continuity,
+execution anchor binding, field-set conformance, ID uniqueness,
+lineage binding, and enforcement divergence.
+
+For a console this is a hard constraint: it renders evidence and must
+not become a component an auditor has to trust. It should never be the
+only path to verification, never re-serialize records before hashing,
+and never present a derived view that could be mistaken for the record
+itself.
+
+## What this API does not do
+
+- It does not mediate actions that never pass through it. Complete
+  mediation requires infrastructure containment on the customer side.
+- Single-instance. No multi-node coordination.
+- Not load-tested at high concurrency; no latency or throughput
+  figures are published.
+- Behavioral profiles are calibrated on synthetic traces until a pilot
+  supplies independently labelled real outcomes.
