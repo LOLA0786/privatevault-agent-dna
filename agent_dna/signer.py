@@ -24,10 +24,13 @@ from __future__ import annotations
 
 import os
 
-USE_RUST = (
-    os.getenv("PV_USE_RUST_SIGNER", "0").lower()
-    in ("1", "true", "yes")
+from .signer_python import (
+    TRUSTED_KEYS_ENV,
+    parse_trusted_keys,
+    verify_trusted_envelope,
 )
+
+USE_RUST = os.getenv("PV_USE_RUST_SIGNER", "0").lower() in ("1", "true", "yes")
 
 if USE_RUST:
     try:
@@ -58,15 +61,19 @@ else:
         rotate_key,
         verify_envelope,
     )
+
     SIGNER_BACKEND = "python"
 
 __all__ = [
     "KEY_ENV",
+    "TRUSTED_KEYS_ENV",
     "SIGNER_BACKEND",
     "USE_RUST",
     "ReceiptSigner",
     "SignatureEnvelope",
     "generate_keypair",
+    "parse_trusted_keys",
     "rotate_key",
     "verify_envelope",
+    "verify_trusted_envelope",
 ]

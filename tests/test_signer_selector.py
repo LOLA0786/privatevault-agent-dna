@@ -9,9 +9,17 @@ import sys
 import agent_dna.signer as signer
 
 PUBLIC_API = {
-    "KEY_ENV", "SIGNER_BACKEND", "USE_RUST", "ReceiptSigner",
-    "SignatureEnvelope", "generate_keypair", "rotate_key",
+    "KEY_ENV",
+    "TRUSTED_KEYS_ENV",
+    "SIGNER_BACKEND",
+    "USE_RUST",
+    "ReceiptSigner",
+    "SignatureEnvelope",
+    "generate_keypair",
+    "parse_trusted_keys",
+    "rotate_key",
     "verify_envelope",
+    "verify_trusted_envelope",
 }
 
 
@@ -44,19 +52,18 @@ def test_requesting_rust_without_wheel_fails_loudly():
     'rust') or it is not (ImportError names the env var and the fix).
     What must never happen: importing cleanly while silently signing
     with the other implementation."""
-    code = (
-        "import agent_dna.signer as s; "
-        "print('BACKEND=' + s.SIGNER_BACKEND)"
-    )
+    code = "import agent_dna.signer as s; print('BACKEND=' + s.SIGNER_BACKEND)"
     proc = subprocess.run(
         [sys.executable, "-c", code],
         env={**__import__("os").environ, "PV_USE_RUST_SIGNER": "1"},
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     if proc.returncode == 0:
         assert "BACKEND=rust" in proc.stdout, (
             "PV_USE_RUST_SIGNER=1 imported cleanly but the live backend "
-            "is not rust -- silent substitution")
+            "is not rust -- silent substitution"
+        )
     else:
         assert "PV_USE_RUST_SIGNER" in proc.stderr
         assert "maturin" in proc.stderr or "wheel" in proc.stderr
@@ -66,8 +73,11 @@ def test_selector_does_not_leak_module_internals():
     """`import *` previously re-exported every non-underscore name of
     whichever backend loaded. The API is now declared, so the surface
     is stable across backends."""
-    leaked = {n for n in dir(signer)
-              if not n.startswith("_")
-              and n not in PUBLIC_API
-              and n not in {"annotations", "os"}}
+    leaked = {
+        n
+        for n in dir(signer)
+        if not n.startswith("_")
+        and n not in PUBLIC_API
+        and n not in {"annotations", "os"}
+    }
     assert not leaked, f"undeclared names on the selector: {leaked}"
