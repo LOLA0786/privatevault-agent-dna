@@ -20,8 +20,9 @@ import os
 import sys
 import tempfile
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Response
 from fastapi.responses import FileResponse, JSONResponse
@@ -43,10 +44,29 @@ STATUS_MAP = {
 state: dict[str, Any] = {}
 
 
+@dataclass(frozen=True)
+class Principal:
+    agent_id: str | None
+    scope: str
+    authentication_disabled: bool = False
+
+    def owns(self, agent_id: str) -> bool:
+        return self.authentication_disabled or self.agent_id == agent_id
+
+
+AUTH_DISABLED_PRINCIPAL = Principal(
+    agent_id=None,
+    scope="development",
+    authentication_disabled=True,
+)
+
+
 from agent_dna.composition import build_production_runtime  # noqa: E402
 
 
-def require_api_key(x_api_key: str | None = Header(default=None)):
+def require_api_key(
+    x_api_key: str | None = Header(default=None),
+) -> Principal:
     """For enforcement endpoints (/v1/decide, /v1/outcome, and every
     other endpoint that exercises or reveals enforcement authority).
     Requires scope="full" explicitly -- an audit-scoped key (the
@@ -56,14 +76,16 @@ def require_api_key(x_api_key: str | None = Header(default=None)):
     requirement (see ApiKeyRegistry.verify_scope)."""
     reg: ApiKeyRegistry = state.get("apikeys")
     if reg is None or not reg.enabled:
-        return "auth-disabled"
+        return AUTH_DISABLED_PRINCIPAL
     name = reg.verify_scope(x_api_key, required_scope="full")
     if name is None:
         raise HTTPException(status_code=401, detail="invalid or missing API key")
-    return name
+    return Principal(agent_id=name, scope="full")
 
 
-def require_audit_or_full_key(x_api_key: str | None = Header(default=None)):
+def require_audit_or_full_key(
+    x_api_key: str | None = Header(default=None),
+) -> Principal:
     """For read-only audit endpoints (/v1/verify, /v1/audit/export)
     only. Accepts EITHER a full-scope operator key OR an audit-scoped
     key. Full-scope satisfies this because an operator can do
@@ -71,14 +93,17 @@ def require_audit_or_full_key(x_api_key: str | None = Header(default=None)):
     require_api_key above, which rejects audit-scoped keys."""
     reg: ApiKeyRegistry = state.get("apikeys")
     if reg is None or not reg.enabled:
-        return "auth-disabled"
+        return AUTH_DISABLED_PRINCIPAL
     name = reg.verify_scope(x_api_key, required_scope="audit")
     if name is None:
         raise HTTPException(
             status_code=401,
             detail="invalid API key, or key scope does not permit audit access",
         )
-    return name
+    return Principal(agent_id=name, scope="audit")
+
+
+FullPrincipal = Annotated[Principal, Depends(require_api_key)]
 
 
 def _assert_auth_configured(auth_enabled: bool) -> None:
@@ -170,37 +195,31 @@ class OutcomeRequest(BaseModel):
 
 # ---------- enforcement surface ---------------------------------------------
 
-def _enforce_identity(ident: str, agent_id: str) -> None:
-    """P0-2: the authenticated credential is the authoritative agent
-    identity (same convention as ConnectorMiddleware, which derives
-    agent_id from the key). A full key for agent A must not act as
-    agent B. In auth-disabled mode (explicit dev-only warning at
-    startup) the body value is used as-is."""
-    if ident != "auth-disabled" and agent_id != ident:
+def _enforce_identity(principal: Principal, agent_id: str) -> None:
+    """Require the authenticated credential to own the requested agent."""
+    if not principal.owns(agent_id):
         raise HTTPException(
             status_code=403,
-            detail=f"authenticated identity {ident!r} cannot act as "
-                   f"agent {agent_id!r}",
+            detail=f"authenticated identity {principal.agent_id!r} cannot act as "
+            f"agent {agent_id!r}",
         )
 
 
-def _owned_decision(ident: str, decision_id: str):
-    """Resolve a decision record and enforce ownership. Cross-agent
-    access returns the same 404 as an unknown id -- no existence
-    oracle across identities."""
+def _owned_decision(principal: Principal, decision_id: str):
+    """Resolve a decision while preventing cross-agent disclosure."""
     g = state["recorder"].graph
     try:
         record = g.lineage(decision_id)[-1]
     except KeyError:
         raise HTTPException(status_code=404, detail="unknown decision_id") from None
-    if ident != "auth-disabled" and record.agent_id != ident:
+    if not principal.owns(record.agent_id):
         raise HTTPException(status_code=404, detail="unknown decision_id")
     return record
 
 
 @app.post("/v1/decide")
-def decide(req: DecideRequest, ident: str = Depends(require_api_key)):
-    _enforce_identity(ident, req.agent_id)
+def decide(req: DecideRequest, principal: FullPrincipal):
+    _enforce_identity(principal, req.agent_id)
     action = AgentAction(
         agent_id=req.agent_id,
         capability=req.capability,
@@ -225,8 +244,8 @@ def decide(req: DecideRequest, ident: str = Depends(require_api_key)):
 
 
 @app.post("/v1/outcome")
-def outcome(req: OutcomeRequest, ident: str = Depends(require_api_key)):
-    _owned_decision(ident, req.decision_id)
+def outcome(req: OutcomeRequest, principal: FullPrincipal):
+    _owned_decision(principal, req.decision_id)
     try:
         event = state["recorder"].report_outcome(
             req.decision_id, req.status, req.detail
@@ -247,8 +266,8 @@ def runtime_composition():
 # ---------- query surface ----------------------------------------------------
 
 @app.get("/v1/records/{agent_id}")
-def records(agent_id: str, ident: str = Depends(require_api_key)):
-    if ident != "auth-disabled" and agent_id != ident:
+def records(agent_id: str, principal: FullPrincipal):
+    if not principal.owns(agent_id):
         raise HTTPException(status_code=404, detail="unknown agent_id")
     g = state["recorder"].graph
     return {
@@ -258,26 +277,29 @@ def records(agent_id: str, ident: str = Depends(require_api_key)):
 
 
 @app.get("/v1/blocked")
-def blocked(ident: str = Depends(require_api_key)):
+def blocked(principal: FullPrincipal):
     g = state["recorder"].graph
     rows = g.find_blocked()
-    if ident != "auth-disabled":
-        rows = [r for r in rows if r.agent_id == ident]
+    if not principal.authentication_disabled:
+        rows = [r for r in rows if r.agent_id == principal.agent_id]
     return {"blocked": [r.to_dict() for r in rows]}
 
 
 @app.get("/v1/divergent")
-def divergent(ident: str = Depends(require_api_key)):
+def divergent(principal: FullPrincipal):
     g = state["recorder"].graph
     rows = g.find_divergent()
-    if ident != "auth-disabled":
-        rows = [r for r in rows if r.agent_id == ident]
+    if not principal.authentication_disabled:
+        rows = [r for r in rows if r.agent_id == principal.agent_id]
     return {"divergent": [r.to_dict() for r in rows]}
 
 
 @app.get("/v1/lineage/{decision_id}")
-def lineage(decision_id: str, ident: str = Depends(require_api_key)):
-    _owned_decision(ident, decision_id)
+def lineage(
+    decision_id: str,
+    principal: FullPrincipal,
+):
+    _owned_decision(principal, decision_id)
     return {
         "lineage": [
             r.to_dict()
