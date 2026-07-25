@@ -35,7 +35,7 @@ import json
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from .adapters import synthetic_normal_trace
 from .apikeys import ApiKeyRegistry
@@ -49,17 +49,22 @@ from .grants import GrantRegistry
 from .manifold import CapabilityManifold
 from .runtime import RuntimeMonitor
 from .scorer import DriftScorer
-from .signer_python import KEY_ENV, ReceiptSigner
+from .signer_python import (
+    KEY_ENV,
+    TRUSTED_KEYS_ENV,
+    ReceiptSigner,
+    parse_trusted_keys,
+)
 from .sqlite_store import SQLiteDecisionStore
 from .uaal_layer import UAALConstraintChecker
 
 
-def _env_float(name: str) -> Optional[float]:
+def _env_float(name: str) -> float | None:
     v = os.getenv(name)
     return float(v) if v not in (None, "") else None
 
 
-def _env_int(name: str) -> Optional[int]:
+def _env_int(name: str) -> int | None:
     v = os.getenv(name)
     return int(v) if v not in (None, "") else None
 
@@ -67,36 +72,36 @@ def _env_int(name: str) -> Optional[int]:
 @dataclass
 class RuntimeConfig:
     db_path: str = "data/privatevault.db"
-    keys_file: Optional[str] = None
-    policy_file: Optional[str] = None       # customer YAML/JSON rules
-    opa_endpoint: Optional[str] = None      # OPA adapter (policy_file wins)
+    keys_file: str | None = None
+    policy_file: str | None = None  # customer YAML/JSON rules
+    opa_endpoint: str | None = None  # OPA adapter (policy_file wins)
     opa_policy_path: str = "agent/governance"
-    opa_deadline: float = 1.0               # TOTAL budget, all retries
-    opa_cache_ttl: int = 0                  # = max policy revocation lag
-    opa_token: Optional[str] = None
-    opa_client_cert: Optional[str] = None
-    opa_client_key: Optional[str] = None
-    opa_ca_bundle: Optional[str] = None
-    opa_bundle_path: Optional[str] = None   # degraded air-gapped fallback
-    replay_fields: Optional[list] = None    # opt-in retrospective-replay input allowlist
-    replay_db: Optional[str] = None
-    grants_file: Optional[str] = None       # JSON list of capability grants
+    opa_deadline: float = 1.0  # TOTAL budget, all retries
+    opa_cache_ttl: int = 0  # = max policy revocation lag
+    opa_token: str | None = None
+    opa_client_cert: str | None = None
+    opa_client_key: str | None = None
+    opa_ca_bundle: str | None = None
+    opa_bundle_path: str | None = None  # degraded air-gapped fallback
+    replay_fields: list | None = None  # opt-in retrospective-replay input allowlist
+    replay_db: str | None = None
+    grants_file: str | None = None  # JSON list of capability grants
     multi_writer: bool = False
-    breaker_db: Optional[str] = None        # default: <db_path>.breaker.db
-    breaker_max_decisions: Optional[int] = None
+    breaker_db: str | None = None  # default: <db_path>.breaker.db
+    breaker_max_decisions: int | None = None
     breaker_window_seconds: float = 60.0
-    breaker_max_amount: Optional[float] = None
-    breaker_max_refusals: Optional[int] = None
+    breaker_max_amount: float | None = None
+    breaker_max_refusals: int | None = None
+    trusted_public_keys: frozenset[str] = field(default_factory=frozenset)
 
     @classmethod
-    def from_env(cls) -> "RuntimeConfig":
+    def from_env(cls) -> RuntimeConfig:
         return cls(
             db_path=os.environ.get("PV_DB_PATH", "data/privatevault.db"),
             keys_file=os.getenv("PV_API_KEYS_FILE"),
             policy_file=os.getenv("PV_POLICY_FILE"),
             opa_endpoint=os.getenv("PV_OPA_ENDPOINT"),
-            opa_policy_path=os.getenv("PV_OPA_POLICY_PATH",
-                                      "agent/governance"),
+            opa_policy_path=os.getenv("PV_OPA_POLICY_PATH", "agent/governance"),
             opa_deadline=_env_float("PV_OPA_DEADLINE") or 1.0,
             opa_cache_ttl=_env_int("PV_OPA_CACHE_TTL") or 0,
             opa_token=os.getenv("PV_OPA_TOKEN"),
@@ -105,19 +110,23 @@ class RuntimeConfig:
             opa_ca_bundle=os.getenv("PV_OPA_CA_BUNDLE"),
             opa_bundle_path=os.getenv("PV_OPA_BUNDLE"),
             replay_fields=(
-                [f.strip() for f in os.environ["PV_REPLAY_FIELDS"].split(",")
-                 if f.strip()]
-                if os.getenv("PV_REPLAY_FIELDS") else None
+                [
+                    f.strip()
+                    for f in os.environ["PV_REPLAY_FIELDS"].split(",")
+                    if f.strip()
+                ]
+                if os.getenv("PV_REPLAY_FIELDS")
+                else None
             ),
             replay_db=os.getenv("PV_REPLAY_DB"),
             grants_file=os.getenv("PV_GRANTS_FILE"),
             multi_writer=os.getenv("PV_MULTI_WRITER", "0") == "1",
             breaker_db=os.getenv("PV_BREAKER_DB"),
             breaker_max_decisions=_env_int("PV_BREAKER_MAX_DECISIONS"),
-            breaker_window_seconds=_env_float("PV_BREAKER_WINDOW_SECONDS")
-            or 60.0,
+            breaker_window_seconds=_env_float("PV_BREAKER_WINDOW_SECONDS") or 60.0,
             breaker_max_amount=_env_float("PV_BREAKER_MAX_AMOUNT"),
             breaker_max_refusals=_env_int("PV_BREAKER_MAX_REFUSALS"),
+            trusted_public_keys=parse_trusted_keys(os.getenv(TRUSTED_KEYS_ENV)),
         )
 
 
@@ -126,11 +135,12 @@ class ProductionRuntime:
     engine: GuardedEngine
     recorder: DecisionRecorder
     store: SQLiteDecisionStore
-    signer: Optional[ReceiptSigner]
+    signer: ReceiptSigner | None
     apikeys: ApiKeyRegistry
     breaker: CircuitBreaker
     replay: Any = None
-    composition: Dict[str, Dict[str, str]] = field(default_factory=dict)
+    trusted_public_keys: frozenset[str] = field(default_factory=frozenset)
+    composition: dict[str, dict[str, str]] = field(default_factory=dict)
 
     def monitor(self) -> RuntimeMonitor:
         """A per-agent monitor bound to this runtime's recorder --
@@ -143,6 +153,7 @@ class ProductionRuntime:
         Requires an enabled key registry -- the middleware refuses to
         run open, by design."""
         from .connector import ConnectorMiddleware
+
         return ConnectorMiddleware(
             engine=self.engine,
             recorder=self.recorder,
@@ -169,7 +180,7 @@ def _load_grants(path: str) -> GrantRegistry:
     if not isinstance(entries, list):
         raise ValueError(f"{path}: expected a JSON list of grants")
     reg = GrantRegistry()
-    for i, e in enumerate(entries):
+    for e in entries:
         reg.grant(
             agent_id=e["agent_id"],
             capability=e["capability"],
@@ -181,10 +192,10 @@ def _load_grants(path: str) -> GrantRegistry:
 
 
 def build_production_runtime(
-    config: Optional[RuntimeConfig] = None,
+    config: RuntimeConfig | None = None,
 ) -> ProductionRuntime:
     cfg = config or RuntimeConfig.from_env()
-    comp: Dict[str, Dict[str, str]] = {}
+    comp: dict[str, dict[str, str]] = {}
 
     # ---- always-attached, evidence-gated levels ----
     uaal = UAALConstraintChecker()
@@ -208,6 +219,7 @@ def build_production_runtime(
     if cfg.policy_file:
         from .policy.checker import PolicyChecker
         from .policy.loader import load_policy_file
+
         policy = PolicyChecker(load_policy_file(cfg.policy_file))
         comp["policy"] = {
             "status": "attached",
@@ -215,6 +227,7 @@ def build_production_runtime(
         }
     elif cfg.opa_endpoint:
         from .adapters_policy.opa import OPAPolicyAdapter
+
         policy = OPAPolicyAdapter(
             endpoint=cfg.opa_endpoint,
             policy_path=cfg.opa_policy_path,
@@ -244,8 +257,7 @@ def build_production_runtime(
     else:
         comp["policy"] = {
             "status": "not_configured",
-            "detail": "set PV_POLICY_FILE (YAML/JSON rules) or "
-                      "PV_OPA_ENDPOINT",
+            "detail": "set PV_POLICY_FILE (YAML/JSON rules) or PV_OPA_ENDPOINT",
         }
 
     # ---- config-gated: capability grants ----
@@ -260,19 +272,19 @@ def build_production_runtime(
         comp["authorization"] = {
             "status": "not_configured",
             "detail": "set PV_GRANTS_FILE; attaching an empty registry "
-                      "would require approval for everything",
+            "would require approval for everything",
         }
 
     comp["invariant"] = {
         "status": "not_configured",
         "detail": "behavioral invariants require a trained per-agent "
-                  "profile; none configured",
+        "profile; none configured",
     }
     comp["drift"] = {
         "status": "attached",
         "detail": "CALIBRATION CAVEAT: scorer trained on synthetic "
-                  "traces until a real execution trace is wired -- the "
-                  "openly stated binding constraint",
+        "traces until a real execution trace is wired -- the "
+        "openly stated binding constraint",
     }
 
     engine_core = DecisionEngine(
@@ -303,44 +315,60 @@ def build_production_runtime(
     active = {k: v for k, v in thresholds.items() if v is not None}
     comp["circuit_breaker"] = {
         "status": "attached",
-        "detail": (f"transactional preflight; thresholds {active}"
-                   if active else
-                   "transactional preflight; no thresholds configured "
-                   "(inert until PV_BREAKER_* set; pre-gate and manual "
-                   "trip remain active)"),
+        "detail": (
+            f"transactional preflight; thresholds {active}"
+            if active
+            else "transactional preflight; no thresholds configured "
+            "(inert until PV_BREAKER_* set; pre-gate and manual "
+            "trip remain active)"
+        ),
     }
     engine = GuardedEngine(engine_core, breaker)
 
     # ---- persistence + signing ----
-    store = SQLiteDecisionStore(cfg.db_path)
     signer = ReceiptSigner() if os.getenv(KEY_ENV) else None
+    if signer is not None and signer.public_key not in cfg.trusted_public_keys:
+        breaker.close()
+        raise RuntimeError(
+            f"{TRUSTED_KEYS_ENV} must include the active signing public key; "
+            "refusing self-attested signing mode"
+        )
+
+    store = SQLiteDecisionStore(cfg.db_path)
     comp["signing"] = {
         "status": "attached" if signer else "not_configured",
-        "detail": ("Ed25519 receipt signing"
-                   if signer else f"set {KEY_ENV}; decisions will NOT "
-                   "be signed"),
+        "detail": (
+            f"Ed25519 receipt signing; "
+            f"{len(cfg.trusted_public_keys)} configured trust root(s)"
+            if signer
+            else f"set {KEY_ENV}; decisions will NOT be signed"
+        ),
     }
     recorder = DecisionRecorder(
-        store=store, signer=signer,
+        store=store,
+        signer=signer,
         multi_writer_safe=cfg.multi_writer,
     )
     comp["persistence"] = {
         "status": "attached",
         "detail": f"SQLite {cfg.db_path}"
-                  + (" (multi-writer safe)" if cfg.multi_writer else ""),
+        + (" (multi-writer safe)" if cfg.multi_writer else ""),
     }
 
     apikeys = ApiKeyRegistry(cfg.keys_file)
     comp["identity"] = {
         "status": "attached" if apikeys.enabled else "not_configured",
-        "detail": ("credential-derived agent identity"
-                   if apikeys.enabled else
-                   "PV_API_KEYS_FILE unset -- auth DISABLED (dev only)"),
+        "detail": (
+            "credential-derived agent identity"
+            if apikeys.enabled
+            else "PV_API_KEYS_FILE unset -- auth DISABLED (dev only)"
+        ),
     }
 
     replay_store = None
     if cfg.replay_fields:
         from .policy_replay import ReplayInputStore
+
         replay_store = ReplayInputStore(
             path=cfg.replay_db or f"{cfg.db_path}.replay.db",
             retain_fields=cfg.replay_fields,
@@ -348,19 +376,27 @@ def build_production_runtime(
         recorder.replay_capture = replay_store.capture
         comp["policy_replay"] = {
             "status": "attached",
-            "detail": (f"OPT-IN retrospective replay; retaining fields "
-                       f"{sorted(cfg.replay_fields)} in a SEPARATE store "
-                       f"(privacy boundary: docs/POLICY-REPLAY.md)"),
+            "detail": (
+                f"OPT-IN retrospective replay; retaining fields "
+                f"{sorted(cfg.replay_fields)} in a SEPARATE store "
+                f"(privacy boundary: docs/POLICY-REPLAY.md)"
+            ),
         }
     else:
         comp["policy_replay"] = {
             "status": "not_configured",
             "detail": "retrospective replay OFF (PV_REPLAY_FIELDS unset); "
-                      "no rule-input retention",
+            "no rule-input retention",
         }
 
     return ProductionRuntime(
-        engine=engine, recorder=recorder, store=store, signer=signer,
-        apikeys=apikeys, breaker=breaker, replay=replay_store,
+        engine=engine,
+        recorder=recorder,
+        store=store,
+        signer=signer,
+        apikeys=apikeys,
+        breaker=breaker,
+        replay=replay_store,
+        trusted_public_keys=cfg.trusted_public_keys,
         composition=comp,
     )

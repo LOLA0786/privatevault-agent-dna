@@ -15,20 +15,27 @@ def _client(tmp_path, monkeypatch, signed=True):
     monkeypatch.delenv("PV_API_KEYS_FILE", raising=False)
     if signed:
         monkeypatch.setenv("PV_RECEIPT_SIGNING_KEY", KEYS["signing_key"])
+        monkeypatch.setenv("PV_TRUSTED_PUBLIC_KEYS", KEYS["public_key"])
     else:
         monkeypatch.delenv("PV_RECEIPT_SIGNING_KEY", raising=False)
+        monkeypatch.delenv("PV_TRUSTED_PUBLIC_KEYS", raising=False)
     import importlib
+
     import api.server as server
+
     importlib.reload(server)
     return TestClient(server.app)
 
 
 def _decide(c):
-    return c.post("/v1/decide", json={
-        "agent_id": "sig-agent",
-        "capability": "crm.read_contact",
-        "timestamp": time.time(),
-    })
+    return c.post(
+        "/v1/decide",
+        json={
+            "agent_id": "sig-agent",
+            "capability": "crm.read_contact",
+            "timestamp": time.time(),
+        },
+    )
 
 
 def test_signed_mode_envelope_verifies(tmp_path, monkeypatch):
