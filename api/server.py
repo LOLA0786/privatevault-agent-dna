@@ -27,6 +27,7 @@ from typing import Annotated, Any
 from fastapi import Depends, FastAPI, Header, HTTPException, Response
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
+from starlette.background import BackgroundTask
 
 from agent_dna.apikeys import ApiKeyRegistry
 from agent_dna.decision import Decision
@@ -387,18 +388,41 @@ def verify():
     }
 
 
+def _temporary_export(exporter, filename: str) -> FileResponse:
+    fd, tmp_path = tempfile.mkstemp(suffix=".jsonl")
+    os.close(fd)
+    path = Path(tmp_path)
+
+    try:
+        exporter(path)
+    except Exception:
+        path.unlink(missing_ok=True)
+        raise
+
+    return FileResponse(
+        path,
+        media_type="application/x-ndjson",
+        filename=filename,
+        background=BackgroundTask(path.unlink, missing_ok=True),
+    )
+
+
 @app.get("/v1/audit/export", dependencies=[Depends(require_audit_or_full_key)])
 def audit_export():
-    _fd, _tmp_path = tempfile.mkstemp(suffix=".jsonl")
-    os.close(
-        _fd
-    )  # mkstemp returns an OPEN fd; we write via the path, so close it or leak
-    tmp = Path(_tmp_path)
-    state["store"].export_jsonl(tmp)
-    return FileResponse(
-        tmp,
-        media_type="application/x-ndjson",
-        filename="privatevault_audit.jsonl",
+    return _temporary_export(
+        state["store"].export_jsonl,
+        "privatevault_audit.jsonl",
+    )
+
+
+@app.get(
+    "/v1/audit/envelopes",
+    dependencies=[Depends(require_audit_or_full_key)],
+)
+def audit_envelope_export():
+    return _temporary_export(
+        state["store"].export_envelopes_jsonl,
+        "privatevault_envelopes.jsonl",
     )
 
 
