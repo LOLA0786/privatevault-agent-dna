@@ -31,6 +31,7 @@ from pydantic import BaseModel, Field
 from agent_dna.apikeys import ApiKeyRegistry
 from agent_dna.decision import Decision
 from agent_dna.runtime import RuntimeMonitor
+from agent_dna.signer import verify_trusted_envelope
 from agent_dna.trace import AgentAction
 
 DB_PATH = os.environ.get("PV_DB_PATH", "data/privatevault.db")
@@ -125,10 +126,14 @@ def _assert_auth_configured(auth_enabled: bool) -> None:
             "(PV_API_KEYS_FILE unset or empty). Configure at least one key, "
             "or set PV_ALLOW_NO_AUTH=1 to run WITHOUT authentication "
             "(development only -- every request runs as its self-declared "
-            "identity).")
-    print("WARNING: PV_ALLOW_NO_AUTH set -- authentication is DISABLED. "
-          "Every request runs as its self-declared identity. Never use this "
-          "in production.", file=sys.stderr)
+            "identity)."
+        )
+    print(
+        "WARNING: PV_ALLOW_NO_AUTH set -- authentication is DISABLED. "
+        "Every request runs as its self-declared identity. Never use this "
+        "in production.",
+        file=sys.stderr,
+    )
 
 
 @asynccontextmanager
@@ -141,10 +146,10 @@ async def lifespan(app: FastAPI):
     # same runtime via runtime.middleware().
     runtime = build_production_runtime()
     import sys
+
     for level, info in runtime.composition.items():
         if info["status"] != "attached":
-            print(f"RUNTIME: {level} not attached -- {info['detail']}",
-                  file=sys.stderr)
+            print(f"RUNTIME: {level} not attached -- {info['detail']}", file=sys.stderr)
     state["runtime"] = runtime
     state["apikeys"] = runtime.apikeys
 
@@ -169,13 +174,12 @@ app = FastAPI(
 def _monitor_for(agent_id: str) -> RuntimeMonitor:
     monitors = state["monitors"]
     if agent_id not in monitors:
-        monitors[agent_id] = RuntimeMonitor(
-            state["engine"], recorder=state["recorder"]
-        )
+        monitors[agent_id] = RuntimeMonitor(state["engine"], recorder=state["recorder"])
     return monitors[agent_id]
 
 
 # ---------- request models -------------------------------------------------
+
 
 class DecideRequest(BaseModel):
     agent_id: str = Field(min_length=1)
@@ -194,6 +198,7 @@ class OutcomeRequest(BaseModel):
 
 
 # ---------- enforcement surface ---------------------------------------------
+
 
 def _enforce_identity(principal: Principal, agent_id: str) -> None:
     """Require the authenticated credential to own the requested agent."""
@@ -265,6 +270,7 @@ def runtime_composition():
 
 # ---------- query surface ----------------------------------------------------
 
+
 @app.get("/v1/records/{agent_id}")
 def records(agent_id: str, principal: FullPrincipal):
     if not principal.owns(agent_id):
@@ -301,14 +307,12 @@ def lineage(
 ):
     _owned_decision(principal, decision_id)
     return {
-        "lineage": [
-            r.to_dict()
-            for r in state["recorder"].graph.lineage(decision_id)
-        ]
+        "lineage": [r.to_dict() for r in state["recorder"].graph.lineage(decision_id)]
     }
 
 
 # ---------- audit surface -------------------------------------------------------
+
 
 @app.get("/v1/envelope/{record_hash}", dependencies=[Depends(require_api_key)])
 def envelope(record_hash: str):
@@ -319,21 +323,76 @@ def envelope(record_hash: str):
         raise HTTPException(
             status_code=404,
             detail="no envelope for this hash (unsigned mode or unknown "
-                   "hash; envelopes are persisted transactionally with "
-                   "their records and survive restart)",
+            "hash; envelopes are persisted transactionally with "
+            "their records and survive restart)",
         )
     return {"envelope": env}
 
 
+def _verify_runtime_signatures() -> dict[str, object]:
+    runtime = state["runtime"]
+    trusted_keys = runtime.trusted_public_keys
+    records = list(state["store"].iter_decisions())
+
+    result: dict[str, object] = {
+        "mode": "trusted" if state.get("signer") is not None else "disabled",
+        "trusted_key_count": len(trusted_keys),
+        "records_seen": len(records),
+        "valid_envelopes": 0,
+        "missing_envelopes": 0,
+        "invalid_envelopes": 0,
+        "verified": None,
+    }
+
+    if state.get("signer") is None:
+        return result
+
+    valid = 0
+    missing = 0
+    invalid = 0
+
+    for record in records:
+        record_hash = record["record_hash"]
+        envelope = state["store"].get_envelope(record_hash)
+
+        if envelope is None:
+            missing += 1
+        elif verify_trusted_envelope(
+            envelope,
+            record_hash,
+            trusted_keys=trusted_keys,
+        ):
+            valid += 1
+        else:
+            invalid += 1
+
+    result.update(
+        {
+            "valid_envelopes": valid,
+            "missing_envelopes": missing,
+            "invalid_envelopes": invalid,
+            "verified": missing == 0 and invalid == 0,
+        }
+    )
+    return result
+
+
 @app.get("/v1/verify", dependencies=[Depends(require_audit_or_full_key)])
 def verify():
-    return {"chains": state["recorder"].graph.verify_all()}
+    chains = state["recorder"].graph.verify_all()
+    return {
+        "chains": chains,
+        "chain_integrity_verified": all(chains.values()),
+        "signatures": _verify_runtime_signatures(),
+    }
 
 
 @app.get("/v1/audit/export", dependencies=[Depends(require_audit_or_full_key)])
 def audit_export():
     _fd, _tmp_path = tempfile.mkstemp(suffix=".jsonl")
-    os.close(_fd)  # mkstemp returns an OPEN fd; we write via the path, so close it or leak
+    os.close(
+        _fd
+    )  # mkstemp returns an OPEN fd; we write via the path, so close it or leak
     tmp = Path(_tmp_path)
     state["store"].export_jsonl(tmp)
     return FileResponse(
@@ -345,6 +404,7 @@ def audit_export():
 
 # ---------- misc -------------------------------------------------------------------
 
+
 @app.get("/")
 def root():
     return {
@@ -354,7 +414,8 @@ def root():
         "calibration": "synthetic behavioral profile — pilot trace pending",
         "signing": (
             {"algorithm": "Ed25519", "public_key": state["signer"].public_key}
-            if state.get("signer") else "disabled"
+            if state.get("signer")
+            else "disabled"
         ),
         "status": "running",
     }
@@ -379,6 +440,7 @@ def prometheus_metrics():
             CONTENT_TYPE_LATEST,
             generate_latest,
         )
+
         body = generate_latest()
         content_type = CONTENT_TYPE_LATEST
     except ImportError:
