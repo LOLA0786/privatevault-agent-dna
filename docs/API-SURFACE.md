@@ -1,14 +1,14 @@
 # PrivateVault — HTTP API Surface
 
-Version 0.2.1. This document describes the enforcement and audit
+Version 0.3.0. This document describes the enforcement and audit
 endpoints an external client consumes. It is the contract an operator
 console, an SDK, or an integration builds against.
 
 Companion documents:
 
 - **Wire format** — `github.com/LOLA0786/drp-spec` (Apache-2.0 /
-  CC-BY-4.0). Record schemas, canonical test vectors, and a
-  standard-library verifier.
+  CC-BY-4.0). Record schemas, canonical test vectors, and an independent
+  verifier with dependency-free chain mode and optional trusted signatures.
 - **Threat model** — `docs/SECURITY.md`
 - **Stated limitations** — `docs/WHAT-WE-DO-NOT-CLAIM.md`
 
@@ -201,11 +201,10 @@ requires `audit` or `full` scope.
 
 A record's validity must never depend on the code that displays it.
 
-`drp-spec` ships `verify_records.py`, standard library only, importing
-nothing from this runtime. Any consumer can check an export
-themselves. It verifies record hashes, per-agent chain continuity,
-execution anchor binding, field-set conformance, ID uniqueness,
-lineage binding, and enforcement divergence.
+`drp-spec` ships `verify_records.py` without importing this runtime.
+Its chain-only mode uses the Python standard library. Trusted signature
+verification additionally consumes `/v1/audit/envelopes`, requires PyNaCl,
+and accepts one or more public keys supplied independently by the auditor.
 
 For a console this is a hard constraint: it renders evidence and must
 not become a component an auditor has to trust. It should never be the

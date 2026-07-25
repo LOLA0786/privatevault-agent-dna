@@ -16,11 +16,15 @@ current claim.
 
 What exists today, verifiable directly:
 
-- A standard-library-only, independently verifiable audit format —
-  no dependency on our code to check our claims. See
-  [drp-spec](https://github.com/LOLA0786/drp-spec) and
+- An independent audit verifier with standard-library chain mode and
+  optional trusted Ed25519 verification. Neither mode imports the producing
+  runtime. See [drp-spec](https://github.com/LOLA0786/drp-spec) and
   `tools/verify_records.py`.
-- 452 automated tests, run in CI on every commit
+- Signature verification was self-attested before v0.3.0: the public key
+  inside each envelope was accepted without an external trust anchor.
+  v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
+  independent verifier.
+- 561 automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).

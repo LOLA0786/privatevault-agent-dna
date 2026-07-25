@@ -129,8 +129,7 @@ directly. Because the chain link is inside the hash, a signed record
 cannot be silently re-chained: an attacker can re-seal a moved record
 validly, and the original signature still disowns it.
 
-**Independent verification** — a single standard-library-only Python
-file verifies an exported audit log with zero dependency on this
+**Independent verification** — an independent Python tool verifies chain integrity with no dependency on this
 codebase:
 
 | Attack on the log                       | Detection               |
@@ -220,7 +219,7 @@ plus the spec vectors on every push.
 
 ## 9. Status — precise, by design
 
-**Shipped and tested (198 automated tests):** seven-level precedence
+**Shipped and tested (561 automated tests):** seven-level precedence
 engine including multi-agent consensus and cost/ROI economics;
 behavioral drift scoring; grants with expiry/revocation/budget; sealed
 hash-chained records with external-provenance anchoring for chain
@@ -256,7 +255,7 @@ everything referenced above is available for direct review:
 
 - Runtime + demos + 198-test suite: private repository, access
   available on request
-- DRP specification — schemas, test vectors, stdlib-only verifier:
+- DRP specification — schemas, test vectors, independent chain and signature verifier:
   public, github.com/LOLA0786/drp-spec
 - The composed demo (§7): `examples/composed_line_demo.py`
 

@@ -18,7 +18,6 @@ import json
 import sqlite3
 import threading
 from pathlib import Path
-from typing import List, Union
 
 from .decision_graph import DecisionGraph
 from .decision_record import DecisionRecord
@@ -70,7 +69,7 @@ CREATE TABLE IF NOT EXISTS envelopes (
 
 
 class SQLiteDecisionStore:
-    def __init__(self, path: Union[str, Path]) -> None:
+    def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         #
@@ -131,15 +130,14 @@ class SQLiteDecisionStore:
         'envelope written, record insert failed' are closed by the
         transaction boundary, not by call ordering."""
         if not record.verify():
-            raise ValueError(
-                "record is unsealed or tampered; refusing to persist"
-            )
+            raise ValueError("record is unsealed or tampered; refusing to persist")
         d = record.to_dict()
         body = json.dumps(d, sort_keys=True, separators=(",", ":"))
         kind = d.get("kind", "decision")
         env_body = (
             json.dumps(envelope, sort_keys=True, separators=(",", ":"))
-            if envelope is not None else None
+            if envelope is not None
+            else None
         )
         conn = self._conn
         conn.execute("BEGIN IMMEDIATE")
@@ -213,8 +211,7 @@ class SQLiteDecisionStore:
         the in-memory graph is deliberately not populated (audit: the
         store, not the graph, is the source of truth there)."""
         row = self._conn.execute(
-            "SELECT body FROM records WHERE record_id = ? "
-            "AND kind = 'decision'",
+            "SELECT body FROM records WHERE record_id = ? AND kind = 'decision'",
             (decision_id,),
         ).fetchone()
         return json.loads(row[0]) if row else None
@@ -244,9 +241,7 @@ class SQLiteDecisionStore:
         make one shared connection OBJECT safe for concurrent
         transaction control."""
         if not record.verify():
-            raise ValueError(
-                "record is unsealed or tampered; refusing to persist"
-            )
+            raise ValueError("record is unsealed or tampered; refusing to persist")
         d = record.to_dict()
         if d.get("kind", "decision") != "decision":
             raise ValueError(
@@ -257,7 +252,8 @@ class SQLiteDecisionStore:
 
         env_body = (
             json.dumps(envelope, sort_keys=True, separators=(",", ":"))
-            if envelope is not None else None
+            if envelope is not None
+            else None
         )
         conn = sqlite3.connect(self.path, timeout=10.0)
         try:
@@ -330,17 +326,17 @@ class SQLiteDecisionStore:
 
     # ---- read -----------------------------------------------------------
 
-    def _rows(self) -> List[str]:
+    def _rows(self) -> list[str]:
         cur = self._conn.execute("SELECT body FROM records ORDER BY seq")
         return [r[0] for r in cur.fetchall()]
 
-    def load(self) -> List:
-        out: List = []
+    def load(self) -> list:
+        out: list = []
         for body in self._rows():
             d = json.loads(body)
             record_hash = d.pop("record_hash")
             kind = d.pop("kind", "decision")
-            d.pop("protocol_version", None)   # init=False, restored by dataclass
+            d.pop("protocol_version", None)  # init=False, restored by dataclass
             rec = ExecutionEvent(**d) if kind == "execution" else DecisionRecord(**d)
             rec.record_hash = record_hash
             out.append(rec)
@@ -357,11 +353,29 @@ class SQLiteDecisionStore:
 
     # ---- audit export -----------------------------------------------------
 
-    def export_jsonl(self, path: Union[str, Path]) -> Path:
+    def export_jsonl(self, path: str | Path) -> Path:
         """Emit the canonical JSONL audit file — byte-identical record
         serialization — for the independent verifier."""
         path = Path(path)
         path.write_text("\n".join(self._rows()) + "\n")
+        return path
+
+    def export_envelopes_jsonl(self, path: str | Path) -> Path:
+        """Export detached signature envelopes in deterministic order."""
+        path = Path(path)
+
+        # Keep orphaned envelopes visible so an external verifier can
+        # reject them instead of silently excluding corrupted state.
+        rows = self._conn.execute(
+            "SELECT e.envelope FROM envelopes AS e "
+            "LEFT JOIN records AS r ON r.record_hash = e.record_hash "
+            "ORDER BY r.seq IS NULL, r.seq, e.record_hash"
+        )
+
+        path.write_text(
+            "".join(f"{row[0]}\n" for row in rows),
+            encoding="utf-8",
+        )
         return path
 
     def close(self) -> None:

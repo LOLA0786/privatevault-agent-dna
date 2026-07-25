@@ -20,16 +20,19 @@ import os
 import sys
 import tempfile
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Response
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
+from starlette.background import BackgroundTask
 
 from agent_dna.apikeys import ApiKeyRegistry
 from agent_dna.decision import Decision
 from agent_dna.runtime import RuntimeMonitor
+from agent_dna.signer import verify_trusted_envelope
 from agent_dna.trace import AgentAction
 
 DB_PATH = os.environ.get("PV_DB_PATH", "data/privatevault.db")
@@ -43,10 +46,29 @@ STATUS_MAP = {
 state: dict[str, Any] = {}
 
 
+@dataclass(frozen=True)
+class Principal:
+    agent_id: str | None
+    scope: str
+    authentication_disabled: bool = False
+
+    def owns(self, agent_id: str) -> bool:
+        return self.authentication_disabled or self.agent_id == agent_id
+
+
+AUTH_DISABLED_PRINCIPAL = Principal(
+    agent_id=None,
+    scope="development",
+    authentication_disabled=True,
+)
+
+
 from agent_dna.composition import build_production_runtime  # noqa: E402
 
 
-def require_api_key(x_api_key: str | None = Header(default=None)):
+def require_api_key(
+    x_api_key: str | None = Header(default=None),
+) -> Principal:
     """For enforcement endpoints (/v1/decide, /v1/outcome, and every
     other endpoint that exercises or reveals enforcement authority).
     Requires scope="full" explicitly -- an audit-scoped key (the
@@ -56,14 +78,16 @@ def require_api_key(x_api_key: str | None = Header(default=None)):
     requirement (see ApiKeyRegistry.verify_scope)."""
     reg: ApiKeyRegistry = state.get("apikeys")
     if reg is None or not reg.enabled:
-        return "auth-disabled"
+        return AUTH_DISABLED_PRINCIPAL
     name = reg.verify_scope(x_api_key, required_scope="full")
     if name is None:
         raise HTTPException(status_code=401, detail="invalid or missing API key")
-    return name
+    return Principal(agent_id=name, scope="full")
 
 
-def require_audit_or_full_key(x_api_key: str | None = Header(default=None)):
+def require_audit_or_full_key(
+    x_api_key: str | None = Header(default=None),
+) -> Principal:
     """For read-only audit endpoints (/v1/verify, /v1/audit/export)
     only. Accepts EITHER a full-scope operator key OR an audit-scoped
     key. Full-scope satisfies this because an operator can do
@@ -71,14 +95,17 @@ def require_audit_or_full_key(x_api_key: str | None = Header(default=None)):
     require_api_key above, which rejects audit-scoped keys."""
     reg: ApiKeyRegistry = state.get("apikeys")
     if reg is None or not reg.enabled:
-        return "auth-disabled"
+        return AUTH_DISABLED_PRINCIPAL
     name = reg.verify_scope(x_api_key, required_scope="audit")
     if name is None:
         raise HTTPException(
             status_code=401,
             detail="invalid API key, or key scope does not permit audit access",
         )
-    return name
+    return Principal(agent_id=name, scope="audit")
+
+
+FullPrincipal = Annotated[Principal, Depends(require_api_key)]
 
 
 def _assert_auth_configured(auth_enabled: bool) -> None:
@@ -100,10 +127,14 @@ def _assert_auth_configured(auth_enabled: bool) -> None:
             "(PV_API_KEYS_FILE unset or empty). Configure at least one key, "
             "or set PV_ALLOW_NO_AUTH=1 to run WITHOUT authentication "
             "(development only -- every request runs as its self-declared "
-            "identity).")
-    print("WARNING: PV_ALLOW_NO_AUTH set -- authentication is DISABLED. "
-          "Every request runs as its self-declared identity. Never use this "
-          "in production.", file=sys.stderr)
+            "identity)."
+        )
+    print(
+        "WARNING: PV_ALLOW_NO_AUTH set -- authentication is DISABLED. "
+        "Every request runs as its self-declared identity. Never use this "
+        "in production.",
+        file=sys.stderr,
+    )
 
 
 @asynccontextmanager
@@ -116,10 +147,10 @@ async def lifespan(app: FastAPI):
     # same runtime via runtime.middleware().
     runtime = build_production_runtime()
     import sys
+
     for level, info in runtime.composition.items():
         if info["status"] != "attached":
-            print(f"RUNTIME: {level} not attached -- {info['detail']}",
-                  file=sys.stderr)
+            print(f"RUNTIME: {level} not attached -- {info['detail']}", file=sys.stderr)
     state["runtime"] = runtime
     state["apikeys"] = runtime.apikeys
 
@@ -136,7 +167,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="PrivateVault Agent DNA",
-    version="0.2.1",
+    version="0.3.0",
     lifespan=lifespan,
 )
 
@@ -144,13 +175,12 @@ app = FastAPI(
 def _monitor_for(agent_id: str) -> RuntimeMonitor:
     monitors = state["monitors"]
     if agent_id not in monitors:
-        monitors[agent_id] = RuntimeMonitor(
-            state["engine"], recorder=state["recorder"]
-        )
+        monitors[agent_id] = RuntimeMonitor(state["engine"], recorder=state["recorder"])
     return monitors[agent_id]
 
 
 # ---------- request models -------------------------------------------------
+
 
 class DecideRequest(BaseModel):
     agent_id: str = Field(min_length=1)
@@ -170,37 +200,32 @@ class OutcomeRequest(BaseModel):
 
 # ---------- enforcement surface ---------------------------------------------
 
-def _enforce_identity(ident: str, agent_id: str) -> None:
-    """P0-2: the authenticated credential is the authoritative agent
-    identity (same convention as ConnectorMiddleware, which derives
-    agent_id from the key). A full key for agent A must not act as
-    agent B. In auth-disabled mode (explicit dev-only warning at
-    startup) the body value is used as-is."""
-    if ident != "auth-disabled" and agent_id != ident:
+
+def _enforce_identity(principal: Principal, agent_id: str) -> None:
+    """Require the authenticated credential to own the requested agent."""
+    if not principal.owns(agent_id):
         raise HTTPException(
             status_code=403,
-            detail=f"authenticated identity {ident!r} cannot act as "
-                   f"agent {agent_id!r}",
+            detail=f"authenticated identity {principal.agent_id!r} cannot act as "
+            f"agent {agent_id!r}",
         )
 
 
-def _owned_decision(ident: str, decision_id: str):
-    """Resolve a decision record and enforce ownership. Cross-agent
-    access returns the same 404 as an unknown id -- no existence
-    oracle across identities."""
+def _owned_decision(principal: Principal, decision_id: str):
+    """Resolve a decision while preventing cross-agent disclosure."""
     g = state["recorder"].graph
     try:
         record = g.lineage(decision_id)[-1]
     except KeyError:
         raise HTTPException(status_code=404, detail="unknown decision_id") from None
-    if ident != "auth-disabled" and record.agent_id != ident:
+    if not principal.owns(record.agent_id):
         raise HTTPException(status_code=404, detail="unknown decision_id")
     return record
 
 
 @app.post("/v1/decide")
-def decide(req: DecideRequest, ident: str = Depends(require_api_key)):
-    _enforce_identity(ident, req.agent_id)
+def decide(req: DecideRequest, principal: FullPrincipal):
+    _enforce_identity(principal, req.agent_id)
     action = AgentAction(
         agent_id=req.agent_id,
         capability=req.capability,
@@ -225,8 +250,8 @@ def decide(req: DecideRequest, ident: str = Depends(require_api_key)):
 
 
 @app.post("/v1/outcome")
-def outcome(req: OutcomeRequest, ident: str = Depends(require_api_key)):
-    _owned_decision(ident, req.decision_id)
+def outcome(req: OutcomeRequest, principal: FullPrincipal):
+    _owned_decision(principal, req.decision_id)
     try:
         event = state["recorder"].report_outcome(
             req.decision_id, req.status, req.detail
@@ -246,9 +271,10 @@ def runtime_composition():
 
 # ---------- query surface ----------------------------------------------------
 
+
 @app.get("/v1/records/{agent_id}")
-def records(agent_id: str, ident: str = Depends(require_api_key)):
-    if ident != "auth-disabled" and agent_id != ident:
+def records(agent_id: str, principal: FullPrincipal):
+    if not principal.owns(agent_id):
         raise HTTPException(status_code=404, detail="unknown agent_id")
     g = state["recorder"].graph
     return {
@@ -258,35 +284,36 @@ def records(agent_id: str, ident: str = Depends(require_api_key)):
 
 
 @app.get("/v1/blocked")
-def blocked(ident: str = Depends(require_api_key)):
+def blocked(principal: FullPrincipal):
     g = state["recorder"].graph
     rows = g.find_blocked()
-    if ident != "auth-disabled":
-        rows = [r for r in rows if r.agent_id == ident]
+    if not principal.authentication_disabled:
+        rows = [r for r in rows if r.agent_id == principal.agent_id]
     return {"blocked": [r.to_dict() for r in rows]}
 
 
 @app.get("/v1/divergent")
-def divergent(ident: str = Depends(require_api_key)):
+def divergent(principal: FullPrincipal):
     g = state["recorder"].graph
     rows = g.find_divergent()
-    if ident != "auth-disabled":
-        rows = [r for r in rows if r.agent_id == ident]
+    if not principal.authentication_disabled:
+        rows = [r for r in rows if r.agent_id == principal.agent_id]
     return {"divergent": [r.to_dict() for r in rows]}
 
 
 @app.get("/v1/lineage/{decision_id}")
-def lineage(decision_id: str, ident: str = Depends(require_api_key)):
-    _owned_decision(ident, decision_id)
+def lineage(
+    decision_id: str,
+    principal: FullPrincipal,
+):
+    _owned_decision(principal, decision_id)
     return {
-        "lineage": [
-            r.to_dict()
-            for r in state["recorder"].graph.lineage(decision_id)
-        ]
+        "lineage": [r.to_dict() for r in state["recorder"].graph.lineage(decision_id)]
     }
 
 
 # ---------- audit surface -------------------------------------------------------
+
 
 @app.get("/v1/envelope/{record_hash}", dependencies=[Depends(require_api_key)])
 def envelope(record_hash: str):
@@ -297,31 +324,110 @@ def envelope(record_hash: str):
         raise HTTPException(
             status_code=404,
             detail="no envelope for this hash (unsigned mode or unknown "
-                   "hash; envelopes are persisted transactionally with "
-                   "their records and survive restart)",
+            "hash; envelopes are persisted transactionally with "
+            "their records and survive restart)",
         )
     return {"envelope": env}
 
 
+def _verify_runtime_signatures() -> dict[str, object]:
+    runtime = state["runtime"]
+    trusted_keys = runtime.trusted_public_keys
+    records = list(state["store"].iter_decisions())
+
+    result: dict[str, object] = {
+        "mode": "trusted" if state.get("signer") is not None else "disabled",
+        "trusted_key_count": len(trusted_keys),
+        "records_seen": len(records),
+        "valid_envelopes": 0,
+        "missing_envelopes": 0,
+        "invalid_envelopes": 0,
+        "verified": None,
+    }
+
+    if state.get("signer") is None:
+        return result
+
+    valid = 0
+    missing = 0
+    invalid = 0
+
+    for record in records:
+        record_hash = record["record_hash"]
+        envelope = state["store"].get_envelope(record_hash)
+
+        if envelope is None:
+            missing += 1
+        elif verify_trusted_envelope(
+            envelope,
+            record_hash,
+            trusted_keys=trusted_keys,
+        ):
+            valid += 1
+        else:
+            invalid += 1
+
+    result.update(
+        {
+            "valid_envelopes": valid,
+            "missing_envelopes": missing,
+            "invalid_envelopes": invalid,
+            "verified": missing == 0 and invalid == 0,
+        }
+    )
+    return result
+
+
 @app.get("/v1/verify", dependencies=[Depends(require_audit_or_full_key)])
 def verify():
-    return {"chains": state["recorder"].graph.verify_all()}
+    chains = state["recorder"].graph.verify_all()
+    return {
+        "chains": chains,
+        "chain_integrity_verified": all(chains.values()),
+        "signatures": _verify_runtime_signatures(),
+    }
+
+
+def _temporary_export(exporter, filename: str) -> FileResponse:
+    fd, tmp_path = tempfile.mkstemp(suffix=".jsonl")
+    os.close(fd)
+    path = Path(tmp_path)
+
+    try:
+        exporter(path)
+    except Exception:
+        path.unlink(missing_ok=True)
+        raise
+
+    return FileResponse(
+        path,
+        media_type="application/x-ndjson",
+        filename=filename,
+        background=BackgroundTask(path.unlink, missing_ok=True),
+    )
 
 
 @app.get("/v1/audit/export", dependencies=[Depends(require_audit_or_full_key)])
 def audit_export():
-    _fd, _tmp_path = tempfile.mkstemp(suffix=".jsonl")
-    os.close(_fd)  # mkstemp returns an OPEN fd; we write via the path, so close it or leak
-    tmp = Path(_tmp_path)
-    state["store"].export_jsonl(tmp)
-    return FileResponse(
-        tmp,
-        media_type="application/x-ndjson",
-        filename="privatevault_audit.jsonl",
+    return _temporary_export(
+        state["store"].export_jsonl,
+        "privatevault_audit.jsonl",
+    )
+
+
+@app.get(
+    "/v1/audit/envelopes",
+    dependencies=[Depends(require_audit_or_full_key)],
+)
+def audit_envelope_export():
+    return _temporary_export(
+        state["store"].export_envelopes_jsonl,
+        "privatevault_envelopes.jsonl",
     )
 
 
 # ---------- misc -------------------------------------------------------------------
+
 
 @app.get("/")
 def root():
@@ -332,7 +438,8 @@ def root():
         "calibration": "synthetic behavioral profile — pilot trace pending",
         "signing": (
             {"algorithm": "Ed25519", "public_key": state["signer"].public_key}
-            if state.get("signer") else "disabled"
+            if state.get("signer")
+            else "disabled"
         ),
         "status": "running",
     }
@@ -357,6 +464,7 @@ def prometheus_metrics():
             CONTENT_TYPE_LATEST,
             generate_latest,
         )
+
         body = generate_latest()
         content_type = CONTENT_TYPE_LATEST
     except ImportError:

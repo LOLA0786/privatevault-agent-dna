@@ -73,7 +73,7 @@ The strongest domain in this assessment.
 |---|---|---|
 | RBM-01 Behavioral telemetry generation | **PASS** | Every decision is a structured, queryable record (`agent_dna/decision_graph.py`) |
 | RBM-02 Behavioral drift detection | **PASS** | Same as RII-04 above |
-| RBM-03 Tamper-evident action logging | **PASS** | Hash-chained, Ed25519-signed records; independent stdlib-only verifier catches field tampering, chain breaks, forged results, deletion, and enforcement divergence (`tools/verify_records.py`, four canonical test vectors, `tests/test_spec_vectors.py`) |
+| RBM-03 Tamper-evident action logging | **PASS** | Hash-chained records with optional Ed25519 envelopes. The independent verifier detects record tampering, chain breaks, deletion and enforcement divergence; trusted mode also rejects missing envelopes and untrusted signing keys. |
 | RBM-04 Instrumentation for external enforcement | **PASS** | HTTP API (status-code-as-signal) and MCP tool surface (`api/server.py`, `agent_dna/mcp_server.py`) |
 
 ## SCP — Supply Chain & Component Provenance

@@ -16,10 +16,11 @@ actions, plus a tamper-evident evidence layer. Two security goals:
   with an `allow` unless it passed every deterministic level of the
   precedence contract (`spec/contracts/precedence-order.json`,
   hash-pinned, CI-verified — `test_precedence_contract.py`).
-- **G2 — Non-repudiable evidence.** What was decided, by which rule,
-  and what subsequently executed is reconstructible and
-  tamper-evident from the records alone, verifiable with one
-  standard-library file (`tools/verify_records.py`).
+- **G2 — Tamper-evident evidence.** What was decided, by which rule,
+  and what subsequently executed is reconstructible from the records.
+  Chain verification uses the standard-library mode of
+  `tools/verify_records.py`. Trusted origin additionally requires detached
+  envelopes and a public key supplied independently by the auditor.
 
 ## 2. Threat model
 
