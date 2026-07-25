@@ -167,7 +167,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="PrivateVault Agent DNA",
-    version="0.2.1",
+    version="0.3.0",
     lifespan=lifespan,
 )
 

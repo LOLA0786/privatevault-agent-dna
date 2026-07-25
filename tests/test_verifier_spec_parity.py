@@ -9,12 +9,12 @@ update BOTH repos in lockstep and re-pin here in the same commit."""
 import hashlib
 from pathlib import Path
 
-PINNED = "7a807679890630602571a19ff3a3d0b0c0a902be55cbb6257ff20220d70a3fe2"
+PINNED = "632972c0cb015457e9309f3c31ed65c13cb288c752409d9025f85d2d9882903b"
 
 
 def test_verifier_matches_drp_spec_copy():
-    actual = hashlib.sha256(
-        Path("tools/verify_records.py").read_bytes()).hexdigest()
+    actual = hashlib.sha256(Path("tools/verify_records.py").read_bytes()).hexdigest()
     assert actual == PINNED, (
         "verify_records.py changed — sync the copy in drp-spec and "
-        "re-pin in the same commit")
+        "re-pin in the same commit"
+    )

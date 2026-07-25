@@ -50,7 +50,7 @@ points at the test file that proves it.
 | API-key authentication | **SHIPPED** | `agent_dna/apikeys.py` — SHA-256 hashed at rest, keys never stored plaintext |
 | Ed25519 record signing | **SHIPPED** | `agent_dna/signer.py`, constant-time signature verification |
 | Timing-attack-safe HMAC comparison | **SHIPPED** | Found and fixed during consensus-module vendoring; `tests/test_secure_quorum.py` |
-| Independent tamper verification | **SHIPPED** | `tools/verify_records.py`, stdlib-only, zero dependency on the producing codebase |
+| Independent tamper verification | **SHIPPED** | `tools/verify_records.py`: standard-library chain verification plus optional trusted Ed25519 verification with PyNaCl; neither mode imports the producing runtime |
 | Secrets management (key rotation, vaulting) | **NOT STARTED** | Signing key and API keys are environment/file-based today. No rotation mechanism, no integration with a secrets manager (Vault, AWS Secrets Manager, etc.). Estimated: real design work, not a quick add — depends on deployment target. |
 | Third-party security certification (SOC 2, ISO 27001) | **NOT STARTED** | See `docs/WHAT-WE-DO-NOT-CLAIM.md` — pre-seed, no funded timeline yet. |
 | Penetration testing | **NOT STARTED** | No formal external pentest has been performed. Internal adversarial corpus (`spec/adversarial/`) is not a substitute and is not claimed as one. |
@@ -102,7 +102,7 @@ points at the test file that proves it.
 | CI: full test suite + spec vectors on every push | **SHIPPED** | `.github/workflows/` |
 | Kubernetes manifests | **NOT STARTED** | Not built; single-container deployment is the current target. |
 | Blue/green or rolling deployment | **NOT STARTED** | N/A at single-instance scale. |
-| Air-gapped / fully offline deployment | **PARTIALLY SHIPPED** | The engine itself has no required external network calls; the independent verifier is explicitly stdlib-only and works offline. Full air-gap deployment packaging (offline dependency bundling, etc.) not formally tested. |
+| Air-gapped / fully offline deployment | **PARTIALLY SHIPPED** | The engine and chain-only verifier require no network calls. Trusted signature mode requires PyNaCl to be included in the offline dependency bundle. Full air-gap packaging is not formally tested. |
 
 ---
 

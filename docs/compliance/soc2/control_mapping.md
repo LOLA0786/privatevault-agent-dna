@@ -1,4 +1,4 @@
-# SOC 2 Type II — Control Mapping to PrivateVault Agent DNA (v0.2.0)
+# SOC 2 Type II — Control Mapping to PrivateVault Agent DNA (v0.3.0)
 
 **Audit Reference:** Commit 4cc19b3 (Byzantine PBFT + Adapter Layer)
 

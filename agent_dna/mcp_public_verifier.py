@@ -8,7 +8,7 @@ repo or trusting any of PrivateVault's own code.
 
 Deliberately calls tools/verify_records.py as a SUBPROCESS, not as
 an imported function. This guarantees the MCP tool runs the exact
-same, unmodified, stdlib-only script a human would run from the
+same unmodified chain-verification path a human would run from the
 command line -- zero risk of the MCP wrapper's logic silently
 diverging from the real public verifier over time.
 
@@ -17,7 +17,7 @@ Requires: pip install mcp
 
 This server does NOT require the rest of the agent_dna package's
 engine dependencies -- it needs only the mcp package and Python's
-standard library, matching the verifier's own zero-dependency claim.
+standard library for chain verification. Trusted-signature mode is not exposed by this MCP wrapper.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
@@ -36,10 +36,10 @@ mcp = FastMCP("privatevault-drp-verifier")
 
 
 @mcp.tool()
-def pv_verify_records(jsonl_content: str) -> Dict[str, Any]:
+def pv_verify_records(jsonl_content: str) -> dict[str, Any]:
     """Independently verify a DRP (Decision Runtime Protocol) audit
     log. Pass the raw JSONL content of a decision/execution log as a
-    string. Runs the public, standard-library-only verifier
+    string. Runs the public verifier in standard-library chain-only mode
     (tools/verify_records.py) unmodified as a subprocess -- checks
     record-hash integrity, per-agent chain continuity, execution
     anchoring, edge consistency, and enforcement divergence (a BLOCK
@@ -62,7 +62,9 @@ def pv_verify_records(jsonl_content: str) -> Dict[str, Any]:
     try:
         proc = subprocess.run(
             [sys.executable, str(VERIFIER_PATH), temp_path],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
     finally:
         Path(temp_path).unlink(missing_ok=True)

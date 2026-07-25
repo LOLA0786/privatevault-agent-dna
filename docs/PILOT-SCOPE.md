@@ -34,7 +34,7 @@ agreed false-positive ceiling.
 Single container (Docker/compose) inside the customer's environment —
 no data leaves it. SQLite/WAL persistence on a customer volume; the
 canonical audit artifact is the exported JSONL, verifiable with a
-standard-library-only Python file the customer keeps. API-key
+independent Python verifier the customer keeps; chain mode uses only the standard library. API-key
 authentication (hashed at rest); Ed25519 signing keyed from the
 customer's secret store. Single-process reference deployment;
 restart-safe (chain state restores from store — test-covered).

@@ -3,9 +3,9 @@
 Decision security runtime for autonomous AI agents. Sits between an
 agent and its executors, evaluates every action against a fixed
 precedence of deterministic rules before it runs, and writes a
-hash-chained record of what was decided and why. The audit trail
-verifies with a single standard-library Python file, independent of
-this codebase.
+hash-chained record of what was decided and why. The audit trail has an independent chain verifier that uses only the
+Python standard library. Trusted origin verification additionally consumes
+detached envelopes and auditor-supplied Ed25519 public keys.
 
 The learned component (behavioral drift scoring) is advisory. It can
 escalate an action for review. It cannot approve one. Enforcement is
@@ -35,9 +35,13 @@ python examples/composed_line_demo.py
 # 11 adversarial scenarios against the precedence ladder
 python tools/run_adversarial.py
 
-# independent audit verification. stdlib only, no dependency on
-# this package. this is the file you hand your auditor.
+# chain verification: standard library only
 python tools/verify_records.py <audit export .jsonl>
+
+# trusted signature verification: requires PyNaCl
+python tools/verify_records.py <audit export .jsonl> \
+  --envelopes <envelope export .jsonl> \
+  --trusted-key <trusted public key>
 ```
 
 As a service:
@@ -97,8 +101,10 @@ are anchored back to the decision that authorized them.
 | Forge an execution result               | anchor mismatch        |
 | BLOCK recorded, action ran anyway       | enforcement divergence |
 
-`tools/verify_records.py` re-derives all of this from the export
-alone. Wire format, JSON Schemas, and canonical vectors are published
+`tools/verify_records.py` re-derives chain integrity from the record export.
+With detached envelopes and independently supplied keys, it also verifies
+trusted signing origin. Wire format, JSON Schemas, and canonical vectors are
+published
 separately as the DRP specification
 ([github.com/LOLA0786/drp-spec](https://github.com/LOLA0786/drp-spec),
 Apache-2.0 / CC-BY-4.0), so verification does not depend on trusting
@@ -162,7 +168,7 @@ ReceiptSigner           optional Ed25519 over record_hash
 ExecutionEvents         executor feedback, anchored per decision
 DecisionGraph           lineage, blocked, divergence queries
       │
-tools/verify_records.py stdlib-only external auditor
+tools/verify_records.py independent chain and signature verifier
 ```
 
 ## Layout
