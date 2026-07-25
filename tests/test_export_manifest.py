@@ -9,8 +9,6 @@ own hash chain, just the raw bytes on disk."""
 
 import time
 
-import pytest
-
 from agent_dna.advisory import AdvisorySignal, Severity
 from agent_dna.decision import DecisionEngine
 from agent_dna.decision_recorder import DecisionRecorder
@@ -23,8 +21,11 @@ from agent_dna.trace import AgentAction
 class StubScorer:
     def score(self, action, prev_capability=None):
         return AdvisorySignal(
-            agent_id=action.agent_id, capability=action.capability,
-            drift_score=0.0, severity=Severity.INFO, reasons=[],
+            agent_id=action.agent_id,
+            capability=action.capability,
+            drift_score=0.0,
+            severity=Severity.INFO,
+            reasons=[],
         )
 
 
@@ -43,11 +44,14 @@ def test_manifest_matches_freshly_exported_file(tmp_path):
     export_path = tmp_path / "export.jsonl"
     store.export_jsonl(export_path)
 
-    manifest = create_export_manifest(export_path, record_count=3, requested_by="test-key")
+    manifest = create_export_manifest(
+        export_path, record_count=3, requested_by="test-key"
+    )
 
     result = verify_export_manifest(manifest.to_dict(), export_path)
     assert result["file_hash_matches"] is True
-    assert result["custody_verified"] is True
+    assert result["content_integrity_verified"] is True
+    assert result["custody_verified"] is False
 
 
 def test_manifest_catches_post_export_tampering(tmp_path):
@@ -81,7 +85,19 @@ def test_manifest_with_signature_verifies(tmp_path):
     )
 
     assert manifest.signature is not None
-    result = verify_export_manifest(manifest.to_dict(), export_path)
+
+    without_trust = verify_export_manifest(
+        manifest.to_dict(),
+        export_path,
+    )
+    assert without_trust["signature_valid"] is False
+    assert without_trust["custody_verified"] is False
+
+    result = verify_export_manifest(
+        manifest.to_dict(),
+        export_path,
+        trusted_keys={keys["public_key"]},
+    )
     assert result["signature_valid"] is True
     assert result["custody_verified"] is True
 
@@ -96,15 +112,17 @@ def test_forged_manifest_signature_detected(tmp_path):
 
     keys = generate_keypair()
     signer = ReceiptSigner(seed_hex=keys["signing_key"])
-    manifest = create_export_manifest(
-        export_path, record_count=3, signer=signer
-    )
+    manifest = create_export_manifest(export_path, record_count=3, signer=signer)
 
     forged = manifest.to_dict()
     other_keys = generate_keypair()
     forged["signature"]["public_key"] = other_keys["public_key"]
 
-    result = verify_export_manifest(forged, export_path)
+    result = verify_export_manifest(
+        forged,
+        export_path,
+        trusted_keys={keys["public_key"]},
+    )
     assert result["signature_valid"] is False
     assert result["custody_verified"] is False
 
@@ -120,10 +138,9 @@ def test_manifest_without_signer_has_no_signature(tmp_path):
     result = verify_export_manifest(manifest.to_dict(), export_path)
     assert result["signature_valid"] is None
     assert result["file_hash_matches"] is True
-    # custody is still verified on file hash alone -- unsigned is
-    # weaker (no non-repudiation of WHO exported it) but hash
-    # tampering is still caught
-    assert result["custody_verified"] is True
+    # A matching unsigned hash proves content integrity, not custody.
+    assert result["content_integrity_verified"] is True
+    assert result["custody_verified"] is False
 
 
 def test_manifest_records_who_requested_export(tmp_path):

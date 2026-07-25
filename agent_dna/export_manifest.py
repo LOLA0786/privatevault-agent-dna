@@ -29,9 +29,10 @@ import hashlib
 import json
 import time
 import uuid
+from collections.abc import Collection
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 def _hash_file(path: Path) -> str:
@@ -47,13 +48,13 @@ def _hash_file(path: Path) -> str:
 @dataclass
 class ExportManifest:
     manifest_id: str
-    exported_file_hash: str       # SHA-256 of the exported JSONL's bytes
+    exported_file_hash: str  # SHA-256 of the exported JSONL's bytes
     exported_at: float
-    requested_by: Optional[str]   # e.g. API key name, or None if not tracked
+    requested_by: str | None  # e.g. API key name, or None if not tracked
     record_count: int
-    signature: Optional[Dict[str, Any]] = None  # SignatureEnvelope.to_dict()
+    signature: dict[str, Any] | None = None  # SignatureEnvelope.to_dict()
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "manifest_id": self.manifest_id,
             "exported_file_hash": self.exported_file_hash,
@@ -69,7 +70,8 @@ class ExportManifest:
         record_hash."""
         content = json.dumps(
             {k: v for k, v in self.to_dict().items() if k != "signature"},
-            sort_keys=True, separators=(",", ":"),
+            sort_keys=True,
+            separators=(",", ":"),
         )
         return hashlib.sha256(content.encode()).hexdigest()
 
@@ -84,8 +86,8 @@ class ExportManifest:
 def create_export_manifest(
     exported_path: Path,
     record_count: int,
-    requested_by: Optional[str] = None,
-    signer=None,   # optional ReceiptSigner -- signs the manifest, not the export
+    requested_by: str | None = None,
+    signer=None,  # optional ReceiptSigner -- signs the manifest, not the export
 ) -> ExportManifest:
     """Call this immediately after export_jsonl produces the file.
     The manifest binds to the file's actual bytes at the moment of
@@ -110,14 +112,17 @@ def create_export_manifest(
 
 
 def verify_export_manifest(
-    manifest_dict: Dict[str, Any], exported_path: Path
-) -> Dict[str, Any]:
+    manifest_dict: dict[str, Any],
+    exported_path: Path,
+    *,
+    trusted_keys: Collection[str] | None = None,
+) -> dict[str, Any]:
     """Standalone verification a third party runs: does the manifest's
     recorded hash match the file they actually have, and (if signed)
     does the signature validate against the manifest's own content
     hash. Returns a structured result -- never raises, always reports
     what it found."""
-    from .signer import verify_envelope
+    from .signer import verify_trusted_envelope
 
     manifest = ExportManifest(
         manifest_id=manifest_dict["manifest_id"],
@@ -133,10 +138,15 @@ def verify_export_manifest(
     signature_valid = None
     if manifest.signature is not None:
         expected_hash = manifest._content_hash()
-        signature_valid = verify_envelope(manifest.signature, expected_hash)
+        signature_valid = verify_trusted_envelope(
+            manifest.signature,
+            expected_hash,
+            trusted_keys=trusted_keys,
+        )
 
     return {
         "file_hash_matches": file_matches,
         "signature_valid": signature_valid,
-        "custody_verified": file_matches and (signature_valid is not False),
+        "content_integrity_verified": file_matches,
+        "custody_verified": file_matches and signature_valid is True,
     }
