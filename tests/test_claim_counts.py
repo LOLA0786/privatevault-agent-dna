@@ -34,14 +34,24 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # Every file that states a test count, and the pattern that finds it.
 # Add a site here rather than letting a fifth number appear somewhere.
 CLAIM_SITES: dict[str, re.Pattern[str]] = {
-    "README.md": re.compile(r"python -m pytest -q\s+#\s*(\d+)\s+tests"),
+    "README.md": re.compile(r"python -m pytest -q\s+#\s*(\d+)\+?\s+tests"),
     "docs/WHAT-WE-DO-NOT-CLAIM.md": re.compile(
-        r"(\d+)\s+automated tests, run in CI"
+        r"(\d+)\+?\s+automated tests, run in CI"
     ),
     "examples/composed_line_demo.py": re.compile(
-        r"every level is a tested code path, (\d+) automated tests"
+        r"every level is a tested code path, (\d+)\+? automated tests"
     ),
 }
+
+# The collected count is ENVIRONMENT-DEPENDENT: tests/test_rust_*.py use
+# pytest.importorskip at module level, so without the Rust wheel those
+# modules are not collected at all. A machine with the wheel collects six
+# more tests than CI does. An exact-equality guard therefore cannot hold
+# in both places -- it went red in CI the first time it ran.
+#
+# So the claim is a FLOOR. It may never overstate the evidence, and it may
+# not drift so far below reality that it stops meaning anything.
+STALENESS_TOLERANCE = 40
 
 
 def _collected_count() -> int:
@@ -92,10 +102,15 @@ def test_documented_test_count_matches_reality(
     )
 
     claimed = int(found[0])
-    assert claimed == collected, (
+    assert claimed <= collected, (
+        f"{relpath} claims {claimed} tests; the suite collects only "
+        f"{collected}. The claim overstates the evidence, which is the "
+        f"one direction that is never acceptable."
+    )
+    assert collected - claimed <= STALENESS_TOLERANCE, (
         f"{relpath} claims {claimed} tests; the suite collects "
-        f"{collected}. Update the claim -- a stale number in a document "
-        f"about verifiability is the most expensive kind of stale."
+        f"{collected}, which is {collected - claimed} more. The claim has "
+        f"gone stale -- update it to {collected}."
     )
 
 
