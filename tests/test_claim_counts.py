@@ -23,8 +23,6 @@ and put that number in the places listed in CLAIM_SITES below.
 from __future__ import annotations
 
 import re
-import subprocess
-import sys
 from pathlib import Path
 
 import pytest
@@ -53,30 +51,24 @@ CLAIM_SITES: dict[str, re.Pattern[str]] = {
 # not drift so far below reality that it stops meaning anything.
 STALENESS_TOLERANCE = 40
 
-
-def _collected_count() -> int:
-    """Ask pytest itself. Deliberately a subprocess against the real
-    testpaths -- an in-process count would have to reimplement
-    collection and would drift from what CI actually runs."""
-    proc = subprocess.run(
-        [sys.executable, "-m", "pytest", "--collect-only", "-q",
-         "-p", "no:cacheprovider"],
-        capture_output=True,
-        text=True,
-        cwd=REPO_ROOT,
-        timeout=300,
-    )
-    m = re.search(r"(\d+) tests? collected", proc.stdout)
-    assert m is not None, (
-        "could not parse pytest collection output:\n"
-        f"{proc.stdout[-2000:]}\n{proc.stderr[-2000:]}"
-    )
-    return int(m.group(1))
+# A session collecting fewer than this is a subset, not the suite.
+# The full suite is an order of magnitude larger.
+PARTIAL_RUN_CEILING = 100
 
 
 @pytest.fixture(scope="module")
-def collected() -> int:
-    return _collected_count()
+def collected(request) -> int:
+    """The number of tests THIS session collected.
+
+    Deliberately not a nested `pytest --collect-only` subprocess. That
+    was the first design and it was wrong: a subprocess collects in its
+    own environment, which need not match the run that is executing this
+    assertion, so the guard could fail in CI while passing locally with
+    no way to see why. `session.testscollected` is the count of the run
+    actually in progress, which is the only number this assertion has
+    any business comparing against.
+    """
+    return int(request.session.testscollected)
 
 
 @pytest.mark.parametrize("relpath", sorted(CLAIM_SITES))
@@ -102,6 +94,15 @@ def test_documented_test_count_matches_reality(
     )
 
     claimed = int(found[0])
+    if collected < PARTIAL_RUN_CEILING:
+        # A subset was selected (single file, -k, -x). The claim is about
+        # the whole suite, so there is nothing to check. Deliberately an
+        # ABSOLUTE floor rather than "collected < claimed": the latter
+        # would silently skip whenever the claim was too high, which is
+        # precisely the failure this guard exists to catch.
+        pytest.skip(
+            f"partial run: only {collected} tests collected"
+        )
     assert claimed <= collected, (
         f"{relpath} claims {claimed} tests; the suite collects only "
         f"{collected}. The claim overstates the evidence, which is the "
