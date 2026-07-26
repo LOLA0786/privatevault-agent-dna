@@ -24,12 +24,15 @@ import subprocess
 import sys
 import tempfile
 import time
-
-from agent_dna.circuit_breaker import (
-    BreakerConfig, CircuitBreaker, GuardedEngine,
-)
 from pathlib import Path
 
+from runtime_demo import banner, train
+
+from agent_dna.circuit_breaker import (
+    BreakerConfig,
+    CircuitBreaker,
+    GuardedEngine,
+)
 from agent_dna.consensus import ConsensusChecker
 from agent_dna.consensus.signing import cast_vote, register_key
 from agent_dna.decision import Decision, DecisionEngine
@@ -40,8 +43,6 @@ from agent_dna.intent_adapter import intent_to_action
 from agent_dna.runtime import RuntimeMonitor
 from agent_dna.signer import ReceiptSigner, generate_keypair, verify_envelope
 from agent_dna.uaal_layer import UAALConstraintChecker
-
-from runtime_demo import banner, train
 
 ROOT = Path(__file__).resolve().parent.parent
 VERIFIER = ROOT / "tools" / "verify_records.py"
@@ -95,21 +96,44 @@ def main():
         economics=CostAnomalyChecker(),
         consensus=ConsensusChecker(),
     )
+    # Two breakers, deliberately. The seven-level walk below demonstrates
+    # PRECEDENCE AMONG LEVELS, so it runs against an INERT breaker (all
+    # thresholds None -- the same "attached but inert" state the
+    # composition manifest reports when PV_BREAKER_* is unset). A
+    # configured breaker here would pre-gate the ladder: the L3 wire of
+    # 900,000 crosses any sane cumulative cap, trips the agent, and every
+    # scenario after it reports circuit_breaker instead of its own level.
+    # That is the breaker working correctly and the demo lying.
+    #
+    # The breaker gets its own section (L-1) with its own agent and its
+    # own configured cap, which is where "suspension outranks everything"
+    # is supposed to be shown.
+    ladder_breaker = CircuitBreaker(
+        log.parent / "ladder-breaker.db",
+        BreakerConfig(
+            max_decisions=None,
+            window_seconds=60.0,
+            max_cumulative_amount=None,     # inert: the ladder is the subject
+            max_consecutive_refusals=None,
+        ),
+    )
     breaker = CircuitBreaker(
         log.parent / "breaker.db",
         BreakerConfig(
             max_decisions=None,             # rate trip off for the demo
             window_seconds=60.0,
-            # P0-5: with a real PRE-execution cap, 1000.0 would
-            # (correctly) trip on the 49,000 L0 scenario before
-            # UAAL ever evaluated -- raised so each precedence
-            # level demos its own trigger
-            max_cumulative_amount=100000.0,
+            # Cap matches the L-1 narration below: 17 payments of $60
+            # cross $1,000 on the seventeenth.
+            max_cumulative_amount=1000.0,
             max_consecutive_refusals=None,  # thrash trip off for the demo
         ),
     )
-    guarded = GuardedEngine(engine, breaker)
+    guarded = GuardedEngine(engine, ladder_breaker)
     monitor = RuntimeMonitor(guarded, recorder=recorder)
+    # Same engine, same recorder, same chain -- only the breaker differs.
+    breaker_monitor = RuntimeMonitor(
+        GuardedEngine(engine, breaker), recorder=recorder
+    )
 
     register_key("finance-agent", "secret-finance")
     settle_votes = [cast_vote(
@@ -196,7 +220,7 @@ def main():
             timestamp=time.time(),
         )
         a.amount = 60.0
-        r = monitor.process(a, evidence=HONEST_EVIDENCE)
+        breaker_monitor.process(a, evidence=HONEST_EVIDENCE)
         drained += 60.0
         if breaker.is_tripped("treasury-agent-07"):
             print(f"    payment {i + 1}: cumulative ${drained:,.0f} "
@@ -208,7 +232,7 @@ def main():
         parameters={"amount": 60.0},
         timestamp=time.time(),
     )
-    result = monitor.process(a, evidence=HONEST_EVIDENCE)
+    result = breaker_monitor.process(a, evidence=HONEST_EVIDENCE)
     rec = recorder.graph.find_by_agent("treasury-agent-07")[-1]
     env = recorder.envelopes[rec.record_hash]
     signed = verify_envelope(env, rec.record_hash)
@@ -251,12 +275,12 @@ def main():
     banner("SUMMARY  |everyone|")
     print(f"{'Scenario':<50} {'Verdict':<17} {'Level':<12} {'Signed'}")
     print("-" * 100)
-    for desc, agent_id, verdict, trigger, signed in rows:
+    for desc, _agent_id, verdict, trigger, signed in rows:
         short = desc.split("|")[0].strip()
         print(f"{short:<50} {verdict:<17} {trigger:<12} "
               f"{'Y' if signed else 'N'}")
     print()
-    print("CTO   : every level is a tested code path, 286 automated tests, CI-guarded.")
+    print("CTO   : every level is a tested code path, 628 automated tests, CI-guarded.")
     print("CAIO  : drift (L5) is the only probabilistic level — it can escalate, never")
     print("        override a deterministic BLOCK above it.")
     print("CISO  : the ATTACK section above is a live exploit attempt against our own")
