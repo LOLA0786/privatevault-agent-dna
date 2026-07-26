@@ -26,9 +26,9 @@ import json
 import sqlite3
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Union
 
 from .decision import Decision, DecisionResult, Severity
 
@@ -39,19 +39,19 @@ GENESIS = "0" * 64
 
 @dataclass(frozen=True)
 class BreakerConfig:
-    max_decisions: Optional[int] = 100          # rate trip; None disables
+    max_decisions: int | None = 100          # rate trip; None disables
     window_seconds: float = 10.0
-    max_cumulative_amount: Optional[float] = None   # volume trip; None disables
-    max_consecutive_refusals: Optional[int] = 5     # thrash trip; None disables
-    cooldown_seconds: Optional[float] = None        # None = manual reset only
+    max_cumulative_amount: float | None = None   # volume trip; None disables
+    max_consecutive_refusals: int | None = 5     # thrash trip; None disables
+    cooldown_seconds: float | None = None        # None = manual reset only
     #
     # Group (swarm) trip conditions. Membership is DECLARED config,
     # not behavioral inference -- the breaker enforces stated
     # structure; detecting undeclared coordination is a drift/DEPA
     # problem and claiming otherwise would be dishonest.
     #
-    groups: Optional[Dict[str, List[str]]] = None
-    group_volume_caps: Optional[Dict[str, float]] = None
+    groups: dict[str, list[str]] | None = None
+    group_volume_caps: dict[str, float] | None = None
 
 
 class CircuitBreaker:
@@ -61,10 +61,11 @@ class CircuitBreaker:
 
     def __init__(
         self,
-        path: Union[str, Path],
-        config: BreakerConfig = BreakerConfig(),
+        path: str | Path,
+        config: BreakerConfig | None = None,
         clock: Callable[[], float] = time.time,
     ) -> None:
+        config = config if config is not None else BreakerConfig()
         self.config = config
         self._clock = clock
         self._path = str(path)
@@ -108,7 +109,7 @@ class CircuitBreaker:
     # phase 1: pre-gate
     # ------------------------------------------------------------------
 
-    def pre_gate(self, agent_id: str) -> Optional[str]:
+    def pre_gate(self, agent_id: str) -> str | None:
         """Return trip reason if the agent is suspended, else None."""
         row = self._conn.execute(
             "SELECT tripped, reason, tripped_at FROM breaker_state WHERE agent_id = ?",
@@ -132,8 +133,8 @@ class CircuitBreaker:
         self,
         agent_id: str,
         decision: str,
-        amount: Optional[float] = None,
-    ) -> Optional[str]:
+        amount: float | None = None,
+    ) -> str | None:
         """Record one verdict; trip if any threshold is crossed.
         Returns the trip reason if this observation tripped the breaker."""
         now = self._clock()
@@ -149,7 +150,7 @@ class CircuitBreaker:
             return reason
         return self._evaluate_groups(agent_id, now)
 
-    def _evaluate(self, agent_id: str, now: float) -> Optional[str]:
+    def _evaluate(self, agent_id: str, now: float) -> str | None:
         cfg = self.config
         since = now - cfg.window_seconds
 
@@ -234,7 +235,7 @@ class CircuitBreaker:
                 )
         return None
 
-    def _evaluate_groups(self, agent_id: str, now: float) -> Optional[str]:
+    def _evaluate_groups(self, agent_id: str, now: float) -> str | None:
         """Distributed-drain detection: cumulative volume across a
         DECLARED agent group. Each member's actions may individually
         pass every per-agent check; the aggregate trips the swarm."""
@@ -249,7 +250,7 @@ class CircuitBreaker:
     # transactional preflight (P0-5)
     # ------------------------------------------------------------------
 
-    def reserve(self, agent_id: str, amount: Optional[float]):
+    def reserve(self, agent_id: str, amount: float | None):
         """Pre-execution gate with PROJECTED counters (P0-5).
 
         Previously the breaker observed AFTER the inner decision, so
@@ -300,7 +301,7 @@ class CircuitBreaker:
         self._trip_group(gid, members, greason, now)
         return greason, None
 
-    def finalize(self, reservation_id: Optional[int], decision: str) -> Optional[str]:
+    def finalize(self, reservation_id: int | None, decision: str) -> str | None:
         """Convert a reservation into its verdict row and evaluate the
         verdict-dependent (refusal-thrash) trip."""
         if reservation_id is None:
@@ -336,7 +337,7 @@ class CircuitBreaker:
         return None
 
     def _trip_group(
-        self, gid: str, members: List[str], reason: str, now: float
+        self, gid: str, members: list[str], reason: str, now: float
     ) -> None:
         """One chained group_trip record naming the collective cause;
         every member suspended at the existing per-agent pre-gate --
@@ -493,7 +494,7 @@ class CircuitBreaker:
             self._local.conn = None
 
 
-def _default_amount(action, evidence: Optional[dict]) -> Optional[float]:
+def _default_amount(action, evidence: dict | None) -> float | None:
     amt = getattr(action, "amount", None)
     if amt is None:
         # P0-5: normal AgentAction amounts live here -- this path was
@@ -556,8 +557,8 @@ class GuardedEngine:
     def decide(
         self,
         action,
-        prev_capability: Optional[str] = None,
-        evidence: Optional[dict] = None,
+        prev_capability: str | None = None,
+        evidence: dict | None = None,
     ) -> DecisionResult:
         # P0-5: transactional preflight -- the crossing action itself
         # is blocked; concurrent callers serialize against the same
@@ -572,30 +573,44 @@ class GuardedEngine:
             )
         if reason is not None:
             return self._blocked(action, reason)
-        result = self.engine.decide(action, prev_capability, evidence)
-        # Audit set 4: record budget spend for ALLOWed, grant-covered,
-        # amount-bearing actions. record_spend existed but was wired
-        # into nothing -- budgets were checked against a ledger nobody
-        # wrote to. A failing spend write fails CLOSED: an unrecorded
-        # spend would silently widen every future budget check.
-        if (
-            result.decision is Decision.ALLOW
-            and getattr(result, "grant_id", None)
-            and amount is not None
-        ):
-            authorizer = getattr(self.engine, "authorizer", None)
-            if authorizer is not None and hasattr(authorizer, "record_spend"):
-                try:
-                    authorizer.record_spend(result.grant_id, amount)
-                except Exception as exc:
-                    return self._blocked(
-                        action,
-                        f"grant_spend_fault: {type(exc).__name__}: {exc}",
-                    )
+        # Every path from here MUST finalize the reservation. Rate and
+        # cumulative-amount checks count reserved rows anyway, so a
+        # stranded reservation does not distort the budget -- but the
+        # refusal-thrash check reads `WHERE decision != 'reserved'` and
+        # therefore cannot see it. An exit that skips finalize() makes a
+        # genuine refusal invisible to the one detector built to escalate
+        # a run of them. That is what the grant_spend_fault path did.
+        verdict: str | None = None
         try:
-            self.breaker.finalize(rid, result.decision.value)
-        except Exception:
-            # the verdict stands; a lost thrash-counter update is a
-            # monitoring gap, not an enforcement decision
-            pass
-        return result
+            result = self.engine.decide(action, prev_capability, evidence)
+            verdict = result.decision.value
+            # Audit set 4: record budget spend for ALLOWed, grant-covered,
+            # amount-bearing actions. record_spend existed but was wired
+            # into nothing -- budgets were checked against a ledger nobody
+            # wrote to. A failing spend write fails CLOSED: an unrecorded
+            # spend would silently widen every future budget check.
+            if (
+                result.decision is Decision.ALLOW
+                and getattr(result, "grant_id", None)
+                and amount is not None
+            ):
+                authorizer = getattr(self.engine, "authorizer", None)
+                if authorizer is not None and hasattr(authorizer, "record_spend"):
+                    try:
+                        authorizer.record_spend(result.grant_id, amount)
+                    except Exception as exc:
+                        blocked = self._blocked(
+                            action,
+                            f"grant_spend_fault: {type(exc).__name__}: {exc}",
+                        )
+                        verdict = blocked.decision.value
+                        return blocked
+            return result
+        finally:
+            if verdict is not None:
+                try:
+                    self.breaker.finalize(rid, verdict)
+                except Exception:
+                    # the verdict stands; a lost thrash-counter update is
+                    # a monitoring gap, not an enforcement decision
+                    pass
