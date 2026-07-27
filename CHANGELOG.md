@@ -6,6 +6,14 @@ and a named test that runs in CI.
 ## Unreleased
 
 ### Added
+- **Authority Provenance v0.1-experimental**: strict trust-bundle, signed
+  delegation-grant, and three-verdict receipt schemas; RFC 8785
+  canonicalization over float-free I-JSON; Ed25519 key-usage enforcement;
+  principal-and-key continuity; typed attenuation; independent authority and
+  composition recomputation; offline verifier; and two-axis authorisation
+  readiness scan (`agent_dna/authority_v01.py`, `spec/authority-v01/`,
+  `tools/verify_authority_v01.py`; tests: `test_authority_v01.py`,
+  `test_authority_scanner_v01.py`).
 - **pv-validation/1**: hash-sealed model-validation reports for the
   advisory drift layer — localized reliability by agent / capability /
   agent×capability with Wilson CIs, exact global-AUC within/between

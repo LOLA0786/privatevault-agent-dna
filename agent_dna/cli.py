@@ -19,12 +19,206 @@ import argparse
 import json
 import sys
 import time
-from typing import List, Optional
+from pathlib import Path
 
 EXIT_OK, EXIT_FAIL, EXIT_USAGE = 0, 1, 2
 
 
-def _print_report(result, rule_path: str) -> None:
+def _authority_json(path: str):
+    from .authority_v01 import (
+        AuthorityFormatError,
+        strict_json_loads,
+    )
+
+    try:
+        return strict_json_loads(
+            Path(path).read_bytes()
+        )
+    except OSError as exc:
+        raise AuthorityFormatError(
+            f"cannot read {path}: {exc}"
+        ) from exc
+
+
+def _authority_jsonl(path: str):
+    from .authority_v01 import (
+        AuthorityFormatError,
+        strict_json_loads,
+    )
+
+    try:
+        lines = Path(path).read_text(
+            encoding="utf-8"
+        ).splitlines()
+    except OSError as exc:
+        raise AuthorityFormatError(
+            f"cannot read {path}: {exc}"
+        ) from exc
+
+    records = []
+
+    for line_number, line in enumerate(lines, 1):
+        if not line.strip():
+            continue
+
+        value = strict_json_loads(line)
+
+        if not isinstance(value, dict):
+            raise AuthorityFormatError(
+                f"{path} line {line_number}: "
+                "expected JSON object"
+            )
+
+        records.append(value)
+
+    return records
+
+
+def cmd_authority_verify(args) -> int:
+    from .authority_v01 import (
+        AuthorityFormatError,
+        verify_receipt,
+    )
+
+    try:
+        receipt = _authority_json(args.receipt)
+        bundle = _authority_json(args.trust_bundle)
+
+        if (
+            not isinstance(receipt, dict)
+            or not isinstance(bundle, dict)
+        ):
+            raise AuthorityFormatError(
+                "receipt and trust bundle must be JSON objects"
+            )
+
+        report = verify_receipt(
+            receipt,
+            bundle,
+        )
+
+    except AuthorityFormatError as exc:
+        print(
+            f"error: {exc}",
+            file=sys.stderr,
+        )
+        return EXIT_USAGE
+
+    print(
+        f"evidence_state       "
+        f"{report.evidence_state.value}"
+    )
+    print(
+        f"decision_conformance "
+        f"{report.decision_conformance.value}"
+    )
+
+    if report.accountable_principal:
+        print(
+            f"accountable_principal "
+            f"{report.accountable_principal}"
+        )
+
+    if report.reason_code:
+        print(
+            f"reason_code          "
+            f"{report.reason_code}"
+        )
+
+    for failure in report.failures:
+        print(f"failure              {failure}")
+
+    if args.json:
+        Path(args.json).write_text(
+            json.dumps(
+                report.to_dict(),
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+    return (
+        EXIT_OK
+        if report.ok
+        else EXIT_FAIL
+    )
+
+
+def cmd_authority_scan(args) -> int:
+    from .authority_v01 import (
+        AuthorityFormatError,
+        scan_authority_records,
+    )
+
+    try:
+        records = _authority_jsonl(args.input)
+
+        bundle = (
+            _authority_json(args.trust_bundle)
+            if args.trust_bundle
+            else None
+        )
+
+        if bundle is not None and not isinstance(bundle, dict):
+            raise AuthorityFormatError(
+                "trust bundle must be a JSON object"
+            )
+
+        report = scan_authority_records(
+            records,
+            bundle,
+        )
+
+    except AuthorityFormatError as exc:
+        print(
+            f"error: {exc}",
+            file=sys.stderr,
+        )
+        return EXIT_USAGE
+
+    evidence = report["evidence_state"]
+
+    print(
+        "\npv authority scan - "
+        "AUTHORISATION READINESS ASSESSMENT"
+    )
+    print("=" * 64)
+
+    print(
+        f"Actions analysed   "
+        f"{report['actions_analysed']}"
+    )
+
+    print(
+        "Evidence           "
+        f"VERIFIED {evidence['VERIFIED']}   "
+        f"INVALID {evidence['INVALID']}   "
+        f"UNVERIFIABLE {evidence['UNVERIFIABLE']}   "
+        f"ABSENT {evidence['ABSENT']}"
+    )
+
+    if evidence["ABSENT"]:
+        print("\nFINDING")
+        print(
+            "Your agent infrastructure does not currently "
+            "emit authority evidence."
+        )
+        print(
+            "This is the industry norm; "
+            "the result measures instrumentation."
+        )
+
+    if args.json:
+        Path(args.json).write_text(
+            json.dumps(report, indent=2) + "\n",
+            encoding="utf-8",
+        )
+
+    return EXIT_OK
+
+
+def _print_report(result, rule_path: str) -> None:  # noqa: C901
     print(f"\npolicy gate: {rule_path}")
     print("=" * 64)
 
@@ -83,8 +277,12 @@ def _print_report(result, rule_path: str) -> None:
 
 def cmd_policy_check(args) -> int:
     from .policy_gate import (
-        GateResult, counterfactual_from_fixture, counterfactual_from_store,
-        evaluate_budget, load_candidate, run_assertions,
+        GateResult,
+        counterfactual_from_fixture,
+        counterfactual_from_store,
+        evaluate_budget,
+        load_candidate,
+        run_assertions,
     )
 
     try:
@@ -194,8 +392,7 @@ def cmd_policy_suggest(args) -> int:
           "waiting to be gated and acknowledged by a named human.")
 
     if args.json:
-        from pathlib import Path as _P
-        _P(args.json).write_text(json.dumps(
+        Path(args.json).write_text(json.dumps(
             [c.to_dict() for c in candidates], indent=2))
         print(f"machine-readable: {args.json}")
     return EXIT_OK
@@ -267,10 +464,66 @@ def build_parser() -> argparse.ArgumentParser:
     suggest.add_argument("--json", help="write all candidates as JSON")
     suggest.set_defaults(func=cmd_policy_suggest)
 
+    authority = sub.add_parser(
+        "authority",
+        help=(
+            "authority provenance verification "
+            "and readiness scan"
+        ),
+    )
+
+    asub = authority.add_subparsers(
+        dest="action",
+        required=True,
+    )
+
+    verify = asub.add_parser(
+        "verify",
+        help=(
+            "verify one v0.1-experimental "
+            "authority receipt"
+        ),
+    )
+    verify.add_argument(
+        "--receipt",
+        required=True,
+    )
+    verify.add_argument(
+        "--trust-bundle",
+        required=True,
+    )
+    verify.add_argument(
+        "--json",
+        help="write machine-readable result",
+    )
+    verify.set_defaults(
+        func=cmd_authority_verify
+    )
+
+    scan = asub.add_parser(
+        "scan",
+        help=(
+            "assess authority-evidence readiness "
+            "in JSONL records"
+        ),
+    )
+    scan.add_argument(
+        "--input",
+        required=True,
+    )
+    scan.add_argument("--trust-bundle")
+    scan.add_argument(
+        "--json",
+        help="write machine-readable report",
+    )
+    scan.set_defaults(
+        func=cmd_authority_scan
+    )
+
     return p
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     return args.func(args)
 
