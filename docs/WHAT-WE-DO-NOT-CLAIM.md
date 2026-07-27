@@ -24,7 +24,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 620+ automated tests, run in CI on every commit
+- 655+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
@@ -268,3 +268,34 @@ could defeat the identity-preservation check simply by omitting its
 evidence. The scope is deliberate: missing identity evidence blocks
 only where an unstated intent is itself anomalous, so ordinary
 actions are not forced to carry planner evidence.
+
+## Authority Provenance v0.1-experimental
+
+**Revocation.** v0.1 provides no emergency revocation. Maximum
+stale-authority exposure is bounded by the configured grant TTL. Expiry limits
+exposure; it does not revoke an already-compromised grant.
+
+**Completeness.** The receipt chain proves internal continuity within a
+supplied sequence. It does not detect truncation, deletion of trailing records,
+or an alternative fork presented by the operator. Completeness requires an
+externally retained signed checkpoint in v0.2.
+
+**Replay.** The receipt is cryptographically bound to a request instance.
+Execution-time idempotency state prevents reuse. Offline scanning detects
+duplicates only within the supplied record set.
+
+**Obligations.** v0.1 verifies that obligations were not shed across
+delegation. It does not prove an obligation was satisfied at decision time.
+That requires signed approval evidence in v0.2.
+
+**Trust bundle.** The bundle is pinned out of band and unsigned in v0.1. An
+operator with write access to the bundle can retroactively make a forged
+historical receipt verify. Signed, versioned bundles are v0.2.
+
+**Verifier independence.** The verifier is independent of the PrivateVault
+runtime and hosted service. It is not independent of a language runtime, a
+crypto library, or an operating system. We do not say zero trust in the
+codebase.
+
+**Learned layer.** The drift scorer remains trained on synthetic traces. It is
+advisory and never blocking until real execution traces are available.
