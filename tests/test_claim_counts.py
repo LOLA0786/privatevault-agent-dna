@@ -43,7 +43,7 @@ CLAIM_SITES: dict[str, re.Pattern[str]] = {
 
 # The collected count is ENVIRONMENT-DEPENDENT: tests/test_rust_*.py use
 # pytest.importorskip at module level, so without the Rust wheel those
-# modules are not collected at all. A machine with the wheel collects six
+# modules are not collected at all. A machine with the wheel can collect
 # more tests than CI does. An exact-equality guard therefore cannot hold
 # in both places -- it went red in CI the first time it ran.
 #
