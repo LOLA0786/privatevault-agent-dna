@@ -19,7 +19,7 @@ Strict protocol rules:
 - A missing policy result is represented as JSON null.
 - Under pv-fail-closed/0.1, null or unknown results compose to DENY.
 
-Verify one receipt with tools/verify_authority_v01.py.
+Verify one receipt with tools/pv_authority_cli.py.
 
 Run a readiness assessment with:
 
