@@ -1,0 +1,114 @@
+{
+  "edges": [
+    {
+      "conditions": [],
+      "id": "edge:agent-holds-refund-grant",
+      "source": "agent:refund",
+      "target": "grant:refund-recommend",
+      "type": "holdsSignedGrant"
+    },
+    {
+      "conditions": [],
+      "id": "edge:refund-grant-capability",
+      "source": "grant:refund-recommend",
+      "target": "capability:refund-recommend",
+      "type": "grantsSignedCapability"
+    },
+    {
+      "conditions": [],
+      "id": "edge:refund-capability-action",
+      "source": "capability:refund-recommend",
+      "target": "action:refund-recommend",
+      "type": "authorizesAction"
+    },
+    {
+      "conditions": [],
+      "id": "edge:identity-holds-payment-grant",
+      "source": "identity:refund-automation",
+      "target": "grant:payment-execute",
+      "type": "holdsSignedGrant"
+    },
+    {
+      "conditions": [],
+      "id": "edge:payment-grant-capability",
+      "source": "grant:payment-execute",
+      "target": "capability:payment-execute",
+      "type": "grantsSignedCapability"
+    },
+    {
+      "conditions": [],
+      "id": "edge:payment-capability-action",
+      "source": "capability:payment-execute",
+      "target": "sink:payment-execute",
+      "type": "authorizesAction"
+    }
+  ],
+  "graph_id": "agentforce-refund-before",
+  "nodes": [
+    {
+      "attributes": {},
+      "id": "agent:refund",
+      "label": "Agentforce Refund Agent",
+      "type": "Agent"
+    },
+    {
+      "attributes": {
+        "delegation_depth": 0,
+        "grant_id": "grant-refund-recommend",
+        "issuer_principal": "refund-owner@example.com"
+      },
+      "id": "grant:refund-recommend",
+      "label": "Refund recommendation grant",
+      "type": "SignedGrant"
+    },
+    {
+      "attributes": {},
+      "id": "capability:refund-recommend",
+      "label": "refund.recommend",
+      "type": "Capability"
+    },
+    {
+      "attributes": {},
+      "id": "action:refund-recommend",
+      "label": "Recommend refund",
+      "type": "Action"
+    },
+    {
+      "attributes": {},
+      "id": "identity:refund-automation",
+      "label": "Refund automation service identity",
+      "type": "ServiceIdentity"
+    },
+    {
+      "attributes": {
+        "delegation_depth": 1,
+        "grant_id": "grant-payment-execute",
+        "issuer_principal": "payments-platform@example.com"
+      },
+      "id": "grant:payment-execute",
+      "label": "Payment execution service grant",
+      "type": "SignedGrant"
+    },
+    {
+      "attributes": {},
+      "id": "capability:payment-execute",
+      "label": "payment.execute",
+      "type": "Capability"
+    },
+    {
+      "attributes": {},
+      "id": "sink:payment-execute",
+      "label": "Execute customer payment",
+      "type": "IrreversibleAction"
+    },
+    {
+      "attributes": {},
+      "id": "sink:customer-bulk-export",
+      "label": "Bulk export customer records",
+      "type": "IrreversibleAction"
+    }
+  ],
+  "organisation_id": "salesforce-demo.example",
+  "snapshot_hash": "sha256:20e9a235d84d2af570bc8898805b7b10eead1343979396ca05f7ca153d89f3ab",
+  "snapshot_time": "2026-07-28T12:30:00Z"
+}

@@ -1,0 +1,26 @@
+{
+  "after": {
+    "sink:customer-bulk-export": "UNREACHABLE",
+    "sink:payment-execute": "PROHIBITED_REACHABLE"
+  },
+  "before": {
+    "sink:customer-bulk-export": "UNREACHABLE",
+    "sink:payment-execute": "UNREACHABLE"
+  },
+  "context": {
+    "environment": "production"
+  },
+  "decision": "BLOCK_PROPOSED_CHANGE",
+  "newly_prohibited_sinks": [
+    "sink:payment-execute"
+  ],
+  "newly_reachable_sinks": [
+    "sink:payment-execute"
+  ],
+  "reason_codes": [
+    "DIRECT_GRANT_REQUIRED",
+    "MAXIMUM_DELEGATION_DEPTH_EXCEEDED",
+    "ISSUER_NOT_ALLOWED"
+  ],
+  "source_node_id": "agent:refund"
+}

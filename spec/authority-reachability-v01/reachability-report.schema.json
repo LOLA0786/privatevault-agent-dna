@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://privatevault.ai/spec/authority-reachability-v01/reachability-report.schema.json",
+  "title": "PrivateVault Authority Reachability Report v0.1-experimental",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "spec",
+    "analysis_id",
+    "graph_id",
+    "graph_hash",
+    "organisation_id",
+    "analysis_time",
+    "source_node_id",
+    "summary",
+    "findings"
+  ],
+  "properties": {
+    "spec": {
+      "const": "pv-authority-reachability-report/0.1-experimental"
+    },
+    "analysis_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "graph_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "graph_hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "organisation_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "analysis_time": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$"
+    },
+    "source_node_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "UNREACHABLE",
+        "REACHABLE",
+        "PROHIBITED_REACHABLE",
+        "CONDITIONAL"
+      ],
+      "properties": {
+        "UNREACHABLE": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "REACHABLE": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "PROHIBITED_REACHABLE": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "CONDITIONAL": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source_node_id",
+          "sink_node_id",
+          "severity",
+          "state",
+          "reason_codes",
+          "witness",
+          "cut_candidates"
+        ],
+        "properties": {
+          "source_node_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sink_node_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "severity": {
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH",
+              "CRITICAL"
+            ]
+          },
+          "state": {
+            "enum": [
+              "UNREACHABLE",
+              "REACHABLE",
+              "PROHIBITED_REACHABLE",
+              "CONDITIONAL"
+            ]
+          },
+          "reason_codes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "witness": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "cut_candidates": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    }
+  }
+}

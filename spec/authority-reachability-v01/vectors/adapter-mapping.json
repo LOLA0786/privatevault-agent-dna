@@ -1,0 +1,58 @@
+{
+  "adapter": {
+    "adapter_version": "agentforce-graph/0.1-experimental",
+    "source_system": "salesforce-agentforce-synthetic"
+  },
+  "edge_mapping": {
+    "authorizesAction": {
+      "evidence_state": "DECLARED",
+      "kind": "AUTHORIZES",
+      "traversable": true
+    },
+    "canAssumeIdentity": {
+      "evidence_state": "DISCOVERED",
+      "kind": "CAN_ASSUME",
+      "traversable": true
+    },
+    "grantsSignedCapability": {
+      "evidence_state": "DECLARED",
+      "kind": "GRANTS",
+      "traversable": true
+    },
+    "holdsSignedGrant": {
+      "evidence_state": "DECLARED",
+      "kind": "HOLDS_GRANT",
+      "traversable": true
+    }
+  },
+  "node_mapping": {
+    "Action": "ACTION",
+    "Agent": "AGENT",
+    "Capability": "CAPABILITY",
+    "IrreversibleAction": "IRREVERSIBLE_SINK",
+    "ServiceIdentity": "IDENTITY",
+    "SignedGrant": "GRANT"
+  },
+  "protected_sinks": [
+    {
+      "allowed_issuers": [
+        "treasury-owner@example.com"
+      ],
+      "delegation_forbidden": false,
+      "direct_grant_required": true,
+      "maximum_delegation_depth": 0,
+      "node_id": "sink:payment-execute",
+      "severity": "CRITICAL"
+    },
+    {
+      "allowed_issuers": [
+        "data-owner@example.com"
+      ],
+      "delegation_forbidden": true,
+      "direct_grant_required": true,
+      "maximum_delegation_depth": 0,
+      "node_id": "sink:customer-bulk-export",
+      "severity": "CRITICAL"
+    }
+  ]
+}
