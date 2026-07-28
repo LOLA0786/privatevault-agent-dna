@@ -113,3 +113,27 @@ def test_independent_verifier_dependencies_are_declared() -> None:
 def test_authority_cli_is_explicitly_runtime_coupled() -> None:
     assert AUTHORITY_CLI not in INDEPENDENT_VERIFIERS
     assert "agent_dna" in _imported_roots(AUTHORITY_CLI)
+
+
+
+def test_authority_cli_claim_is_honest() -> None:
+    tree = ast.parse(
+        AUTHORITY_CLI.read_text(encoding="utf-8"),
+        filename=str(AUTHORITY_CLI),
+    )
+    module_docstring = ast.get_docstring(tree) or ""
+
+    assert "runtime-coupled" in module_docstring
+    assert (
+        "not an independently implemented verifier"
+        in module_docstring
+    )
+
+    protocol_readme = Path(
+        "spec/authority-v01/README.md"
+    ).read_text(encoding="utf-8")
+
+    assert (
+        "not an independently implemented authority verifier"
+        in protocol_readme.replace("\n", " ")
+    )

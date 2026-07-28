@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Offline Authority Provenance v0.1 verifier and scanner.
+"""Authority Provenance v0.1-experimental command-line tooling.
+
+This command can run offline without the PrivateVault API, database, or hosted
+service. It imports and delegates verification to agent_dna.authority_v01, so
+it is runtime-coupled and is not an independently implemented verifier.
 
 Exit codes:
   0  verified and conformant, or scan completed
