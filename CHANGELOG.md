@@ -6,6 +6,17 @@ and a named test that runs in CI.
 ## Unreleased
 
 ### Added
+- **Authority Reachability v0.1-experimental**: deterministic blast-radius
+  analysis over typed authority and company-knowledge graphs; explicit
+  evidence classes; protected irreversible sinks; shortest-path witnesses;
+  fail-closed conditions; direct-grant, issuer, and delegation-depth
+  invariants; before/after change simulation; deterministic report hashes;
+  signed report envelopes; JSON schemas; synthetic Agentforce vectors; and an
+  offline runtime-coupled CLI
+  (`experimental/authority_reachability_v01/`,
+  `spec/authority-reachability-v01/`,
+  `tools/pv_authority_reachability.py`; tests:
+  `test_authority_reachability_v01.py`).
 - **Authority Provenance v0.1-experimental**: strict trust-bundle, signed
   delegation-grant, and three-verdict receipt schemas; RFC 8785
   canonicalization over float-free I-JSON; Ed25519 key-usage enforcement;

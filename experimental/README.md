@@ -9,6 +9,13 @@ verifiable.
 
 Current contents and why:
 
+* `authority_reachability_v01/` — deterministic typed-graph reachability,
+  protected-sink analysis, company-graph adapter boundary, proposed-change
+  simulation, and signed report envelopes. It is quarantined while its graph
+  semantics and connector fidelity are validated with design partners. Unlike
+  the self-grading items below, it has deterministic vectors and executable
+  tests; it remains experimental because it has not yet been wired into the
+  production enforcement path or independently implemented verifier.
 * `security_validation/` + `run_security_suite.py` — adversarial
   "benchmark" whose adversaries grade themselves: JailbreakAgent.run()
   and RogueMCPAgent return "BLOCKED" and perfect scores WITHOUT

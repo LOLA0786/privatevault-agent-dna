@@ -1,0 +1,281 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://privatevault.ai/spec/authority-reachability-v01/authority-graph.schema.json",
+  "title": "PrivateVault Authority Graph v0.1-experimental",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "spec",
+    "graph_id",
+    "organisation_id",
+    "snapshot_time",
+    "source_snapshots",
+    "nodes",
+    "edges",
+    "protected_sinks"
+  ],
+  "properties": {
+    "spec": {
+      "const": "pv-authority-graph/0.1-experimental"
+    },
+    "graph_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "organisation_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "snapshot_time": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "source_snapshots": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/digest"
+      }
+    },
+    "nodes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/node"
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/edge"
+      }
+    },
+    "protected_sinks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/sink"
+      }
+    }
+  },
+  "$defs": {
+    "timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "node_id",
+        "kind",
+        "label",
+        "attributes"
+      ],
+      "properties": {
+        "node_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "PRINCIPAL",
+            "AGENT",
+            "IDENTITY",
+            "GRANT",
+            "CAPABILITY",
+            "ACTION",
+            "TOOL",
+            "RESOURCE",
+            "SERVICE",
+            "IRREVERSIBLE_SINK"
+          ]
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "attributes": {
+          "type": "object"
+        }
+      }
+    },
+    "condition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "field",
+        "operator",
+        "value"
+      ],
+      "properties": {
+        "field": {
+          "type": "string",
+          "minLength": 1
+        },
+        "operator": {
+          "enum": [
+            "eq",
+            "in",
+            "not_in",
+            "lte",
+            "gte"
+          ]
+        },
+        "value": {}
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_system",
+        "source_object_id",
+        "source_snapshot",
+        "adapter_version",
+        "observed_at"
+      ],
+      "properties": {
+        "source_system": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_object_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_snapshot": {
+          "$ref": "#/$defs/digest"
+        },
+        "adapter_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "observed_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "signer_key_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "edge_id",
+        "source",
+        "target",
+        "kind",
+        "traversable",
+        "evidence_state",
+        "conditions",
+        "provenance"
+      ],
+      "properties": {
+        "edge_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "ISSUED",
+            "HOLDS_GRANT",
+            "DELEGATED_TO",
+            "GRANTS",
+            "AUTHORIZES",
+            "CAN_ASSUME",
+            "CAN_INVOKE",
+            "EXPOSES",
+            "ENABLES",
+            "READS",
+            "WRITES",
+            "SCOPED_TO",
+            "REQUIRES_APPROVAL"
+          ]
+        },
+        "traversable": {
+          "type": "boolean"
+        },
+        "evidence_state": {
+          "enum": [
+            "VERIFIED",
+            "DECLARED",
+            "DISCOVERED",
+            "OBSERVED",
+            "UNVERIFIABLE",
+            "INVALID"
+          ]
+        },
+        "conditions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/condition"
+          }
+        },
+        "provenance": {
+          "$ref": "#/$defs/provenance"
+        }
+      }
+    },
+    "sink": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "node_id",
+        "severity",
+        "direct_grant_required",
+        "delegation_forbidden",
+        "maximum_delegation_depth",
+        "allowed_issuers"
+      ],
+      "properties": {
+        "node_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "severity": {
+          "enum": [
+            "LOW",
+            "MEDIUM",
+            "HIGH",
+            "CRITICAL"
+          ]
+        },
+        "direct_grant_required": {
+          "type": "boolean"
+        },
+        "delegation_forbidden": {
+          "type": "boolean"
+        },
+        "maximum_delegation_depth": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "allowed_issuers": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}
