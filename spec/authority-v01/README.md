@@ -21,6 +21,10 @@ Strict protocol rules:
 
 Verify one receipt with tools/pv_authority_cli.py.
 
+The authority CLI runs offline but imports `agent_dna.authority_v01`; it is
+runtime-coupled and is not an independently implemented authority verifier.
+The independently implemented ledger verifier is `tools/verify_records.py`.
+
 Run a readiness assessment with:
 
 pv authority scan --input actions.jsonl --trust-bundle trust-bundle.json

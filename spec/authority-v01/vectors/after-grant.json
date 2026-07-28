@@ -1,0 +1,156 @@
+{
+  "authority_input_boundary": "receipt.requested",
+  "business_checks": {
+    "agent_authenticated": "PASS",
+    "amount_within_limit": "PASS",
+    "counterparty_approved": "PASS",
+    "policy_threshold_satisfied": "PASS",
+    "tool_trusted": "PASS"
+  },
+  "expected": {
+    "accountable_principal": "refund-owner@example.com",
+    "authority_verdict": "ALLOW",
+    "decision_conformance": "CONFORMANT",
+    "evidence_state": "VERIFIED",
+    "final_verdict": "ALLOW",
+    "grant_id": "grant-refund-issue-RF-1042-10m"
+  },
+  "raw_input": {
+    "action": "refund.issue",
+    "case_id": "RF-1042"
+  },
+  "receipt": {
+    "authority_result": {
+      "reason_code": "AUTHORITY_GRANTED",
+      "verdict": "ALLOW"
+    },
+    "canonicalization": "RFC8785",
+    "composition_profile": "pv-fail-closed/0.1",
+    "decision_input_digest": "sha256:54fb9c61e5024a2cef4348bf20a52d147705c4013063b9b6b4ef62b8bc6e133b",
+    "decision_timestamp": "2026-07-28T12:05:00Z",
+    "final_verdict": "ALLOW",
+    "grant_chain": [
+      {
+        "can_delegate": false,
+        "canonicalization": "RFC8785",
+        "capabilities": [
+          {
+            "action": "refund.issue",
+            "constraints": [
+              {
+                "field": "amount",
+                "operator": "lte",
+                "value": {
+                  "currency": "USD",
+                  "minor_units": 15000
+                }
+              },
+              {
+                "field": "counterparty_approved",
+                "operator": "eq",
+                "value": true
+              },
+              {
+                "field": "agent_authenticated",
+                "operator": "eq",
+                "value": true
+              },
+              {
+                "field": "tool_trusted",
+                "operator": "eq",
+                "value": true
+              },
+              {
+                "field": "policy_threshold_satisfied",
+                "operator": "eq",
+                "value": true
+              }
+            ],
+            "obligations": [],
+            "resource": "refund-case:RF-1042"
+          }
+        ],
+        "expires_at": "2026-07-28T12:10:00Z",
+        "grant_id": "grant-refund-issue-RF-1042-10m",
+        "issuer_key_id": "owner-root-2026",
+        "issuer_principal": "refund-owner@example.com",
+        "issuer_signature": "ed25519:UQaNAseUntbTwXGQ1psT9gRdVYsWLE8Vc4Gr8u4Z1ChGq6i8tx4N+PAZDCHTnocTmPXxEk6tJHHzBxeXrn59Bg==",
+        "organisation_id": "salesforce-demo.example",
+        "parent_grant_digest": null,
+        "remaining_depth": 0,
+        "spec": "pv-grant/0.1-experimental",
+        "subject_key_id": "refund-agent-01",
+        "subject_principal": "refund-agent@example.com",
+        "valid_from": "2026-07-28T12:00:00Z"
+      }
+    ],
+    "organisation_id": "salesforce-demo.example",
+    "policy_result": {
+      "policy_digest": "sha256:987c2eb0de16cb66574f4c87f57cccf7123ba40712ea71f722d4f2bfe4debc30",
+      "policy_id": "REFUND-BUSINESS-CHECKS",
+      "policy_version": "1.0",
+      "verdict": "ALLOW"
+    },
+    "previous_receipt_hash": null,
+    "receipt_id": "after-grant",
+    "request_id": "request-after-grant",
+    "requested": {
+      "action": "refund.issue",
+      "facts": {
+        "agent_authenticated": true,
+        "amount": {
+          "currency": "USD",
+          "minor_units": 12500
+        },
+        "counterparty_approved": true,
+        "policy_threshold_satisfied": true,
+        "tool_trusted": true
+      },
+      "resource": "refund-case:RF-1042",
+      "subject_key_id": "refund-agent-01",
+      "subject_principal": "refund-agent@example.com"
+    },
+    "signature": "ed25519:Aikdnlvxny1d4gB+IGfgnAa3zzrL3WSMlIZA6IplEBYuLsTN/pgxwOa16VDUURnmODfswZc3Gq758xTFiUEjCA==",
+    "signer_key_id": "pv-runtime-01",
+    "spec": "pv-authority-receipt/0.1-experimental"
+  },
+  "scenario": "Owner issues a case-scoped ten-minute grant",
+  "trust_bundle": {
+    "bundle_version": 1,
+    "canonicalization": "RFC8785",
+    "keys": [
+      {
+        "algorithm": "ed25519",
+        "key_id": "owner-root-2026",
+        "principal": "refund-owner@example.com",
+        "public_key": "/Jf22oGCjoYF81LBvQNBelA/PeMXuXddtgwjg9yd4/E=",
+        "usages": [
+          "root_authority",
+          "grant_issuer"
+        ]
+      },
+      {
+        "algorithm": "ed25519",
+        "key_id": "refund-agent-01",
+        "principal": "refund-agent@example.com",
+        "public_key": "6U0+b0SeC3pI6JOhwiUsYAsBn2KhuJueBg2H8Fvab9g=",
+        "usages": [
+          "subject"
+        ]
+      },
+      {
+        "algorithm": "ed25519",
+        "key_id": "pv-runtime-01",
+        "principal": "privatevault-runtime@example.com",
+        "public_key": "pUhn6guUk7sv+jTn/VkAW4cQtz7fdzh5b3Y/4HMudXA=",
+        "usages": [
+          "receipt_signer"
+        ]
+      }
+    ],
+    "organisation_id": "salesforce-demo.example",
+    "pinned_at": "2026-07-28T12:00:00Z",
+    "spec": "pv-trust-bundle/0.1-experimental"
+  },
+  "vector_spec": "pv-authority-vector/0.1"
+}
