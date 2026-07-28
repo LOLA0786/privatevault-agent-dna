@@ -25,7 +25,7 @@ from tests.test_authority_v01 import (
     artifacts as _artifacts_fixture,  # noqa: F401
 )
 
-TOOL = Path("tools/verify_authority_v01.py")
+TOOL = Path("tools/pv_authority_cli.py")
 
 
 def test_no_bundle_is_unverifiable_not_invalid(
@@ -150,7 +150,7 @@ def test_receipt_sequence_linkage_is_checked(
     )
 
 
-def test_offline_verifier_accepts_valid_receipt(
+def test_authority_cli_accepts_valid_receipt(
     tmp_path,
     _artifacts_fixture,
 ):
