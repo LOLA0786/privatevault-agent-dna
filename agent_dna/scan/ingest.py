@@ -38,7 +38,7 @@ from typing import Any
 
 from ..trace import AgentAction
 
-FORMATS = ("auto", "mcp", "openai", "anthropic", "generic", "csv")
+FORMATS = ("auto", "mcp", "openai", "anthropic", "claude_code", "generic", "csv")
 
 # Keys we accept for each required field, in priority order. Real logs
 # disagree about names; this is the whole of the flexibility on offer.
@@ -274,6 +274,29 @@ def _extract_anthropic(obj: dict[str, Any]) -> list[dict[str, Any]]:
     return calls
 
 
+def _extract_claude_code(obj: dict[str, Any]) -> list[dict[str, Any]]:
+    """Claude Code / Cursor session lines nest the content array inside
+    `message`, unlike the raw Anthropic API shape. Session identity comes
+    from sessionId; the per-line uuid is the correlation id."""
+    message = obj.get("message")
+    if not isinstance(message, dict):
+        return []
+    content = message.get("content")
+    if not isinstance(content, list):
+        return []
+
+    calls: list[dict[str, Any]] = []
+    for block in content:
+        if not isinstance(block, dict) or block.get("type") != "tool_use":
+            continue
+        flat = {k: v for k, v in obj.items() if k != "message"}
+        flat["tool"] = block.get("name")
+        flat["arguments"] = block.get("input")
+        flat["call_id"] = block.get("id") or obj.get("uuid")
+        calls.append(flat)
+    return calls
+
+
 def _extract_generic(obj: dict[str, Any]) -> list[dict[str, Any]]:
     return [obj]
 
@@ -282,6 +305,7 @@ _EXTRACTORS = {
     "mcp": _extract_mcp,
     "openai": _extract_openai,
     "anthropic": _extract_anthropic,
+    "claude_code": _extract_claude_code,
     "generic": _extract_generic,
 }
 
@@ -343,6 +367,16 @@ def detect_format(path: str | Path) -> str:
             and any(
                 isinstance(b, dict) and b.get("type") == "tool_use"
                 for b in o["content"]
+            )
+        ),
+        "claude_code": sum(
+            1
+            for o in parsed
+            if isinstance(o.get("message"), dict)
+            and isinstance(o["message"].get("content"), list)
+            and any(
+                isinstance(b, dict) and b.get("type") == "tool_use"
+                for b in o["message"]["content"]
             )
         ),
     }

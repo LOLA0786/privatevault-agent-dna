@@ -22,3 +22,4 @@ data/*.db-shm
 *.egg-info
 __pycache__/
 proof-of-run.json
+*.pre-claude-code
