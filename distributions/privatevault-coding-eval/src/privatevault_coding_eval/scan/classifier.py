@@ -209,7 +209,7 @@ def _git(
 
     return Classification(
         "git.push",
-        "sink:git-push",
+        None,
         "bash.git-push",
     )
 
