@@ -27,3 +27,28 @@ the actual results and prepares evidence for external review.
 
 It is an evaluation harness, not an independently implemented verifier and not
 a separate authorization runtime.
+
+## Scan an observed Claude Code session
+
+After installing the package, scan one Claude Code JSONL transcript:
+
+~~~bash
+pv-coding-eval scan \
+  --claude-jsonl /path/to/session.jsonl \
+  --output observed-events.jsonl
+~~~
+
+The scanner emits the strict `pv-coding-observed-event/0.1` JSONL contract.
+Compound Bash requests can produce multiple ordered capability events.
+
+Privacy and failure behavior:
+
+- Raw prompts, tool arguments, file contents, session IDs and tool-use IDs are not written.
+- Inputs, source paths and source files use SHA-256 digests.
+- Session, agent and event identifiers are pseudonymous.
+- Activity evidence is marked `OBSERVED`; authority is not inferred.
+- Malformed, mixed-session, duplicate, mutated and empty inputs fail closed.
+- Output replacement is atomic and completed files use `0600` permissions.
+
+The adapter supports Claude Code assistant-message `tool_use` JSONL only. It
+does not claim support for unrelated transcript formats.

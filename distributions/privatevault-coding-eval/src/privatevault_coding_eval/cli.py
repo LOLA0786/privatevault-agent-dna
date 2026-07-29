@@ -16,6 +16,10 @@ from .doctor import (
     render_doctor_text,
 )
 from .harness import run_suite
+from .scan import (
+    iter_claude_code_events,
+    write_events_jsonl,
+)
 from .scenario import load_scenario
 from .verification import (
     VerificationError,
@@ -83,6 +87,21 @@ def _parser() -> argparse.ArgumentParser:
         type=Path,
     )
 
+    scan = commands.add_parser(
+        "scan",
+        help="scan an observed Claude Code session",
+    )
+    scan.add_argument(
+        "--claude-jsonl",
+        type=Path,
+        required=True,
+    )
+    scan.add_argument(
+        "--output",
+        type=Path,
+        default=Path("observed-events.jsonl"),
+    )
+
     verify = commands.add_parser(
         "verify",
         help=(
@@ -142,10 +161,24 @@ def _read_object(
 def _key_path(
     arguments: argparse.Namespace,
 ) -> Path:
-    if arguments.public_key_output is not None:
-        return arguments.public_key_output
+    public_key_output = arguments.public_key_output
 
-    return arguments.output.with_suffix(
+    if public_key_output is not None:
+        if not isinstance(public_key_output, Path):
+            raise ValueError(
+                "invalid public-key output path"
+            )
+
+        return public_key_output
+
+    output = arguments.output
+
+    if not isinstance(output, Path):
+        raise ValueError(
+            "invalid report output path"
+        )
+
+    return output.with_suffix(
         ".public-key.json"
     )
 
@@ -209,6 +242,27 @@ def _run(
     )
 
     return 0 if report["passed"] else 1
+
+
+def _scan(
+    arguments: argparse.Namespace,
+) -> int:
+    count = write_events_jsonl(
+        arguments.output,
+        iter_claude_code_events(
+            arguments.claude_jsonl,
+        ),
+    )
+
+    print("PRIVATEVAULT CODING SESSION SCAN")
+    print("=" * 56)
+    print("Source             CLAUDE_CODE_JSONL")
+    print(f"Events observed    {count}")
+    print(f"Output             {arguments.output}")
+    print("Evidence state     OBSERVED")
+    print("VERDICT            COMPLETE")
+
+    return 0
 
 
 def _trusted_key(
@@ -333,6 +387,9 @@ def main(
 
         if arguments.command == "run":
             return _run(arguments)
+
+        if arguments.command == "scan":
+            return _scan(arguments)
 
         if arguments.command == "verify":
             return _verify(arguments)

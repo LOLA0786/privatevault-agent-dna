@@ -57,7 +57,14 @@ include = ["agent_dna*", "api*"]
 exclude = ["tests*", "examples*", "docs*"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = [
+    "tests",
+    "distributions/privatevault-coding-eval/tests",
+]
+pythonpath = [
+    ".",
+    "distributions/privatevault-coding-eval/src",
+]
 addopts = "-v --tb=short --strict-markers"
 
 [tool.ruff]
