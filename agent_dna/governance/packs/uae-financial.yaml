@@ -1,0 +1,196 @@
+pack_id: uae-cbuae-ai-governance-readiness
+version: "0.1.0"
+jurisdiction: AE
+title: CBUAE Responsible AI Governance Readiness Mapping
+
+notes: >
+  Synthetic readiness mapping to CBUAE guidance for licensed financial
+  institutions. These controls record proposed organisational mappings.
+  They do not claim that CBUAE directly produces a per-action runtime
+  verdict. No mapped control becomes binding until a customer approves,
+  signs and activates its own executable policy.
+
+source_requirements:
+  - requirement_id: SRC-AE-CBUAE-AI-GOV-2A
+    effective_from: "2026-02-11"
+    source:
+      authority: Central Bank of the United Arab Emirates
+      document: Guidance Note on Responsible Adoption and Use of AI and ML
+      jurisdiction: AE
+      status: guidance
+      citation: Section 2(a) — Documented governance framework
+      citation_status: verified
+      source_url: https://rulebook.centralbank.ae/en/rulebook/guidance-note-consumer-protection-and-responsible-adoption-and-use-artificial-intelligence
+      source_hash: ""
+      retrieved_at: "2026-07-29"
+
+  - requirement_id: SRC-AE-CBUAE-AI-GOV-2B
+    effective_from: "2026-02-11"
+    source:
+      authority: Central Bank of the United Arab Emirates
+      document: Guidance Note on Responsible Adoption and Use of AI and ML
+      jurisdiction: AE
+      status: guidance
+      citation: Section 2(b) — Senior-management and Board accountability
+      citation_status: verified
+      source_url: https://rulebook.centralbank.ae/en/rulebook/guidance-note-consumer-protection-and-responsible-adoption-and-use-artificial-intelligence
+      source_hash: ""
+      retrieved_at: "2026-07-29"
+
+  - requirement_id: SRC-AE-CBUAE-AI-GOV-2C
+    effective_from: "2026-02-11"
+    source:
+      authority: Central Bank of the United Arab Emirates
+      document: Guidance Note on Responsible Adoption and Use of AI and ML
+      jurisdiction: AE
+      status: guidance
+      citation: Section 2(c) — Reporting to senior management and Boards
+      citation_status: verified
+      source_url: https://rulebook.centralbank.ae/en/rulebook/guidance-note-consumer-protection-and-responsible-adoption-and-use-artificial-intelligence
+      source_hash: ""
+      retrieved_at: "2026-07-29"
+
+  - requirement_id: SRC-AE-CBUAE-AI-GOV-2D
+    effective_from: "2026-02-11"
+    source:
+      authority: Central Bank of the United Arab Emirates
+      document: Guidance Note on Responsible Adoption and Use of AI and ML
+      jurisdiction: AE
+      status: guidance
+      citation: Section 2(d) — Risk appetite and legal-obligation alignment
+      citation_status: verified
+      source_url: https://rulebook.centralbank.ae/en/rulebook/guidance-note-consumer-protection-and-responsible-adoption-and-use-artificial-intelligence
+      source_hash: ""
+      retrieved_at: "2026-07-29"
+
+controls:
+  - control_id: ORG-AE-AI-GOVERNANCE-FRAMEWORK-001
+    title: Institution should maintain a documented AI governance framework
+    mapped_requirements:
+      - SRC-AE-CBUAE-AI-GOV-2A
+
+    source:
+      authority: Example UAE Licensed Financial Institution
+      document: Proposed CBUAE AI Governance Readiness Mapping
+      jurisdiction: AE
+      status: internal-policy
+      citation: Mapping of CBUAE Guidance Section 2(a)
+      citation_status: verified
+      source_url: ""
+      source_hash: ""
+      retrieved_at: "2026-07-29"
+
+    applicability:
+      entity_types:
+        - bank
+      action_classes:
+        - payment_execution
+        - credit_decision
+        - customer_data_export
+      risk_tiers:
+        - high
+        - critical
+
+    mode: assessment
+    lifecycle: expert-mapped
+    interpretation_owner: Pending customer governance function
+    approved_by: ""
+
+  - control_id: ORG-AE-BOARD-OVERSIGHT-EVIDENCE-001
+    title: High-impact AI use should carry oversight evidence
+    mapped_requirements:
+      - SRC-AE-CBUAE-AI-GOV-2B
+      - SRC-AE-CBUAE-AI-GOV-2C
+
+    source:
+      authority: Example UAE Licensed Financial Institution
+      document: Proposed CBUAE AI Governance Readiness Mapping
+      jurisdiction: AE
+      status: internal-policy
+      citation: Mapping of CBUAE Guidance Sections 2(b) and 2(c)
+      citation_status: verified
+      source_url: ""
+      source_hash: ""
+      retrieved_at: "2026-07-29"
+
+    applicability:
+      entity_types:
+        - bank
+      action_classes:
+        - payment_execution
+        - credit_decision
+      risk_tiers:
+        - high
+        - critical
+
+    mode: evidence
+    lifecycle: expert-mapped
+    evidence_required:
+      - governance_approval_id
+      - model_owner
+    interpretation_owner: Pending customer governance function
+    approved_by: ""
+
+  - control_id: ORG-AE-TECHNOLOGY-REGISTER-001
+    title: Technology-register coverage requires organisational assessment
+    mapped_requirements:
+      - SRC-AE-CBUAE-AI-GOV-2A
+
+    source:
+      authority: Example UAE Licensed Financial Institution
+      document: Proposed CBUAE AI Governance Readiness Mapping
+      jurisdiction: AE
+      status: internal-policy
+      citation: Proposed organisational register mapping
+      citation_status: verified
+      source_url: ""
+      source_hash: ""
+      retrieved_at: "2026-07-29"
+
+    applicability:
+      entity_types:
+        - bank
+      action_classes:
+        - payment_execution
+        - credit_decision
+        - customer_data_export
+      risk_tiers:
+        - high
+        - critical
+
+    mode: assessment
+    lifecycle: draft
+    interpretation_owner: Pending customer technology-risk function
+    approved_by: ""
+
+  - control_id: ORG-AE-RISK-ALIGNMENT-001
+    title: Risk-appetite and legal alignment require institutional judgement
+    mapped_requirements:
+      - SRC-AE-CBUAE-AI-GOV-2D
+
+    source:
+      authority: Example UAE Licensed Financial Institution
+      document: Proposed CBUAE AI Governance Readiness Mapping
+      jurisdiction: AE
+      status: internal-policy
+      citation: Mapping of CBUAE Guidance Section 2(d)
+      citation_status: verified
+      source_url: ""
+      source_hash: ""
+      retrieved_at: "2026-07-29"
+
+    applicability:
+      entity_types:
+        - bank
+      action_classes:
+        - payment_execution
+        - credit_decision
+        - customer_data_export
+      risk_tiers:
+        - high
+        - critical
+
+    mode: human_review
+    lifecycle: draft
+    interpretation_owner: Pending customer risk and compliance functions
+    approved_by: ""

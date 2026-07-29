@@ -1,0 +1,153 @@
+pack_id: canada-osfi-e23-readiness
+version: "0.1.0"
+jurisdiction: CA
+title: OSFI E-23 Model Risk Management Readiness Mapping
+
+notes: >
+  Synthetic readiness mapping to OSFI Guideline E-23. The guideline becomes
+  effective on 2027-05-01. These organisation controls demonstrate proposed
+  technical mappings only. They do not claim that OSFI directly requires a
+  per-action PrivateVault verdict. Only a separately activated customer policy
+  may bind execution.
+
+source_requirements:
+  - requirement_id: SRC-CA-OSFI-E23-2.1
+    effective_from: "2027-05-01"
+    source:
+      authority: Office of the Superintendent of Financial Institutions
+      document: Guideline E-23 — Model Risk Management
+      jurisdiction: CA
+      status: guidance
+      citation: Principle 2.1 — Model identification and inventory
+      citation_status: verified
+      source_url: https://www.osfi-bsif.gc.ca/en/guidance/guidance-library/guideline-e-23-model-risk-management-2027
+      source_hash: ""
+      retrieved_at: "2026-07-29"
+
+  - requirement_id: SRC-CA-OSFI-E23-3.4
+    effective_from: "2027-05-01"
+    source:
+      authority: Office of the Superintendent of Financial Institutions
+      document: Guideline E-23 — Model Risk Management
+      jurisdiction: CA
+      status: guidance
+      citation: Principle 3.4 — Independent model review
+      citation_status: verified
+      source_url: https://www.osfi-bsif.gc.ca/en/guidance/guidance-library/guideline-e-23-model-risk-management-2027
+      source_hash: ""
+      retrieved_at: "2026-07-29"
+
+  - requirement_id: SRC-CA-OSFI-E23-2.2
+    effective_from: "2027-05-01"
+    source:
+      authority: Office of the Superintendent of Financial Institutions
+      document: Guideline E-23 — Model Risk Management
+      jurisdiction: CA
+      status: guidance
+      citation: Principle 2.2 — Model risk rating and residual risk
+      citation_status: verified
+      source_url: https://www.osfi-bsif.gc.ca/en/guidance/guidance-library/guideline-e-23-model-risk-management-2027
+      source_hash: ""
+      retrieved_at: "2026-07-29"
+
+controls:
+  - control_id: ORG-CA-MODEL-INVENTORY-001
+    title: High-impact model should exist in the model inventory
+    mapped_requirements:
+      - SRC-CA-OSFI-E23-2.1
+
+    source:
+      authority: Example Canadian Financial Institution
+      document: Proposed E-23 Readiness Control Mapping
+      jurisdiction: CA
+      status: internal-policy
+      citation: Mapping of OSFI E-23 Principle 2.1
+      citation_status: verified
+      source_url: ""
+      source_hash: ""
+      retrieved_at: "2026-07-29"
+
+    applicability:
+      entity_types:
+        - bank
+      action_classes:
+        - payment_execution
+        - credit_decision
+      risk_tiers:
+        - high
+        - critical
+
+    mode: runtime
+    lifecycle: customer-approved
+    required_facts:
+      - model_inventory_id
+    assertion: "model_inventory_id != 'none'"
+    missing_fact_result: REVIEW
+    failed_control_result: BLOCK
+    interpretation_owner: Example Canadian Model Risk Committee
+    approved_by: Example Canadian Chief Risk Officer
+
+  - control_id: ORG-CA-INDEPENDENT-REVIEW-001
+    title: Independent model review evidence should be available
+    mapped_requirements:
+      - SRC-CA-OSFI-E23-3.4
+
+    source:
+      authority: Example Canadian Financial Institution
+      document: Proposed E-23 Readiness Control Mapping
+      jurisdiction: CA
+      status: internal-policy
+      citation: Mapping of OSFI E-23 Principle 3.4
+      citation_status: verified
+      source_url: ""
+      source_hash: ""
+      retrieved_at: "2026-07-29"
+
+    applicability:
+      entity_types:
+        - bank
+      action_classes:
+        - payment_execution
+        - credit_decision
+      risk_tiers:
+        - high
+        - critical
+
+    mode: evidence
+    lifecycle: draft
+    evidence_required:
+      - model_review_id
+      - reviewer_identity
+    interpretation_owner: Pending customer model validation function
+    approved_by: ""
+
+  - control_id: ORG-CA-RESIDUAL-RISK-001
+    title: Residual model risk requires institutional judgement
+    mapped_requirements:
+      - SRC-CA-OSFI-E23-2.2
+
+    source:
+      authority: Example Canadian Financial Institution
+      document: Proposed E-23 Readiness Control Mapping
+      jurisdiction: CA
+      status: internal-policy
+      citation: Mapping of OSFI E-23 Principle 2.2
+      citation_status: verified
+      source_url: ""
+      source_hash: ""
+      retrieved_at: "2026-07-29"
+
+    applicability:
+      entity_types:
+        - bank
+      action_classes:
+        - payment_execution
+        - credit_decision
+      risk_tiers:
+        - high
+        - critical
+
+    mode: human_review
+    lifecycle: draft
+    interpretation_owner: Pending customer model risk function
+    approved_by: ""

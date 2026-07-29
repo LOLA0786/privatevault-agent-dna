@@ -1,0 +1,155 @@
+pack_id: customer-internal-policy
+version: "0.1.0"
+jurisdiction: ORG
+title: Customer Internal AI and Data Governance Policy
+
+notes: >
+  Synthetic customer-owned policy used to demonstrate the distinction between
+  non-binding regulatory mappings and active institution-approved controls.
+  This pack makes no claim of legal or regulatory compliance.
+
+source_requirements:
+  - requirement_id: SRC-ORG-AI-POLICY-4.1
+    effective_from: "2026-07-29"
+    source:
+      authority: Example Financial Institution
+      document: Internal AI and Data Governance Policy v0.1
+      jurisdiction: ORG
+      status: internal-policy
+      citation: Section 4.1 — Approved models
+      citation_status: verified
+      source_url: ""
+      source_hash: sha256:6433040d2cdef606f5f345d6502c6b25350ec7f09d4da9d8e5798568631806dd
+      retrieved_at: "2026-07-29"
+
+  - requirement_id: SRC-ORG-AI-POLICY-4.2
+    effective_from: "2026-07-29"
+    source:
+      authority: Example Financial Institution
+      document: Internal AI and Data Governance Policy v0.1
+      jurisdiction: ORG
+      status: internal-policy
+      citation: Section 4.2 — Approved data destinations
+      citation_status: verified
+      source_url: ""
+      source_hash: sha256:6433040d2cdef606f5f345d6502c6b25350ec7f09d4da9d8e5798568631806dd
+      retrieved_at: "2026-07-29"
+
+  - requirement_id: SRC-ORG-AI-POLICY-4.3
+    effective_from: "2026-07-29"
+    source:
+      authority: Example Financial Institution
+      document: Internal AI and Data Governance Policy v0.1
+      jurisdiction: ORG
+      status: internal-policy
+      citation: Section 4.3 — High-impact approval evidence
+      citation_status: verified
+      source_url: ""
+      source_hash: sha256:6433040d2cdef606f5f345d6502c6b25350ec7f09d4da9d8e5798568631806dd
+      retrieved_at: "2026-07-29"
+
+controls:
+  - control_id: ORG-MODEL-APPROVED-001
+    title: Approved model required for high-impact actions
+    mapped_requirements:
+      - SRC-ORG-AI-POLICY-4.1
+
+    source:
+      authority: Example Financial Institution
+      document: Internal AI and Data Governance Policy v0.1
+      jurisdiction: ORG
+      status: internal-policy
+      citation: Section 4.1 — Approved models
+      citation_status: verified
+      source_url: ""
+      source_hash: sha256:6433040d2cdef606f5f345d6502c6b25350ec7f09d4da9d8e5798568631806dd
+      retrieved_at: "2026-07-29"
+
+    applicability:
+      entity_types: []
+      action_classes:
+        - payment_execution
+        - credit_decision
+      risk_tiers:
+        - high
+        - critical
+
+    mode: runtime
+    lifecycle: active
+    required_facts:
+      - model_approval_status
+    assertion: "model_approval_status == 'approved'"
+    missing_fact_result: REVIEW
+    failed_control_result: BLOCK
+    interpretation_owner: Example Model Risk Committee
+    approved_by: Example Chief Risk Officer
+
+  - control_id: ORG-DATA-EGRESS-001
+    title: Destination must be approved by customer policy
+    mapped_requirements:
+      - SRC-ORG-AI-POLICY-4.2
+
+    source:
+      authority: Example Financial Institution
+      document: Internal AI and Data Governance Policy v0.1
+      jurisdiction: ORG
+      status: internal-policy
+      citation: Section 4.2 — Approved data destinations
+      citation_status: verified
+      source_url: ""
+      source_hash: sha256:6433040d2cdef606f5f345d6502c6b25350ec7f09d4da9d8e5798568631806dd
+      retrieved_at: "2026-07-29"
+
+    applicability:
+      entity_types: []
+      action_classes:
+        - payment_execution
+        - customer_data_export
+      risk_tiers:
+        - high
+        - critical
+
+    mode: runtime
+    lifecycle: active
+    required_facts:
+      - destination_country
+      - approved_destination_countries
+    assertion: "destination_country in approved_destination_countries"
+    missing_fact_result: REVIEW
+    failed_control_result: BLOCK
+    interpretation_owner: Example Data Governance Committee
+    approved_by: Example Chief Data Officer
+
+  - control_id: ORG-HIGH-IMPACT-APPROVAL-EVIDENCE-001
+    title: High-impact action must capture approval evidence
+    mapped_requirements:
+      - SRC-ORG-AI-POLICY-4.3
+
+    source:
+      authority: Example Financial Institution
+      document: Internal AI and Data Governance Policy v0.1
+      jurisdiction: ORG
+      status: internal-policy
+      citation: Section 4.3 — High-impact approval evidence
+      citation_status: verified
+      source_url: ""
+      source_hash: sha256:6433040d2cdef606f5f345d6502c6b25350ec7f09d4da9d8e5798568631806dd
+      retrieved_at: "2026-07-29"
+
+    applicability:
+      entity_types: []
+      action_classes:
+        - payment_execution
+        - credit_decision
+        - customer_data_export
+      risk_tiers:
+        - high
+        - critical
+
+    mode: evidence
+    lifecycle: active
+    evidence_required:
+      - approval_id
+      - approver_identity
+    interpretation_owner: Example AI Governance Committee
+    approved_by: Example Chief Risk Officer
