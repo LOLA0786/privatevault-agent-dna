@@ -54,7 +54,7 @@ jobs:
 
       # Regression guard: the Rust work must never break Python.
       - name: Full Python suite
-        run: python -m pytest tests/ -q
+        run: python -m pytest -q
 
   rust-supply-chain:
     runs-on: ubuntu-latest
