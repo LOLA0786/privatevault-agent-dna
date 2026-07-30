@@ -42,6 +42,9 @@ SUPPORTED_USAGES = frozenset(
         "subject",
         "receipt_signer",
         "approval_signer",
+        "execution_authorization_signer",
+        "dispatch_witness_signer",
+        "closure_signer",
     }
 )
 VERDICTS = frozenset({"ALLOW", "DENY", "REQUIRE_APPROVAL"})
