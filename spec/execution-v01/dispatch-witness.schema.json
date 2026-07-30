@@ -1,0 +1,169 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://privatevault.ai/spec/execution-v01/dispatch-witness.schema.json",
+  "title": "PrivateVault Dispatch Witness v0.1-experimental",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "spec",
+    "canonicalization",
+    "dispatch_witness_id",
+    "organisation_id",
+    "request_id",
+    "execution_authorization_id",
+    "execution_authorization_digest",
+    "observed_at",
+    "attempt",
+    "witness_component_id",
+    "observed_action_digest",
+    "observed_dispatch",
+    "wire_content_type",
+    "wire_content_encoding",
+    "wire_bytes_digest",
+    "wire_bytes_length",
+    "peer_identity_digest",
+    "trust_bundle_digest",
+    "signer_key_id",
+    "signature"
+  ],
+  "properties": {
+    "spec": {
+      "const": "pv-dispatch-witness/0.1-experimental"
+    },
+    "canonicalization": {
+      "const": "RFC8785"
+    },
+    "dispatch_witness_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "organisation_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "execution_authorization_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "execution_authorization_digest": {
+      "$ref": "#/$defs/sha256Digest"
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "attempt": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "witness_component_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "observed_action_digest": {
+      "$ref": "#/$defs/sha256Digest"
+    },
+    "observed_dispatch": {
+      "$ref": "#/$defs/observedDispatch"
+    },
+    "wire_content_type": {
+      "type": "string",
+      "minLength": 1
+    },
+    "wire_content_encoding": {
+      "type": "string",
+      "minLength": 1
+    },
+    "wire_bytes_digest": {
+      "$ref": "#/$defs/sha256Digest"
+    },
+    "wire_bytes_length": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "peer_identity_digest": {
+      "$ref": "#/$defs/sha256Digest"
+    },
+    "trust_bundle_digest": {
+      "$ref": "#/$defs/sha256Digest"
+    },
+    "signer_key_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "signature": {
+      "type": "string",
+      "pattern": "^ed25519:[A-Za-z0-9+/]+={0,2}$"
+    }
+  },
+  "$defs": {
+    "sha256Digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "observedDispatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "transport",
+        "destination",
+        "operation",
+        "wire_content_type",
+        "wire_content_encoding",
+        "tool_id",
+        "tool_schema_digest",
+        "tool_artifact_digest",
+        "credential_audience",
+        "idempotency_key_digest",
+        "retry_policy_digest"
+      ],
+      "properties": {
+        "transport": {
+          "type": "string",
+          "minLength": 1
+        },
+        "destination": {
+          "type": "string",
+          "minLength": 1
+        },
+        "operation": {
+          "type": "string",
+          "minLength": 1
+        },
+        "wire_content_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "wire_content_encoding": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tool_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tool_schema_digest": {
+          "$ref": "#/$defs/sha256Digest"
+        },
+        "tool_artifact_digest": {
+          "$ref": "#/$defs/sha256Digest"
+        },
+        "credential_audience": {
+          "type": "string",
+          "minLength": 1
+        },
+        "idempotency_key_digest": {
+          "$ref": "#/$defs/sha256Digest"
+        },
+        "retry_policy_digest": {
+          "$ref": "#/$defs/sha256Digest"
+        }
+      }
+    }
+  }
+}

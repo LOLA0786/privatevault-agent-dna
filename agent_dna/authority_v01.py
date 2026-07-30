@@ -42,6 +42,9 @@ SUPPORTED_USAGES = frozenset(
         "subject",
         "receipt_signer",
         "approval_signer",
+        "execution_authorization_signer",
+        "dispatch_witness_signer",
+        "closure_signer",
     }
 )
 VERDICTS = frozenset({"ALLOW", "DENY", "REQUIRE_APPROVAL"})
@@ -332,6 +335,20 @@ def _verify_signature(
         signature,
     )
     return True
+
+
+def verify_document_signature(
+    document: Mapping[str, Any],
+    *,
+    signature_field: str,
+    public_key: Any,
+) -> bool:
+    """Verify a canonical Ed25519-signed document."""
+    return _verify_signature(
+        document,
+        signature_field=signature_field,
+        public_key=public_key,
+    )
 
 
 def _require_object(value: Any, path: str) -> Mapping[str, Any]:
