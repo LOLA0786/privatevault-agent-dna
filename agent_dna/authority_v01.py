@@ -36,7 +36,13 @@ RFC3339_UTC_RE = re.compile(
 )
 SUPPORTED_OPERATORS = frozenset({"lte", "gte", "in", "not_in", "eq"})
 SUPPORTED_USAGES = frozenset(
-    {"root_authority", "grant_issuer", "subject", "receipt_signer"}
+    {
+        "root_authority",
+        "grant_issuer",
+        "subject",
+        "receipt_signer",
+        "approval_signer",
+    }
 )
 VERDICTS = frozenset({"ALLOW", "DENY", "REQUIRE_APPROVAL"})
 MAX_SAFE_INTEGER = (1 << 53) - 1
