@@ -334,6 +334,20 @@ def _verify_signature(
     return True
 
 
+def verify_document_signature(
+    document: Mapping[str, Any],
+    *,
+    signature_field: str,
+    public_key: Any,
+) -> bool:
+    """Verify a canonical Ed25519-signed document."""
+    return _verify_signature(
+        document,
+        signature_field=signature_field,
+        public_key=public_key,
+    )
+
+
 def _require_object(value: Any, path: str) -> Mapping[str, Any]:
     if not isinstance(value, Mapping):
         raise AuthorityFormatError(f"{path}: expected object")
