@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://privatevault.ai/spec/approval-v01/approval-request.schema.json",
+  "title": "PrivateVault Approval Request v0.1-experimental",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "spec",
+    "canonicalization",
+    "approval_request_id",
+    "organisation_id",
+    "request_id",
+    "created_at",
+    "expires_at",
+    "nonce",
+    "decision_input_digest",
+    "action",
+    "action_digest",
+    "evidence_manifest_digest",
+    "presentation_digest",
+    "approval_requirement_digest"
+  ],
+  "properties": {
+    "spec": {
+      "const": "pv-approval-request/0.1-experimental"
+    },
+    "canonicalization": {
+      "const": "RFC8785"
+    },
+    "approval_request_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "organisation_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "nonce": {
+      "type": "string",
+      "minLength": 16,
+      "maxLength": 256
+    },
+    "decision_input_digest": {
+      "$ref": "#/$defs/sha256Digest"
+    },
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "subject_principal",
+        "subject_key_id",
+        "action",
+        "resource",
+        "parameters"
+      ],
+      "properties": {
+        "subject_principal": {
+          "type": "string",
+          "minLength": 1
+        },
+        "subject_key_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "action": {
+          "type": "string",
+          "minLength": 1
+        },
+        "resource": {
+          "type": "string",
+          "minLength": 1
+        },
+        "parameters": {
+          "type": "object"
+        }
+      }
+    },
+    "action_digest": {
+      "$ref": "#/$defs/sha256Digest"
+    },
+    "evidence_manifest_digest": {
+      "$ref": "#/$defs/sha256Digest"
+    },
+    "presentation_digest": {
+      "$ref": "#/$defs/sha256Digest"
+    },
+    "approval_requirement_digest": {
+      "$ref": "#/$defs/sha256Digest"
+    }
+  },
+  "$defs": {
+    "sha256Digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  }
+}

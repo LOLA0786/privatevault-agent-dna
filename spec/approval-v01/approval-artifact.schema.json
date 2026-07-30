@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://privatevault.ai/spec/approval-v01/approval-artifact.schema.json",
+  "title": "PrivateVault Approval Artifact v0.1-experimental",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "spec",
+    "canonicalization",
+    "approval_id",
+    "approval_request_id",
+    "approval_request_digest",
+    "organisation_id",
+    "request_id",
+    "decision_input_digest",
+    "action_digest",
+    "evidence_manifest_digest",
+    "presentation_digest",
+    "approval_requirement_digest",
+    "approver_principal",
+    "approver_key_id",
+    "approver_authority_digest",
+    "decision",
+    "decided_at",
+    "expires_at",
+    "signature"
+  ],
+  "properties": {
+    "spec": {
+      "const": "pv-approval-artifact/0.1-experimental"
+    },
+    "canonicalization": {
+      "const": "RFC8785"
+    },
+    "approval_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "approval_request_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "approval_request_digest": {
+      "$ref": "#/$defs/sha256Digest"
+    },
+    "organisation_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "decision_input_digest": {
+      "$ref": "#/$defs/sha256Digest"
+    },
+    "action_digest": {
+      "$ref": "#/$defs/sha256Digest"
+    },
+    "evidence_manifest_digest": {
+      "$ref": "#/$defs/sha256Digest"
+    },
+    "presentation_digest": {
+      "$ref": "#/$defs/sha256Digest"
+    },
+    "approval_requirement_digest": {
+      "$ref": "#/$defs/sha256Digest"
+    },
+    "approver_principal": {
+      "type": "string",
+      "minLength": 1
+    },
+    "approver_key_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "approver_authority_digest": {
+      "$ref": "#/$defs/sha256Digest"
+    },
+    "decision": {
+      "enum": [
+        "APPROVE",
+        "DENY"
+      ]
+    },
+    "decided_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "signature": {
+      "type": "string",
+      "pattern": "^ed25519:[A-Za-z0-9+/]+={0,2}$"
+    }
+  },
+  "$defs": {
+    "sha256Digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  }
+}

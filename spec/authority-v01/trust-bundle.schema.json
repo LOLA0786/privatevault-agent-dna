@@ -70,7 +70,8 @@
                 "root_authority",
                 "grant_issuer",
                 "subject",
-                "receipt_signer"
+                "receipt_signer",
+                "approval_signer"
               ]
             }
           }
