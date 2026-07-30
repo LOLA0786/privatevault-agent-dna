@@ -19,12 +19,20 @@ from agent_dna.authority_v01 import (
 from agent_dna.execution_v01 import (
     EXECUTION_AUTHORIZATION_SPEC,
     execution_authorization_digest,
+    sha256_bytes_digest,
     sign_execution_authorization,
     validate_execution_authorization,
 )
 
 ZERO_DIGEST = "sha256:" + ("0" * 64)
 ONE_DIGEST = "sha256:" + ("1" * 64)
+WIRE_BYTES = (
+    b'{"account":"4471","amount":400000,'
+    b'"currency":"INR"}'
+)
+PEER_IDENTITY_BYTES = (
+    b"tls-spki:payments.store.example:v3"
+)
 
 
 def _unsigned_authorization():
@@ -48,6 +56,8 @@ def _unsigned_authorization():
         "transport": "https",
         "destination": "payments.store.example",
         "operation": "POST /v1/refunds",
+        "wire_content_type": "application/json",
+        "wire_content_encoding": "identity",
         "tool_id": "payments.refund.v3",
         "tool_schema_digest": ZERO_DIGEST,
         "tool_artifact_digest": ONE_DIGEST,
@@ -75,6 +85,15 @@ def _unsigned_authorization():
         "approval_artifact_digest": ZERO_DIGEST,
         "action": action,
         "action_digest": sha256_digest(action),
+        "expected_wire_bytes_digest": (
+            sha256_bytes_digest(WIRE_BYTES)
+        ),
+        "expected_wire_bytes_length": len(WIRE_BYTES),
+        "expected_peer_identity_digest": (
+            sha256_bytes_digest(
+                PEER_IDENTITY_BYTES
+            )
+        ),
         "dispatch": dispatch,
         "state_snapshot_digest": ZERO_DIGEST,
         "policy_bundle_digest": ONE_DIGEST,

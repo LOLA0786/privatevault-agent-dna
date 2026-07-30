@@ -17,12 +17,20 @@ from agent_dna.authority_v01 import (
 )
 from agent_dna.execution_v01 import (
     EXECUTION_AUTHORIZATION_SPEC,
+    sha256_bytes_digest,
     sign_execution_authorization,
     verify_execution_authorization,
 )
 
 ZERO_DIGEST = "sha256:" + ("0" * 64)
 ONE_DIGEST = "sha256:" + ("1" * 64)
+WIRE_BYTES = (
+    b'{"account":"4471","amount":400000,'
+    b'"currency":"INR"}'
+)
+PEER_IDENTITY_BYTES = (
+    b"tls-spki:payments.store.example:v3"
+)
 _USE_CONTEXT = object()
 
 
@@ -72,6 +80,8 @@ def _context():
         "transport": "https",
         "destination": "payments.store.example",
         "operation": "POST /v1/refunds",
+        "wire_content_type": "application/json",
+        "wire_content_encoding": "identity",
         "tool_id": "payments.refund.v3",
         "tool_schema_digest": ZERO_DIGEST,
         "tool_artifact_digest": ONE_DIGEST,
@@ -99,6 +109,15 @@ def _context():
         "approval_artifact_digest": ZERO_DIGEST,
         "action": action,
         "action_digest": sha256_digest(action),
+        "expected_wire_bytes_digest": (
+            sha256_bytes_digest(WIRE_BYTES)
+        ),
+        "expected_wire_bytes_length": len(WIRE_BYTES),
+        "expected_peer_identity_digest": (
+            sha256_bytes_digest(
+                PEER_IDENTITY_BYTES
+            )
+        ),
         "dispatch": dispatch,
         "state_snapshot_digest": ZERO_DIGEST,
         "policy_bundle_digest": ONE_DIGEST,
@@ -161,6 +180,10 @@ def _verify(
             ONE_DIGEST
         ),
         "expected_obligations_digest": ONE_DIGEST,
+        "expected_wire_bytes": WIRE_BYTES,
+        "expected_peer_identity_bytes": (
+            PEER_IDENTITY_BYTES
+        ),
         "at_time": "2026-07-31T12:00:30Z",
         "already_consumed": False,
     }
@@ -454,3 +477,53 @@ def test_organisation_mismatch_is_invalid():
 
     assert report.evidence_state is EvidenceState.INVALID
     assert report.reason_code == "ORGANISATION_MISMATCH"
+
+
+def test_intended_wire_bytes_mismatch_blocks():
+    context = _context()
+    changed = bytearray(WIRE_BYTES)
+    changed[-2] = ord("1")
+
+    report = _verify(
+        context,
+        expected_wire_bytes=bytes(changed),
+    )
+
+    assert report.evidence_state is EvidenceState.VERIFIED
+    assert not report.ok
+    assert any(
+        "does not bind the intended outbound bytes"
+        in failure
+        for failure in report.failures
+    )
+
+
+def test_intended_peer_identity_mismatch_blocks():
+    context = _context()
+
+    report = _verify(
+        context,
+        expected_peer_identity_bytes=(
+            b"tls-spki:attacker.example:v1"
+        ),
+    )
+
+    assert report.evidence_state is EvidenceState.VERIFIED
+    assert not report.ok
+    assert any(
+        "does not bind the intended peer identity"
+        in failure
+        for failure in report.failures
+    )
+
+
+def test_non_bytes_intended_wire_is_invalid():
+    context = _context()
+
+    report = _verify(
+        context,
+        expected_wire_bytes=5,
+    )
+
+    assert report.evidence_state is EvidenceState.INVALID
+    assert report.reason_code == "SCHEMA_INVALID"

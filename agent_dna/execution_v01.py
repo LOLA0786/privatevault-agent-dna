@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Mapping
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
@@ -47,6 +48,9 @@ _AUTHORIZATION_FIELDS = frozenset(
         "approval_artifact_digest",
         "action",
         "action_digest",
+        "expected_wire_bytes_digest",
+        "expected_wire_bytes_length",
+        "expected_peer_identity_digest",
         "dispatch",
         "state_snapshot_digest",
         "policy_bundle_digest",
@@ -73,6 +77,8 @@ _DISPATCH_FIELDS = frozenset(
         "transport",
         "destination",
         "operation",
+        "wire_content_type",
+        "wire_content_encoding",
         "tool_id",
         "tool_schema_digest",
         "tool_artifact_digest",
@@ -170,6 +176,26 @@ def _parse_timestamp(
         ) from exc
 
 
+
+def sha256_bytes_digest(
+    value: Any,
+    path: str = "bytes",
+) -> str:
+    """Digest exact bytes without JSON reserialization."""
+
+    if not isinstance(
+        value,
+        (bytes, bytearray, memoryview),
+    ):
+        raise AuthorityFormatError(
+            f"{path}: expected bytes"
+        )
+
+    return "sha256:" + hashlib.sha256(
+        bytes(value)
+    ).hexdigest()
+
+
 def validate_execution_authorization(  # noqa: C901
     authorization: Any,
     path: str = "execution_authorization",
@@ -240,6 +266,8 @@ def validate_execution_authorization(  # noqa: C901
         "decision_receipt_digest",
         "authority_receipt_digest",
         "action_digest",
+        "expected_wire_bytes_digest",
+        "expected_peer_identity_digest",
         "state_snapshot_digest",
         "policy_bundle_digest",
         "trust_bundle_digest",
@@ -304,6 +332,8 @@ def validate_execution_authorization(  # noqa: C901
         "transport",
         "destination",
         "operation",
+        "wire_content_type",
+        "wire_content_encoding",
         "tool_id",
         "credential_audience",
     ):
@@ -321,6 +351,19 @@ def validate_execution_authorization(  # noqa: C901
         _require_digest(
             dispatch[field],
             f"{path}.dispatch.{field}",
+        )
+
+    expected_wire_bytes_length = value[
+        "expected_wire_bytes_length"
+    ]
+    if (
+        isinstance(expected_wire_bytes_length, bool)
+        or not isinstance(expected_wire_bytes_length, int)
+        or expected_wire_bytes_length < 0
+    ):
+        raise AuthorityFormatError(
+            f"{path}.expected_wire_bytes_length: "
+            "expected integer >= 0"
         )
 
     max_uses = value["max_uses"]
@@ -397,6 +440,8 @@ def verify_execution_authorization(  # noqa: C901
     expected_state_snapshot_digest: Any,
     expected_policy_bundle_digest: Any,
     expected_obligations_digest: Any,
+    expected_wire_bytes: Any,
+    expected_peer_identity_bytes: Any,
     at_time: Any,
     already_consumed: Any,
 ) -> VerificationReport:
@@ -477,6 +522,23 @@ def verify_execution_authorization(  # noqa: C901
             (
                 "execution_verification."
                 "expected_obligations_digest"
+            ),
+        )
+        measured_wire_digest = sha256_bytes_digest(
+            expected_wire_bytes,
+            (
+                "execution_verification."
+                "expected_wire_bytes"
+            ),
+        )
+        measured_wire_length = len(
+            bytes(expected_wire_bytes)
+        )
+        measured_peer_digest = sha256_bytes_digest(
+            expected_peer_identity_bytes,
+            (
+                "execution_verification."
+                "expected_peer_identity_bytes"
             ),
         )
 
@@ -582,6 +644,33 @@ def verify_execution_authorization(  # noqa: C901
         failures.append(
             "authorization dispatch does not exactly match the "
             "observed dispatch"
+        )
+
+    if (
+        validated["expected_wire_bytes_digest"]
+        != measured_wire_digest
+    ):
+        failures.append(
+            "authorization does not bind the intended "
+            "outbound bytes"
+        )
+
+    if (
+        validated["expected_wire_bytes_length"]
+        != measured_wire_length
+    ):
+        failures.append(
+            "authorization does not bind the intended "
+            "outbound byte length"
+        )
+
+    if (
+        validated["expected_peer_identity_digest"]
+        != measured_peer_digest
+    ):
+        failures.append(
+            "authorization does not bind the intended "
+            "peer identity"
         )
 
     expected_bindings = (

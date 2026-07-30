@@ -1,44 +1,39 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://privatevault.ai/spec/execution-v01/execution-authorization.schema.json",
-  "title": "PrivateVault Execution Authorization v0.1-experimental",
+  "$id": "https://privatevault.ai/spec/execution-v01/dispatch-witness.schema.json",
+  "title": "PrivateVault Dispatch Witness v0.1-experimental",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "spec",
     "canonicalization",
-    "execution_authorization_id",
+    "dispatch_witness_id",
     "organisation_id",
     "request_id",
-    "issued_at",
-    "not_before",
-    "expires_at",
-    "nonce",
-    "decision_receipt_digest",
-    "authority_receipt_digest",
-    "approval_artifact_digest",
-    "action",
-    "action_digest",
-    "expected_wire_bytes_digest",
-    "expected_wire_bytes_length",
-    "expected_peer_identity_digest",
-    "dispatch",
-    "state_snapshot_digest",
-    "policy_bundle_digest",
+    "execution_authorization_id",
+    "execution_authorization_digest",
+    "observed_at",
+    "attempt",
+    "witness_component_id",
+    "observed_action_digest",
+    "observed_dispatch",
+    "wire_content_type",
+    "wire_content_encoding",
+    "wire_bytes_digest",
+    "wire_bytes_length",
+    "peer_identity_digest",
     "trust_bundle_digest",
-    "obligations_digest",
-    "max_uses",
     "signer_key_id",
     "signature"
   ],
   "properties": {
     "spec": {
-      "const": "pv-execution-authorization/0.1-experimental"
+      "const": "pv-dispatch-witness/0.1-experimental"
     },
     "canonicalization": {
       "const": "RFC8785"
     },
-    "execution_authorization_id": {
+    "dispatch_witness_id": {
       "type": "string",
       "minLength": 1
     },
@@ -50,76 +45,52 @@
       "type": "string",
       "minLength": 1
     },
-    "issued_at": {
+    "execution_authorization_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "execution_authorization_digest": {
+      "$ref": "#/$defs/sha256Digest"
+    },
+    "observed_at": {
       "type": "string",
       "format": "date-time",
       "pattern": "Z$"
     },
-    "not_before": {
+    "attempt": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "witness_component_id": {
       "type": "string",
-      "format": "date-time",
-      "pattern": "Z$"
+      "minLength": 1
     },
-    "expires_at": {
+    "observed_action_digest": {
+      "$ref": "#/$defs/sha256Digest"
+    },
+    "observed_dispatch": {
+      "$ref": "#/$defs/observedDispatch"
+    },
+    "wire_content_type": {
       "type": "string",
-      "format": "date-time",
-      "pattern": "Z$"
+      "minLength": 1
     },
-    "nonce": {
+    "wire_content_encoding": {
       "type": "string",
-      "minLength": 16,
-      "maxLength": 256
+      "minLength": 1
     },
-    "decision_receipt_digest": {
+    "wire_bytes_digest": {
       "$ref": "#/$defs/sha256Digest"
     },
-    "authority_receipt_digest": {
-      "$ref": "#/$defs/sha256Digest"
-    },
-    "approval_artifact_digest": {
-      "anyOf": [
-        {
-          "$ref": "#/$defs/sha256Digest"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
-    "action": {
-      "$ref": "#/$defs/action"
-    },
-    "action_digest": {
-      "$ref": "#/$defs/sha256Digest"
-    },
-    "expected_wire_bytes_digest": {
-      "$ref": "#/$defs/sha256Digest"
-    },
-    "expected_wire_bytes_length": {
+    "wire_bytes_length": {
       "type": "integer",
       "minimum": 0
     },
-    "expected_peer_identity_digest": {
-      "$ref": "#/$defs/sha256Digest"
-    },
-    "dispatch": {
-      "$ref": "#/$defs/dispatch"
-    },
-    "state_snapshot_digest": {
-      "$ref": "#/$defs/sha256Digest"
-    },
-    "policy_bundle_digest": {
+    "peer_identity_digest": {
       "$ref": "#/$defs/sha256Digest"
     },
     "trust_bundle_digest": {
       "$ref": "#/$defs/sha256Digest"
-    },
-    "obligations_digest": {
-      "$ref": "#/$defs/sha256Digest"
-    },
-    "max_uses": {
-      "type": "integer",
-      "const": 1
     },
     "signer_key_id": {
       "type": "string",
@@ -135,39 +106,7 @@
       "type": "string",
       "pattern": "^sha256:[0-9a-f]{64}$"
     },
-    "action": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "subject_principal",
-        "subject_key_id",
-        "action",
-        "resource",
-        "parameters"
-      ],
-      "properties": {
-        "subject_principal": {
-          "type": "string",
-          "minLength": 1
-        },
-        "subject_key_id": {
-          "type": "string",
-          "minLength": 1
-        },
-        "action": {
-          "type": "string",
-          "minLength": 1
-        },
-        "resource": {
-          "type": "string",
-          "minLength": 1
-        },
-        "parameters": {
-          "type": "object"
-        }
-      }
-    },
-    "dispatch": {
+    "observedDispatch": {
       "type": "object",
       "additionalProperties": false,
       "required": [
