@@ -163,6 +163,7 @@ def _context():
     return {
         "authorization": authorization,
         "trust_bundle": trust_bundle,
+        "execution_key": execution_key,
         "action": copy.deepcopy(action),
         "dispatch": copy.deepcopy(dispatch),
         "wire_bytes": WIRE_BYTES,
