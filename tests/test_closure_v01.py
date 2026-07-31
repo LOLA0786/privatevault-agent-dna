@@ -4,15 +4,20 @@ from hashlib import sha256
 from typing import Any
 
 import pytest
+from nacl.exceptions import BadSignatureError
 from nacl.signing import SigningKey
 
 from agent_dna.authority_v01 import (
     CANONICALIZATION,
     AuthorityFormatError,
+    encode_public_key,
     sign_document,
+    verify_document_signature,
 )
 from agent_dna.closure_v01 import (
     CLOSURE_RECORD_SPEC,
+    closure_record_digest,
+    sign_closure_record,
     validate_closure_record,
 )
 
@@ -181,3 +186,90 @@ def test_malformed_signature_is_rejected() -> None:
     record = _valid_closure()
     record["signature"] = "not-an-ed25519-signature"
 
+
+
+# --- signing and digest -------------------------------------------------
+#
+# The two functions below are what a ledger entry or external checkpoint
+# will eventually reference, so the invariants they rely on are tested
+# here rather than assumed: a malformed closure must never be signable,
+# and an unvalidated object must never yield a digest.
+
+
+def _signing_key() -> SigningKey:
+    return SigningKey(b"\x01" * 32)
+
+
+def _unsigned_closure() -> dict[str, Any]:
+    return {
+        key: value
+        for key, value in _valid_closure().items()
+        if key != "signature"
+    }
+
+
+def test_signed_closure_verifies_against_its_public_key() -> None:
+    key = _signing_key()
+    signed = sign_closure_record(_unsigned_closure(), key)
+
+    assert verify_document_signature(
+        signed,
+        signature_field="signature",
+        public_key=encode_public_key(key),
+    )
+
+
+def test_closure_digest_is_stable() -> None:
+    signed = sign_closure_record(_unsigned_closure(), _signing_key())
+
+    assert closure_record_digest(signed) == closure_record_digest(signed)
+
+
+def test_closure_digest_ignores_key_order() -> None:
+    """RFC 8785 canonicalisation. If this fails, every cross-record digest
+    comparison downstream silently stops working."""
+    signed = sign_closure_record(_unsigned_closure(), _signing_key())
+    reordered = dict(reversed(list(signed.items())))
+
+    assert closure_record_digest(reordered) == closure_record_digest(signed)
+
+
+def test_tampered_closure_changes_digest_and_breaks_signature() -> None:
+    key = _signing_key()
+    signed = sign_closure_record(_unsigned_closure(), key)
+
+    tampered = dict(signed)
+    tampered["closure_component_id"] = signed["closure_component_id"] + "-x"
+
+    assert closure_record_digest(tampered) != closure_record_digest(signed)
+    with pytest.raises(BadSignatureError):
+        verify_document_signature(
+            tampered,
+            signature_field="signature",
+            public_key=encode_public_key(key),
+        )
+
+
+def test_malformed_closure_cannot_be_signed() -> None:
+    """Signing validates afterwards, so a bad record fails where it is
+    produced rather than surfacing as unverifiable evidence later."""
+    closure = _unsigned_closure()
+    closure["dispatch_outcome"] = "NOT_A_REAL_OUTCOME"
+
+    with pytest.raises(AuthorityFormatError):
+        sign_closure_record(closure, _signing_key())
+
+
+def test_unvalidated_object_cannot_produce_a_digest() -> None:
+    with pytest.raises(AuthorityFormatError):
+        closure_record_digest({"spec": "wrong"})
+
+
+def test_double_use_closure_cannot_produce_a_digest() -> None:
+    """An authorisation consumed twice must never be referenceable."""
+    signed = sign_closure_record(_unsigned_closure(), _signing_key())
+    doubled = dict(signed)
+    doubled["authorization_use_count"] = 2
+
+    with pytest.raises(AuthorityFormatError):
+        closure_record_digest(doubled)

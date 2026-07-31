@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    pass
+    from nacl.signing import SigningKey
 
 from agent_dna.authority_v01 import (
     CANONICALIZATION,
@@ -16,6 +16,8 @@ from agent_dna.authority_v01 import (
     SIGNATURE_RE,
     AuthorityFormatError,
     canonicalize,
+    sha256_digest,
+    sign_document,
 )
 
 CLOSURE_RECORD_SPEC = (
@@ -337,3 +339,37 @@ def validate_closure_record(  # noqa: C901
 
     canonicalize(value)
     return value
+
+
+def sign_closure_record(
+    closure: Mapping[str, Any],
+    signing_key: SigningKey,
+) -> dict[str, Any]:
+    """Sign every closure-record field except the detached signature.
+
+    Validation runs after signing rather than before. A malformed closure
+    then fails here, at the moment it is produced, instead of surfacing as
+    an unverifiable record in front of an auditor.
+    """
+
+    signed = sign_document(
+        closure,
+        signing_key,
+        signature_field="signature",
+    )
+    validate_closure_record(signed)
+    return signed
+
+
+def closure_record_digest(
+    closure: Any,
+) -> str:
+    """Digest the complete signed closure record.
+
+    Validation runs first. This digest is what a ledger entry or external
+    checkpoint links to, so a malformed record must never become
+    permanently referenced.
+    """
+
+    validated = validate_closure_record(closure)
+    return sha256_digest(validated)
