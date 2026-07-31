@@ -10,6 +10,8 @@ from nacl.signing import SigningKey
 from agent_dna.authority_v01 import (
     CANONICALIZATION,
     AuthorityFormatError,
+    DecisionConformance,
+    EvidenceState,
     encode_public_key,
     sign_document,
     verify_document_signature,
@@ -19,6 +21,7 @@ from agent_dna.closure_v01 import (
     closure_record_digest,
     sign_closure_record,
     validate_closure_record,
+    verify_closure_record,
 )
 
 
@@ -273,3 +276,166 @@ def test_double_use_closure_cannot_produce_a_digest() -> None:
 
     with pytest.raises(AuthorityFormatError):
         closure_record_digest(doubled)
+
+
+# --- trust-bundle verification ------------------------------------------
+#
+# Two axes, kept separate on purpose. A record that is malformed or
+# unsigned is INVALID and supports no conclusion at all. A record that is
+# soundly signed and bound to the wrong execution is VERIFIED and
+# NON_CONFORMANT -- real evidence making a false claim, which is the more
+# serious finding and the one a scan exists to surface.
+
+
+def _key(seed: int) -> SigningKey:
+    return SigningKey(bytes([seed]) * 32)
+
+
+def _bundle_key(
+    key_id: str,
+    principal: str,
+    signing_key: SigningKey,
+    usages: list[str],
+) -> dict[str, Any]:
+    return {
+        "key_id": key_id,
+        "principal": principal,
+        "algorithm": "ed25519",
+        "public_key": encode_public_key(signing_key),
+        "usages": usages,
+    }
+
+
+def _closure_bundle(
+    closure_usages: list[str] | None = None,
+    include_closure_key: bool = True,
+) -> dict[str, Any]:
+    keys = [
+        _bundle_key(
+            "auth-signer",
+            "runtime@example.com",
+            _key(2),
+            ["execution_authorization_signer"],
+        )
+    ]
+    if include_closure_key:
+        keys.append(
+            _bundle_key(
+                "closure-signer",
+                "closure@example.com",
+                _key(1),
+                closure_usages
+                if closure_usages is not None
+                else ["closure_signer"],
+            )
+        )
+    return {
+        "spec": "pv-trust-bundle/0.1-experimental",
+        "canonicalization": CANONICALIZATION,
+        "organisation_id": "bank.example",
+        "bundle_version": 1,
+        "pinned_at": "2026-07-30T00:00:00Z",
+        "keys": keys,
+    }
+
+
+def _signed_closure() -> dict[str, Any]:
+    closure = _unsigned_closure()
+    closure["signer_key_id"] = "closure-signer"
+    return sign_closure_record(closure, _key(1))
+
+
+def _verify(closure: dict[str, Any], bundle: Any, **kwargs: Any) -> Any:
+    params: dict[str, Any] = {
+        "expected_authorization_digest": closure[
+            "execution_authorization_digest"
+        ],
+        "expected_witness_digest": closure["dispatch_witness_digest"],
+        "authorization_signer_key_id": "auth-signer",
+    }
+    params.update(kwargs)
+    return verify_closure_record(closure, bundle, **params)
+
+
+def test_valid_closure_verifies_and_conforms() -> None:
+    report = _verify(_signed_closure(), _closure_bundle())
+
+    assert report.evidence_state is EvidenceState.VERIFIED
+    assert report.decision_conformance is DecisionConformance.CONFORMANT
+
+
+def test_absent_trust_bundle_is_unverifiable_not_invalid() -> None:
+    """Missing evidence is not evidence of misconduct."""
+    report = _verify(_signed_closure(), None)
+
+    assert report.evidence_state is EvidenceState.UNVERIFIABLE
+    assert report.reason_code == "TRUST_BUNDLE_UNAVAILABLE"
+
+
+def test_unknown_signer_key_is_invalid() -> None:
+    report = _verify(
+        _signed_closure(),
+        _closure_bundle(include_closure_key=False),
+    )
+
+    assert report.evidence_state is EvidenceState.INVALID
+    assert report.reason_code == "CLOSURE_TRUST_ROOT_UNKNOWN"
+
+
+def test_key_without_closure_signer_usage_is_invalid() -> None:
+    """Being in the bundle is not permission to sign closures."""
+    report = _verify(
+        _signed_closure(),
+        _closure_bundle(closure_usages=["receipt_signer"]),
+    )
+
+    assert report.evidence_state is EvidenceState.INVALID
+    assert report.reason_code == "CLOSURE_KEY_USAGE_INVALID"
+
+
+def test_tampered_closure_fails_signature() -> None:
+    closure = _signed_closure()
+    closure["closure_component_id"] = closure["closure_component_id"] + "-x"
+
+    report = _verify(closure, _closure_bundle())
+
+    assert report.evidence_state is EvidenceState.INVALID
+    assert report.reason_code == "CLOSURE_SIGNATURE_INVALID"
+
+
+def test_closure_signed_by_authorization_key_is_invalid() -> None:
+    """The component that authorised an action must not certify its
+    outcome. One compromised key would otherwise produce a complete,
+    internally consistent, entirely fictional chain."""
+    bundle = _closure_bundle()
+    bundle["keys"][1]["principal"] = "runtime@example.com"
+
+    report = _verify(_signed_closure(), bundle)
+
+    assert report.evidence_state is EvidenceState.INVALID
+    assert report.reason_code == "CLOSURE_NOT_INDEPENDENT_OF_AUTHORIZATION"
+
+
+def test_closure_bound_to_wrong_authorization_is_non_conformant() -> None:
+    """The finding this whole chain exists to produce: the evidence is
+    cryptographically sound and the claim it makes is false."""
+    report = _verify(
+        _signed_closure(),
+        _closure_bundle(),
+        expected_authorization_digest=_digest("a-different-authorization"),
+    )
+
+    assert report.evidence_state is EvidenceState.VERIFIED
+    assert report.decision_conformance is DecisionConformance.NON_CONFORMANT
+    assert report.reason_code == "CLOSURE_NON_CONFORMANT"
+
+
+def test_closure_bound_to_wrong_witness_is_non_conformant() -> None:
+    report = _verify(
+        _signed_closure(),
+        _closure_bundle(),
+        expected_witness_digest=_digest("a-different-witness"),
+    )
+
+    assert report.evidence_state is EvidenceState.VERIFIED
+    assert report.decision_conformance is DecisionConformance.NON_CONFORMANT

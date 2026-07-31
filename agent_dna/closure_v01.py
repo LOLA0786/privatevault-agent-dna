@@ -9,15 +9,22 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from nacl.signing import SigningKey
 
+from nacl.exceptions import BadSignatureError
+
 from agent_dna.authority_v01 import (
     CANONICALIZATION,
     RFC3339_UTC_RE,
     SHA256_RE,
     SIGNATURE_RE,
     AuthorityFormatError,
+    DecisionConformance,
+    EvidenceState,
+    VerificationReport,
     canonicalize,
     sha256_digest,
     sign_document,
+    validate_trust_bundle,
+    verify_document_signature,
 )
 
 CLOSURE_RECORD_SPEC = (
@@ -373,3 +380,172 @@ def closure_record_digest(
 
     validated = validate_closure_record(closure)
     return sha256_digest(validated)
+
+
+class _ClosureEvidenceError(Exception):
+    """Structural or cryptographic failure that makes the record unusable."""
+
+    def __init__(self, reason_code: str, detail: str) -> None:
+        self.reason_code = reason_code
+        self.detail = detail
+        super().__init__(detail)
+
+
+def _closure_fail(reason_code: str, detail: str) -> None:
+    raise _ClosureEvidenceError(reason_code, detail)
+
+
+def _closure_invalid(
+    reason_code: str,
+    detail: str,
+) -> VerificationReport:
+    return VerificationReport(
+        EvidenceState.INVALID,
+        DecisionConformance.NOT_ASSESSABLE,
+        reason_code,
+        (detail,),
+    )
+
+
+def _verify_closure_signer(
+    closure: Mapping[str, Any],
+    keys: Mapping[str, Mapping[str, Any]],
+    authorization_signer_key_id: str,
+    witness_signer_key_id: str | None,
+    require_witness_independence: bool,
+) -> None:
+    key_id = closure["signer_key_id"]
+    key = keys.get(key_id)
+    if key is None:
+        _closure_fail(
+            "CLOSURE_TRUST_ROOT_UNKNOWN",
+            f"closure key {key_id!r} is absent from trust bundle",
+        )
+
+    if "closure_signer" not in key["usages"]:
+        _closure_fail(
+            "CLOSURE_KEY_USAGE_INVALID",
+            f"key {key_id!r} lacks required usage 'closure_signer'",
+        )
+
+    # The component that authorised the action must not also certify its
+    # outcome. Otherwise one compromised key fabricates the whole chain
+    # from decision to settlement.
+    authorization_key = keys.get(authorization_signer_key_id)
+    if authorization_key is not None and (
+        key_id == authorization_signer_key_id
+        or key["public_key"] == authorization_key["public_key"]
+        or key["principal"] == authorization_key["principal"]
+    ):
+        _closure_fail(
+            "CLOSURE_NOT_INDEPENDENT_OF_AUTHORIZATION",
+            "execution authorization and closure must use distinct "
+            "keys and principals",
+        )
+
+    # Observing the dispatch and recording the outcome are often the same
+    # component, so this is opt-in rather than assumed.
+    if require_witness_independence and witness_signer_key_id is not None:
+        witness_key = keys.get(witness_signer_key_id)
+        if witness_key is not None and (
+            key_id == witness_signer_key_id
+            or key["public_key"] == witness_key["public_key"]
+            or key["principal"] == witness_key["principal"]
+        ):
+            _closure_fail(
+                "CLOSURE_NOT_INDEPENDENT_OF_WITNESS",
+                "dispatch witness and closure must use distinct "
+                "keys and principals",
+            )
+
+    try:
+        verify_document_signature(
+            closure,
+            signature_field="signature",
+            public_key=key["public_key"],
+        )
+    except (AuthorityFormatError, BadSignatureError):
+        _closure_fail(
+            "CLOSURE_SIGNATURE_INVALID",
+            "closure record signature is invalid",
+        )
+
+
+def verify_closure_record(
+    closure: Any,
+    trust_bundle: Mapping[str, Any] | None,
+    *,
+    expected_authorization_digest: Any,
+    expected_witness_digest: Any,
+    authorization_signer_key_id: Any,
+    witness_signer_key_id: Any = None,
+    require_witness_independence: bool = False,
+) -> VerificationReport:
+    """Verify a closure record against the execution it claims to close.
+
+    Two axes, deliberately separate. A malformed or unsigned record is
+    INVALID and nothing can be concluded from it. A soundly signed record
+    that claims to close an execution it was never bound to is VERIFIED
+    and NON_CONFORMANT -- the evidence is real and the claim is false,
+    which is a different and more serious finding than broken evidence.
+    """
+
+    if trust_bundle is None:
+        return VerificationReport(
+            EvidenceState.UNVERIFIABLE,
+            DecisionConformance.NOT_ASSESSABLE,
+            "TRUST_BUNDLE_UNAVAILABLE",
+            ("no out-of-band trust bundle was supplied",),
+        )
+
+    try:
+        validated = validate_closure_record(closure)
+        keys = validate_trust_bundle(trust_bundle)
+        expected_authorization_digest = _require_digest(
+            expected_authorization_digest,
+            "closure_verification.expected_authorization_digest",
+        )
+        expected_witness_digest = _require_digest(
+            expected_witness_digest,
+            "closure_verification.expected_witness_digest",
+        )
+        authorization_signer_key_id = _require_string(
+            authorization_signer_key_id,
+            "closure_verification.authorization_signer_key_id",
+        )
+        _verify_closure_signer(
+            validated,
+            keys,
+            authorization_signer_key_id,
+            witness_signer_key_id,
+            require_witness_independence,
+        )
+    except _ClosureEvidenceError as exc:
+        return _closure_invalid(exc.reason_code, exc.detail)
+    except AuthorityFormatError as exc:
+        return _closure_invalid("CLOSURE_MALFORMED", str(exc))
+
+    failures: list[str] = []
+
+    if validated["execution_authorization_digest"] != (
+        expected_authorization_digest
+    ):
+        failures.append(
+            "closure is bound to a different execution authorization"
+        )
+
+    if validated["dispatch_witness_digest"] != expected_witness_digest:
+        failures.append(
+            "closure is bound to a different dispatch witness"
+        )
+
+    return VerificationReport(
+        EvidenceState.VERIFIED,
+        (
+            DecisionConformance.NON_CONFORMANT
+            if failures
+            else DecisionConformance.CONFORMANT
+        ),
+        ("CLOSURE_NON_CONFORMANT" if failures else None),
+        tuple(failures),
+    )
