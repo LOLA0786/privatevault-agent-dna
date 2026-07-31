@@ -26,6 +26,14 @@ from agent_dna.authority_v01 import (
     validate_trust_bundle,
     verify_document_signature,
 )
+from agent_dna.dispatch_v01 import (
+    dispatch_witness_digest,
+    validate_dispatch_witness,
+)
+from agent_dna.execution_v01 import (
+    execution_authorization_digest,
+    validate_execution_authorization,
+)
 
 CLOSURE_RECORD_SPEC = (
     "pv-execution-closure/0.1-experimental"
@@ -547,5 +555,134 @@ def verify_closure_record(
             else DecisionConformance.CONFORMANT
         ),
         ("CLOSURE_NON_CONFORMANT" if failures else None),
+        tuple(failures),
+    )
+
+
+def _chain_linkage_failures(
+    authorization: Mapping[str, Any],
+    witness: Mapping[str, Any],
+    closure: Mapping[str, Any],
+) -> list[str]:
+    """Recompute every bound digest rather than trusting what was supplied.
+
+    A caller who hands over a substituted authorization alongside matching
+    expectations would otherwise verify cleanly. The digests are derived
+    from the documents themselves, so substitution shows up here.
+    """
+
+    failures: list[str] = []
+
+    measured_authorization = execution_authorization_digest(authorization)
+    if closure["execution_authorization_digest"] != measured_authorization:
+        failures.append(
+            "closure does not bind the supplied execution authorization"
+        )
+
+    measured_witness = dispatch_witness_digest(witness)
+    if closure["dispatch_witness_digest"] != measured_witness:
+        failures.append(
+            "closure does not bind the supplied dispatch witness"
+        )
+
+    if witness["execution_authorization_digest"] != measured_authorization:
+        failures.append(
+            "dispatch witness does not bind the supplied execution "
+            "authorization"
+        )
+
+    for field in ("organisation_id", "request_id"):
+        if not (
+            authorization[field] == witness[field] == closure[field]
+        ):
+            failures.append(
+                f"{field} differs across authorization, witness and closure"
+            )
+
+    for record, label in ((witness, "witness"), (closure, "closure")):
+        if (
+            record["execution_authorization_id"]
+            != authorization["execution_authorization_id"]
+        ):
+            failures.append(
+                f"{label} execution_authorization_id does not match "
+                "the authorization"
+            )
+
+    if closure["dispatch_witness_id"] != witness["dispatch_witness_id"]:
+        failures.append(
+            "closure dispatch_witness_id does not match the witness"
+        )
+
+    if closure["trust_bundle_digest"] != authorization["trust_bundle_digest"]:
+        failures.append(
+            "closure was evaluated against different trust roots than "
+            "the authorization"
+        )
+
+    return failures
+
+
+def verify_closure_chain(
+    authorization: Any,
+    witness: Any,
+    closure: Any,
+    trust_bundle: Mapping[str, Any] | None,
+    *,
+    require_witness_independence: bool = False,
+) -> VerificationReport:
+    """Verify a closure against the execution it claims to close.
+
+    Digests are recomputed from the supplied documents rather than taken
+    on trust, which is the difference between checking that a claim is
+    internally consistent and checking that it is about the right thing.
+
+    Authorization and witness signatures are deliberately not re-verified
+    here; that belongs to verify_execution_authorization and
+    verify_dispatch_witness. Two implementations of the same check drift
+    apart, and the standalone verifier calls all three.
+    """
+
+    if trust_bundle is None:
+        return VerificationReport(
+            EvidenceState.UNVERIFIABLE,
+            DecisionConformance.NOT_ASSESSABLE,
+            "TRUST_BUNDLE_UNAVAILABLE",
+            ("no out-of-band trust bundle was supplied",),
+        )
+
+    try:
+        validated_authorization = validate_execution_authorization(
+            authorization
+        )
+        validated_witness = validate_dispatch_witness(witness)
+        validated_closure = validate_closure_record(closure)
+        keys = validate_trust_bundle(trust_bundle)
+        _verify_closure_signer(
+            validated_closure,
+            keys,
+            validated_authorization["signer_key_id"],
+            validated_witness["signer_key_id"],
+            require_witness_independence,
+        )
+    except _ClosureEvidenceError as exc:
+        return _closure_invalid(exc.reason_code, exc.detail)
+    except AuthorityFormatError as exc:
+        return _closure_invalid("CLOSURE_CHAIN_MALFORMED", str(exc))
+
+    failures = _chain_linkage_failures(
+        validated_authorization,
+        validated_witness,
+        validated_closure,
+    )
+
+    return VerificationReport(
+        EvidenceState.VERIFIED,
+        (
+            DecisionConformance.NON_CONFORMANT
+            if failures
+            else DecisionConformance.CONFORMANT
+        ),
+        ("CLOSURE_CHAIN_NON_CONFORMANT" if failures else None),
         tuple(failures),
     )

@@ -6,6 +6,8 @@ from typing import Any
 import pytest
 from nacl.exceptions import BadSignatureError
 from nacl.signing import SigningKey
+from test_dispatch_v01 import _context as _dispatch_context
+from test_dispatch_v01 import _create as _dispatch_create
 
 from agent_dna.authority_v01 import (
     CANONICALIZATION,
@@ -13,6 +15,7 @@ from agent_dna.authority_v01 import (
     DecisionConformance,
     EvidenceState,
     encode_public_key,
+    sha256_digest,
     sign_document,
     verify_document_signature,
 )
@@ -21,7 +24,13 @@ from agent_dna.closure_v01 import (
     closure_record_digest,
     sign_closure_record,
     validate_closure_record,
+    verify_closure_chain,
     verify_closure_record,
+)
+from agent_dna.dispatch_v01 import dispatch_witness_digest
+from agent_dna.execution_v01 import (
+    execution_authorization_digest,
+    sign_execution_authorization,
 )
 
 
@@ -439,3 +448,195 @@ def test_closure_bound_to_wrong_witness_is_non_conformant() -> None:
 
     assert report.evidence_state is EvidenceState.VERIFIED
     assert report.decision_conformance is DecisionConformance.NON_CONFORMANT
+
+
+# --- chain verification -------------------------------------------------
+#
+# verify_closure_record takes the caller's word for what the closure
+# should be bound to. verify_closure_chain does not: it recomputes both
+# digests from the documents themselves. The difference is between
+# checking that a claim is internally consistent and checking that it is
+# about the right execution.
+#
+# Fixtures reuse the dispatch tests' _context and _create so the witness
+# comes from the real constructor. A hand-assembled witness that happens
+# to validate can still differ from what a deployment actually emits.
+
+
+def _chain_context() -> dict[str, Any]:
+    context = _dispatch_context()
+    closure_key = SigningKey.generate()
+    context["closure_key"] = closure_key
+    context["trust_bundle"]["keys"].append(
+        {
+            "key_id": "closure-signer-01",
+            "principal": "settlement-recorder@store.example",
+            "algorithm": "ed25519",
+            "public_key": encode_public_key(closure_key),
+            "usages": ["closure_signer"],
+        }
+    )
+    # The authorization pins the bundle digest, so it must be re-signed
+    # after the closure key is added or the chain reports a trust-root
+    # mismatch that is an artefact of the fixture rather than a finding.
+    context["authorization"] = _resign_authorization(context)
+    return context
+
+
+def _resign_authorization(context: dict[str, Any]) -> dict[str, Any]:
+    authorization = {
+        key: value
+        for key, value in context["authorization"].items()
+        if key != "signature"
+    }
+    authorization["trust_bundle_digest"] = sha256_digest(
+        context["trust_bundle"]
+    )
+    return sign_execution_authorization(
+        authorization, context["execution_key"]
+    )
+
+
+def _chain_closure(
+    context: dict[str, Any],
+    witness: dict[str, Any],
+    **overrides: Any,
+) -> dict[str, Any]:
+    authorization = context["authorization"]
+    closure = {
+        "spec": CLOSURE_RECORD_SPEC,
+        "canonicalization": CANONICALIZATION,
+        "closure_id": "closure-001",
+        "organisation_id": authorization["organisation_id"],
+        "request_id": authorization["request_id"],
+        "execution_authorization_id": authorization[
+            "execution_authorization_id"
+        ],
+        "execution_authorization_digest": (
+            execution_authorization_digest(authorization)
+        ),
+        "dispatch_witness_id": witness["dispatch_witness_id"],
+        "dispatch_witness_digest": dispatch_witness_digest(witness),
+        "closed_at": "2026-07-31T12:00:45Z",
+        "closure_component_id": "settlement-recorder-01",
+        "dispatch_outcome": "ACKNOWLEDGED",
+        "response_status": "202",
+        "response_bytes_digest": _digest("accepted"),
+        "response_bytes_length": 8,
+        "effect_state": "UNCONFIRMED",
+        "effect_evidence_digest": None,
+        "idempotency_key_digest": authorization["dispatch"][
+            "idempotency_key_digest"
+        ],
+        "authorization_use_count": 1,
+        "trust_bundle_digest": authorization["trust_bundle_digest"],
+        "signer_key_id": "closure-signer-01",
+    }
+    closure.update(overrides)
+    return sign_closure_record(closure, context["closure_key"])
+
+
+def test_valid_chain_conforms() -> None:
+    context = _chain_context()
+    witness = _dispatch_create(context)
+    closure = _chain_closure(context, witness)
+
+    report = verify_closure_chain(
+        context["authorization"],
+        witness,
+        closure,
+        context["trust_bundle"],
+    )
+
+    assert report.evidence_state is EvidenceState.VERIFIED
+    assert report.decision_conformance is DecisionConformance.CONFORMANT
+
+
+def test_substituted_authorization_is_non_conformant() -> None:
+    """The case the whole function exists for. Everything is signed by a
+    properly authorised key and structurally perfect; the closure is
+    simply about a different execution."""
+    context = _chain_context()
+    witness = _dispatch_create(context)
+    closure = _chain_closure(context, witness)
+
+    other = _chain_context()
+
+    report = verify_closure_chain(
+        other["authorization"],
+        witness,
+        closure,
+        context["trust_bundle"],
+    )
+
+    assert report.evidence_state is EvidenceState.VERIFIED
+    assert report.decision_conformance is DecisionConformance.NON_CONFORMANT
+    assert report.reason_code == "CLOSURE_CHAIN_NON_CONFORMANT"
+
+
+def test_closure_bound_to_a_different_witness_is_non_conformant() -> None:
+    context = _chain_context()
+    witness = _dispatch_create(context)
+    closure = _chain_closure(context, witness)
+
+    other_witness = _dispatch_create(
+        context,
+        wire_bytes=b"a completely different payment instruction",
+    )
+
+    report = verify_closure_chain(
+        context["authorization"],
+        other_witness,
+        closure,
+        context["trust_bundle"],
+    )
+
+    assert report.evidence_state is EvidenceState.VERIFIED
+    assert report.decision_conformance is DecisionConformance.NON_CONFORMANT
+
+
+def test_request_id_mismatch_is_non_conformant() -> None:
+    context = _chain_context()
+    witness = _dispatch_create(context)
+    closure = _chain_closure(context, witness, request_id="request-999")
+
+    report = verify_closure_chain(
+        context["authorization"],
+        witness,
+        closure,
+        context["trust_bundle"],
+    )
+
+    assert report.decision_conformance is DecisionConformance.NON_CONFORMANT
+
+
+def test_closure_evaluated_against_different_trust_roots() -> None:
+    """A bundle rotated between authorisation and settlement. Not an
+    attack in itself, but the closure and the authorization no longer
+    agree on who was trusted, and that should surface."""
+    context = _chain_context()
+    witness = _dispatch_create(context)
+    closure = _chain_closure(
+        context, witness, trust_bundle_digest=_digest("a-rotated-bundle")
+    )
+
+    report = verify_closure_chain(
+        context["authorization"],
+        witness,
+        closure,
+        context["trust_bundle"],
+    )
+
+    assert report.decision_conformance is DecisionConformance.NON_CONFORMANT
+
+
+def test_closure_chain_without_trust_bundle_is_unverifiable() -> None:
+    context = _chain_context()
+    witness = _dispatch_create(context)
+    closure = _chain_closure(context, witness)
+
+    report = verify_closure_chain(
+        context["authorization"], witness, closure, None
+    )
+
+    assert report.evidence_state is EvidenceState.UNVERIFIABLE
