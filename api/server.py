@@ -16,21 +16,31 @@ Audit surface:
 
 from __future__ import annotations
 
+import json as _pv_json
 import os
 import sys
 import tempfile
+import uuid as _uuid
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from datetime import UTC
+from datetime import datetime as _datetime
+from datetime import timedelta as _timedelta
 from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Response
 from fastapi.responses import FileResponse, JSONResponse
+from nacl.signing import SigningKey as _SigningKey
 from pydantic import BaseModel, Field
 from starlette.background import BackgroundTask
 
 from agent_dna.apikeys import ApiKeyRegistry
+from agent_dna.authority_v01 import CANONICALIZATION as _PV_CANON
+from agent_dna.authority_v01 import sha256_digest as _pv_sha256_digest
 from agent_dna.decision import Decision
+from agent_dna.execution_v01 import EXECUTION_AUTHORIZATION_SPEC as _PV_EA_SPEC
+from agent_dna.execution_v01 import sign_execution_authorization as _pv_sign_ea
 from agent_dna.runtime import RuntimeMonitor
 from agent_dna.signer import verify_trusted_envelope
 from agent_dna.trace import AgentAction
@@ -488,3 +498,128 @@ def prometheus_metrics():
         content=body,
         media_type=content_type,
     )
+
+
+# --------------------------------------------------------------------------
+# /v1/authorize - mint a signed, single-use execution authorization.
+#
+# This is the bridge between an ALLOW and a permitted dispatch. It takes the
+# wire-byte DIGEST, never the bytes, so payloads stay out of the control
+# plane; the permit still binds exact bytes because the digest is a signed
+# field the dispatch boundary recomputes.
+# --------------------------------------------------------------------------
+_PV_DIGEST = r"^sha256:[0-9a-f]{64}$"
+_pv_signer_cache: dict[str, Any] = {}
+
+
+class AuthorizeRequest(BaseModel):
+    request_id: str = Field(min_length=1)
+    agent_id: str = Field(min_length=1)
+    organisation_id: str = Field(min_length=1)
+
+    action: dict[str, Any]
+    dispatch: dict[str, Any]
+
+    expected_wire_bytes_digest: str = Field(pattern=_PV_DIGEST)
+    expected_wire_bytes_length: int = Field(ge=0)
+    expected_peer_identity_digest: str = Field(pattern=_PV_DIGEST)
+
+    decision_receipt_digest: str = Field(pattern=_PV_DIGEST)
+    authority_receipt_digest: str = Field(pattern=_PV_DIGEST)
+    approval_artifact_digest: str | None = Field(default=None, pattern=_PV_DIGEST)
+    state_snapshot_digest: str = Field(pattern=_PV_DIGEST)
+    policy_bundle_digest: str = Field(pattern=_PV_DIGEST)
+    obligations_digest: str = Field(pattern=_PV_DIGEST)
+
+
+def _pv_load_signer() -> dict[str, Any]:
+    if _pv_signer_cache:
+        return _pv_signer_cache
+
+    key_path = os.environ.get("PV_EXECUTION_SIGNER_KEY", "")
+    bundle_path = os.environ.get("PV_TRUST_BUNDLE", "")
+
+    if not key_path or not bundle_path:
+        raise HTTPException(
+            status_code=503,
+            detail="execution authorization signer is not configured",
+        )
+
+    try:
+        signing_key = _SigningKey(Path(key_path).read_bytes())
+        trust_bundle = _pv_json.loads(Path(bundle_path).read_text())
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=f"signer material unreadable: {type(exc).__name__}",
+        ) from exc
+
+    _pv_signer_cache["signing_key"] = signing_key
+    _pv_signer_cache["trust_bundle"] = trust_bundle
+    _pv_signer_cache["key_id"] = trust_bundle["keys"][0]["key_id"]
+    return _pv_signer_cache
+
+
+def _pv_rfc3339(moment: _datetime) -> str:
+    return moment.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+@app.post("/v1/authorize")
+def authorize(req: AuthorizeRequest, principal: FullPrincipal):
+    """Issue execution authority bound to exact bytes and a specific peer."""
+
+    _enforce_identity(principal, req.agent_id)
+
+    signer = _pv_load_signer()
+    trust_bundle = signer["trust_bundle"]
+
+    if req.organisation_id != trust_bundle["organisation_id"]:
+        raise HTTPException(
+            status_code=403,
+            detail="organisation does not match the pinned trust bundle",
+        )
+
+    ttl = int(os.environ.get("PV_AUTHORIZATION_TTL_SECONDS", "60"))
+    now = _datetime.now(UTC)
+
+    unsigned = {
+        "spec": _PV_EA_SPEC,
+        "canonicalization": _PV_CANON,
+        "execution_authorization_id": f"eauth-{_uuid.uuid4()}",
+        "organisation_id": req.organisation_id,
+        "request_id": req.request_id,
+        "issued_at": _pv_rfc3339(now),
+        "not_before": _pv_rfc3339(now),
+        "expires_at": _pv_rfc3339(now + _timedelta(seconds=ttl)),
+        "nonce": _uuid.uuid4().hex,
+        "decision_receipt_digest": req.decision_receipt_digest,
+        "authority_receipt_digest": req.authority_receipt_digest,
+        "approval_artifact_digest": req.approval_artifact_digest,
+        "action": req.action,
+        "action_digest": _pv_sha256_digest(req.action),
+        "expected_wire_bytes_digest": req.expected_wire_bytes_digest,
+        "expected_wire_bytes_length": req.expected_wire_bytes_length,
+        "expected_peer_identity_digest": req.expected_peer_identity_digest,
+        "dispatch": req.dispatch,
+        "state_snapshot_digest": req.state_snapshot_digest,
+        "policy_bundle_digest": req.policy_bundle_digest,
+        "trust_bundle_digest": _pv_sha256_digest(trust_bundle),
+        "obligations_digest": req.obligations_digest,
+        "max_uses": 1,
+        "signer_key_id": signer["key_id"],
+    }
+
+    try:
+        authorization = _pv_sign_ea(unsigned, signer["signing_key"])
+    except Exception as exc:
+        # A malformed permit fails here, not in front of an auditor.
+        raise HTTPException(
+            status_code=422,
+            detail=f"execution authorization rejected: {type(exc).__name__}",
+        ) from exc
+
+    return {
+        "authorization": authorization,
+        "trust_bundle": trust_bundle,
+        "at_time": _pv_rfc3339(now),
+    }
