@@ -178,6 +178,26 @@ def _normalize_capability(value: Any) -> str | None:
     return cap or None
 
 
+_DENIED = {"denied","deny","refused","refuse","rejected","reject","declined","decline","blocked","block","forbidden","denied_by_policy","policy_denied","not_permitted"}
+_ERRORED = {"error","fail","failed","failure","exception","timeout"}
+_ALLOWED = {"ok","allowed","allow","success","succeeded","completed"}
+
+
+def _normalize_outcome(value: Any) -> str:
+    """Map a log outcome onto ok/error/blocked. An unrecognised value
+    is reported as unknown, never assumed benign."""
+    if value is None:
+        return "ok"
+    t = str(value).strip().lower()
+    if t in _DENIED:
+        return "blocked"
+    if t in _ERRORED:
+        return "error"
+    if t in _ALLOWED:
+        return "ok"
+    return "unknown"
+
+
 def _build_action(
     obj: dict[str, Any],
     line_no: int,
@@ -198,9 +218,8 @@ def _build_action(
         return SkippedRow(line_no, "no parseable timestamp", raw)
 
     request_id = _first(obj, _REQUEST_KEYS)
-    outcome = obj.get("outcome") or obj.get("status") or "ok"
-    if outcome not in ("ok", "error", "blocked"):
-        outcome = "error" if str(outcome).lower() in ("fail", "failed") else "ok"
+    raw_outcome = obj.get("outcome") or obj.get("status")
+    outcome = _normalize_outcome(raw_outcome)
 
     return AgentAction(
         agent_id=agent_id.strip(),
