@@ -186,6 +186,27 @@ def test_an_agent_too_small_to_split_is_named_not_scored(tmp_path) -> None:
     assert all(s.agent_id != "tiny" for s in report.samples)
 
 
+def test_short_multi_capability_history_is_not_scored(tmp_path) -> None:
+    rows = _rows(
+        "short",
+        [(f"capability.{index}", {}) for index in range(9)],
+    )
+
+    report = replay(ingest(_log(tmp_path, rows)))
+
+    assert report.agents_without_baseline == ["short"]
+    assert report.baseline_actions == 0
+    assert report.evaluated_actions == 0
+    assert report.to_dict()["coverage_caveat"]["min_baseline_actions"] == 20
+
+
+def test_single_capability_history_can_form_a_real_baseline(tmp_path) -> None:
+    report = replay(ingest(_log(tmp_path, _routine("a1", 40))))
+
+    assert report.baseline_actions == 20
+    assert report.evaluated_actions == 20
+
+
 def test_baseline_and_evaluation_never_overlap(tmp_path) -> None:
     """An action used to learn normal cannot also be judged against it;
     that would report the training set as compliant and inflate the
@@ -271,6 +292,13 @@ def test_invalid_baseline_fraction_is_rejected(tmp_path, bad: float) -> None:
     log = _log(tmp_path, _routine("a1", 10))
     with pytest.raises(ValueError, match="baseline_fraction"):
         replay(ingest(log), baseline_fraction=bad)
+
+
+@pytest.mark.parametrize("bad", [0, -1])
+def test_invalid_minimum_baseline_is_rejected(tmp_path, bad: int) -> None:
+    log = _log(tmp_path, _routine("a1", 40))
+    with pytest.raises(ValueError, match="min_baseline_actions"):
+        replay(ingest(log), min_baseline_actions=bad)
 
 
 def test_report_serializes_to_json(tmp_path) -> None:

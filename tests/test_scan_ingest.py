@@ -9,6 +9,7 @@ no synthesized timestamp, no guessed capability, no silent drops.
 from __future__ import annotations
 
 import json
+import sqlite3
 
 import pytest
 
@@ -311,3 +312,54 @@ def test_actions_are_well_formed_agent_actions(tmp_path) -> None:
         assert action.agent_id and action.capability
         assert action.context["source_format"] == "mcp"
         assert action.context["source_line"] > 0
+
+
+def test_source_outcome_is_preserved_without_claiming_execution(tmp_path) -> None:
+    row = {
+        "agent_id": "a1",
+        "capability": "web_search",
+        "timestamp": 1780000000,
+        "outcome": "allowed",
+    }
+    path = _write(tmp_path, "g.jsonl", [json.dumps(row)])
+
+    action = ingest(path).actions[0]
+
+    assert action.context["reported_outcome"] == "allowed"
+
+
+def test_privatevault_sqlite_history_is_read_read_only(tmp_path) -> None:
+    path = tmp_path / "history.db"
+    connection = sqlite3.connect(path)
+    connection.execute(
+        "CREATE TABLE records (seq INTEGER PRIMARY KEY, body TEXT NOT NULL)"
+    )
+    rows = [
+        {
+            "agent_id": "a1",
+            "capability": "crm.read_contact",
+            "timestamp": 1780000000.25,
+            "drift_score": 0.0,
+        },
+        {
+            "agent_id": "a1",
+            "capability": "payments.drain_account",
+            "timestamp": 1780000001.5,
+            "drift_score": 0.9,
+        },
+    ]
+    connection.executemany(
+        "INSERT INTO records(seq, body) VALUES (?, ?)",
+        [(index, json.dumps(row)) for index, row in enumerate(rows, 1)],
+    )
+    connection.commit()
+    connection.close()
+
+    result = ingest(path)
+
+    assert result.source_format == "sqlite"
+    assert result.coverage == 1.0
+    assert [action.capability for action in result.actions] == [
+        "crm.read_contact",
+        "payments.drain_account",
+    ]

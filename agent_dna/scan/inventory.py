@@ -42,11 +42,32 @@ class Rule:
         return re.fullmatch(self.pattern, capability, re.IGNORECASE) is not None
 
 
-# Capability-name rules. Order does not matter; the strongest effect wins,
-# so a tool matching both MUTATING and IRREVERSIBLE is IRREVERSIBLE.
+# Exact capability contracts are authoritative for inventory classification.
+# A capability name that is not listed here may still match one of the narrow
+# legacy rules below, but ambiguous compound names remain UNKNOWN.  The
+# registry is deliberately explicit: a namespace identifies a domain, not an
+# effect, and token position is not reliable enough to infer safety.
+CAPABILITY_MANIFEST_V1: dict[str, tuple[str, str]] = {
+    "crm.read_contact": (READ_ONLY, "reads a CRM contact"),
+    "crm.update_contact": (MUTATING, "changes a CRM contact"),
+    "email.send": (IRREVERSIBLE, "sends a message externally"),
+    "payments.drain_account": (IRREVERSIBLE, "moves money"),
+    "payments.get_balance": (READ_ONLY, "reads financial state"),
+    "payments.transfer": (IRREVERSIBLE, "moves money"),
+    "settle.view_queue": (READ_ONLY, "reads a settlement queue"),
+    "storage.bulk_export": (IRREVERSIBLE, "exports data from its current scope"),
+    "tool_search": (UNKNOWN, "acquires new capabilities mid-session"),
+    "web_search": (READ_ONLY, "retrieves remote content"),
+    "wire.get_status": (READ_ONLY, "reads payment status"),
+}
+
+
+# Fallback rules cover only unambiguous, established spellings.  They never
+# split compound names such as read_export or fetch_and_delete: without an
+# exact manifest entry those names are UNKNOWN, never assumed safe.
 DEFAULT_RULES: tuple[Rule, ...] = (
     # coding agents
-    Rule(r"read|view|glob|grep|ls|cat|search.*", READ_ONLY, "reads only"),
+    Rule(r"read|view|glob|grep|ls|cat|search", READ_ONLY, "reads only"),
     Rule(r"webfetch|websearch|fetch", READ_ONLY, "retrieves remote content"),
     Rule(r"todowrite|notebookread", READ_ONLY, "local scratch state"),
     Rule(r"write|edit|multiedit|notebookedit|create_file|str_replace",
@@ -54,8 +75,10 @@ DEFAULT_RULES: tuple[Rule, ...] = (
     Rule(r"bash|shell|sh|exec|run_command|terminal",
          UNKNOWN, "shell: effect depends on the command"),
     Rule(r"task|agent|dispatch.*", UNKNOWN, "delegates to another agent"),
-    # money and records
-    Rule(r"(payment|payout|transfer|wire|settle)\..*|.*\.(execute|initiate|send)",
+    # Money-moving fallbacks require both a financial namespace and an
+    # explicit money-moving operation.  payments.get_balance is not a write.
+    Rule(r"(?:payment|payout|transfer|wire|settle|disburse)s?\."
+         r"(?:execute|initiate|send|transfer|wire|remit|drain)(?:[_-].*)?",
          IRREVERSIBLE, "moves money"),
     Rule(r"refund\.(issue|execute)|.*\.refund", IRREVERSIBLE, "issues a refund"),
     Rule(r".*\.(delete|destroy|purge|drop|revoke)", IRREVERSIBLE,
@@ -94,7 +117,7 @@ _SHELL_ARG_KEYS = ("command", "cmd", "script", "shell_command", "input")
 @dataclass(frozen=True)
 class Classification:
     effect: str
-    basis: str          # "capability" | "command" | "default"
+    basis: str          # "manifest" | "capability" | "command" | "default"
     note: str
 
 
@@ -113,9 +136,19 @@ def _rank(effect: str) -> int:
 def classify(
     action: AgentAction,
     rules: tuple[Rule, ...] = DEFAULT_RULES,
+    manifest: dict[str, tuple[str, str]] = CAPABILITY_MANIFEST_V1,
 ) -> Classification:
-    """Strongest matching effect wins. Command inspection overrides the
-    capability name, because `Bash` alone says nothing."""
+    """Classify from an exact contract, then narrow fallback rules.
+
+    Command inspection remains authoritative for shell-like tools because
+    `Bash` alone says nothing.  Unregistered compound names do not get token
+    guessed into a safe class.
+    """
+    contract = manifest.get(action.capability.casefold())
+    if contract is not None:
+        effect, note = contract
+        return Classification(effect, "manifest", note)
+
     best: Classification | None = None
     for rule in rules:
         if not rule.matches(action.capability):
@@ -167,6 +200,8 @@ class ToolUsage:
         self.notes.setdefault(cls.effect, cls.note)
         if cls.basis == "command":
             self.basis = "command"
+        elif cls.basis == "manifest" and self.basis != "command":
+            self.basis = "manifest"
         elif self.basis == "default" and cls.basis == "capability":
             self.basis = "capability"
         if cls.effect == IRREVERSIBLE and len(self.examples) < 3:
