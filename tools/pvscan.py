@@ -36,6 +36,7 @@ except ImportError:  # pragma: no cover
 # --- END STANDALONE-STRIP ---
 
 LOG_SUFFIXES = (".jsonl", ".json", ".log", ".ndjson", ".csv", ".tsv")
+RECURSIVE_LOG_SUFFIXES = (".jsonl", ".log", ".ndjson")
 RULE = "=" * 68
 THIN = "-" * 68
 
@@ -47,7 +48,9 @@ def find_logs(target: Path, max_files: int) -> list[Path]:
         raise SystemExit(f"pvscan: no such file or directory: {target}")
     found = sorted(
         p for p in target.rglob("*")
-        if p.is_file() and p.suffix.lower() in LOG_SUFFIXES and p.stat().st_size > 0
+        if p.is_file()
+        and p.suffix.lower() in RECURSIVE_LOG_SUFFIXES
+        and p.stat().st_size > 0
     )
     return found[:max_files]
 
@@ -66,6 +69,7 @@ class Totals:
         self.tools: dict[str, object] = {}
         self.agents: dict[str, object] = {}
         self.span: tuple[float, float] | None = None
+        self.reported_outcomes: dict[str, int] = {}
 
     def absorb(self, inv, result) -> None:
         self.files_read += 1
@@ -77,6 +81,11 @@ class Totals:
             self.skip_reasons[reason] = self.skip_reasons.get(reason, 0) + n
         if inv.actions == 0:
             self.files_empty.append(inv.source_path)
+
+        for action in result.actions:
+            reported = action.context.get("reported_outcome", "not_reported")
+            label = str(reported).strip().lower() or "not_reported"
+            self.reported_outcomes[label] = self.reported_outcomes.get(label, 0) + 1
 
         for name, usage in inv.tools.items():
             existing = self.tools.get(name)
@@ -148,6 +157,13 @@ def render(t: Totals, target: Path, top_agents: int = 15) -> str:
         add(f"Window            {_ts(t.span[0])}  ->  {_ts(t.span[1])}")
     add(f"Agents / sessions {len(t.agents)}")
     add(f"Distinct tools    {len(t.tools)}")
+    if t.reported_outcomes:
+        outcomes = ", ".join(
+            f"{name} {count}"
+            for name, count in sorted(t.reported_outcomes.items())
+        )
+        add(f"Source outcomes   {outcomes}")
+        add("                  Source labels only; not execution proof.")
     add("")
 
     counts = t.by_effect()
@@ -180,13 +196,16 @@ def render(t: Totals, target: Path, top_agents: int = 15) -> str:
         add("  None observed in this window.")
     else:
         total = sum(u.irreversible for u in irreversible)
-        add(f"  {total} action(s) that cannot be undone by re-running anything.")
+        add(
+            f"  {total} observed attempt(s) classified irreversible if executed."
+        )
+        add("  This inventory does not prove dispatch or a real-world effect.")
         for usage in irreversible:
             who = ", ".join(sorted(usage.agents)[:3])
             add(f"    {usage.capability:20} x{usage.irreversible:<4} by {who}")
     add("")
 
-    add("REACH BY AGENT")
+    add("OBSERVED ATTEMPTS BY AGENT")
     add(THIN)
     ranked = sorted(
         t.agents.values(), key=lambda a: (-a.irreversible, -len(a.capabilities))
@@ -216,11 +235,9 @@ def render(t: Totals, target: Path, top_agents: int = 15) -> str:
 
     add("AUTHORITY EVIDENCE")
     add(THIN)
-    add(f"  Actions carrying a verifiable authority chain:  0 of {t.actions}")
-    add("  No mainstream agent framework emits authority evidence today, so")
-    add("  this measures instrumentation, not anyone's controls. Nothing here")
-    add("  shows an action was unauthorised -- only that authorisation cannot")
-    add("  be demonstrated either way.")
+    add("  Not assessed by this dependency-free inventory command.")
+    add("  Run `pv authority scan` with a pinned trust bundle to classify")
+    add("  evidence as VERIFIED, INVALID, UNVERIFIABLE, or ABSENT.")
     add("")
 
     if t.skip_reasons:
@@ -278,7 +295,8 @@ def to_json(t: Totals, target: Path) -> dict:
             }
             for a in sorted(t.agents.values(), key=lambda a: -a.irreversible)
         ],
-        "authority_evidence_found": 0,
+        "authority_evidence_assessed": False,
+        "reported_outcomes": t.reported_outcomes,
         "skip_reasons": t.skip_reasons,
     }
 

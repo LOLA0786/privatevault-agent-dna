@@ -40,10 +40,56 @@ def _authority_json(path: str):
         ) from exc
 
 
+def _scan_json_object(
+    line: str,
+    path: str,
+    line_number: int,
+) -> dict[str, object]:
+    """Parse an outer history row without weakening receipt validation."""
+    from .authority_v01 import AuthorityFormatError
+
+    def no_duplicate_keys(
+        pairs: list[tuple[str, object]],
+    ) -> dict[str, object]:
+        value: dict[str, object] = {}
+        for key, item in pairs:
+            if key in value:
+                raise AuthorityFormatError(
+                    f"duplicate JSON key: {key}"
+                )
+            value[key] = item
+        return value
+
+    def reject_constant(token: str) -> None:
+        raise AuthorityFormatError(
+            f"non-finite JSON number: {token}"
+        )
+
+    try:
+        value = json.loads(
+            line,
+            object_pairs_hook=no_duplicate_keys,
+            parse_constant=reject_constant,
+        )
+    except json.JSONDecodeError as exc:
+        raise AuthorityFormatError(
+            f"{path} line {line_number}: invalid JSON: {exc}"
+        ) from exc
+    except AuthorityFormatError as exc:
+        raise AuthorityFormatError(
+            f"{path} line {line_number}: {exc}"
+        ) from exc
+
+    if not isinstance(value, dict):
+        raise AuthorityFormatError(
+            f"{path} line {line_number}: expected JSON object"
+        )
+    return value
+
+
 def _authority_jsonl(path: str):
     from .authority_v01 import (
         AuthorityFormatError,
-        strict_json_loads,
     )
 
     try:
@@ -61,17 +107,75 @@ def _authority_jsonl(path: str):
         if not line.strip():
             continue
 
-        value = strict_json_loads(line)
-
-        if not isinstance(value, dict):
-            raise AuthorityFormatError(
-                f"{path} line {line_number}: "
-                "expected JSON object"
+        records.append(
+            _scan_json_object(
+                line,
+                path,
+                line_number,
             )
-
-        records.append(value)
+        )
 
     return records
+
+
+def _authority_sqlite(path: str):
+    """Read PrivateVault decision bodies from SQLite in read-only mode."""
+    import sqlite3
+
+    from .authority_v01 import AuthorityFormatError
+
+    db_path = Path(path)
+    try:
+        connection = sqlite3.connect(
+            f"file:{db_path.resolve()}?mode=ro",
+            uri=True,
+        )
+    except sqlite3.Error as exc:
+        raise AuthorityFormatError(
+            f"cannot open {path} read-only: {exc}"
+        ) from exc
+
+    try:
+        tables = {
+            row[0]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            )
+        }
+        if "records" not in tables:
+            raise AuthorityFormatError(
+                f"{path}: SQLite history has no records table"
+            )
+
+        records = []
+        for sequence, body in connection.execute(
+            "SELECT seq, body FROM records ORDER BY seq"
+        ):
+            try:
+                value = json.loads(body)
+            except (TypeError, json.JSONDecodeError) as exc:
+                raise AuthorityFormatError(
+                    f"{path} record {sequence}: invalid body JSON: {exc}"
+                ) from exc
+            if not isinstance(value, dict):
+                raise AuthorityFormatError(
+                    f"{path} record {sequence}: expected JSON object"
+                )
+            records.append(value)
+        return records
+    except sqlite3.Error as exc:
+        raise AuthorityFormatError(
+            f"cannot read {path}: {exc}"
+        ) from exc
+    finally:
+        connection.close()
+
+
+def _authority_records(path: str):
+    suffix = Path(path).suffix.lower()
+    if suffix in {".db", ".sqlite", ".sqlite3"}:
+        return _authority_sqlite(path)
+    return _authority_jsonl(path)
 
 
 def cmd_authority_verify(args) -> int:
@@ -152,7 +256,7 @@ def cmd_authority_scan(args) -> int:
     )
 
     try:
-        records = _authority_jsonl(args.input)
+        records = _authority_records(args.input)
 
         bundle = (
             _authority_json(args.trust_bundle)
@@ -178,6 +282,7 @@ def cmd_authority_scan(args) -> int:
         return EXIT_USAGE
 
     evidence = report["evidence_state"]
+    conformance = report["decision_conformance"]
 
     print(
         "\npv authority scan - "
@@ -197,6 +302,26 @@ def cmd_authority_scan(args) -> int:
         f"UNVERIFIABLE {evidence['UNVERIFIABLE']}   "
         f"ABSENT {evidence['ABSENT']}"
     )
+    print(
+        "Conformance        "
+        f"CONFORMANT {conformance['CONFORMANT']}   "
+        f"NON_CONFORMANT {conformance['NON_CONFORMANT']}   "
+        f"NOT_ASSESSABLE {conformance['NOT_ASSESSABLE']}"
+    )
+
+    if report["critical_findings"]:
+        print("\nCRITICAL FINDINGS")
+        for finding in report["critical_findings"]:
+            print(
+                f"row {finding['row']}  {finding['finding']}"
+            )
+            if finding.get("accountable_principal"):
+                print(
+                    "  accountable_principal "
+                    f"{finding['accountable_principal']}"
+                )
+            for failure in finding.get("failures", []):
+                print(f"  failure {failure}")
 
     if evidence["ABSENT"]:
         print("\nFINDING")
@@ -215,7 +340,11 @@ def cmd_authority_scan(args) -> int:
             encoding="utf-8",
         )
 
-    return EXIT_OK
+    failed = (
+        evidence["INVALID"] > 0
+        or conformance["NON_CONFORMANT"] > 0
+    )
+    return EXIT_FAIL if failed else EXIT_OK
 
 
 def _print_report(result, rule_path: str) -> None:  # noqa: C901
@@ -504,7 +633,7 @@ def build_parser() -> argparse.ArgumentParser:
         "scan",
         help=(
             "assess authority-evidence readiness "
-            "in JSONL records"
+            "in JSONL records or PrivateVault SQLite history"
         ),
     )
     scan.add_argument(

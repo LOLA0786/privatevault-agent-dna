@@ -152,6 +152,7 @@ class ScanReport:
     levels_inert: list[str] = field(default_factory=list)
     drift_threshold: float = 0.0
     baseline_fraction: float = 0.0
+    min_baseline_actions: int = 20
     agents_without_baseline: list[str] = field(default_factory=list)
 
     @property
@@ -194,6 +195,7 @@ class ScanReport:
                 "levels_inert": self.levels_inert,
                 "drift_threshold": self.drift_threshold,
                 "baseline_fraction": self.baseline_fraction,
+                "min_baseline_actions": self.min_baseline_actions,
                 "agents_without_baseline": self.agents_without_baseline,
             },
         }
@@ -216,13 +218,15 @@ def _split_by_agent(
 def _partition(
     grouped: dict[str, list[AgentAction]],
     baseline_fraction: float,
+    min_baseline_actions: int,
 ) -> tuple[dict[str, list[AgentAction]], list[AgentAction], list[str]]:
     """Split each agent chronologically into profile and evaluation.
 
-    Both sides must be non-empty. A profile of zero actions explains
-    nothing, and a split that leaves nothing to score produces a report
-    about no traffic -- so an agent too small to split is named in the
-    report rather than scored against somebody else's profile.
+    The profile must contain at least min_baseline_actions observations,
+    and evaluation must be non-empty.  Capability count is deliberately
+    irrelevant: a single-purpose agent can have a legitimate baseline.
+    An agent too small to split is named in the report rather than scored
+    against somebody else's profile.
     """
     baseline: dict[str, list[AgentAction]] = {}
     evaluate: list[AgentAction] = []
@@ -230,7 +234,7 @@ def _partition(
 
     for agent_id, seq in sorted(grouped.items()):
         cut = int(len(seq) * baseline_fraction)
-        if cut < 1 or cut >= len(seq):
+        if cut < min_baseline_actions or cut >= len(seq):
             unsplittable.append(agent_id)
             continue
         baseline[agent_id] = seq[:cut]
@@ -270,12 +274,14 @@ def replay(
     engine: DecisionEngine | None = None,
     drift_threshold: float = 0.50,
     max_samples: int = _MAX_SAMPLES,
+    min_baseline_actions: int = 20,
 ) -> ScanReport:
     """Score the later portion of a log against the earlier portion.
 
     baseline_fraction is the share of each agent's actions used to
-    learn that agent's normal behaviour. An agent with too few actions
-    to split is reported by name in agents_without_baseline and is
+    learn that agent's normal behaviour. min_baseline_actions is the
+    minimum observation count required for that profile. An agent with
+    too few actions is reported by name in agents_without_baseline and
     excluded from evaluation rather than scored against a profile built
     from somebody else's traffic.
 
@@ -285,6 +291,8 @@ def replay(
     """
     if not 0.0 < baseline_fraction < 1.0:
         raise ValueError("baseline_fraction must be strictly between 0 and 1")
+    if min_baseline_actions < 1:
+        raise ValueError("min_baseline_actions must be at least 1")
 
     report = ScanReport(
         source_path=ingested.source_path,
@@ -295,11 +303,14 @@ def replay(
         agents=ingested.agents(),
         window=ingested.time_span(),
         baseline_fraction=baseline_fraction,
+        min_baseline_actions=min_baseline_actions,
         drift_threshold=drift_threshold,
     )
 
     baseline, evaluate, unsplittable = _partition(
-        _split_by_agent(ingested.actions), baseline_fraction
+        _split_by_agent(ingested.actions),
+        baseline_fraction,
+        min_baseline_actions,
     )
     report.agents_without_baseline = unsplittable
     report.baseline_actions = sum(len(v) for v in baseline.values())
