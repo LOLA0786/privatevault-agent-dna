@@ -30,6 +30,7 @@ from __future__ import annotations
 import csv as _csv
 import io
 import json
+import sqlite3
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -38,7 +39,10 @@ from typing import Any
 
 from ..trace import AgentAction
 
-FORMATS = ("auto", "mcp", "openai", "anthropic", "claude_code", "generic", "csv")
+FORMATS = (
+    "auto", "mcp", "openai", "anthropic", "claude_code", "adr", "generic",
+    "csv", "sqlite"
+)
 
 # Keys we accept for each required field, in priority order. Real logs
 # disagree about names; this is the whole of the flexibility on offer.
@@ -178,6 +182,26 @@ def _normalize_capability(value: Any) -> str | None:
     return cap or None
 
 
+_DENIED = {"denied","deny","refused","refuse","rejected","reject","declined","decline","blocked","block","forbidden","denied_by_policy","policy_denied","not_permitted"}
+_ERRORED = {"error","fail","failed","failure","exception","timeout"}
+_ALLOWED = {"ok","allowed","allow","success","succeeded","completed"}
+
+
+def _normalize_outcome(value: Any) -> str:
+    """Map a log outcome onto ok/error/blocked. An unrecognised value
+    is reported as unknown, never assumed benign."""
+    if value is None:
+        return "ok"
+    t = str(value).strip().lower()
+    if t in _DENIED:
+        return "blocked"
+    if t in _ERRORED:
+        return "error"
+    if t in _ALLOWED:
+        return "ok"
+    return "unknown"
+
+
 def _build_action(
     obj: dict[str, Any],
     line_no: int,
@@ -198,16 +222,24 @@ def _build_action(
         return SkippedRow(line_no, "no parseable timestamp", raw)
 
     request_id = _first(obj, _REQUEST_KEYS)
-    outcome = obj.get("outcome") or obj.get("status") or "ok"
-    if outcome not in ("ok", "error", "blocked"):
-        outcome = "error" if str(outcome).lower() in ("fail", "failed") else "ok"
+    raw_outcome = obj.get("outcome") or obj.get("status")
+    outcome = _normalize_outcome(raw_outcome)
+
+    context: dict[str, Any] = {
+        "source_format": source_format,
+        "source_line": line_no,
+    }
+    if raw_outcome is not None:
+        # Preserve exactly what the source claimed.  `outcome` is a legacy
+        # normalization and is not proof that dispatch or an effect occurred.
+        context["reported_outcome"] = str(raw_outcome)
 
     return AgentAction(
         agent_id=agent_id.strip(),
         capability=capability,
         timestamp=timestamp,
         arguments=_coerce_arguments(_first(obj, _ARGUMENT_KEYS)),
-        context={"source_format": source_format, "source_line": line_no},
+        context=context,
         request_id=str(request_id) if request_id is not None else None,
         outcome=outcome,
     )
@@ -297,6 +329,42 @@ def _extract_claude_code(obj: dict[str, Any]) -> list[dict[str, Any]]:
     return calls
 
 
+def _extract_adr(obj: dict[str, Any]) -> list[dict[str, Any]]:
+    """Uber ADR-Bench record: {type, task_id, conversation[], result{}}.
+
+    The corpus identifies tasks, not agents, so no agent id exists in
+    the data. Callers must supply one via ingest(agent_id=...); the
+    substitution is recorded rather than invented here.
+    """
+    if obj.get("type") == "manifest":
+        return []
+    convo = obj.get("conversation")
+    if not isinstance(convo, list):
+        return []
+    task = obj.get("task_id")
+    res = obj.get("result") or {}
+    ok = res.get("success")
+    out: list[dict[str, Any]] = []
+    for msg in convo:
+        if not isinstance(msg, dict):
+            continue
+        for call in (msg.get("tool_calls") or []):
+            if not isinstance(call, dict):
+                continue
+            name = call.get("name")
+            if not name:
+                continue
+            out.append({
+                "capability": name,
+                "timestamp": msg.get("timestamp"),
+                "arguments": call.get("input") or call.get("arguments") or {},
+                "request_id": call.get("id"),
+                "outcome": "ok" if ok else ("error" if ok is False else None),
+                "task_id": task,
+            })
+    return out
+
+
 def _extract_generic(obj: dict[str, Any]) -> list[dict[str, Any]]:
     return [obj]
 
@@ -304,6 +372,7 @@ def _extract_generic(obj: dict[str, Any]) -> list[dict[str, Any]]:
 _EXTRACTORS = {
     "mcp": _extract_mcp,
     "openai": _extract_openai,
+    "adr": _extract_adr,
     "anthropic": _extract_anthropic,
     "claude_code": _extract_claude_code,
     "generic": _extract_generic,
@@ -335,6 +404,8 @@ def detect_format(path: str | Path) -> str:
     explicit format when the answer matters.
     """
     path = Path(path)
+    if path.suffix.lower() in (".db", ".sqlite", ".sqlite3"):
+        return "sqlite"
     if path.suffix.lower() in (".csv", ".tsv"):
         return "csv"
 
@@ -412,6 +483,66 @@ def _ingest_csv(path: Path, result: IngestResult) -> None:
             result.skipped.append(built)
         else:
             result.actions.append(built)
+
+
+def _ingest_sqlite(
+    path: Path,
+    agent_id: str | None,
+    result: IngestResult,
+) -> None:
+    """Read PrivateVault's append-only records table without writing the DB."""
+    uri = f"file:{path.resolve()}?mode=ro"
+    try:
+        connection = sqlite3.connect(uri, uri=True)
+    except sqlite3.Error as exc:
+        raise ValueError(f"cannot open SQLite history read-only: {exc}") from exc
+
+    try:
+        tables = {
+            row[0]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            )
+        }
+        if "records" not in tables:
+            raise ValueError("SQLite history has no records table")
+
+        columns = {
+            row[1] for row in connection.execute("PRAGMA table_info(records)")
+        }
+        if not {"seq", "body"}.issubset(columns):
+            raise ValueError("SQLite records table must contain seq and body")
+
+        for line_no, (body,) in enumerate(
+            connection.execute("SELECT body FROM records ORDER BY seq"),
+            start=1,
+        ):
+            result.lines_read += 1
+            try:
+                obj = json.loads(body)
+            except (TypeError, ValueError) as exc:
+                result.skipped.append(
+                    SkippedRow(
+                        line_no,
+                        f"invalid record body JSON: {str(exc)[:60]}",
+                        str(body)[:_MAX_RAW_ECHO],
+                    )
+                )
+                continue
+            if not isinstance(obj, dict):
+                result.skipped.append(
+                    SkippedRow(
+                        line_no,
+                        "record body is not a JSON object",
+                        str(body)[:_MAX_RAW_ECHO],
+                    )
+                )
+                continue
+            _ingest_row(obj, line_no, "sqlite", agent_id, result)
+    except sqlite3.Error as exc:
+        raise ValueError(f"cannot read SQLite history: {exc}") from exc
+    finally:
+        connection.close()
 
 
 def _ingest_row(
@@ -493,6 +624,8 @@ def ingest(
 
     if resolved == "csv":
         _ingest_csv(path, result)
+    elif resolved == "sqlite":
+        _ingest_sqlite(path, agent_id, result)
     else:
         _ingest_jsonl(path, resolved, agent_id, result)
     return result

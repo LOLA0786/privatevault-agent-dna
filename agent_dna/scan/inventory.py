@@ -42,11 +42,64 @@ class Rule:
         return re.fullmatch(self.pattern, capability, re.IGNORECASE) is not None
 
 
-# Capability-name rules. Order does not matter; the strongest effect wins,
-# so a tool matching both MUTATING and IRREVERSIBLE is IRREVERSIBLE.
+# Exact capability contracts are authoritative for inventory classification.
+# A capability name that is not listed here may still match one of the narrow
+# legacy rules below, but ambiguous compound names remain UNKNOWN.  The
+# registry is deliberately explicit: a namespace identifies a domain, not an
+# effect, and token position is not reliable enough to infer safety.
+CAPABILITY_MANIFEST_V1: dict[str, tuple[str, str]] = {
+    "crm.read_contact": (READ_ONLY, "reads a CRM contact"),
+    "crm.update_contact": (MUTATING, "changes a CRM contact"),
+    "email.send": (IRREVERSIBLE, "sends a message externally"),
+    "payments.drain_account": (IRREVERSIBLE, "moves money"),
+    "payments.get_balance": (READ_ONLY, "reads financial state"),
+    "payments.transfer": (IRREVERSIBLE, "moves money"),
+    "settle.view_queue": (READ_ONLY, "reads a settlement queue"),
+    "storage.bulk_export": (IRREVERSIBLE, "exports data from its current scope"),
+    "tool_search": (UNKNOWN, "acquires new capabilities mid-session"),
+    "web_search": (READ_ONLY, "retrieves remote content"),
+    "wire.get_status": (READ_ONLY, "reads payment status"),
+}
+
+
+# MCP tools, keyed on the canonical <server>.<tool> form. Assigned by
+# hand from observed contracts, same discipline as the manifest above:
+# an unlisted MCP tool stays UNKNOWN.
+MCP_MANIFEST_V1: dict[str, tuple[str, str]] = {
+    "excel_toolkit.excel_write_cell": (MUTATING, "writes a spreadsheet cell"),
+    "excel_toolkit.excel_add_sheet": (MUTATING, "adds a worksheet"),
+    "excel_toolkit.excel_create_workbook": (MUTATING, "creates a workbook"),
+    "word_toolkit.word_add_paragraph": (MUTATING, "writes document text"),
+    "word_toolkit.word_add_heading": (MUTATING, "writes a document heading"),
+    "word_toolkit.word_add_table": (MUTATING, "writes a document table"),
+    "word_toolkit.word_add_page_break": (MUTATING, "changes document layout"),
+    "word_toolkit.word_create_document": (MUTATING, "creates a document"),
+    "ppt_toolkit.ppt_add_slide": (MUTATING, "adds a slide"),
+    "ppt_toolkit.ppt_create_presentation": (MUTATING, "creates a presentation"),
+    "sql_toolkit.insert_data": (MUTATING, "writes database rows"),
+    "timeseries_db.write_points": (MUTATING, "writes time-series points"),
+    "calendar_toolkit.add_event_to_calendar": (MUTATING, "creates a calendar event"),
+    "scientific_calculator.basic_arithmetic": (READ_ONLY, "computes, no side effect"),
+    "cloud_storage.upload_file": (IRREVERSIBLE, "sends data outside local scope"),
+    "event_streaming.produce_message": (IRREVERSIBLE, "emits to a stream, not recallable"),
+    "cli_executor.exec": (UNKNOWN, "shell: effect depends on the command"),
+    "file_server.write_file": (MUTATING, "writes a file"),
+    "memory.create_entities": (MUTATING, "writes to a knowledge store"),
+    "recipe_manager.create_recipe": (MUTATING, "creates a stored record"),
+    "image_processor.analyze_image_properties": (READ_ONLY, "inspects an image"),
+    "audio_processor.analyze_audio_file": (READ_ONLY, "inspects an audio file"),
+    "sensor_data_processor.process_sensor_data": (READ_ONLY, "computes over sensor input"),
+    "sequential_thinking.sequentialthinking": (READ_ONLY, "reasoning step, no external effect"),
+    "ml_inference.predict": (READ_ONLY, "runs inference, no external effect"),
+}
+
+
+# Fallback rules cover only unambiguous, established spellings.  They never
+# split compound names such as read_export or fetch_and_delete: without an
+# exact manifest entry those names are UNKNOWN, never assumed safe.
 DEFAULT_RULES: tuple[Rule, ...] = (
     # coding agents
-    Rule(r"read|view|glob|grep|ls|cat|search.*", READ_ONLY, "reads only"),
+    Rule(r"read|view|glob|grep|ls|cat|search", READ_ONLY, "reads only"),
     Rule(r"webfetch|websearch|fetch", READ_ONLY, "retrieves remote content"),
     Rule(r"todowrite|notebookread", READ_ONLY, "local scratch state"),
     Rule(r"write|edit|multiedit|notebookedit|create_file|str_replace",
@@ -54,8 +107,10 @@ DEFAULT_RULES: tuple[Rule, ...] = (
     Rule(r"bash|shell|sh|exec|run_command|terminal",
          UNKNOWN, "shell: effect depends on the command"),
     Rule(r"task|agent|dispatch.*", UNKNOWN, "delegates to another agent"),
-    # money and records
-    Rule(r"(payment|payout|transfer|wire|settle)\..*|.*\.(execute|initiate|send)",
+    # Money-moving fallbacks require both a financial namespace and an
+    # explicit money-moving operation.  payments.get_balance is not a write.
+    Rule(r"(?:payment|payout|transfer|wire|settle|disburse)s?\."
+         r"(?:execute|initiate|send|transfer|wire|remit|drain)(?:[_-].*)?",
          IRREVERSIBLE, "moves money"),
     Rule(r"refund\.(issue|execute)|.*\.refund", IRREVERSIBLE, "issues a refund"),
     Rule(r".*\.(delete|destroy|purge|drop|revoke)", IRREVERSIBLE,
@@ -91,10 +146,31 @@ COMMAND_RULES: tuple[tuple[str, str, str], ...] = (
 _SHELL_ARG_KEYS = ("command", "cmd", "script", "shell_command", "input")
 
 
+def _canonical_mcp(capability: str) -> str | None:
+    """`mcp__<server>__<tool>` -> `<server>.<tool>`, or None.
+
+    This is parsing, not inference. MCP fixes the delimiter, so the
+    split is lossless and reversible; the tool half may carry a leading
+    underscore (mcp__excel_toolkit___excel_write_cell), which is noise
+    from the server's own naming, not a segment. No effect is inferred
+    here -- the result is only ever used as a manifest lookup key, so an
+    unregistered tool stays UNKNOWN exactly as before.
+    """
+    if not capability.startswith("mcp__"):
+        return None
+    parts = capability.split("__")
+    if len(parts) != 3:
+        return None
+    server, tool = parts[1].strip("_"), parts[2].strip("_")
+    if not server or not tool:
+        return None
+    return f"{server}.{tool}"
+
+
 @dataclass(frozen=True)
 class Classification:
     effect: str
-    basis: str          # "capability" | "command" | "default"
+    basis: str          # "manifest" | "capability" | "command" | "default"
     note: str
 
 
@@ -110,12 +186,38 @@ def _rank(effect: str) -> int:
     return EFFECTS.index(effect)
 
 
+def _mcp_contract(capability: str) -> Classification | None:
+    """Manifest lookup for an MCP-qualified name, or None."""
+    canonical = _canonical_mcp(capability)
+    if canonical is None:
+        return None
+    contract = MCP_MANIFEST_V1.get(canonical)
+    if contract is None:
+        return None
+    effect, note = contract
+    return Classification(effect, "manifest", note)
+
+
 def classify(
     action: AgentAction,
     rules: tuple[Rule, ...] = DEFAULT_RULES,
+    manifest: dict[str, tuple[str, str]] = CAPABILITY_MANIFEST_V1,
 ) -> Classification:
-    """Strongest matching effect wins. Command inspection overrides the
-    capability name, because `Bash` alone says nothing."""
+    """Classify from an exact contract, then narrow fallback rules.
+
+    Command inspection remains authoritative for shell-like tools because
+    `Bash` alone says nothing.  Unregistered compound names do not get token
+    guessed into a safe class.
+    """
+    contract = manifest.get(action.capability.casefold())
+    if contract is not None:
+        effect, note = contract
+        return Classification(effect, "manifest", note)
+
+    mcp = _mcp_contract(action.capability)
+    if mcp is not None:
+        return mcp
+
     best: Classification | None = None
     for rule in rules:
         if not rule.matches(action.capability):
@@ -167,6 +269,8 @@ class ToolUsage:
         self.notes.setdefault(cls.effect, cls.note)
         if cls.basis == "command":
             self.basis = "command"
+        elif cls.basis == "manifest" and self.basis != "command":
+            self.basis = "manifest"
         elif self.basis == "default" and cls.basis == "capability":
             self.basis = "capability"
         if cls.effect == IRREVERSIBLE and len(self.examples) < 3:

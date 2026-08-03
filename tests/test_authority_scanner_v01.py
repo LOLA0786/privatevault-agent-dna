@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import copy
 import json
+import sqlite3
 import subprocess
 import sys
 from pathlib import Path
@@ -231,6 +232,143 @@ def test_pv_authority_scan_reports_absent_evidence(
     )
     assert "ABSENT 2" in result.stdout
     assert "industry norm" in result.stdout
+
+
+def test_authority_scan_accepts_float_fields_outside_receipt(
+    tmp_path,
+):
+    records = tmp_path / "records.jsonl"
+    records.write_text(
+        '{"action":"a","drift_score":0.9}\n',
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "agent_dna.cli",
+            "authority",
+            "scan",
+            "--input",
+            str(records),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "ABSENT 1" in result.stdout
+    assert "NOT_ASSESSABLE 1" in result.stdout
+
+
+def test_authority_scan_rejects_duplicate_wrapper_keys(
+    tmp_path,
+):
+    records = tmp_path / "records.jsonl"
+    records.write_text(
+        '{"action":"a","action":"b"}\n',
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "agent_dna.cli",
+            "authority",
+            "scan",
+            "--input",
+            str(records),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    assert "duplicate JSON key: action" in result.stderr
+
+
+def test_authority_scan_reads_privatevault_sqlite_history(
+    tmp_path,
+):
+    path = tmp_path / "history.db"
+    connection = sqlite3.connect(path)
+    connection.execute(
+        "CREATE TABLE records (seq INTEGER PRIMARY KEY, body TEXT NOT NULL)"
+    )
+    connection.executemany(
+        "INSERT INTO records(seq, body) VALUES (?, ?)",
+        [
+            (1, json.dumps({"action": "a", "drift_score": 0.0})),
+            (2, json.dumps({"action": "b", "drift_score": 0.9})),
+        ],
+    )
+    connection.commit()
+    connection.close()
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "agent_dna.cli",
+            "authority",
+            "scan",
+            "--input",
+            str(path),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "Actions analysed   2" in result.stdout
+    assert "ABSENT 2" in result.stdout
+
+
+def test_human_scan_surfaces_nonconformant_allow_and_fails(
+    tmp_path,
+    _artifacts_fixture,
+):
+    receipt = copy.deepcopy(_artifacts_fixture["receipt"])
+    receipt["requested"]["action"] = "payments.delete"
+    receipt = sign_receipt(
+        receipt,
+        _artifacts_fixture["keys"]["runtime"],
+    )
+
+    records = tmp_path / "records.jsonl"
+    bundle = tmp_path / "bundle.json"
+    records.write_text(json.dumps(receipt) + "\n", encoding="utf-8")
+    bundle.write_text(
+        json.dumps(_artifacts_fixture["bundle"]),
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "agent_dna.cli",
+            "authority",
+            "scan",
+            "--input",
+            str(records),
+            "--trust-bundle",
+            str(bundle),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert "NON_CONFORMANT 1" in result.stdout
+    assert "VERIFIED_NON_CONFORMANT_ALLOW" in result.stdout
+    assert "owner@store.example" in result.stdout
 
 
 def test_published_json_schemas_accept_valid_artifacts(

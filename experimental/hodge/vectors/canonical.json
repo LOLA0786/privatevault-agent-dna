@@ -1,0 +1,21 @@
+{
+  "cases": {
+    "cosigned_triangle": {
+      "curl": 0.9918367346938779,
+      "gradient": 0.008163265306122413,
+      "harmonic": 0.0
+    },
+    "pure_hierarchy": {
+      "curl": 0.0,
+      "gradient": 1.0000000000000002,
+      "harmonic": 0.0
+    },
+    "uncosigned_triangle": {
+      "curl": 0.0,
+      "gradient": 0.008163265306122413,
+      "harmonic": 0.9918367346938776
+    }
+  },
+  "note": "Committed reference values. Compared, never regenerated. If a change to hodge.py moves these, that is a deliberate decision requiring a new spec version.",
+  "spec": "pv-hodge-vectors/0.1"
+}
