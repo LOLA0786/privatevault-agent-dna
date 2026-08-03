@@ -40,7 +40,8 @@ from typing import Any
 from ..trace import AgentAction
 
 FORMATS = (
-    "auto", "mcp", "openai", "anthropic", "claude_code", "generic", "csv", "sqlite"
+    "auto", "mcp", "openai", "anthropic", "claude_code", "adr", "generic",
+    "csv", "sqlite"
 )
 
 # Keys we accept for each required field, in priority order. Real logs
@@ -328,6 +329,42 @@ def _extract_claude_code(obj: dict[str, Any]) -> list[dict[str, Any]]:
     return calls
 
 
+def _extract_adr(obj: dict[str, Any]) -> list[dict[str, Any]]:
+    """Uber ADR-Bench record: {type, task_id, conversation[], result{}}.
+
+    The corpus identifies tasks, not agents, so no agent id exists in
+    the data. Callers must supply one via ingest(agent_id=...); the
+    substitution is recorded rather than invented here.
+    """
+    if obj.get("type") == "manifest":
+        return []
+    convo = obj.get("conversation")
+    if not isinstance(convo, list):
+        return []
+    task = obj.get("task_id")
+    res = obj.get("result") or {}
+    ok = res.get("success")
+    out: list[dict[str, Any]] = []
+    for msg in convo:
+        if not isinstance(msg, dict):
+            continue
+        for call in (msg.get("tool_calls") or []):
+            if not isinstance(call, dict):
+                continue
+            name = call.get("name")
+            if not name:
+                continue
+            out.append({
+                "capability": name,
+                "timestamp": msg.get("timestamp"),
+                "arguments": call.get("input") or call.get("arguments") or {},
+                "request_id": call.get("id"),
+                "outcome": "ok" if ok else ("error" if ok is False else None),
+                "task_id": task,
+            })
+    return out
+
+
 def _extract_generic(obj: dict[str, Any]) -> list[dict[str, Any]]:
     return [obj]
 
@@ -335,6 +372,7 @@ def _extract_generic(obj: dict[str, Any]) -> list[dict[str, Any]]:
 _EXTRACTORS = {
     "mcp": _extract_mcp,
     "openai": _extract_openai,
+    "adr": _extract_adr,
     "anthropic": _extract_anthropic,
     "claude_code": _extract_claude_code,
     "generic": _extract_generic,

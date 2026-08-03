@@ -62,6 +62,38 @@ CAPABILITY_MANIFEST_V1: dict[str, tuple[str, str]] = {
 }
 
 
+# MCP tools, keyed on the canonical <server>.<tool> form. Assigned by
+# hand from observed contracts, same discipline as the manifest above:
+# an unlisted MCP tool stays UNKNOWN.
+MCP_MANIFEST_V1: dict[str, tuple[str, str]] = {
+    "excel_toolkit.excel_write_cell": (MUTATING, "writes a spreadsheet cell"),
+    "excel_toolkit.excel_add_sheet": (MUTATING, "adds a worksheet"),
+    "excel_toolkit.excel_create_workbook": (MUTATING, "creates a workbook"),
+    "word_toolkit.word_add_paragraph": (MUTATING, "writes document text"),
+    "word_toolkit.word_add_heading": (MUTATING, "writes a document heading"),
+    "word_toolkit.word_add_table": (MUTATING, "writes a document table"),
+    "word_toolkit.word_add_page_break": (MUTATING, "changes document layout"),
+    "word_toolkit.word_create_document": (MUTATING, "creates a document"),
+    "ppt_toolkit.ppt_add_slide": (MUTATING, "adds a slide"),
+    "ppt_toolkit.ppt_create_presentation": (MUTATING, "creates a presentation"),
+    "sql_toolkit.insert_data": (MUTATING, "writes database rows"),
+    "timeseries_db.write_points": (MUTATING, "writes time-series points"),
+    "calendar_toolkit.add_event_to_calendar": (MUTATING, "creates a calendar event"),
+    "scientific_calculator.basic_arithmetic": (READ_ONLY, "computes, no side effect"),
+    "cloud_storage.upload_file": (IRREVERSIBLE, "sends data outside local scope"),
+    "event_streaming.produce_message": (IRREVERSIBLE, "emits to a stream, not recallable"),
+    "cli_executor.exec": (UNKNOWN, "shell: effect depends on the command"),
+    "file_server.write_file": (MUTATING, "writes a file"),
+    "memory.create_entities": (MUTATING, "writes to a knowledge store"),
+    "recipe_manager.create_recipe": (MUTATING, "creates a stored record"),
+    "image_processor.analyze_image_properties": (READ_ONLY, "inspects an image"),
+    "audio_processor.analyze_audio_file": (READ_ONLY, "inspects an audio file"),
+    "sensor_data_processor.process_sensor_data": (READ_ONLY, "computes over sensor input"),
+    "sequential_thinking.sequentialthinking": (READ_ONLY, "reasoning step, no external effect"),
+    "ml_inference.predict": (READ_ONLY, "runs inference, no external effect"),
+}
+
+
 # Fallback rules cover only unambiguous, established spellings.  They never
 # split compound names such as read_export or fetch_and_delete: without an
 # exact manifest entry those names are UNKNOWN, never assumed safe.
@@ -114,6 +146,27 @@ COMMAND_RULES: tuple[tuple[str, str, str], ...] = (
 _SHELL_ARG_KEYS = ("command", "cmd", "script", "shell_command", "input")
 
 
+def _canonical_mcp(capability: str) -> str | None:
+    """`mcp__<server>__<tool>` -> `<server>.<tool>`, or None.
+
+    This is parsing, not inference. MCP fixes the delimiter, so the
+    split is lossless and reversible; the tool half may carry a leading
+    underscore (mcp__excel_toolkit___excel_write_cell), which is noise
+    from the server's own naming, not a segment. No effect is inferred
+    here -- the result is only ever used as a manifest lookup key, so an
+    unregistered tool stays UNKNOWN exactly as before.
+    """
+    if not capability.startswith("mcp__"):
+        return None
+    parts = capability.split("__")
+    if len(parts) != 3:
+        return None
+    server, tool = parts[1].strip("_"), parts[2].strip("_")
+    if not server or not tool:
+        return None
+    return f"{server}.{tool}"
+
+
 @dataclass(frozen=True)
 class Classification:
     effect: str
@@ -133,6 +186,18 @@ def _rank(effect: str) -> int:
     return EFFECTS.index(effect)
 
 
+def _mcp_contract(capability: str) -> Classification | None:
+    """Manifest lookup for an MCP-qualified name, or None."""
+    canonical = _canonical_mcp(capability)
+    if canonical is None:
+        return None
+    contract = MCP_MANIFEST_V1.get(canonical)
+    if contract is None:
+        return None
+    effect, note = contract
+    return Classification(effect, "manifest", note)
+
+
 def classify(
     action: AgentAction,
     rules: tuple[Rule, ...] = DEFAULT_RULES,
@@ -148,6 +213,10 @@ def classify(
     if contract is not None:
         effect, note = contract
         return Classification(effect, "manifest", note)
+
+    mcp = _mcp_contract(action.capability)
+    if mcp is not None:
+        return mcp
 
     best: Classification | None = None
     for rule in rules:
