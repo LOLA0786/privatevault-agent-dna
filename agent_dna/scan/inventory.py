@@ -83,6 +83,14 @@ MCP_MANIFEST_V1: dict[str, tuple[str, str]] = {
     "cloud_storage.upload_file": (IRREVERSIBLE, "sends data outside local scope"),
     "event_streaming.produce_message": (IRREVERSIBLE, "emits to a stream, not recallable"),
     "cli_executor.exec": (UNKNOWN, "shell: effect depends on the command"),
+    "file_server.write_file": (MUTATING, "writes a file"),
+    "memory.create_entities": (MUTATING, "writes to a knowledge store"),
+    "recipe_manager.create_recipe": (MUTATING, "creates a stored record"),
+    "image_processor.analyze_image_properties": (READ_ONLY, "inspects an image"),
+    "audio_processor.analyze_audio_file": (READ_ONLY, "inspects an audio file"),
+    "sensor_data_processor.process_sensor_data": (READ_ONLY, "computes over sensor input"),
+    "sequential_thinking.sequentialthinking": (READ_ONLY, "reasoning step, no external effect"),
+    "ml_inference.predict": (READ_ONLY, "runs inference, no external effect"),
 }
 
 
