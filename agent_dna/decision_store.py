@@ -13,16 +13,16 @@ the file breaks the hash chain.
 from __future__ import annotations
 
 import json
-from collections.abc import Iterator
 from pathlib import Path
+from typing import Iterator, List, Union
 
 from .decision_graph import DecisionGraph
-from .decision_record import PROTOCOL_VERSION, DecisionRecord
+from .decision_record import DecisionRecord
 from .execution_record import ExecutionEvent
 
 
 class DecisionStore:
-    def __init__(self, path: str | Path) -> None:
+    def __init__(self, path: Union[str, Path]) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -62,18 +62,12 @@ class DecisionStore:
                         f"{self.path}:{lineno}: corrupt JSONL line"
                     ) from e
 
-    def load(self) -> list:
-        records: list = []
+    def load(self) -> List:
+        records: List = []
         for d in self._iter_dicts():
             record_hash = d.pop("record_hash")
             kind = d.pop("kind", "decision")
-            version = d.pop("protocol_version", None)  # init=False, restored by dataclass
-            if version is not None and version != PROTOCOL_VERSION:
-                raise ValueError(
-                    f"record {record_hash[:12]}.. declares {version}; "
-                    f"this build implements {PROTOCOL_VERSION}. A verifier must "
-                    "not infer semantics from field presence."
-                )
+            d.pop("protocol_version", None)   # init=False, restored by dataclass
             if kind == "execution":
                 rec = ExecutionEvent(**d)
             else:

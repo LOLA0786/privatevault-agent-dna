@@ -28,7 +28,7 @@ import json
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 from .decision import DecisionResult
 from .trace import AgentAction
@@ -36,11 +36,7 @@ from .trace import AgentAction
 GENESIS_HASH = "0" * 64
 
 
-PROTOCOL_VERSION = "drp/0.2"
-
-# Algorithms every 0.2 record commits under, at seal time.
-# Order is irrelevant: canonical() sorts. See spec/drp-0.2/COMMITMENTS.md.
-COMMITMENT_ALGORITHMS = ("sha-256", "sha3-256")
+PROTOCOL_VERSION = "drp/0.1"
 
 
 @dataclass
@@ -49,7 +45,7 @@ class DecisionRecord:
     kind: str = field(default="decision", init=False)   # record discriminator
     protocol_version: str = field(default=PROTOCOL_VERSION, init=False)
     decision_id: str
-    parent_decision: str | None      # previous record for this agent (chain, not DAG — yet)
+    parent_decision: Optional[str]      # previous record for this agent (chain, not DAG — yet)
     agent_id: str
     capability: str
 
@@ -59,7 +55,7 @@ class DecisionRecord:
     reason: str
     severity: str
     drift_score: float
-    evidence: list[dict[str, Any]]
+    evidence: List[Dict[str, Any]]
     evidence_strength: float
 
     # execution context
@@ -67,26 +63,25 @@ class DecisionRecord:
     outcome: str                        # "pending" until an executor reports back
 
     # schema-reserved: nothing produces these yet (see module docstring)
-    request_id: str | None = None    # link to originating ActionRequest
-    goal: str | None = None
-    intent: str | None = None
-    policy_id: str | None = None
-    approval_ref: str | None = None
-    receipt_ref: str | None = None
+    request_id: Optional[str] = None    # link to originating ActionRequest
+    goal: Optional[str] = None
+    intent: Optional[str] = None
+    policy_id: Optional[str] = None
+    approval_ref: Optional[str] = None
+    receipt_ref: Optional[str] = None
 
     # graph edges — hash-covered. Only "follows" is produced today.
     # New edge types may be added ONLY when a component produces them.
-    edges: list[dict[str, str]] = field(default_factory=list)
+    edges: List[Dict[str, str]] = field(default_factory=list)
 
     # chain
     timestamp: float = field(default_factory=time.time)
     prev_hash: str = GENESIS_HASH
     record_hash: str = ""
-    commitments: dict[str, str] = field(default_factory=dict)
 
     # ------------------------------------------------------------------
 
-    def payload(self) -> dict[str, Any]:
+    def payload(self) -> Dict[str, Any]:
         """Everything covered by the hash, in canonical order."""
         return {
             "kind": self.kind,
@@ -115,76 +110,36 @@ class DecisionRecord:
             "prev_hash": self.prev_hash,
         }
 
-    def canonical_bytes(self) -> bytes:
-        """The exact octets every commitment is computed over."""
-        return json.dumps(
+    def compute_hash(self) -> str:
+        canonical = json.dumps(
             self.payload(),
             sort_keys=True,
             separators=(",", ":"),
             allow_nan=False,
-        ).encode()
-
-    def compute_hash(self) -> str:
-        return hashlib.sha256(self.canonical_bytes()).hexdigest()
-
-    def compute_commitments(self) -> dict[str, str]:
-        """One digest per algorithm, all over the identical canonical bytes."""
-        raw = self.canonical_bytes()
-        return {
-            "sha-256": hashlib.sha256(raw).hexdigest(),
-            "sha3-256": hashlib.sha3_256(raw).hexdigest(),
-        }
-
-    def signing_digest(self) -> str:
-        """What the signature covers.
-
-        DRP 0.1 signed record_hash. A commitment outside the signed
-        surface is not load-bearing: an adversary with a SHA-256
-        collision substitutes the payload and rewrites an unsigned
-        commitments block to match. Signing over the commitments block
-        means a SHA-2 collision still breaks the SHA3-256 entry.
-        """
-        if not self.commitments:
-            raise ValueError("record is not sealed; no commitments to sign")
-        canonical = json.dumps(
-            self.commitments,
-            sort_keys=True,
-            separators=(",", ":"),
-            allow_nan=False,
         )
-        return hashlib.sha3_256(canonical.encode()).hexdigest()
+        return hashlib.sha256(canonical.encode()).hexdigest()
 
-    def apply_chain(self, prev_hash: str) -> DecisionRecord:
+    def apply_chain(self, prev_hash: str) -> "DecisionRecord":
         self.prev_hash = prev_hash
         return self.seal()
 
-    def seal(self) -> DecisionRecord:
-        self.commitments = self.compute_commitments()
-        self.record_hash = self.commitments["sha-256"]
+    def seal(self) -> "DecisionRecord":
+        self.record_hash = self.compute_hash()
         return self
 
     def verify(self) -> bool:
-        if self.record_hash == "" or not self.commitments:
-            return False
-        expected = self.compute_commitments()
-        for algorithm in COMMITMENT_ALGORITHMS:
-            if algorithm not in self.commitments:
-                return False
-        # Every entry present is recomputed: an unchecked entry is an
-        # unchecked claim, including one the verifier does not prefer.
-        for algorithm, digest in self.commitments.items():
-            if algorithm not in expected or expected[algorithm] != digest:
-                return False
-        return self.record_hash == self.commitments["sha-256"]
+        return (
+            self.record_hash != ""
+            and self.record_hash == self.compute_hash()
+        )
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         d = self.payload()
         d["record_hash"] = self.record_hash
-        d["commitments"] = dict(self.commitments)
         return d
 
 
-def _digest_arguments(arguments: dict[str, Any]) -> str:
+def _digest_arguments(arguments: Dict[str, Any]) -> str:
     canonical = json.dumps(
         arguments,
         sort_keys=True,
@@ -198,10 +153,10 @@ def build_record(
     action: AgentAction,
     result: DecisionResult,
     *,
-    parent_decision: str | None = None,
+    parent_decision: Optional[str] = None,
     prev_hash: str = GENESIS_HASH,
-    request_id: str | None = None,
-    anchor_hash: str | None = None,
+    request_id: Optional[str] = None,
+    anchor_hash: Optional[str] = None,
 ) -> DecisionRecord:
     """Reduce (AgentAction, DecisionResult) to a sealed DecisionRecord."""
     result_dict = result.to_dict()

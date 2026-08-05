@@ -26,16 +26,12 @@ import json
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Dict, List
 
 VALID_STATUS = ("ok", "error", "refused")
 
 
-PROTOCOL_VERSION = "drp/0.2"
-
-# Mirrors decision_record.COMMITMENT_ALGORITHMS. Duplicated rather
-# than imported: execution_record must not depend on decision_record.
-COMMITMENT_ALGORITHMS = ("sha-256", "sha3-256")
+PROTOCOL_VERSION = "drp/0.1"
 
 
 @dataclass
@@ -47,13 +43,12 @@ class ExecutionEvent:
     decision_ref: str = ""              # decision_id this reports on
     status: str = ""                    # "ok" | "error" | "refused"
     detail: str = ""
-    edges: list[dict[str, str]] = field(default_factory=list)
+    edges: List[Dict[str, str]] = field(default_factory=list)
     timestamp: float = field(default_factory=time.time)
     prev_hash: str = ""                 # record_hash of the decision (anchor)
     record_hash: str = ""
-    commitments: dict[str, str] = field(default_factory=dict)
 
-    def payload(self) -> dict[str, Any]:
+    def payload(self) -> Dict[str, Any]:
         return {
             "kind": self.kind,
             "protocol_version": self.protocol_version,
@@ -67,51 +62,25 @@ class ExecutionEvent:
             "prev_hash": self.prev_hash,
         }
 
-    def canonical_bytes(self) -> bytes:
-        """The exact octets every commitment is computed over."""
-        return json.dumps(
-            self.payload(),
-            sort_keys=True,
-            separators=(",", ":"),
-            allow_nan=False,
-        ).encode()
-
-    def compute_commitments(self) -> dict[str, str]:
-        raw = self.canonical_bytes()
-        return {
-            "sha-256": hashlib.sha256(raw).hexdigest(),
-            "sha3-256": hashlib.sha3_256(raw).hexdigest(),
-        }
-
     def compute_hash(self) -> str:
         canonical = json.dumps(
             self.payload(), sort_keys=True, separators=(",", ":"), allow_nan=False
         )
         return hashlib.sha256(canonical.encode()).hexdigest()
 
-    def seal(self) -> ExecutionEvent:
-        self.commitments = self.compute_commitments()
-        self.record_hash = self.commitments["sha-256"]
+    def seal(self) -> "ExecutionEvent":
+        self.record_hash = self.compute_hash()
         return self
 
     def verify(self) -> bool:
-        if self.record_hash == "" or not self.commitments:
-            return False
-        expected = self.compute_commitments()
-        for algorithm in COMMITMENT_ALGORITHMS:
-            if algorithm not in self.commitments:
-                return False
-        # Every entry present is recomputed: an unchecked entry is an
-        # unchecked claim, including one this verifier does not prefer.
-        for algorithm, digest in self.commitments.items():
-            if algorithm not in expected or expected[algorithm] != digest:
-                return False
-        return self.record_hash == self.commitments["sha-256"]
+        return (
+            self.record_hash != ""
+            and self.record_hash == self.compute_hash()
+        )
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         d = self.payload()
         d["record_hash"] = self.record_hash
-        d["commitments"] = dict(self.commitments)
         return d
 
 

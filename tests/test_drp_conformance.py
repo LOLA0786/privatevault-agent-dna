@@ -1,4 +1,4 @@
-"""drp/0.2 conformance: version pinned, request_id flows, hash-covered."""
+"""drp/0.1 conformance: version pinned, request_id flows, hash-covered."""
 
 import time
 
@@ -28,7 +28,7 @@ def _pair(request_id=None):
 def test_protocol_version_present_and_hashed():
     rec = _pair()
     d = rec.to_dict()
-    assert d["protocol_version"] == "drp/0.2"
+    assert d["protocol_version"] == "drp/0.1"
     assert rec.verify()
     rec.protocol_version = "drp/9.9"
     assert not rec.verify()          # version is inside the digest

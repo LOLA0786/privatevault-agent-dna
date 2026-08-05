@@ -16,11 +16,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-OUTPUTS = (
-    ROOT / "distributions" / "pvscan.py",
-    ROOT / "distributions" / "pvscan-kit" / "pvscan.py",
-)
-OUT = OUTPUTS[0]
+OUT = ROOT / "distributions" / "pvscan.py"
 
 SOURCES = [
     ("agent_dna/trace.py", None),
@@ -144,10 +140,10 @@ from __future__ import annotations
     return header + "\n".join(sorted(set(all_imports))) + "\n\n\n" + "\n\n\n".join(chunks) + "\n"
 
 
-def _emit(out, text: str) -> None:
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(text, encoding="utf-8")
-    out.chmod(0o755)
+def main() -> int:
+    OUT.parent.mkdir(parents=True, exist_ok=True)
+    OUT.write_text(build(), encoding="utf-8")
+    OUT.chmod(0o755)
 
     # The generated file must pass the same lint as hand-written source.
     # Flattening reorders imports and can orphan one, so fix in place
@@ -155,23 +151,14 @@ def _emit(out, text: str) -> None:
     for args in (["check", "--fix", "--quiet"], ["format", "--quiet"]):
         try:
             subprocess.run(
-                [sys.executable, "-m", "ruff", *args, str(out)],
+                [sys.executable, "-m", "ruff", *args, str(OUT)],
                 cwd=ROOT, check=False, capture_output=True,
             )
         except Exception:
             print("warning: ruff unavailable; generated file not linted")
             break
-
-    lines = len(out.read_text().splitlines())
-    print(f"built {out}  ({lines} lines)")
-
-
-def main() -> int:
-    # Build once: the header embeds a commit hash and a date, so a second
-    # call could straddle a second boundary and fork the two copies.
-    text = build()
-    for out in OUTPUTS:
-        _emit(out, text)
+    lines = len(OUT.read_text().splitlines())
+    print(f"built {OUT}  ({lines} lines)")
     return 0
 
 
