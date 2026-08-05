@@ -1,0 +1,226 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://drp.privatevault.ai/schemas/drp-0.2/decision_record.schema.json",
+  "title": "DecisionRecord",
+  "description": "A sealed, hash-chained pre-execution authorization decision (DRP protocol). record_hash = SHA-256 of the canonical JSON payload (all properties except record_hash, sorted keys, compact separators (',', ':'), no type coercion). Per-agent chain: prev_hash equals the previous decision's record_hash for the same agent_id. The FIRST record of an agent establishes that agent's origin: 64 zeros means unanchored genesis; any other value is an external provenance anchor (e.g. the head of a prior export). Verifiers MUST verify continuity from the origin and MUST report anchored agents; anchor authenticity is attested out of band. The chain link is INSIDE the hashed payload: signatures over record_hash therefore cover history, making silent re-ordering impossible. DRP 0.2: payload shape, canonicalization, record_hash, and chain linkage are unchanged from 0.1. Records additionally carry a commitments object holding digests of the same canonical bytes under multiple hash algorithms, and the signature is over SHA3-256(canonical(commitments)) rather than over record_hash. This makes hash-algorithm migration possible without re-accessing payloads, which digest-only retention has made unavailable. See spec/drp-0.2/COMMITMENTS.md.",
+  "type": "object",
+  "required": [
+    "agent_id",
+    "approval_ref",
+    "arguments_digest",
+    "capability",
+    "commitments",
+    "decision",
+    "decision_id",
+    "drift_score",
+    "edges",
+    "evidence",
+    "evidence_strength",
+    "goal",
+    "intent",
+    "kind",
+    "outcome",
+    "parent_decision",
+    "policy_id",
+    "prev_hash",
+    "protocol_version",
+    "reason",
+    "receipt_ref",
+    "record_hash",
+    "request_id",
+    "severity",
+    "timestamp",
+    "triggered_by"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "protocol_version": {
+      "const": "drp/0.2",
+      "description": "DRP protocol version this record conforms to."
+    },
+    "kind": {
+      "const": "decision"
+    },
+    "decision_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "parent_decision": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "decision_id of this agent's previous decision; null for the first record in an agent chain."
+    },
+    "agent_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "capability": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Fully-qualified tool/action name, e.g. payments.initiate_wire."
+    },
+    "decision": {
+      "enum": [
+        "allow",
+        "require_approval",
+        "block"
+      ]
+    },
+    "triggered_by": {
+      "type": "string",
+      "description": "Which precedence rule produced the decision, e.g. invariant, authorization, drift, baseline."
+    },
+    "reason": {
+      "type": "string"
+    },
+    "severity": {
+      "type": "string"
+    },
+    "drift_score": {
+      "type": "number",
+      "minimum": 0
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "score",
+          "confidence",
+          "summary"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "score": {
+            "type": "number"
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "summary": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "evidence_strength": {
+      "type": "number",
+      "minimum": 0
+    },
+    "arguments_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 of canonical action arguments. Raw arguments are never stored."
+    },
+    "outcome": {
+      "const": "pending",
+      "description": "Always pending on a sealed decision. Execution results are separate ExecutionEvent records; decisions are never mutated."
+    },
+    "goal": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Schema-reserved; no producer yet."
+    },
+    "intent": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Schema-reserved; no producer yet."
+    },
+    "policy_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Schema-reserved; no producer yet."
+    },
+    "approval_ref": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Schema-reserved; no producer yet."
+    },
+    "receipt_ref": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Schema-reserved; signing layer reference."
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "type",
+          "target"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "enum": [
+              "follows"
+            ]
+          },
+          "target": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "Graph edges produced for decisions today: follows (target = parent_decision)."
+    },
+    "timestamp": {
+      "type": "number"
+    },
+    "prev_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "record_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "request_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Optional link to the originating ActionRequest. Populated when the caller supplies a request identifier; null otherwise."
+    },
+    "commitments": {
+      "type": "object",
+      "description": "Digests of the identical octet string canonical(payload), one per algorithm. Verifiers MUST recompute every entry present, not only the one they prefer. sha-256 MUST equal record_hash. The signature is over SHA3-256(canonical(commitments)).",
+      "required": [
+        "sha-256",
+        "sha3-256"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "sha-256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "sha3-256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "sha-384": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{96}$"
+        }
+      }
+    }
+  }
+}

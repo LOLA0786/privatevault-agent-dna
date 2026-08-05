@@ -100,6 +100,11 @@ EXECUTION_FIELDS = frozenset(
         "record_hash",
     }
 )
+# drp/0.2 adds exactly one field. Derived rather than retyped so the
+# two versions cannot drift apart.
+DECISION_FIELDS_V2 = DECISION_FIELDS | {"commitments"}
+EXECUTION_FIELDS_V2 = EXECUTION_FIELDS | {"commitments"}
+
 DECISION_ENUM = {"allow", "require_approval", "block"}
 STATUS_ENUM = {"ok", "error", "refused"}
 ENVELOPE_FIELDS = frozenset(
@@ -119,10 +124,58 @@ def _reject_nonfinite(token):
     raise ValueError(f"non-finite number {token!r} is not valid JSON")
 
 
+SUPPORTED_VERSIONS = frozenset({"drp/0.1", "drp/0.2"})
+
+NON_PAYLOAD_FIELDS = ("record_hash", "commitments")
+
+COMMITMENT_ALGORITHMS = {
+    "sha-256": hashlib.sha256,
+    "sha3-256": hashlib.sha3_256,
+}
+
+
+def canonical_bytes(record: dict) -> bytes:
+    payload = {k: v for k, v in record.items() if k not in NON_PAYLOAD_FIELDS}
+    return json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+
+
 def compute_hash(record: dict) -> str:
-    payload = {k: v for k, v in record.items() if k != "record_hash"}
-    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(canonical.encode()).hexdigest()
+    return hashlib.sha256(canonical_bytes(record)).hexdigest()
+
+
+def commitment_failures(record: dict, lineno: int) -> list[str]:
+    """Recompute EVERY entry, not only the preferred one.
+
+    An unchecked entry is an unchecked claim. A verifier that trusts
+    sha3-256 and skips sha-256 would accept a record whose sha-256
+    entry was forged, and vice versa.
+    """
+    out = []
+    commitments = record.get("commitments")
+    if not isinstance(commitments, dict):
+        return [f"line {lineno}: commitments missing or not an object"]
+
+    raw = canonical_bytes(record)
+    for algorithm in COMMITMENT_ALGORITHMS:
+        if algorithm not in commitments:
+            out.append(f"line {lineno}: commitments missing {algorithm}")
+
+    for algorithm, digest in commitments.items():
+        fn = COMMITMENT_ALGORITHMS.get(algorithm)
+        if fn is None:
+            out.append(f"line {lineno}: unknown commitment algorithm {algorithm!r}")
+            continue
+        expected = fn(raw).hexdigest()
+        if expected != digest:
+            out.append(
+                f"line {lineno}: {algorithm} commitment mismatch "
+                f"(stored {digest[:12]}.., computed {expected[:12]}..)"
+            )
+
+    stored = record.get("record_hash")
+    if commitments.get("sha-256") != stored:
+        out.append(f"line {lineno}: record_hash does not equal commitments['sha-256']")
+    return out
 
 
 def _trusted_key(value: str) -> str:
@@ -325,16 +378,30 @@ def verify(  # noqa: C901 - mirrors the protocol check order
                 continue
 
             pv = rec.get("protocol_version")
-            if pv != "drp/0.1":
+            # 0.1 and 0.2 coexist in one file and one chain: the chain
+            # link is SHA-256 in both, so continuity holds across the
+            # boundary without a migration record. Semantics are chosen
+            # by declared version, never inferred from field presence.
+            if pv not in SUPPORTED_VERSIONS:
                 failures.append(
-                    f"line {lineno}: protocol_version {pv!r} is not drp/0.1"
+                    f"line {lineno}: protocol_version {pv!r} is not "
+                    f"one of {sorted(SUPPORTED_VERSIONS)}"
+                )
+                continue
+            if pv == "drp/0.2":
+                failures.extend(commitment_failures(rec, lineno))
+            elif "commitments" in rec:
+                failures.append(
+                    f"line {lineno}: drp/0.1 record carries a commitments "
+                    "field; version and content disagree"
                 )
 
             kind = rec.get("kind", "decision")
+            v2 = pv == "drp/0.2"
             expected_fields = (
-                DECISION_FIELDS
+                (DECISION_FIELDS_V2 if v2 else DECISION_FIELDS)
                 if kind == "decision"
-                else EXECUTION_FIELDS
+                else (EXECUTION_FIELDS_V2 if v2 else EXECUTION_FIELDS)
                 if kind == "execution"
                 else None
             )

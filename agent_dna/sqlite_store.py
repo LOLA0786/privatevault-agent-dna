@@ -20,7 +20,7 @@ import threading
 from pathlib import Path
 
 from .decision_graph import DecisionGraph
-from .decision_record import DecisionRecord
+from .decision_record import PROTOCOL_VERSION, DecisionRecord
 from .execution_record import ExecutionEvent
 
 _SCHEMA = """
@@ -336,7 +336,13 @@ class SQLiteDecisionStore:
             d = json.loads(body)
             record_hash = d.pop("record_hash")
             kind = d.pop("kind", "decision")
-            d.pop("protocol_version", None)  # init=False, restored by dataclass
+            version = d.pop("protocol_version", None)  # init=False, restored by dataclass
+            if version is not None and version != PROTOCOL_VERSION:
+                raise ValueError(
+                    f"record {record_hash[:12]}.. declares {version}; "
+                    f"this build implements {PROTOCOL_VERSION}. A verifier must "
+                    "not infer semantics from field presence."
+                )
             rec = ExecutionEvent(**d) if kind == "execution" else DecisionRecord(**d)
             rec.record_hash = record_hash
             out.append(rec)
