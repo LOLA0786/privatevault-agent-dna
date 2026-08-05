@@ -6,6 +6,13 @@
 //! sort_keys=True, separators=(",", ":")). A record sealed here MUST
 //! verify under tools/verify_records.py with zero modifications.
 //!
+//! drp/0.2 LIMITATION: the Rust mirror computes record_hash, which is
+//! unchanged in 0.2 and remains the chain link, so Python and Rust agree
+//! on every chain. It does NOT yet compute the `commitments` block, so a
+//! record sealed HERE is not a complete 0.2 record and will fail the
+//! verifier's field check. Rust is a hashing mirror for parity, not a
+//! record producer, until commitments land here too.
+//!
 //! evidence / edges cross the FFI boundary as JSON strings and are
 //! parsed STRICTLY at set time -- invalid JSON is an error, never a
 //! silent default (that would let two different stored strings hash
@@ -18,7 +25,7 @@ use sha2::{Digest, Sha256};
 
 use crate::runtime::canonical_json::canonical;
 
-pub const PROTOCOL_VERSION: &str = "drp/0.1";
+pub const PROTOCOL_VERSION: &str = "drp/0.2";
 pub const GENESIS_HASH: &str = "0000000000000000000000000000000000000000000000000000000000000000";
 
 fn parse_json_array(label: &str, raw: &str) -> PyResult<Value> {
