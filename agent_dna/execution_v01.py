@@ -12,6 +12,10 @@ from nacl.exceptions import BadSignatureError
 if TYPE_CHECKING:
     from nacl.signing import SigningKey
 
+from agent_dna.action_v01 import (
+    execution_action_digest,
+    validate_execution_action,
+)
 from agent_dna.authority_v01 import (
     CANONICALIZATION,
     RFC3339_UTC_RE,
@@ -59,16 +63,6 @@ _AUTHORIZATION_FIELDS = frozenset(
         "max_uses",
         "signer_key_id",
         "signature",
-    }
-)
-
-_ACTION_FIELDS = frozenset(
-    {
-        "subject_principal",
-        "subject_key_id",
-        "action",
-        "resource",
-        "parameters",
     }
 )
 
@@ -283,36 +277,15 @@ def validate_execution_authorization(  # noqa: C901
         f"{path}.approval_artifact_digest",
     )
 
-    action = _require_object(
+    action = validate_execution_action(
         value["action"],
         f"{path}.action",
     )
-    _require_exact_fields(
+
+    expected_action_digest = execution_action_digest(
         action,
-        _ACTION_FIELDS,
         f"{path}.action",
     )
-
-    for field in (
-        "subject_principal",
-        "subject_key_id",
-        "action",
-        "resource",
-    ):
-        _require_string(
-            action[field],
-            f"{path}.action.{field}",
-        )
-
-    parameters = action["parameters"]
-    if not isinstance(parameters, Mapping):
-        raise AuthorityFormatError(
-            f"{path}.action.parameters: expected object"
-        )
-
-    canonicalize(parameters)
-
-    expected_action_digest = sha256_digest(action)
     if value["action_digest"] != expected_action_digest:
         raise AuthorityFormatError(
             f"{path}.action_digest: does not match action"

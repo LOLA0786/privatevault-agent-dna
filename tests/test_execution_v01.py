@@ -10,6 +10,7 @@ import pytest
 from jsonschema import Draft202012Validator
 from nacl.signing import SigningKey
 
+import agent_dna.action_v01 as action_module
 import agent_dna.execution_v01 as execution_module
 from agent_dna.authority_v01 import (
     CANONICALIZATION,
@@ -347,7 +348,7 @@ def test_runtime_fields_match_published_schema():
     )
     assert set(
         schema["$defs"]["action"]["required"]
-    ) == set(execution_module._ACTION_FIELDS)
+    ) == set(action_module.EXECUTION_ACTION_FIELDS)
     assert set(
         schema["$defs"]["dispatch"]["required"]
     ) == set(execution_module._DISPATCH_FIELDS)
