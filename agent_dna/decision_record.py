@@ -25,27 +25,38 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
+from .action_v01 import execution_action_digest
 from .decision import DecisionResult
 from .trace import AgentAction
 
 GENESIS_HASH = "0" * 64
 
 
-PROTOCOL_VERSION = "drp/0.1"
+DRP_V01 = "drp/0.1"
+DRP_V02 = "drp/0.2"
+KNOWN_PROTOCOL_VERSIONS = frozenset({DRP_V01, DRP_V02})
+
+# New records default to the version that binds an execution action.
+CURRENT_PROTOCOL_VERSION = DRP_V02
+
+# Retained: existing imports refer to this name.
+PROTOCOL_VERSION = DRP_V01
+
+_SHA256_PREFIXED = re.compile(r"sha256:[0-9a-f]{64}")
 
 
 @dataclass
 class DecisionRecord:
     # identity / lineage
     kind: str = field(default="decision", init=False)   # record discriminator
-    protocol_version: str = field(default=PROTOCOL_VERSION, init=False)
     decision_id: str
-    parent_decision: Optional[str]      # previous record for this agent (chain, not DAG — yet)
+    parent_decision: str | None      # previous record for this agent (chain, not DAG — yet)
     agent_id: str
     capability: str
 
@@ -55,7 +66,7 @@ class DecisionRecord:
     reason: str
     severity: str
     drift_score: float
-    evidence: List[Dict[str, Any]]
+    evidence: list[dict[str, Any]]
     evidence_strength: float
 
     # execution context
@@ -63,27 +74,45 @@ class DecisionRecord:
     outcome: str                        # "pending" until an executor reports back
 
     # schema-reserved: nothing produces these yet (see module docstring)
-    request_id: Optional[str] = None    # link to originating ActionRequest
-    goal: Optional[str] = None
-    intent: Optional[str] = None
-    policy_id: Optional[str] = None
-    approval_ref: Optional[str] = None
-    receipt_ref: Optional[str] = None
+    request_id: str | None = None    # link to originating ActionRequest
+    goal: str | None = None
+    intent: str | None = None
+    policy_id: str | None = None
+    approval_ref: str | None = None
+    receipt_ref: str | None = None
 
     # graph edges — hash-covered. Only "follows" is produced today.
     # New edge types may be added ONLY when a component produces them.
-    edges: List[Dict[str, str]] = field(default_factory=list)
+    edges: list[dict[str, str]] = field(default_factory=list)
 
     # chain
     timestamp: float = field(default_factory=time.time)
     prev_hash: str = GENESIS_HASH
     record_hash: str = ""
 
+    # Keyword-only, so existing positional constructor order is unchanged.
+    # protocol_version is REQUIRED: omitting it must never silently produce
+    # a legacy record. Every producer states whether it is creating a bound
+    # (drp/0.2) or legacy (drp/0.1) record.
+    protocol_version: str = field(kw_only=True)
+    # May default to None: v0.1 requires it absent. The version never
+    # follows from the digest's presence -- that would make a missing
+    # binding look like a legitimate downgrade.
+    action_digest: str | None = field(default=None, kw_only=True)
+
     # ------------------------------------------------------------------
 
-    def payload(self) -> Dict[str, Any]:
-        """Everything covered by the hash, in canonical order."""
-        return {
+    def __post_init__(self) -> None:
+        check_version_invariant(self.protocol_version, self.action_digest)
+
+    def payload(self) -> dict[str, Any]:
+        """Everything covered by the hash, in canonical order.
+
+        drp/0.2 adds action_digest and nothing else, so a v0.1 payload is
+        byte-identical to what it was before v0.2 existed.
+        """
+        check_version_invariant(self.protocol_version, self.action_digest)
+        body = {
             "kind": self.kind,
             "protocol_version": self.protocol_version,
             "decision_id": self.decision_id,
@@ -109,6 +138,12 @@ class DecisionRecord:
             "timestamp": self.timestamp,
             "prev_hash": self.prev_hash,
         }
+        if self.protocol_version == DRP_V02:
+            # Guaranteed by the invariant above; restated for the type
+            # checker, which cannot see through the helper.
+            assert self.action_digest is not None
+            body["action_digest"] = self.action_digest
+        return body
 
     def compute_hash(self) -> str:
         canonical = json.dumps(
@@ -119,27 +154,71 @@ class DecisionRecord:
         )
         return hashlib.sha256(canonical.encode()).hexdigest()
 
-    def apply_chain(self, prev_hash: str) -> "DecisionRecord":
+    def apply_chain(self, prev_hash: str) -> DecisionRecord:
         self.prev_hash = prev_hash
         return self.seal()
 
-    def seal(self) -> "DecisionRecord":
+    def seal(self) -> DecisionRecord:
         self.record_hash = self.compute_hash()
         return self
 
     def verify(self) -> bool:
+        """False, never an exception: a caller checking a record it did
+        not build should get a verdict, not a traceback."""
+        try:
+            check_version_invariant(self.protocol_version, self.action_digest)
+        except ValueError:
+            return False
         return (
             self.record_hash != ""
             and self.record_hash == self.compute_hash()
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         d = self.payload()
         d["record_hash"] = self.record_hash
         return d
 
 
-def _digest_arguments(arguments: Dict[str, Any]) -> str:
+def check_version_invariant(
+    protocol_version: str,
+    action_digest: str | None,
+) -> None:
+    """The only legal version/digest combinations.
+
+    Called at construction, payload generation, sealing, verification and
+    deserialization, so a record cannot be mutated into an invalid pair
+    after it was built. The version is never inferred from the digest: a
+    drp/0.2 record missing its binding is rejected, not downgraded.
+    """
+    if protocol_version not in KNOWN_PROTOCOL_VERSIONS:
+        raise ValueError(
+            f"unknown protocol_version {protocol_version!r}; "
+            f"this build implements {sorted(KNOWN_PROTOCOL_VERSIONS)}"
+        )
+
+    if protocol_version == DRP_V01:
+        if action_digest is not None:
+            raise ValueError(
+                "drp/0.1 records carry no action_digest; a bound record "
+                "must declare drp/0.2"
+            )
+        return
+
+    # drp/0.2
+    if action_digest is None:
+        raise ValueError(
+            "drp/0.2 requires an action_digest; a missing binding is not "
+            "a downgrade to drp/0.1"
+        )
+    if not _SHA256_PREFIXED.fullmatch(action_digest):
+        raise ValueError(
+            f"malformed action_digest {action_digest!r}; "
+            'expected "sha256:" followed by 64 lowercase hex characters'
+        )
+
+
+def _digest_arguments(arguments: dict[str, Any]) -> str:
     canonical = json.dumps(
         arguments,
         sort_keys=True,
@@ -149,18 +228,29 @@ def _digest_arguments(arguments: Dict[str, Any]) -> str:
     return hashlib.sha256(canonical.encode()).hexdigest()
 
 
-def build_record(
+def _build_record(
     action: AgentAction,
     result: DecisionResult,
     *,
-    parent_decision: Optional[str] = None,
-    prev_hash: str = GENESIS_HASH,
-    request_id: Optional[str] = None,
-    anchor_hash: Optional[str] = None,
+    protocol_version: str,
+    action_digest: str | None,
+    parent_decision: str | None,
+    prev_hash: str,
+    request_id: str | None,
+    anchor_hash: str | None,
 ) -> DecisionRecord:
-    """Reduce (AgentAction, DecisionResult) to a sealed DecisionRecord."""
+    """The single construction and sealing path.
+
+    Both public builders route through here so the field mapping exists
+    once, and so a record is constructed in its final protocol shape
+    before its first seal. Nothing upgrades a sealed record: a hash is
+    content-addressed, and a transitional artifact could be observed by
+    anything later added to this function.
+    """
     result_dict = result.to_dict()
     return DecisionRecord(
+        protocol_version=protocol_version,
+        action_digest=action_digest,
         decision_id=str(uuid.uuid4()),
         parent_decision=parent_decision,
         agent_id=action.agent_id,
@@ -188,4 +278,59 @@ def build_record(
     ).apply_chain(
         anchor_hash if (parent_decision is None and anchor_hash is not None)
         else prev_hash
+    )
+
+
+def build_record(
+    action: AgentAction,
+    result: DecisionResult,
+    *,
+    parent_decision: str | None = None,
+    prev_hash: str = GENESIS_HASH,
+    request_id: str | None = None,
+    anchor_hash: str | None = None,
+) -> DecisionRecord:
+    """Reduce (AgentAction, DecisionResult) to a sealed drp/0.1 record.
+
+    Legacy: the record commits to an arguments digest but not to the
+    canonical execution action, so it can be audited but must never
+    authorize execution.
+    """
+    return _build_record(
+        action,
+        result,
+        protocol_version=DRP_V01,
+        action_digest=None,
+        parent_decision=parent_decision,
+        prev_hash=prev_hash,
+        request_id=request_id,
+        anchor_hash=anchor_hash,
+    )
+
+
+def build_record_v02(
+    action: AgentAction,
+    result: DecisionResult,
+    *,
+    execution_action: dict[str, Any],
+    parent_decision: str | None = None,
+    prev_hash: str = GENESIS_HASH,
+    request_id: str | None = None,
+    anchor_hash: str | None = None,
+) -> DecisionRecord:
+    """A sealed drp/0.2 record bound to an exact canonical execution action.
+
+    There is deliberately no action_digest parameter. The digest is
+    computed here from the complete action, so a caller cannot present a
+    digest for one action while the permit later names another.
+    """
+    return _build_record(
+        action,
+        result,
+        protocol_version=DRP_V02,
+        action_digest=execution_action_digest(execution_action),
+        parent_decision=parent_decision,
+        prev_hash=prev_hash,
+        request_id=request_id,
+        anchor_hash=anchor_hash,
     )

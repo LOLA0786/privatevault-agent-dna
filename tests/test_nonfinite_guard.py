@@ -11,12 +11,13 @@ import math
 
 import pytest
 
-from agent_dna.decision_record import DecisionRecord
+from agent_dna.decision_record import DRP_V01, DecisionRecord
 from agent_dna.execution_record import ExecutionEvent
 
 
 def _record(drift):
     return DecisionRecord(
+        protocol_version=DRP_V01,
         decision_id="d-nan",
         parent_decision=None,
         agent_id="a",

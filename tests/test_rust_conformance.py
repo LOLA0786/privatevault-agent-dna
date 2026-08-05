@@ -133,6 +133,8 @@ def test_rust_and_python_agree_on_which_line_is_tampered(vectors):
         body = {k: v for k, v in rec.items() if k != "record_hash"}
         if rec["kind"] == "decision":
             obj = PyD(
+                protocol_version=body["protocol_version"],
+                action_digest=body.get("action_digest"),
                 decision_id=body["decision_id"],
                 parent_decision=body["parent_decision"],
                 agent_id=body["agent_id"],

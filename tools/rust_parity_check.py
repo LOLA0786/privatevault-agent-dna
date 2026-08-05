@@ -12,6 +12,7 @@ import sys
 
 sys.path.insert(0, ".")
 
+from agent_dna.decision_record import DRP_V01
 from agent_dna.decision_record import DecisionRecord as PyDecision
 from agent_dna.execution_record import ExecutionEvent as PyExec
 
@@ -38,6 +39,7 @@ def decision_case(name, **kw):
     evidence = kw.pop("evidence", [])
     edges = kw.pop("edges", [])
     py = PyDecision(
+        protocol_version=DRP_V01,
         decision_id=kw["decision_id"],
         parent_decision=kw.get("parent_decision"),
         agent_id=kw["agent_id"],
