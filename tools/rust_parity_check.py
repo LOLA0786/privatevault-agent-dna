@@ -12,7 +12,7 @@ import sys
 
 sys.path.insert(0, ".")
 
-from agent_dna.decision_record import DRP_V01
+from agent_dna.decision_record import DRP_V01, DRP_V02
 from agent_dna.decision_record import DecisionRecord as PyDecision
 from agent_dna.execution_record import ExecutionEvent as PyExec
 
@@ -24,6 +24,7 @@ except ImportError:
 
 GENESIS = "0" * 64
 FAILURES = []
+HASHES = {}
 
 
 def check(name, py_hash, rs_hash):
@@ -33,13 +34,18 @@ def check(name, py_hash, rs_hash):
         print(f"         python: {py_hash}")
         print(f"         rust  : {rs_hash}")
         FAILURES.append(name)
+    HASHES[name] = (py_hash, rs_hash)
 
 
 def decision_case(name, **kw):
     evidence = kw.pop("evidence", [])
     edges = kw.pop("edges", [])
+    version = kw.pop("protocol_version", DRP_V01)
+    action_digest = kw.pop("action_digest", None)
+
     py = PyDecision(
-        protocol_version=DRP_V01,
+        protocol_version=version,
+        action_digest=action_digest,
         decision_id=kw["decision_id"],
         parent_decision=kw.get("parent_decision"),
         agent_id=kw["agent_id"],
@@ -60,6 +66,8 @@ def decision_case(name, **kw):
     ).seal()
 
     rs = pv_runtime.DecisionRecord(
+        protocol_version=version,
+        action_digest=action_digest,
         decision_id=kw["decision_id"],
         agent_id=kw["agent_id"],
         capability=kw["capability"],
@@ -147,6 +155,56 @@ decision_case(
     evidence=[{"v": 1e16, "w": 0.0001, "neg": -2.5e-7}],
     timestamp=1e15,
 )
+
+# drp/0.2. The digest is inside the hashed payload, so the two records
+# below must differ in BOTH implementations: if action_digest were
+# decoration rather than a binding, these would collide.
+_BOUND = "sha256:" + "3f" * 32
+_OTHER = "sha256:" + "7c" * 32
+
+decision_case(
+    "v0.2 bound to an execution action",
+    protocol_version=DRP_V02,
+    action_digest=_BOUND,
+    decision_id="d-0101", agent_id="service-agent-07",
+    capability="refunds.issue", decision="allow",
+    triggered_by="baseline", reason="within standing grant",
+    severity="none", drift_score=0.0, timestamp=1785000000.0,
+)
+
+decision_case(
+    "v0.2 differing only in action_digest",
+    protocol_version=DRP_V02,
+    action_digest=_OTHER,
+    decision_id="d-0101", agent_id="service-agent-07",
+    capability="refunds.issue", decision="allow",
+    triggered_by="baseline", reason="within standing grant",
+    severity="none", drift_score=0.0, timestamp=1785000000.0,
+)
+
+decision_case(
+    "v0.1 alongside v0.2, same fields otherwise",
+    decision_id="d-0101", agent_id="service-agent-07",
+    capability="refunds.issue", decision="allow",
+    triggered_by="baseline", reason="within standing grant",
+    severity="none", drift_score=0.0, timestamp=1785000000.0,
+)
+
+# Agreement alone is not enough. If action_digest were decoration rather
+# than part of the hashed payload, both implementations could agree on a
+# single hash for all three variants below -- and every case above would
+# still report PASS.
+_DISTINCT = [
+    "v0.2 bound to an execution action",
+    "v0.2 differing only in action_digest",
+    "v0.1 alongside v0.2, same fields otherwise",
+]
+for _side, _label in ((0, "python"), (1, "rust")):
+    _seen = {HASHES[n][_side] for n in _DISTINCT if n in HASHES}
+    _ok = len(_seen) == len(_DISTINCT)
+    print(f"  [{'PASS' if _ok else 'FAIL'}] {_label}: version and digest reach the hash")
+    if not _ok:
+        FAILURES.append(f"{_label} collision across version/digest variants")
 
 print("ExecutionEvent parity:")
 execution_case(
