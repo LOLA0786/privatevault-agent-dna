@@ -18,7 +18,58 @@ use sha2::{Digest, Sha256};
 
 use crate::runtime::canonical_json::canonical;
 
-pub const PROTOCOL_VERSION: &str = "drp/0.1";
+pub const DRP_V01: &str = "drp/0.1";
+pub const DRP_V02: &str = "drp/0.2";
+
+/// Retained: existing Rust callers refer to this name.
+pub const PROTOCOL_VERSION: &str = DRP_V01;
+
+/// The only legal version/digest combinations. Mirrors
+/// agent_dna/decision_record.py::check_version_invariant, including its
+/// messages: a divergence between the two would be a fork in the
+/// protocol, not a cosmetic difference.
+///
+/// The version is never inferred from the digest. A drp/0.2 record
+/// missing its binding is rejected, not downgraded.
+fn check_version_invariant(
+    protocol_version: &str,
+    action_digest: Option<&str>,
+) -> Result<(), String> {
+    match protocol_version {
+        DRP_V01 => {
+            if action_digest.is_some() {
+                return Err(
+                    "drp/0.1 records carry no action_digest; a bound record \
+                     must declare drp/0.2"
+                        .into(),
+                );
+            }
+            Ok(())
+        }
+        DRP_V02 => match action_digest {
+            None => Err(
+                "drp/0.2 requires an action_digest; a missing binding is not \
+                 a downgrade to drp/0.1"
+                    .into(),
+            ),
+            Some(digest) => {
+                let hex = digest.strip_prefix("sha256:").ok_or_else(|| {
+                    format!("malformed action_digest {digest:?}")
+                })?;
+                if hex.len() != 64
+                    || !hex.chars().all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c))
+                {
+                    return Err(format!("malformed action_digest {digest:?}"));
+                }
+                Ok(())
+            }
+        },
+        other => Err(format!(
+            "unknown protocol_version {other:?}; this build implements \
+             [\"drp/0.1\", \"drp/0.2\"]"
+        )),
+    }
+}
 pub const GENESIS_HASH: &str = "0000000000000000000000000000000000000000000000000000000000000000";
 
 fn parse_json_array(label: &str, raw: &str) -> PyResult<Value> {
@@ -97,6 +148,10 @@ pub struct DecisionRecord {
     pub prev_hash: String,
     #[pyo3(get)]
     pub record_hash: String,
+    /// Read-only from Python, like protocol_version: neither may be
+    /// mutated into an invalid pair after construction.
+    #[pyo3(get)]
+    pub action_digest: Option<String>,
 }
 
 #[pymethods]
@@ -106,6 +161,7 @@ impl DecisionRecord {
     #[new]
     #[allow(clippy::too_many_arguments)]
     #[pyo3(signature = (
+        protocol_version,
         decision_id,
         agent_id,
         capability,
@@ -128,8 +184,10 @@ impl DecisionRecord {
         approval_ref = None,
         receipt_ref = None,
         edges_json = String::from("[]"),
+        action_digest = None,
     ))]
     pub fn py_new(
+        protocol_version: String,
         decision_id: String,
         agent_id: String,
         capability: String,
@@ -152,10 +210,13 @@ impl DecisionRecord {
         approval_ref: Option<String>,
         receipt_ref: Option<String>,
         edges_json: String,
+        action_digest: Option<String>,
     ) -> PyResult<Self> {
+        check_version_invariant(&protocol_version, action_digest.as_deref())
+            .map_err(PyValueError::new_err)?;
         Ok(Self {
             kind: "decision".into(),
-            protocol_version: PROTOCOL_VERSION.into(),
+            protocol_version,
             decision_id,
             parent_decision,
             agent_id,
@@ -179,6 +240,7 @@ impl DecisionRecord {
             timestamp,
             prev_hash,
             record_hash: String::new(),
+            action_digest,
         })
     }
 
@@ -252,6 +314,10 @@ impl DecisionRecord {
     /// existing test suite uses. Fills the remaining DRP fields with
     /// the Python dataclass defaults. Chain/seal/verify semantics of
     /// every existing test are preserved.
+    ///
+    /// Always drp/0.1: this builds a record with no execution action to
+    /// bind. A bound record is constructed through py_new with an
+    /// explicit version, so nothing can reach drp/0.2 by default.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         decision_id: String,
@@ -265,7 +331,8 @@ impl DecisionRecord {
     ) -> Self {
         Self {
             kind: "decision".into(),
-            protocol_version: PROTOCOL_VERSION.into(),
+            protocol_version: DRP_V01.into(),
+            action_digest: None,
             decision_id,
             parent_decision,
             agent_id,
@@ -295,7 +362,7 @@ impl DecisionRecord {
     /// The 24 hash-covered fields, mirroring Python payload().
     /// Key order here is irrelevant: canonical() sorts.
     fn payload_value(&self) -> Value {
-        json!({
+        let mut payload = json!({
             "kind": self.kind,
             "protocol_version": self.protocol_version,
             "decision_id": self.decision_id,
@@ -320,10 +387,30 @@ impl DecisionRecord {
             "edges": self.edges,
             "timestamp": self.timestamp,
             "prev_hash": self.prev_hash,
-        })
+        });
+
+        // drp/0.2 adds action_digest and nothing else, so a v0.1 payload
+        // is byte-identical to what it was before v0.2 existed. Keyed on
+        // the declared version, never on whether a digest happens to be
+        // present. canonical() sorts, so insertion order is irrelevant.
+        if self.protocol_version == DRP_V02 {
+            if let (Some(map), Some(digest)) =
+                (payload.as_object_mut(), self.action_digest.as_ref())
+            {
+                map.insert("action_digest".into(), json!(digest));
+            }
+        }
+
+        payload
     }
 
     fn compute_hash(&self) -> Result<String, String> {
+        // Struct fields are pub, so Rust code can mutate a sealed record
+        // into an invalid version/digest pair. Checked here rather than
+        // only at construction: seal() and verify() both route through
+        // this, so neither can act on a record the invariant rejects.
+        check_version_invariant(&self.protocol_version, self.action_digest.as_deref())?;
+
         // json!() silently coerces non-finite f64 to null, which
         // would BOTH bypass the canonicalizer's NonFinite guard AND
         // diverge from CPython (json.dumps emits a NaN token).

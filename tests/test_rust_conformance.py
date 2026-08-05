@@ -61,6 +61,8 @@ def _rust_hash(rec: dict) -> str:
     return the hash Rust computes. No Python hashing involved."""
     if rec["kind"] == "decision":
         r = pv_runtime.DecisionRecord(
+            protocol_version=rec["protocol_version"],
+            action_digest=rec.get("action_digest"),
             decision_id=rec["decision_id"],
             agent_id=rec["agent_id"],
             capability=rec["capability"],
