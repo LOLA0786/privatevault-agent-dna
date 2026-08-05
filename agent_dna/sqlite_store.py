@@ -336,8 +336,18 @@ class SQLiteDecisionStore:
             d = json.loads(body)
             record_hash = d.pop("record_hash")
             kind = d.pop("kind", "decision")
-            d.pop("protocol_version", None)  # init=False, restored by dataclass
-            rec = ExecutionEvent(**d) if kind == "execution" else DecisionRecord(**d)
+            protocol_version = d.pop("protocol_version", None)
+            if kind == "execution":
+                rec = ExecutionEvent(**d)
+            else:
+                if protocol_version is None:
+                    raise ValueError(
+                        "decision record missing required protocol_version"
+                    )
+                rec = DecisionRecord(
+                    protocol_version=protocol_version,
+                    **d,
+                )
             rec.record_hash = record_hash
             out.append(rec)
         return out

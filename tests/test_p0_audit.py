@@ -29,7 +29,7 @@ import pytest
 
 from agent_dna.advisory import AdvisorySignal, Severity
 from agent_dna.decision import Decision, DecisionEngine
-from agent_dna.decision_record import DecisionRecord
+from agent_dna.decision_record import DRP_V01, DecisionRecord
 from agent_dna.trace import AgentAction
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -54,6 +54,7 @@ def _act(agent_id="a1", capability="crm.read_contact", arguments=None):
 def _record(decision_id, agent_id="agent-x", parent=None,
             prev_hash=GENESIS, capability="crm.read_contact"):
     return DecisionRecord(
+        protocol_version=DRP_V01,
         decision_id=decision_id,
         parent_decision=parent,
         agent_id=agent_id,
@@ -163,6 +164,7 @@ def _api_client(tmp_path, monkeypatch, key_names=("agent-a", "agent-b")):
     monkeypatch.setenv("PV_API_KEYS_FILE", str(kf))
 
     import importlib
+
     import api.server as server
     importlib.reload(server)
     from fastapi.testclient import TestClient
@@ -279,7 +281,8 @@ def _breaker(db, cap=100.0):
 
 class _AllowEngine:
     def decide(self, action, prev_capability=None, evidence=None):
-        from agent_dna.decision import DecisionResult, Severity as Sev
+        from agent_dna.decision import DecisionResult
+        from agent_dna.decision import Severity as Sev
         return DecisionResult(
             decision=Decision.ALLOW, triggered_by="baseline",
             reason="stub", capability=action.capability,

@@ -19,8 +19,10 @@ pv_runtime = pytest.importorskip(
     "pv_runtime", reason="Rust wheel not installed"
 )
 
-from agent_dna import signer_python  # noqa: E402
-from agent_dna import signer_bridge  # noqa: E402
+from agent_dna import (  # noqa: E402
+    signer_bridge,
+    signer_python,
+)
 
 SEED = hashlib.sha256(b"pv-signer-parity-fixed-seed").hexdigest()
 HASH = hashlib.sha256(b"some sealed record hash preimage").hexdigest()
@@ -55,9 +57,10 @@ def test_cross_verification_both_directions():
 
 
 def test_bridge_refuses_unsealed_record():
-    from agent_dna.decision_record import DecisionRecord
+    from agent_dna.decision_record import DRP_V01, DecisionRecord
 
     rec = DecisionRecord(
+        protocol_version=DRP_V01,
         decision_id="d-sign-1",
         parent_decision=None,
         agent_id="a",
