@@ -13,7 +13,7 @@ use sha2::{Digest, Sha256};
 
 use crate::runtime::canonical_json::canonical;
 
-pub const PROTOCOL_VERSION: &str = "drp/0.2";
+pub const PROTOCOL_VERSION: &str = "drp/0.1";
 
 fn parse_edges(raw: &str) -> PyResult<Value> {
     let v: Value = serde_json::from_str(raw)
