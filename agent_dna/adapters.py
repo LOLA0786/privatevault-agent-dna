@@ -12,14 +12,14 @@ presented to a buyer as evidence.
 from __future__ import annotations
 
 import random
-from typing import Any, Dict
+from typing import Any
 
 from .trace import AgentAction, ExecutionTrace
 
-
 # ---- REAL adapter (integration point) -----------------------------------
 
-def from_platform_event(event: Dict[str, Any]) -> AgentAction:
+
+def from_platform_event(event: dict[str, Any]) -> AgentAction:
     """
     Map one event from your runtime to an AgentAction.
     Adjust the key names to match your platform's schema.

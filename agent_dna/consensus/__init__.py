@@ -13,9 +13,16 @@ avoid implying threshold classification is consensus. WeightedQuorum
 below is the actual voting logic.
 """
 
-from .weighted_quorum import LeaderState, Vote, WeightedQuorum
 from .checker import ConsensusChecker, ConsensusResult
+from .weighted_quorum import LeaderState, Vote, WeightedQuorum
 
-__all__ = ["LeaderState", "Vote", "WeightedQuorum", "ConsensusChecker", "ConsensusResult", "ByzantineQuorum"]
+__all__ = [
+    "LeaderState",
+    "Vote",
+    "WeightedQuorum",
+    "ConsensusChecker",
+    "ConsensusResult",
+    "ByzantineQuorum",
+]
 
 from .byzantine import ByzantineQuorum

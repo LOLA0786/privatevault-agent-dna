@@ -6,30 +6,18 @@ from agent_dna import (
     CapabilityManifold,
     ConfidenceEstimator,
 )
-
 from agent_dna.adapters import synthetic_normal_trace
-
 
 estimator = ConfidenceEstimator()
 
-small = CapabilityManifold().fit(
-    [
-        synthetic_normal_trace(seed=1, loops=2)
-    ]
-)
+small = CapabilityManifold().fit([synthetic_normal_trace(seed=1, loops=2)])
 
 medium = CapabilityManifold().fit(
-    [
-        synthetic_normal_trace(seed=i, loops=6)
-        for i in range(5)
-    ]
+    [synthetic_normal_trace(seed=i, loops=6) for i in range(5)]
 )
 
 large = CapabilityManifold().fit(
-    [
-        synthetic_normal_trace(seed=i, loops=25)
-        for i in range(20)
-    ]
+    [synthetic_normal_trace(seed=i, loops=25) for i in range(20)]
 )
 
 

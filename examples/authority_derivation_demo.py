@@ -12,12 +12,7 @@ from agent_dna.authority_v01 import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-VECTORS = (
-    REPO_ROOT
-    / "spec"
-    / "authority-v01"
-    / "vectors"
-)
+VECTORS = REPO_ROOT / "spec" / "authority-v01" / "vectors"
 
 
 def load_vector(name: str) -> dict:
@@ -38,54 +33,22 @@ def show(label: str, filename: str) -> None:
     print(label)
     print("-" * len(label))
     print("business checks       PASS")
-    print(
-        "requested action      "
-        f"{receipt['requested']['action']}"
-    )
-    print(
-        "requested resource    "
-        f"{receipt['requested']['resource']}"
-    )
-    print(
-        "authority verdict     "
-        f"{receipt['authority_result']['verdict']}"
-    )
-    print(
-        "authority reason      "
-        f"{receipt['authority_result']['reason_code']}"
-    )
-    print(
-        "policy verdict        "
-        f"{receipt['policy_result']['verdict']}"
-    )
-    print(
-        "final verdict         "
-        f"{receipt['final_verdict']}"
-    )
-    print(
-        "evidence              "
-        f"{report.evidence_state.value}"
-    )
-    print(
-        "conformance           "
-        f"{report.decision_conformance.value}"
-    )
+    print(f"requested action      {receipt['requested']['action']}")
+    print(f"requested resource    {receipt['requested']['resource']}")
+    print(f"authority verdict     {receipt['authority_result']['verdict']}")
+    print(f"authority reason      {receipt['authority_result']['reason_code']}")
+    print(f"policy verdict        {receipt['policy_result']['verdict']}")
+    print(f"final verdict         {receipt['final_verdict']}")
+    print(f"evidence              {report.evidence_state.value}")
+    print(f"conformance           {report.decision_conformance.value}")
 
     grant = receipt["grant_chain"][-1]
-    print(
-        "accountable grant     "
-        f"{grant['grant_id']}"
-    )
-    print(
-        "accountable issuer    "
-        f"{grant['issuer_principal']}"
-    )
+    print(f"accountable grant     {grant['grant_id']}")
+    print(f"accountable issuer    {grant['issuer_principal']}")
 
 
 def main() -> None:
-    print(
-        "PRIVATEVAULT AUTHORITY DERIVATION DEMO"
-    )
+    print("PRIVATEVAULT AUTHORITY DERIVATION DEMO")
     print("=" * 64)
     print(
         "The business policy allows every scenario. "
@@ -108,18 +71,13 @@ def main() -> None:
         "allowed-outside-authority.json",
     )
 
-    nonconformant = load_vector(
-        "allowed-outside-authority.json"
-    )
+    nonconformant = load_vector("allowed-outside-authority.json")
     scan = scan_authority_records(
         [nonconformant["receipt"]],
         nonconformant["trust_bundle"],
     )
 
-    print(
-        "scanner finding       "
-        f"{scan['critical_findings'][0]['finding']}"
-    )
+    print(f"scanner finding       {scan['critical_findings'][0]['finding']}")
 
     show(
         "4. AFTER CASE-SCOPED 10-MINUTE GRANT",
@@ -129,18 +87,9 @@ def main() -> None:
     print()
     print("CUSTOMER PROOF")
     print("-" * 64)
-    print(
-        "Before grant : policy ALLOW + authority DENY "
-        "=> final DENY"
-    )
-    print(
-        "False allow  : evidence VERIFIED + decision "
-        "NON_CONFORMANT"
-    )
-    print(
-        "After grant  : policy ALLOW + authority ALLOW "
-        "=> final ALLOW"
-    )
+    print("Before grant : policy ALLOW + authority DENY => final DENY")
+    print("False allow  : evidence VERIFIED + decision NON_CONFORMANT")
+    print("After grant  : policy ALLOW + authority ALLOW => final ALLOW")
 
 
 if __name__ == "__main__":

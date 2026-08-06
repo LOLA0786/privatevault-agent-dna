@@ -32,8 +32,12 @@ def _log(tmp_path, rows, name="log.jsonl") -> str:
 
 def _rows(agent: str, caps, start=1780000000, step=30):
     return [
-        {"agent_id": agent, "capability": cap, "timestamp": start + i * step,
-         "arguments": args}
+        {
+            "agent_id": agent,
+            "capability": cap,
+            "timestamp": start + i * step,
+            "arguments": args,
+        }
         for i, (cap, args) in enumerate(caps)
     ]
 
@@ -49,7 +53,8 @@ def test_novel_capability_after_a_routine_baseline_is_refused(
     tmp_path,
 ) -> None:
     rows = _routine("a1", 40) + _rows(
-        "a1", [("payments.wire_transfer", {"amount": 340000})],
+        "a1",
+        [("payments.wire_transfer", {"amount": 340000})],
         start=1780000000 + 40 * 30,
     )
     report = replay(ingest(_log(tmp_path, rows)))
@@ -72,8 +77,7 @@ def test_a_uniform_log_produces_few_refusals(tmp_path) -> None:
 def test_amount_bearing_refusals_are_totalled(tmp_path) -> None:
     rows = _routine("a1", 40) + _rows(
         "a1",
-        [("payments.wire", {"amount": 340000}),
-         ("payments.wire", {"amount": 95000})],
+        [("payments.wire", {"amount": 340000}), ("payments.wire", {"amount": 95000})],
         start=1780000000 + 40 * 30,
     )
     report = replay(ingest(_log(tmp_path, rows)))
@@ -87,9 +91,9 @@ def test_amount_bearing_refusals_are_totalled(tmp_path) -> None:
 def test_amount_is_read_only_from_literal_fields() -> None:
     """No inference. An action without an amount has no amount, and a
     non-numeric one is not coerced into a number."""
+
     def act(args):
-        return AgentAction(agent_id="a", capability="c", timestamp=1.0,
-                           arguments=args)
+        return AgentAction(agent_id="a", capability="c", timestamp=1.0, arguments=args)
 
     assert action_amount(act({"amount": 12.5})) == 12.5
     assert action_amount(act({"amount": "12.5"})) == 12.5
@@ -119,7 +123,8 @@ def test_replay_is_deterministic(tmp_path) -> None:
     """Two runs over the same log must produce the same number. A scan
     whose answer moves between runs cannot be quoted to a customer."""
     rows = _routine("a1", 60) + _rows(
-        "a1", [("novel.a", {}), ("novel.b", {"amount": 500})],
+        "a1",
+        [("novel.a", {}), ("novel.b", {"amount": 500})],
         start=1780000000 + 60 * 30,
     )
     log = _log(tmp_path, rows)
@@ -222,9 +227,8 @@ def test_baseline_and_evaluation_never_overlap(tmp_path) -> None:
 def test_each_agent_is_scored_against_its_own_history(tmp_path) -> None:
     """Two agents doing entirely different but internally consistent
     work must not flag each other."""
-    rows = (
-        _routine("crm-agent", 60, cap="crm.read")
-        + _routine("ops-agent", 60, cap="ops.deploy", start=1780100000)
+    rows = _routine("crm-agent", 60, cap="crm.read") + _routine(
+        "ops-agent", 60, cap="ops.deploy", start=1780100000
     )
     report = replay(ingest(_log(tmp_path, rows)))
 
@@ -246,9 +250,7 @@ def test_a_raising_engine_is_counted_never_treated_as_allow(
         def decide(self, *_a, **_k):
             raise RuntimeError("candidate engine is broken")
 
-    report = replay(
-        ingest(_log(tmp_path, _routine("a1", 40))), engine=_Exploding()
-    )
+    report = replay(ingest(_log(tmp_path, _routine("a1", 40))), engine=_Exploding())
 
     assert report.engine_errors == report.evaluated_actions
     assert report.allowed == 0
@@ -256,7 +258,8 @@ def test_a_raising_engine_is_counted_never_treated_as_allow(
 
 def test_sample_cap_is_respected(tmp_path) -> None:
     rows = _routine("a1", 40) + _rows(
-        "a1", [(f"novel.{i}", {}) for i in range(30)],
+        "a1",
+        [(f"novel.{i}", {}) for i in range(30)],
         start=1780000000 + 40 * 30,
     )
     report = replay(ingest(_log(tmp_path, rows)), max_samples=5)
@@ -315,7 +318,8 @@ def test_report_serializes_to_json(tmp_path) -> None:
 
 def test_counts_add_up(tmp_path) -> None:
     rows = _routine("a1", 60) + _rows(
-        "a1", [("novel.a", {}), ("novel.b", {})],
+        "a1",
+        [("novel.a", {}), ("novel.b", {})],
         start=1780000000 + 60 * 30,
     )
     report = replay(ingest(_log(tmp_path, rows)))
@@ -348,14 +352,16 @@ def test_allow_verdicts_do_not_appear_in_refusal_breakdowns(
 
         def decide(self, action, *_a, **_k):
             return DecisionResult(
-                decision=Decision.ALLOW, triggered_by="baseline", reason="ok",
-                capability=action.capability, agent_id=action.agent_id,
-                drift_score=0.0, severity=Severity.INFO,
+                decision=Decision.ALLOW,
+                triggered_by="baseline",
+                reason="ok",
+                capability=action.capability,
+                agent_id=action.agent_id,
+                drift_score=0.0,
+                severity=Severity.INFO,
             )
 
-    report = replay(
-        ingest(_log(tmp_path, _routine("a1", 40))), engine=_AlwaysAllow()
-    )
+    report = replay(ingest(_log(tmp_path, _routine("a1", 40))), engine=_AlwaysAllow())
 
     assert report.refused == 0
     assert report.refused_by_capability == {}

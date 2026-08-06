@@ -37,9 +37,12 @@ def swarm(tmp_path):
 
     breaker = CircuitBreaker(
         tmp_path / "breaker.db",
-        BreakerConfig(max_decisions=None, window_seconds=60.0,
-                      max_cumulative_amount=None,
-                      max_consecutive_refusals=None),
+        BreakerConfig(
+            max_decisions=None,
+            window_seconds=60.0,
+            max_cumulative_amount=None,
+            max_consecutive_refusals=None,
+        ),
     )
     mw = ConnectorMiddleware(
         engine=GuardedEngine(_engine(), breaker),
@@ -59,10 +62,14 @@ def test_concurrent_agents_distinct_chains(swarm):
     def agent_loop(agent_id, key):
         try:
             for n in range(CALLS_PER_AGENT):
-                v = mw.handle(ToolCallRequest(
-                    adapter="test", tool=f"crm.read_{n}",
-                    api_key=key, arguments={"n": n},
-                ))
+                v = mw.handle(
+                    ToolCallRequest(
+                        adapter="test",
+                        tool=f"crm.read_{n}",
+                        api_key=key,
+                        arguments={"n": n},
+                    )
+                )
                 assert v.agent_id == agent_id, (
                     f"identity cross-contamination: {agent_id} got {v.agent_id}"
                 )
@@ -71,8 +78,7 @@ def test_concurrent_agents_distinct_chains(swarm):
             errors.append((agent_id, repr(e)))
 
     threads = [
-        threading.Thread(target=agent_loop, args=(a, k))
-        for a, k in keys.items()
+        threading.Thread(target=agent_loop, args=(a, k)) for a, k in keys.items()
     ]
     for t in threads:
         t.start()
@@ -97,14 +103,15 @@ def test_suspension_isolated_under_concurrency(swarm):
     results = {}
 
     def one_call(agent_id, key):
-        results[agent_id] = mw.handle(ToolCallRequest(
-            adapter="test", tool="crm.read_contact", api_key=key,
-        ))
+        results[agent_id] = mw.handle(
+            ToolCallRequest(
+                adapter="test",
+                tool="crm.read_contact",
+                api_key=key,
+            )
+        )
 
-    threads = [
-        threading.Thread(target=one_call, args=(a, k))
-        for a, k in keys.items()
-    ]
+    threads = [threading.Thread(target=one_call, args=(a, k)) for a, k in keys.items()]
     for t in threads:
         t.start()
     for t in threads:

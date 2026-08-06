@@ -15,9 +15,7 @@ GRAPH_SPEC = "pv-authority-graph/0.1-experimental"
 REPORT_SPEC = "pv-authority-reachability-report/0.1-experimental"
 SIGNED_REPORT_SPEC = "pv-signed-authority-reachability-report/0.1-experimental"
 
-RFC3339_UTC_RE = re.compile(
-    r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z\Z"
-)
+RFC3339_UTC_RE = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z\Z")
 SHA256_RE = re.compile(r"sha256:[0-9a-f]{64}\Z")
 CONDITION_OPERATORS = frozenset({"eq", "in", "not_in", "lte", "gte"})
 
@@ -193,9 +191,7 @@ class EdgeProvenance:
             optional={"signer_key_id"},
             path=path,
         )
-        snapshot = require_string(
-            value["source_snapshot"], f"{path}.source_snapshot"
-        )
+        snapshot = require_string(value["source_snapshot"], f"{path}.source_snapshot")
         if not SHA256_RE.fullmatch(snapshot):
             raise GraphFormatError(f"{path}.source_snapshot: malformed digest")
         observed_at = require_string(value["observed_at"], f"{path}.observed_at")
@@ -256,6 +252,7 @@ class GraphNode:
             "label": self.label,
             "attributes": dict(self.attributes),
         }
+
 
 @dataclass(frozen=True)
 class GraphEdge:
@@ -416,9 +413,7 @@ class AuthorityGraph:
         )
         if value["spec"] != GRAPH_SPEC:
             raise GraphFormatError("graph.spec: unsupported spec")
-        snapshot_time = require_string(
-            value["snapshot_time"], "graph.snapshot_time"
-        )
+        snapshot_time = require_string(value["snapshot_time"], "graph.snapshot_time")
         parse_timestamp(snapshot_time, "graph.snapshot_time")
         snapshots = value["source_snapshots"]
         if (
@@ -493,7 +488,5 @@ class AuthorityGraph:
             "source_snapshots": list(self.source_snapshots),
             "nodes": [node.to_dict() for node in self.nodes],
             "edges": [edge.to_dict() for edge in self.edges],
-            "protected_sinks": [
-                sink.to_dict() for sink in self.protected_sinks
-            ],
+            "protected_sinks": [sink.to_dict() for sink in self.protected_sinks],
         }

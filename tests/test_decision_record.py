@@ -54,7 +54,8 @@ def test_chain_links():
 
     a2, r2 = _decide("email.send")
     rec2 = build_record(
-        a2, r2,
+        a2,
+        r2,
         parent_decision=rec1.decision_id,
         prev_hash=rec1.record_hash,
     )

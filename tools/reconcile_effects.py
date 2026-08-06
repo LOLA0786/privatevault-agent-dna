@@ -72,8 +72,7 @@ FRESHNESS_WINDOW_S = 300.0  # an ALLOW older than this vs the effect is stale
 
 
 def canonical(obj) -> str:
-    return json.dumps(obj, sort_keys=True, separators=(",", ":"),
-                      ensure_ascii=True)
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
 
 
 def compute_hash(record: dict) -> str:
@@ -115,8 +114,7 @@ def _load(path: str) -> list[dict]:
     return out
 
 
-def reconcile(decision_records: list[dict],
-              effect_records: list[dict]) -> Report:
+def reconcile(decision_records: list[dict], effect_records: list[dict]) -> Report:
     rep = Report()
 
     decisions: dict[str, dict] = {}
@@ -139,8 +137,9 @@ def reconcile(decision_records: list[dict],
     for observer, effects in by_observer_effects.items():
         effects.sort(key=lambda e: e["seq"])
         rep.effects_seen += len(effects)
-        epochs = sorted(by_observer_epochs.get(observer, []),
-                        key=lambda e: e["seq_start"])
+        epochs = sorted(
+            by_observer_epochs.get(observer, []), key=lambda e: e["seq_start"]
+        )
         _check_hashes(observer, effects, epochs, rep)
         _check_sequence_gaps(observer, effects, epochs, rep)
         _check_reconciliation(observer, effects, decisions, rep)
@@ -154,55 +153,67 @@ def _check_hashes(observer, effects, epochs, rep):
         stored = r.get("record_hash", "")
         actual = compute_hash(r)
         if stored != actual:
-            rep.add("RECORD_TAMPERED",
-                    f"observer {observer}: record_hash mismatch "
-                    f"(stored {stored[:12]}.., computed {actual[:12]}..)")
+            rep.add(
+                "RECORD_TAMPERED",
+                f"observer {observer}: record_hash mismatch "
+                f"(stored {stored[:12]}.., computed {actual[:12]}..)",
+            )
         if not r.get("observer_sig"):
-            rep.add("UNSIGNED_OBSERVATION",
-                    f"observer {observer}: record carries no observer_sig; "
-                    "an unsigned effect stream is not independently trustworthy")
+            rep.add(
+                "UNSIGNED_OBSERVATION",
+                f"observer {observer}: record carries no observer_sig; "
+                "an unsigned effect stream is not independently trustworthy",
+            )
 
 
 def _check_sequence_gaps(observer, effects, epochs, rep):
     seqs = [e["seq"] for e in effects]
     if not epochs:
         if effects:
-            rep.add("OBSERVER_GAP",
-                    f"observer {observer}: {len(effects)} effects but no "
-                    "coverage_epoch asserting a covered range; coverage is "
-                    "unclaimed, so omission cannot be bounded")
+            rep.add(
+                "OBSERVER_GAP",
+                f"observer {observer}: {len(effects)} effects but no "
+                "coverage_epoch asserting a covered range; coverage is "
+                "unclaimed, so omission cannot be bounded",
+            )
         return
     covered = set()
     for ep in epochs:
         lo, hi = ep["seq_start"], ep["seq_end"]
         if hi < lo:
-            rep.add("OBSERVER_GAP",
-                    f"observer {observer}: epoch {ep['epoch_id']} has "
-                    f"seq_end {hi} < seq_start {lo}")
+            rep.add(
+                "OBSERVER_GAP",
+                f"observer {observer}: epoch {ep['epoch_id']} has "
+                f"seq_end {hi} < seq_start {lo}",
+            )
             continue
         covered.update(range(lo, hi + 1))
         present = {s for s in seqs if lo <= s <= hi}
         missing = sorted(set(range(lo, hi + 1)) - present)
         if missing:
-            rep.add("OBSERVER_GAP",
-                    f"observer {observer}: epoch {ep['epoch_id']} asserts "
-                    f"coverage of seq {lo}..{hi} but seq {missing} were "
-                    "never observed")
+            rep.add(
+                "OBSERVER_GAP",
+                f"observer {observer}: epoch {ep['epoch_id']} asserts "
+                f"coverage of seq {lo}..{hi} but seq {missing} were "
+                "never observed",
+            )
     for e in effects:
         if e["seq"] not in covered:
-            rep.add("OBSERVER_GAP",
-                    f"observer {observer}: effect seq {e['seq']} falls "
-                    "outside every asserted coverage epoch")
+            rep.add(
+                "OBSERVER_GAP",
+                f"observer {observer}: effect seq {e['seq']} falls "
+                "outside every asserted coverage epoch",
+            )
 
 
 def _decision_binds(decision: dict, effect: dict) -> bool:
-    d_target = (decision.get("arguments_digest")
-                or decision.get("capability"))
+    d_target = decision.get("arguments_digest") or decision.get("capability")
     e_target = effect.get("target")
     if e_target is not None and d_target is not None:
-        if e_target not in (decision.get("capability"),
-                            decision.get("arguments_digest")) \
-                and effect.get("effect_type") != decision.get("capability"):
+        if e_target not in (
+            decision.get("capability"),
+            decision.get("arguments_digest"),
+        ) and effect.get("effect_type") != decision.get("capability"):
             return False
     return True
 
@@ -219,45 +230,60 @@ def _check_reconciliation(observer, effects, decisions, rep):
     for e in effects:
         dref = e.get("decision_ref")
         if dref is None:
-            rep.add("ORPHAN_EFFECT",
-                    f"observer {observer}: effect seq {e['seq']} "
-                    f"({e.get('effect_type')}) carries no decision_ref -- "
-                    "it claims no authorization at all")
+            rep.add(
+                "ORPHAN_EFFECT",
+                f"observer {observer}: effect seq {e['seq']} "
+                f"({e.get('effect_type')}) carries no decision_ref -- "
+                "it claims no authorization at all",
+            )
             continue
         decision = decisions.get(dref)
         if decision is None:
-            rep.add("UNAUTHORIZED_EFFECT",
-                    f"observer {observer}: effect seq {e['seq']} references "
-                    f"decision {dref} which is absent from the decision log")
+            rep.add(
+                "UNAUTHORIZED_EFFECT",
+                f"observer {observer}: effect seq {e['seq']} references "
+                f"decision {dref} which is absent from the decision log",
+            )
             continue
         verdict = decision.get("decision")
         if verdict != "allow":
-            rep.add("UNAUTHORIZED_EFFECT",
-                    f"observer {observer}: effect seq {e['seq']} was "
-                    f"authorized by decision {dref} whose verdict is "
-                    f"'{verdict}', not 'allow'")
+            rep.add(
+                "UNAUTHORIZED_EFFECT",
+                f"observer {observer}: effect seq {e['seq']} was "
+                f"authorized by decision {dref} whose verdict is "
+                f"'{verdict}', not 'allow'",
+            )
             continue
         if not _decision_binds(decision, e):
-            rep.add("UNAUTHORIZED_EFFECT",
-                    f"observer {observer}: effect seq {e['seq']} does not "
-                    f"bind to decision {dref} (target mismatch)")
+            rep.add(
+                "UNAUTHORIZED_EFFECT",
+                f"observer {observer}: effect seq {e['seq']} does not "
+                f"bind to decision {dref} (target mismatch)",
+            )
             continue
         if not _is_fresh(decision, e):
-            rep.add("UNAUTHORIZED_EFFECT",
-                    f"observer {observer}: effect seq {e['seq']} is not "
-                    f"fresh against decision {dref} (outside the "
-                    "authorization window)")
+            rep.add(
+                "UNAUTHORIZED_EFFECT",
+                f"observer {observer}: effect seq {e['seq']} is not "
+                f"fresh against decision {dref} (outside the "
+                "authorization window)",
+            )
 
 
 def _check_block_executed(decision_records, effect_records, rep):
-    blocked = {r["decision_id"] for r in decision_records
-               if r.get("kind") == "decision" and r.get("decision") == "block"}
+    blocked = {
+        r["decision_id"]
+        for r in decision_records
+        if r.get("kind") == "decision" and r.get("decision") == "block"
+    }
     for e in effect_records:
         if e.get("kind") == "effect" and e.get("decision_ref") in blocked:
-            rep.add("BLOCK_EXECUTED",
-                    f"observer {e['observer_id']}: effect seq {e['seq']} was "
-                    f"observed for decision {e['decision_ref']} which was "
-                    "BLOCK -- refused, but observed to execute")
+            rep.add(
+                "BLOCK_EXECUTED",
+                f"observer {e['observer_id']}: effect seq {e['seq']} was "
+                f"observed for decision {e['decision_ref']} which was "
+                "BLOCK -- refused, but observed to execute",
+            )
 
 
 def main(argv: list[str]) -> int:
@@ -271,16 +297,22 @@ def main(argv: list[str]) -> int:
 
     rep = reconcile(decision_records, effect_records)
 
-    print(f"decisions: {rep.decisions_seen}  effects: {rep.effects_seen}  "
-          f"observers: {len(rep.observers)}")
+    print(
+        f"decisions: {rep.decisions_seen}  effects: {rep.effects_seen}  "
+        f"observers: {len(rep.observers)}"
+    )
     for f in rep.findings:
         print(f"  {f.kind}: {f.detail}")
     if rep.ok:
-        print("VERDICT: PASS (every observed effect reconciles to exactly "
-              "one prior valid ALLOW; coverage epochs continuous)")
-        print("NOTE: this proves ObservedEffect => exists! PriorValidAllow. "
-              "It does NOT prove Effect => Observed, which is a coverage "
-              "property of the customer containment layer (its TCB).")
+        print(
+            "VERDICT: PASS (every observed effect reconciles to exactly "
+            "one prior valid ALLOW; coverage epochs continuous)"
+        )
+        print(
+            "NOTE: this proves ObservedEffect => exists! PriorValidAllow. "
+            "It does NOT prove Effect => Observed, which is a coverage "
+            "property of the customer containment layer (its TCB)."
+        )
         return 0
     print(f"VERDICT: FAIL ({len(rep.findings)} finding(s))")
     return 1

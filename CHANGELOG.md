@@ -6,6 +6,31 @@ and a named test that runs in CI.
 ## Unreleased
 
 ### Added
+- **PrivateVault Discovery Loop v1**: verified sealed history -> evidence-linked
+  policy mining -> additive history and adversarial replay -> deterministic
+  evaluation and structural probes -> ranked, human-reviewed PR proposals.
+  Includes strict corpus/report schemas, full motivating record hashes,
+  proposal notes, CLI, and an independent standard-library report verifier.
+  It never applies policy; learned validation remains advisory and experimental
+  Hodge/reachability probes remain quarantined (`agent_dna/discovery.py`,
+  `spec/discovery-loop-v1/`, `docs/DISCOVERY-LOOP.md`,
+  `tools/verify_discovery.py`, `tests/test_discovery.py`).
+- **Agent Security Loop Discovery v1**: bounded deterministic analysis of
+  cross-agent delegation, approval, invocation, dispatch, authorization reuse,
+  causal ancestry, and repeated canonical actions. Strict JSON Schemas,
+  deterministic witness paths and report digests, CLI exit-code contract,
+  adversarial examples, an authority-boundary ADR, and malformed/replay/DoS
+  regression coverage (`agent_dna/security/loop_discovery.py`,
+  `spec/loop-discovery-v1/`, `docs/LOOP-DISCOVERY.md`,
+  `tests/test_loop_discovery.py`).
+- Operational trust invariant over real `InteractionEvent.trust` evidence,
+  wired into the default cross-agent invariant engine. Material degradation is
+  reviewable; severe degradation and malformed scores hard-block
+  (`tests/test_trust_invariant.py`).
+- Locked Python environment, strict typing gate for the security loop module,
+  dashboard CI, CodeQL, Dependabot, release checklist, contribution policy, and
+  repository-wide coding-agent security instructions.
+- PrivateVault operator console replacing the generated Vite starter screen.
 - **Authority Reachability v0.1-experimental**: deterministic blast-radius
   analysis over typed authority and company-knowledge graphs; explicit
   evidence classes; protected irreversible sinks; shortest-path witnesses;
@@ -47,6 +72,11 @@ and a named test that runs in CI.
   `CHANGELOG.md`.
 
 ### Changed
+- Release metadata advanced to v0.4.0.
+- Container runs as UID/GID 10001 and unauthenticated compose startup is no
+  longer enabled by default.
+- CI now gates Python formatting, linting, staged typing, the sealed proof run,
+  spec vectors, dashboard lint/build, and a non-root container smoke test.
 - README: status + 5-minute demo section; precedence list corrected
   to the 8-level contract (L2 customer policy was missing from the
   intro list; `spec/contracts/precedence-order.json` was already

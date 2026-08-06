@@ -14,7 +14,6 @@ from .fingerprint import AgentFingerprint
 
 
 class ProfileStore:
-
     def __init__(self, root: str = "profiles") -> None:
         self.root = Path(root)
 
@@ -44,15 +43,9 @@ class ProfileStore:
         version: str,
     ) -> AgentFingerprint:
 
-        infile = (
-            self.root
-            / agent_id
-            / f"{version}.json"
-        )
+        infile = self.root / agent_id / f"{version}.json"
 
-        data = json.loads(
-            infile.read_text()
-        )
+        data = json.loads(infile.read_text())
 
         return AgentFingerprint(**data)
 
@@ -66,7 +59,4 @@ class ProfileStore:
         if not folder.exists():
             return []
 
-        return sorted(
-            p.stem
-            for p in folder.glob("*.json")
-        )
+        return sorted(p.stem for p in folder.glob("*.json"))

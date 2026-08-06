@@ -7,7 +7,6 @@ Tracks how an agent's behavioral identity evolves across profile versions.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List
 
 from .fingerprint import AgentFingerprint
 from .similarity import SimilarityEngine, SimilarityResult
@@ -20,9 +19,8 @@ class TimelineEntry:
 
 
 class BehaviorTimeline:
-
     def __init__(self) -> None:
-        self.entries: List[TimelineEntry] = []
+        self.entries: list[TimelineEntry] = []
 
     def add(
         self,
@@ -36,16 +34,16 @@ class BehaviorTimeline:
             )
         )
 
-    def versions(self) -> List[str]:
+    def versions(self) -> list[str]:
         return [e.version for e in self.entries]
 
     def latest(self) -> AgentFingerprint:
         return self.entries[-1].fingerprint
 
-    def compare_adjacent(self) -> List[SimilarityResult]:
+    def compare_adjacent(self) -> list[SimilarityResult]:
 
         engine = SimilarityEngine()
-        results: List[SimilarityResult] = []
+        results: list[SimilarityResult] = []
 
         for i in range(1, len(self.entries)):
             results.append(
@@ -64,9 +62,6 @@ class BehaviorTimeline:
         if not comparisons:
             return 100.0
 
-        avg = sum(
-            c.overall_similarity
-            for c in comparisons
-        ) / len(comparisons)
+        avg = sum(c.overall_similarity for c in comparisons) / len(comparisons)
 
         return round(avg * 100, 2)

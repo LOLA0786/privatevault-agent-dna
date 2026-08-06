@@ -18,7 +18,6 @@ from __future__ import annotations
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Dict, Optional, Tuple
 
 
 @dataclass
@@ -27,12 +26,12 @@ class CapabilityGrant:
     agent_id: str
     capability: str
     granted_by: str
-    expires_at: Optional[float] = None      # epoch seconds; None = no expiry
-    budget: Optional[float] = None          # cumulative amount ceiling; None = unmetered
+    expires_at: float | None = None  # epoch seconds; None = no expiry
+    budget: float | None = None  # cumulative amount ceiling; None = unmetered
     spent: float = 0.0
     revoked: bool = False
-    revoked_at: Optional[float] = None
-    revoked_by: Optional[str] = None
+    revoked_at: float | None = None
+    revoked_by: str | None = None
     created_at: float = field(default_factory=time.time)
 
 
@@ -42,7 +41,7 @@ class GrantRegistry:
     the failing condition and the grant involved."""
 
     def __init__(self) -> None:
-        self._grants: Dict[str, CapabilityGrant] = {}
+        self._grants: dict[str, CapabilityGrant] = {}
 
     # ---- lifecycle -----------------------------------------------------
 
@@ -52,8 +51,8 @@ class GrantRegistry:
         agent_id: str,
         capability: str,
         granted_by: str,
-        expires_at: Optional[float] = None,
-        budget: Optional[float] = None,
+        expires_at: float | None = None,
+        budget: float | None = None,
     ) -> CapabilityGrant:
         g = CapabilityGrant(
             grant_id=f"grant-{uuid.uuid4()}",
@@ -77,7 +76,8 @@ class GrantRegistry:
 
     def _find(self, agent_id: str, capability: str):
         return [
-            g for g in self._grants.values()
+            g
+            for g in self._grants.values()
             if g.agent_id == agent_id and g.capability == capability
         ]
 
@@ -85,9 +85,9 @@ class GrantRegistry:
         self,
         agent_id: str,
         capability: str,
-        amount: Optional[float] = None,
-        now: Optional[float] = None,
-    ) -> Tuple[bool, str, Optional[str]]:
+        amount: float | None = None,
+        now: float | None = None,
+    ) -> tuple[bool, str, str | None]:
         """(authorized, reason, grant_id). Reason names the specific
         failing condition — 'grant expired', 'grant revoked', 'budget
         exceeded' — never just 'no'."""
@@ -99,9 +99,7 @@ class GrantRegistry:
         reasons = []
         for g in candidates:
             if g.revoked:
-                reasons.append(
-                    f"grant {g.grant_id[:14]} revoked by {g.revoked_by}"
-                )
+                reasons.append(f"grant {g.grant_id[:14]} revoked by {g.revoked_by}")
                 continue
             if g.expires_at is not None and now >= g.expires_at:
                 reasons.append(f"grant {g.grant_id[:14]} expired")

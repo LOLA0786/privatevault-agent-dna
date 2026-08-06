@@ -27,18 +27,23 @@ from agent_dna.trace import AgentAction
 from agent_dna.uaal_layer import UAALConstraintChecker
 
 DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "amlsim"
-SAMPLE_SIZE = 5000   # first honest pass -- raise once this is proven out
+SAMPLE_SIZE = 5000  # first honest pass -- raise once this is proven out
 
 
 class NoOpScorer:
     """No behavioral profile trained on AMLSim yet -- drift stays
     silent for this first pass so results isolate the deterministic
     layers (L0/L1/L2/L3), which is what's actually being tested here."""
+
     def score(self, action, prev_capability=None):
         from agent_dna.advisory import AdvisorySignal, Severity
+
         return AdvisorySignal(
-            agent_id=action.agent_id, capability=action.capability,
-            drift_score=0.0, severity=Severity.INFO, reasons=[],
+            agent_id=action.agent_id,
+            capability=action.capability,
+            drift_score=0.0,
+            severity=Severity.INFO,
+            reasons=[],
         )
 
 
@@ -46,6 +51,7 @@ class Invariants:
     def validate(self, capability, previous):
         class R:
             pass
+
         r = R()
         r.violated = False
         r.message = ""
@@ -108,8 +114,8 @@ def main():
     engine = DecisionEngine(
         scorer=NoOpScorer(),
         invariants=Invariants(),
-        authorizer=GrantRegistry(),   # empty on purpose: nothing pre-granted,
-                                        # matches "unknown agent, no standing trust"
+        authorizer=GrantRegistry(),  # empty on purpose: nothing pre-granted,
+        # matches "unknown agent, no standing trust"
         uaal=UAALConstraintChecker(),
         economics=CostAnomalyChecker(),
     )
@@ -157,7 +163,9 @@ def main():
     print("(FIRST PASS -- capped sample, deterministic layers only,")
     print(" no behavioral profile trained on this data yet)")
     print("=" * 60)
-    print(f"elapsed          : {elapsed:.2f}s  ({len(rows)/elapsed:.0f} decisions/sec)")
+    print(
+        f"elapsed          : {elapsed:.2f}s  ({len(rows) / elapsed:.0f} decisions/sec)"
+    )
     print()
     print("verdict distribution:")
     for v, c in sorted(verdict_counts.items()):
@@ -171,15 +179,29 @@ def main():
     precision = tp / (tp + fp) if (tp + fp) else float("nan")
     fpr = fp / total_clean if total_clean else float("nan")
 
-    print(f"ground truth      : {total_fraud} labeled fraud, {total_clean} labeled clean")
+    print(
+        f"ground truth      : {total_fraud} labeled fraud, {total_clean} labeled clean"
+    )
     print(f"flagged & fraud   : {tp}  (true positive)")
     print(f"flagged & clean   : {fp}  (false positive)")
     print(f"unflagged & fraud : {fn}  (false negative -- MISSED)")
     print(f"unflagged & clean : {tn}  (true negative)")
     print()
-    print(f"recall (of labeled fraud, % flagged)      : {recall:.1%}" if total_fraud else "recall: n/a (no fraud in sample)")
-    print(f"precision (of flagged, % actually fraud)  : {precision:.1%}" if (tp+fp) else "precision: n/a (nothing flagged)")
-    print(f"false positive rate (of clean, % flagged) : {fpr:.1%}" if total_clean else "fpr: n/a")
+    print(
+        f"recall (of labeled fraud, % flagged)      : {recall:.1%}"
+        if total_fraud
+        else "recall: n/a (no fraud in sample)"
+    )
+    print(
+        f"precision (of flagged, % actually fraud)  : {precision:.1%}"
+        if (tp + fp)
+        else "precision: n/a (nothing flagged)"
+    )
+    print(
+        f"false positive rate (of clean, % flagged) : {fpr:.1%}"
+        if total_clean
+        else "fpr: n/a"
+    )
     print()
     print("HONESTY NOTE: 'flagged' means BLOCK or REQUIRE_APPROVAL --")
     print("this engine is a policy/behavior enforcement layer, not a")

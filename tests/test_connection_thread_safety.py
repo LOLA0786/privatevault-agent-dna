@@ -26,18 +26,16 @@ def _hammer(store_reads, store_writes, n_threads=20, rounds=50):
     for rnd in range(rounds):
         errors = []
 
-        def worker(tid):
+        def worker(tid, round_number=rnd, round_errors=errors):
             try:
                 if tid % 2 == 0:
                     store_reads()
                 else:
                     store_writes(tid)
             except Exception:
-                errors.append((rnd, tid, traceback.format_exc()))
+                round_errors.append((round_number, tid, traceback.format_exc()))
 
-        threads = [
-            threading.Thread(target=worker, args=(i,)) for i in range(n_threads)
-        ]
+        threads = [threading.Thread(target=worker, args=(i,)) for i in range(n_threads)]
         for t in threads:
             t.start()
         for t in threads:

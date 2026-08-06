@@ -29,14 +29,21 @@ from tests.test_multi_writer_safety import _engine
 def stack(tmp_path):
     agent = generate_key("mcp-agent-01", scope="full")
     keys_path = tmp_path / "keys.json"
-    keys_path.write_text(json.dumps({
-        agent["hash"]: {"name": "mcp-agent-01", "scope": "full"},
-    }))
+    keys_path.write_text(
+        json.dumps(
+            {
+                agent["hash"]: {"name": "mcp-agent-01", "scope": "full"},
+            }
+        )
+    )
     breaker = CircuitBreaker(
         tmp_path / "breaker.db",
-        BreakerConfig(max_decisions=None, window_seconds=60.0,
-                      max_cumulative_amount=None,
-                      max_consecutive_refusals=None),
+        BreakerConfig(
+            max_decisions=None,
+            window_seconds=60.0,
+            max_cumulative_amount=None,
+            max_consecutive_refusals=None,
+        ),
     )
     recorder = DecisionRecorder(
         signer=ReceiptSigner(seed_hex=generate_keypair()["signing_key"]),
@@ -74,15 +81,14 @@ async def test_allowed_call_executes_and_is_chained(stack):
         assert "record_hash=" in r.content[0].text
     recs = recorder.graph.find_by_agent("mcp-agent-01")
     assert len(recs) == 1
-    assert recs[-1].record_hash in recorder.envelopes   # signed
+    assert recs[-1].record_hash in recorder.envelopes  # signed
 
 
 @pytest.mark.asyncio
 async def test_tripped_breaker_blocks_over_mcp_transport(stack):
     server, mw, breaker, recorder, key, executed = stack
     guard_fastmcp(server, mw, api_key=key)
-    breaker._trip("mcp-agent-01", "volume_trip: test salami drain",
-                  time.time())
+    breaker._trip("mcp-agent-01", "volume_trip: test salami drain", time.time())
     async with create_connected_server_and_client_session(server) as client:
         r = await client.call_tool("read_contact", {"contact_id": "C-2"})
     assert r.isError
@@ -104,4 +110,4 @@ async def test_wrong_key_identity_block_no_execution(stack):
     assert r.isError
     assert "identity" in r.content[0].text
     assert executed["n"] == 0
-    assert len(recorder.graph) == 0     # unauthenticated writes nothing
+    assert len(recorder.graph) == 0  # unauthenticated writes nothing

@@ -3,18 +3,19 @@
 These are deliberately dependency-free (stdlib only) so the invariant engine
 can run anywhere the runtime runs, including inside the hot enforcement path.
 """
+
 from __future__ import annotations
 
-import enum
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # avoid import cycle at runtime
     from .interaction_graph import InteractionGraph
 
 
-class Verdict(str, enum.Enum):
+class Verdict(StrEnum):
     ALLOW = "ALLOW"
     REVIEW = "REVIEW"
     BLOCK = "BLOCK"
@@ -28,6 +29,7 @@ class InvariantResult:
     hard:     True == a clear breach that should block on its own, regardless
               of severity aggregation.
     """
+
     name: str
     passed: bool
     severity: float = 0.0
@@ -46,12 +48,10 @@ class Invariant(ABC):
     name: str = "invariant"
 
     @abstractmethod
-    def learn(self, graphs: "list[InteractionGraph]") -> None:
-        ...
+    def learn(self, graphs: list[InteractionGraph]) -> None: ...
 
     @abstractmethod
-    def check(self, graph: "InteractionGraph") -> InvariantResult:
-        ...
+    def check(self, graph: InteractionGraph) -> InvariantResult: ...
 
     # convenience so a freshly-constructed engine is introspectable
     def describe(self) -> dict:

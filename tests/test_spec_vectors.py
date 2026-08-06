@@ -24,7 +24,8 @@ def test_vector_verdict(name, code, marker):
     assert path.exists(), f"missing vector {name} — run tools/generate_test_vectors.py"
     proc = subprocess.run(
         [sys.executable, str(VERIFIER), str(path)],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     assert proc.returncode == code, proc.stdout
     assert marker in proc.stdout

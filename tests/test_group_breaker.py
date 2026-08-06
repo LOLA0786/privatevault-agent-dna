@@ -39,7 +39,7 @@ def breaker(tmp_path):
         BreakerConfig(
             max_decisions=None,
             window_seconds=60.0,
-            max_cumulative_amount=1000.0,      # per-agent cap
+            max_cumulative_amount=1000.0,  # per-agent cap
             max_consecutive_refusals=None,
             groups={"payments-swarm": MEMBERS},
             group_volume_caps={"payments-swarm": 4000.0},
@@ -62,10 +62,10 @@ def test_distributed_drain_trips_group(breaker):
 
     assert tripped_on is not None, "distributed drain never tripped"
     i, reason = tripped_on
-    assert i == 4                       # 5th agent: 4500 > 4000
+    assert i == 4  # 5th agent: 4500 > 4000
     assert reason.startswith("group_trip:payments-swarm")
 
-    for agent in MEMBERS:               # every member suspended
+    for agent in MEMBERS:  # every member suspended
         assert breaker.is_tripped(agent), f"{agent} not suspended"
 
     breaker.observe("outsider-agent", "allow", amount=900.0)
@@ -81,7 +81,9 @@ def test_per_agent_reset_refused_on_group_suspension(breaker):
     assert breaker.is_tripped(MEMBERS[0])
 
     grants = {("ciso-1", RESET_CAPABILITY)}
-    authorize = lambda a, c: (a, c) in grants
+
+    def authorize(actor, capability):
+        return (actor, capability) in grants
 
     with pytest.raises(PermissionError, match="GROUP suspension"):
         breaker.reset(MEMBERS[0], actor_id="ciso-1", authorize=authorize)
@@ -93,8 +95,11 @@ def test_group_reset_gated_atomic_chained(breaker):
         breaker._clock.tick(1.0)
         breaker.observe(agent, "allow", amount=900.0)
 
-    grants = {("ciso-1", RESET_CAPABILITY)}   # reset but NOT reset_group
-    authorize = lambda a, c: (a, c) in grants
+    grants = {("ciso-1", RESET_CAPABILITY)}  # reset but NOT reset_group
+
+    def authorize(actor, capability):
+        return (actor, capability) in grants
+
     with pytest.raises(PermissionError, match="reset_group"):
         breaker.reset_group("payments-swarm", "ciso-1", authorize)
     assert all(breaker.is_tripped(a) for a in MEMBERS)

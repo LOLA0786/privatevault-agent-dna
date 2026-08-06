@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://privatevault.ai/spec/loop-discovery-v1/report.schema.json",
+  "title": "PrivateVault loop discovery report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "spec",
+    "report_id",
+    "input_digest",
+    "decision",
+    "events_analyzed",
+    "traces_analyzed",
+    "summary",
+    "findings"
+  ],
+  "properties": {
+    "spec": {
+      "const": "pv-loop-discovery-report/1.0"
+    },
+    "report_id": {
+      "$ref": "#/$defs/digest"
+    },
+    "input_digest": {
+      "$ref": "#/$defs/digest"
+    },
+    "decision": {
+      "enum": ["ALLOW", "REVIEW", "BLOCK"]
+    },
+    "events_analyzed": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "traces_analyzed": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["MEDIUM", "HIGH", "CRITICAL"],
+      "properties": {
+        "MEDIUM": {"type": "integer", "minimum": 0},
+        "HIGH": {"type": "integer", "minimum": 0},
+        "CRITICAL": {"type": "integer", "minimum": 0}
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/finding"
+      }
+    }
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reason_code",
+        "disposition",
+        "severity",
+        "trace_id",
+        "agent_ids",
+        "event_ids",
+        "detail"
+      ],
+      "properties": {
+        "reason_code": {"$ref": "#/$defs/identifier"},
+        "disposition": {"enum": ["REVIEW", "BLOCK"]},
+        "severity": {"enum": ["MEDIUM", "HIGH", "CRITICAL"]},
+        "trace_id": {"$ref": "#/$defs/identifier"},
+        "agent_ids": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/identifier"},
+          "uniqueItems": true
+        },
+        "event_ids": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/identifier"}
+        },
+        "detail": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

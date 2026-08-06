@@ -40,26 +40,59 @@ from typing import Any
 from ..trace import AgentAction
 
 FORMATS = (
-    "auto", "mcp", "openai", "anthropic", "claude_code", "adr", "generic",
-    "csv", "sqlite"
+    "auto",
+    "mcp",
+    "openai",
+    "anthropic",
+    "claude_code",
+    "adr",
+    "generic",
+    "csv",
+    "sqlite",
 )
 
 # Keys we accept for each required field, in priority order. Real logs
 # disagree about names; this is the whole of the flexibility on offer.
 _AGENT_KEYS = (
-    "agent_id", "agentId", "agent", "actor_id", "actor",
-    "session_id", "sessionId", "run_id", "runId",
+    "agent_id",
+    "agentId",
+    "agent",
+    "actor_id",
+    "actor",
+    "session_id",
+    "sessionId",
+    "run_id",
+    "runId",
 )
 _CAPABILITY_KEYS = (
-    "capability", "tool", "tool_name", "toolName", "name",
-    "function", "function_name", "action", "verb", "method",
+    "capability",
+    "tool",
+    "tool_name",
+    "toolName",
+    "name",
+    "function",
+    "function_name",
+    "action",
+    "verb",
+    "method",
 )
 _TIMESTAMP_KEYS = (
-    "timestamp", "ts", "time", "created_at", "createdAt",
-    "start_time", "startTime", "@timestamp",
+    "timestamp",
+    "ts",
+    "time",
+    "created_at",
+    "createdAt",
+    "start_time",
+    "startTime",
+    "@timestamp",
 )
 _ARGUMENT_KEYS = (
-    "arguments", "args", "input", "inputs", "parameters", "params",
+    "arguments",
+    "args",
+    "input",
+    "inputs",
+    "parameters",
+    "params",
 )
 _REQUEST_KEYS = ("request_id", "requestId", "id", "call_id", "callId")
 
@@ -182,9 +215,24 @@ def _normalize_capability(value: Any) -> str | None:
     return cap or None
 
 
-_DENIED = {"denied","deny","refused","refuse","rejected","reject","declined","decline","blocked","block","forbidden","denied_by_policy","policy_denied","not_permitted"}
-_ERRORED = {"error","fail","failed","failure","exception","timeout"}
-_ALLOWED = {"ok","allowed","allow","success","succeeded","completed"}
+_DENIED = {
+    "denied",
+    "deny",
+    "refused",
+    "refuse",
+    "rejected",
+    "reject",
+    "declined",
+    "decline",
+    "blocked",
+    "block",
+    "forbidden",
+    "denied_by_policy",
+    "policy_denied",
+    "not_permitted",
+}
+_ERRORED = {"error", "fail", "failed", "failure", "exception", "timeout"}
+_ALLOWED = {"ok", "allowed", "allow", "success", "succeeded", "completed"}
 
 
 def _normalize_outcome(value: Any) -> str:
@@ -348,20 +396,22 @@ def _extract_adr(obj: dict[str, Any]) -> list[dict[str, Any]]:
     for msg in convo:
         if not isinstance(msg, dict):
             continue
-        for call in (msg.get("tool_calls") or []):
+        for call in msg.get("tool_calls") or []:
             if not isinstance(call, dict):
                 continue
             name = call.get("name")
             if not name:
                 continue
-            out.append({
-                "capability": name,
-                "timestamp": msg.get("timestamp"),
-                "arguments": call.get("input") or call.get("arguments") or {},
-                "request_id": call.get("id"),
-                "outcome": "ok" if ok else ("error" if ok is False else None),
-                "task_id": task,
-            })
+            out.append(
+                {
+                    "capability": name,
+                    "timestamp": msg.get("timestamp"),
+                    "arguments": call.get("input") or call.get("arguments") or {},
+                    "request_id": call.get("id"),
+                    "outcome": "ok" if ok else ("error" if ok is False else None),
+                    "task_id": task,
+                }
+            )
     return out
 
 
@@ -507,9 +557,7 @@ def _ingest_sqlite(
         if "records" not in tables:
             raise ValueError("SQLite history has no records table")
 
-        columns = {
-            row[1] for row in connection.execute("PRAGMA table_info(records)")
-        }
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(records)")}
         if not {"seq", "body"}.issubset(columns):
             raise ValueError("SQLite records table must contain seq and body")
 
@@ -553,8 +601,11 @@ def _ingest_row(
     result: IngestResult,
 ) -> None:
     built = _build_action(flat, line_no, resolved)
-    if isinstance(built, SkippedRow) and built.reason == "no agent identifier" \
-            and agent_id:
+    if (
+        isinstance(built, SkippedRow)
+        and built.reason == "no agent identifier"
+        and agent_id
+    ):
         retry = dict(flat)
         retry["agent_id"] = agent_id
         built = _build_action(retry, line_no, resolved)
@@ -582,14 +633,18 @@ def _ingest_jsonl(
             obj = json.loads(stripped)
         except ValueError as exc:
             result.skipped.append(
-                SkippedRow(line_no, f"invalid JSON: {exc.args[0][:60]}",
-                           stripped[:_MAX_RAW_ECHO])
+                SkippedRow(
+                    line_no,
+                    f"invalid JSON: {exc.args[0][:60]}",
+                    stripped[:_MAX_RAW_ECHO],
+                )
             )
             continue
         if not isinstance(obj, dict):
             result.skipped.append(
-                SkippedRow(line_no, "line is not a JSON object",
-                           stripped[:_MAX_RAW_ECHO])
+                SkippedRow(
+                    line_no, "line is not a JSON object", stripped[:_MAX_RAW_ECHO]
+                )
             )
             continue
         # Protocol chatter in a well-formed log is expected and is not a

@@ -23,17 +23,8 @@ SNAPSHOT_TIME = "2026-07-28T12:30:00Z"
 
 
 def _snapshot_hash(value: dict[str, Any]) -> str:
-    payload = {
-        key: item
-        for key, item in value.items()
-        if key != "snapshot_hash"
-    }
-    return (
-        "sha256:"
-        + hashlib.sha256(
-            canonicalize(payload)
-        ).hexdigest()
-    )
+    payload = {key: item for key, item in value.items() if key != "snapshot_hash"}
+    return "sha256:" + hashlib.sha256(canonicalize(payload)).hexdigest()
 
 
 def _write(
@@ -252,9 +243,7 @@ def main() -> None:
                 "direct_grant_required": True,
                 "delegation_forbidden": False,
                 "maximum_delegation_depth": 0,
-                "allowed_issuers": [
-                    "treasury-owner@example.com"
-                ],
+                "allowed_issuers": ["treasury-owner@example.com"],
             },
             {
                 "node_id": "sink:customer-bulk-export",
@@ -262,18 +251,14 @@ def main() -> None:
                 "direct_grant_required": True,
                 "delegation_forbidden": True,
                 "maximum_delegation_depth": 0,
-                "allowed_issuers": [
-                    "data-owner@example.com"
-                ],
+                "allowed_issuers": ["data-owner@example.com"],
             },
         ],
     }
 
     expected: dict[str, Any] = {
         "source_node_id": "agent:refund",
-        "context": {
-            "environment": "production"
-        },
+        "context": {"environment": "production"},
         "before": {
             "sink:payment-execute": "UNREACHABLE",
             "sink:customer-bulk-export": "UNREACHABLE",
@@ -282,12 +267,8 @@ def main() -> None:
             "sink:payment-execute": "PROHIBITED_REACHABLE",
             "sink:customer-bulk-export": "UNREACHABLE",
         },
-        "newly_reachable_sinks": [
-            "sink:payment-execute"
-        ],
-        "newly_prohibited_sinks": [
-            "sink:payment-execute"
-        ],
+        "newly_reachable_sinks": ["sink:payment-execute"],
+        "newly_prohibited_sinks": ["sink:payment-execute"],
         "decision": "BLOCK_PROPOSED_CHANGE",
         "reason_codes": [
             "DIRECT_GRANT_REQUIRED",
@@ -310,18 +291,14 @@ def main() -> None:
     )
     _write(
         "analysis-context.json",
-        {
-            "environment": "production"
-        },
+        {"environment": "production"},
     )
     _write(
         "expected-analysis.json",
         expected,
     )
 
-    print(
-        "PASS: deterministic reachability vectors generated"
-    )
+    print("PASS: deterministic reachability vectors generated")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://privatevault.ai/spec/loop-discovery-v1/event.schema.json",
+  "title": "PrivateVault agent security event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "spec",
+    "event_id",
+    "trace_id",
+    "occurred_at",
+    "source_agent_id",
+    "target_agent_id",
+    "relation",
+    "action_digest",
+    "authorization_id",
+    "authorization_state",
+    "parent_event_id"
+  ],
+  "properties": {
+    "spec": {
+      "const": "pv-agent-security-event/1.0"
+    },
+    "event_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "trace_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "occurred_at": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$"
+    },
+    "source_agent_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "target_agent_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "relation": {
+      "enum": ["DELEGATES", "APPROVES", "INVOKES", "DISPATCHES"]
+    },
+    "action_digest": {
+      "$ref": "#/$defs/digest"
+    },
+    "authorization_id": {
+      "oneOf": [
+        {"$ref": "#/$defs/identifier"},
+        {"type": "null"}
+      ]
+    },
+    "authorization_state": {
+      "enum": ["VERIFIED", "INVALID", "UNVERIFIABLE", "ABSENT"]
+    },
+    "parent_event_id": {
+      "oneOf": [
+        {"$ref": "#/$defs/identifier"},
+        {"type": "null"}
+      ]
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  }
+}

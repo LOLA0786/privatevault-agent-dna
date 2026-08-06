@@ -15,11 +15,11 @@ Enforcement invariants:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional
 
 from .advisory import AdvisorySignal
-from .observability.metrics import MetricsExporter
+from .circuit_breaker import GuardedEngine
 from .decision import Decision, DecisionEngine, DecisionResult
+from .observability.metrics import MetricsExporter
 from .trace import AgentAction
 
 
@@ -33,25 +33,21 @@ class RuntimeEvent:
 class RuntimeMonitor:
     """Owns the DecisionEngine. The streaming path IS the enforcing path."""
 
-    def __init__(self, engine: DecisionEngine, recorder=None) -> None:
+    def __init__(self, engine: DecisionEngine | GuardedEngine, recorder=None) -> None:
         if engine.scorer is None:
-            raise ValueError(
-                "RuntimeMonitor requires a DecisionEngine with a scorer"
-            )
+            raise ValueError("RuntimeMonitor requires a DecisionEngine with a scorer")
         self.engine = engine
-        self.recorder = recorder     # optional DecisionRecorder; never required
+        self.recorder = recorder  # optional DecisionRecorder; never required
         self.metrics = MetricsExporter()
-        self.previous_capability: Optional[str] = None
-        self.events: List[RuntimeEvent] = []
+        self.previous_capability: str | None = None
+        self.events: list[RuntimeEvent] = []
 
     def process(
         self,
         action: AgentAction,
         evidence: dict | None = None,
     ) -> DecisionResult:
-        result = self.engine.decide(
-            action, self.previous_capability, evidence=evidence
-        )
+        result = self.engine.decide(action, self.previous_capability, evidence=evidence)
 
         # decide() already scored internally and is itself fail-closed.
         # Rebuild the advisory for the event record too, but never let
@@ -104,20 +100,13 @@ class RuntimeMonitor:
             return None
         return self.events[-1]
 
-    def blocked_events(self) -> List[RuntimeEvent]:
+    def blocked_events(self) -> list[RuntimeEvent]:
+        return [e for e in self.events if e.decision.decision == Decision.BLOCK]
+
+    def approval_events(self) -> list[RuntimeEvent]:
         return [
-            e for e in self.events
-            if e.decision.decision == Decision.BLOCK
+            e for e in self.events if e.decision.decision == Decision.REQUIRE_APPROVAL
         ]
 
-    def approval_events(self) -> List[RuntimeEvent]:
-        return [
-            e for e in self.events
-            if e.decision.decision == Decision.REQUIRE_APPROVAL
-        ]
-
-    def critical_events(self) -> List[RuntimeEvent]:
-        return [
-            e for e in self.events
-            if e.advisory.severity.value == "critical"
-        ]
+    def critical_events(self) -> list[RuntimeEvent]:
+        return [e for e in self.events if e.advisory.severity.value == "critical"]

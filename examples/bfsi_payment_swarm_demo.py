@@ -17,6 +17,7 @@ one approver, a settlement that fired before the fraud hold cleared.
 
 Run:  python -m examples.bfsi_payment_swarm_demo
 """
+
 from __future__ import annotations
 
 from agent_dna.multi_agent import InteractionEvent, RuntimeValidator, Verdict
@@ -44,28 +45,44 @@ PRE_SETTLEMENT = [
 
 SIGNOFF_ROLES = ["sanctions", "fraud", "maker", "checker"]
 SIGNOFF_AGENT = {
-    "sanctions": "sanctions_agent", "fraud": "fraud_agent",
-    "maker": "maker_agent", "checker": "checker_agent",
+    "sanctions": "sanctions_agent",
+    "fraud": "fraud_agent",
+    "maker": "maker_agent",
+    "checker": "checker_agent",
 }
 
 
 def step(exec_id, src, dst, t, **kw):
     return InteractionEvent(
-        execution_id=exec_id, source=src, target=dst,
-        source_role=ROLE.get(src, "unknown"), target_role=ROLE.get(dst, "unknown"),
-        timestamp=t, intent="authorize_payment", **kw)
+        execution_id=exec_id,
+        source=src,
+        target=dst,
+        source_role=ROLE.get(src, "unknown"),
+        target_role=ROLE.get(dst, "unknown"),
+        timestamp=t,
+        intent="authorize_payment",
+        **kw,
+    )
 
 
 def clearance(exec_id, role, t, approve=True, confidence=0.97):
     return InteractionEvent(
-        execution_id=exec_id, source=SIGNOFF_AGENT[role], target="consensus_ledger",
-        source_role=role, target_role="ledger", timestamp=t,
-        approval=approve, confidence=confidence, intent="post_clearance",
-        metadata={"is_signoff": True})
+        execution_id=exec_id,
+        source=SIGNOFF_AGENT[role],
+        target="consensus_ledger",
+        source_role=role,
+        target_role="ledger",
+        timestamp=t,
+        approval=approve,
+        confidence=confidence,
+        intent="post_clearance",
+        metadata={"is_signoff": True},
+    )
 
 
-def good_payment(exec_id, *, skip_clearance=None, dissent=None,
-                early_settlement=False, extra=None):
+def good_payment(
+    exec_id, *, skip_clearance=None, dissent=None, early_settlement=False, extra=None
+):
     """A sanctioned high-value payment. Clearances are posted BEFORE the
     settlement hand-off, which is always the final act."""
     ev = []
@@ -110,13 +127,13 @@ def attack_sanctions_bypass(exec_id):
     # prompt-injected intake routes around AML/sanctions screening entirely
     ev = [
         step(exec_id, "intake_agent", "kyc_agent", 1.0),
-        step(exec_id, "kyc_agent", "limit_agent", 2.0),       # bypass edge
+        step(exec_id, "kyc_agent", "limit_agent", 2.0),  # bypass edge
         step(exec_id, "limit_agent", "fraud_agent", 3.0),
         step(exec_id, "fraud_agent", "maker_agent", 4.0),
         step(exec_id, "maker_agent", "checker_agent", 5.0),
     ]
     ct = 6.0
-    for role in ["fraud", "maker", "checker"]:   # sanctions never clears
+    for role in ["fraud", "maker", "checker"]:  # sanctions never clears
         ev.append(clearance(exec_id, role, ct))
         ct += 0.1
     ev.append(step(exec_id, "checker_agent", "settlement_agent", ct + 0.5))
@@ -129,10 +146,17 @@ def attack_maker_checker_collapse(exec_id):
 
 def attack_privilege_escalation(exec_id):
     ev = good_payment(exec_id)
-    ev.append(InteractionEvent(
-        execution_id=exec_id, source="support_bot", target="settlement_agent",
-        source_role="support", target_role="settlement", timestamp=99.0,
-        intent="release_funds"))
+    ev.append(
+        InteractionEvent(
+            execution_id=exec_id,
+            source="support_bot",
+            target="settlement_agent",
+            source_role="support",
+            target_role="settlement",
+            timestamp=99.0,
+            intent="release_funds",
+        )
+    )
     return ev
 
 
@@ -146,26 +170,34 @@ def attack_fraud_override(exec_id):
 
 def benign_new_audit_agent(exec_id):
     def extra(eid, t):
-        return [InteractionEvent(
-            execution_id=eid, source="fraud_agent", target="audit_stream",
-            source_role="fraud", target_role="unknown", timestamp=t,
-            intent="emit_audit")]
+        return [
+            InteractionEvent(
+                execution_id=eid,
+                source="fraud_agent",
+                target="audit_stream",
+                source_role="fraud",
+                target_role="unknown",
+                timestamp=t,
+                intent="emit_audit",
+            )
+        ]
+
     return good_payment(exec_id, extra=extra)
 
 
 REG_NOTE = {
     "AML / sanctions screening skipped": "PMLA 2002 / RBI KYC Master Direction -- "
-        "screening against UN/OFAC/RBI lists is mandatory before disbursement.",
+    "screening against UN/OFAC/RBI lists is mandatory before disbursement.",
     "maker-checker collapsed to a single approver": "RBI dual-control / four-eyes "
-        "principle -- high-value payments require two independent approvers.",
+    "principle -- high-value payments require two independent approvers.",
     "unsanctioned agent triggered settlement": "Segregation of duties -- only the "
-        "checker function may release funds.",
+    "checker function may release funds.",
     "settlement fired before required clearances": "Control circumvention -- "
-        "execution must follow, never precede, the control gates.",
+    "execution must follow, never precede, the control gates.",
     "fraud hold was overridden": "An open fraud hold (negative attestation) must "
-        "block disbursement, not be silently bypassed.",
+    "block disbursement, not be silently bypassed.",
     "new unclassified agent observed a control": "Novel-but-unsanctioned wiring -- "
-        "flagged for review, not blocked, pending onboarding.",
+    "flagged for review, not blocked, pending onboarding.",
 }
 
 
@@ -173,28 +205,49 @@ def run():
     validator = RuntimeValidator.from_corpus(build_corpus())
 
     import json
+
     print("LEARNED ORGANIZATIONAL DNA (from 500 clean production authorizations)")
     print(json.dumps(validator.engine.describe(), indent=2))
     print("=" * 72)
 
     cases = [
-        ("Legitimate high-value payment", good_payment("live-ok"),
-        Verdict.ALLOW, None),
-        ("Prompt-injection: AML/sanctions bypass", attack_sanctions_bypass("a1"),
-        Verdict.BLOCK, "AML / sanctions screening skipped"),
-        ("Maker-checker collapse (four-eyes bypass)",
-        attack_maker_checker_collapse("a2"),
-        Verdict.BLOCK, "maker-checker collapsed to a single approver"),
-        ("Privilege escalation: support bot releases funds",
-        attack_privilege_escalation("a3"),
-        Verdict.BLOCK, "unsanctioned agent triggered settlement"),
-        ("Sequence tamper: settle before screening",
-        attack_settle_before_screen("a4"),
-        Verdict.BLOCK, "settlement fired before required clearances"),
-        ("Fraud-hold override", attack_fraud_override("a5"),
-        Verdict.BLOCK, "fraud hold was overridden"),
-        ("Benign novelty: new audit agent", benign_new_audit_agent("a6"),
-        Verdict.REVIEW, "new unclassified agent observed a control"),
+        ("Legitimate high-value payment", good_payment("live-ok"), Verdict.ALLOW, None),
+        (
+            "Prompt-injection: AML/sanctions bypass",
+            attack_sanctions_bypass("a1"),
+            Verdict.BLOCK,
+            "AML / sanctions screening skipped",
+        ),
+        (
+            "Maker-checker collapse (four-eyes bypass)",
+            attack_maker_checker_collapse("a2"),
+            Verdict.BLOCK,
+            "maker-checker collapsed to a single approver",
+        ),
+        (
+            "Privilege escalation: support bot releases funds",
+            attack_privilege_escalation("a3"),
+            Verdict.BLOCK,
+            "unsanctioned agent triggered settlement",
+        ),
+        (
+            "Sequence tamper: settle before screening",
+            attack_settle_before_screen("a4"),
+            Verdict.BLOCK,
+            "settlement fired before required clearances",
+        ),
+        (
+            "Fraud-hold override",
+            attack_fraud_override("a5"),
+            Verdict.BLOCK,
+            "fraud hold was overridden",
+        ),
+        (
+            "Benign novelty: new audit agent",
+            benign_new_audit_agent("a6"),
+            Verdict.REVIEW,
+            "new unclassified agent observed a control",
+        ),
     ]
 
     all_ok = True

@@ -3,6 +3,8 @@ zero tests for this logic prior to vendoring. Covers the arithmetic,
 the threshold boundary, and the adversarial-weight edge cases a real
 Byzantine scenario would actually exercise."""
 
+from dataclasses import FrozenInstanceError
+
 import pytest
 
 from agent_dna.consensus import LeaderState, Vote, WeightedQuorum
@@ -25,16 +27,18 @@ def test_unanimous_rejection():
 def test_exact_threshold_boundary_approves():
     """67% exactly must approve — threshold is >=, not >."""
     q = WeightedQuorum()
-    votes = [Vote(weight=1.0, approve=True) for _ in range(67)] + \
-            [Vote(weight=1.0, approve=False) for _ in range(33)]
+    votes = [Vote(weight=1.0, approve=True) for _ in range(67)] + [
+        Vote(weight=1.0, approve=False) for _ in range(33)
+    ]
     assert q.evaluate(votes) == pytest.approx(0.67)
     assert q.approved(votes)
 
 
 def test_just_below_threshold_rejects():
     q = WeightedQuorum()
-    votes = [Vote(weight=1.0, approve=True) for _ in range(66)] + \
-            [Vote(weight=1.0, approve=False) for _ in range(34)]
+    votes = [Vote(weight=1.0, approve=True) for _ in range(66)] + [
+        Vote(weight=1.0, approve=False) for _ in range(34)
+    ]
     assert q.evaluate(votes) < 0.67
     assert not q.approved(votes)
 
@@ -73,7 +77,7 @@ def test_byzantine_third_cannot_override_honest_two_thirds():
     assert q.approved(honest + byzantine)
 
 
-def test_byzantine_third_CAN_block_when_honest_is_exactly_two_thirds_minus_epsilon():
+def test_byzantine_third_can_block_below_two_thirds():
     """Honest claim boundary check: if honest support drops even
     slightly below 2/3, adversarial votes DO block approval. This is
     the failure mode the threshold is supposed to guard, verified as
@@ -87,5 +91,5 @@ def test_byzantine_third_CAN_block_when_honest_is_exactly_two_thirds_minus_epsil
 def test_leader_state_is_frozen_and_carries_trust_score():
     ls = LeaderState(cluster_id="c1", healthy=True, trust_score=0.95)
     assert ls.trust_score == 0.95
-    with pytest.raises(Exception):
+    with pytest.raises(FrozenInstanceError):
         ls.healthy = False  # frozen dataclass must reject mutation

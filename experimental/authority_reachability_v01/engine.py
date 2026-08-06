@@ -108,8 +108,7 @@ class AnalysisReport:
             "analysis_time": self.analysis_time,
             "source_node_id": self.source_node_id,
             "summary": {
-                state.value: counts.get(state.value, 0)
-                for state in ReachabilityState
+                state.value: counts.get(state.value, 0) for state in ReachabilityState
             },
             "findings": [finding.to_dict() for finding in self.findings],
         }
@@ -163,13 +162,9 @@ def _condition_result(
         if operator == "eq":
             return bool(canonicalize(actual) == canonicalize(expected))
         if operator == "in":
-            return any(
-                canonicalize(actual) == canonicalize(item) for item in expected
-            )
+            return any(canonicalize(actual) == canonicalize(item) for item in expected)
         if operator == "not_in":
-            return all(
-                canonicalize(actual) != canonicalize(item) for item in expected
-            )
+            return all(canonicalize(actual) != canonicalize(item) for item in expected)
         if (
             isinstance(actual, bool)
             or not isinstance(actual, int)
@@ -293,12 +288,7 @@ def _shortest_path(
                     active.edge.target,
                     next_conditional,
                     (*path, active.edge),
-                    tuple(
-                        sorted(
-                            set(unresolved)
-                            | set(active.unresolved_fields)
-                        )
-                    ),
+                    tuple(sorted(set(unresolved) | set(active.unresolved_fields))),
                 )
             )
 
@@ -320,14 +310,11 @@ def _path_witness(
         evidence[edge.evidence_state.value] += 1
 
     grants: list[GraphNode] = [
-        nodes[node_id]
-        for node_id in node_ids
-        if nodes[node_id].kind.value == "GRANT"
+        nodes[node_id] for node_id in node_ids if nodes[node_id].kind.value == "GRANT"
     ]
 
     grant_ids = tuple(
-        str(node.attributes.get("grant_id", node.node_id))
-        for node in grants
+        str(node.attributes.get("grant_id", node.node_id)) for node in grants
     )
 
     issuers = tuple(
@@ -378,15 +365,10 @@ def _direct_grant_path(
     holds = [
         edge
         for edge in path
-        if edge.kind is EdgeKind.HOLDS_GRANT
-        and edge.source == source
+        if edge.kind is EdgeKind.HOLDS_GRANT and edge.source == source
     ]
 
-    return (
-        len(holds) == 1
-        and bool(path)
-        and path[-1].kind is EdgeKind.AUTHORIZES
-    )
+    return len(holds) == 1 and bool(path) and path[-1].kind is EdgeKind.AUTHORIZES
 
 
 def _violations(
@@ -397,29 +379,21 @@ def _violations(
 ) -> tuple[str, ...]:
     reasons: list[str] = []
 
-    if (
-        sink.direct_grant_required
-        and not _direct_grant_path(source, path)
-    ):
+    if sink.direct_grant_required and not _direct_grant_path(source, path):
         reasons.append("DIRECT_GRANT_REQUIRED")
 
-    if (
-        sink.delegation_forbidden
-        and witness.maximum_delegation_depth > 0
-    ):
+    if sink.delegation_forbidden and witness.maximum_delegation_depth > 0:
         reasons.append("DELEGATION_FORBIDDEN")
 
     if (
         sink.maximum_delegation_depth is not None
-        and witness.maximum_delegation_depth
-        > sink.maximum_delegation_depth
+        and witness.maximum_delegation_depth > sink.maximum_delegation_depth
     ):
         reasons.append("MAXIMUM_DELEGATION_DEPTH_EXCEEDED")
 
     if sink.allowed_issuers and (
         not witness.grant_issuers
-        or not set(witness.grant_issuers)
-        <= set(sink.allowed_issuers)
+        or not set(witness.grant_issuers) <= set(sink.allowed_issuers)
     ):
         reasons.append("ISSUER_NOT_ALLOWED")
 
@@ -427,12 +401,7 @@ def _violations(
 
 
 def _graph_hash(graph: AuthorityGraph) -> str:
-    return (
-        "sha256:"
-        + hashlib.sha256(
-            canonicalize(graph.to_dict())
-        ).hexdigest()
-    )
+    return "sha256:" + hashlib.sha256(canonicalize(graph.to_dict())).hexdigest()
 
 
 def analyze_reachability(
@@ -444,15 +413,10 @@ def analyze_reachability(
 ) -> AnalysisReport:
     """Analyze one immutable graph snapshot without probabilistic inference."""
 
-    node_map = {
-        node.node_id: node
-        for node in graph.nodes
-    }
+    node_map = {node.node_id: node for node in graph.nodes}
 
     if source_node_id not in node_map:
-        raise GraphFormatError(
-            f"unknown source node {source_node_id!r}"
-        )
+        raise GraphFormatError(f"unknown source node {source_node_id!r}")
 
     effective_time = analysis_time or graph.snapshot_time
     parse_timestamp(effective_time, "analysis_time")
@@ -533,8 +497,7 @@ def analyze_reachability(
                     edge.edge_id
                     for edge in path
                     if (
-                        edge.evidence_state
-                        is not EvidenceClass.VERIFIED
+                        edge.evidence_state is not EvidenceClass.VERIFIED
                         or edge.kind is EdgeKind.ENABLES
                     )
                 ),
@@ -550,9 +513,7 @@ def analyze_reachability(
         "context": supplied_context,
     }
 
-    analysis_id = hashlib.sha256(
-        canonicalize(identity_input)
-    ).hexdigest()[:24]
+    analysis_id = hashlib.sha256(canonicalize(identity_input)).hexdigest()[:24]
 
     return AnalysisReport(
         f"analysis-{analysis_id}",
@@ -589,14 +550,8 @@ def analyze_change(
         analysis_time=analysis_time,
     )
 
-    before_by_sink = {
-        item.sink_node_id: item
-        for item in before.findings
-    }
-    after_by_sink = {
-        item.sink_node_id: item
-        for item in after.findings
-    }
+    before_by_sink = {item.sink_node_id: item for item in before.findings}
+    after_by_sink = {item.sink_node_id: item for item in after.findings}
 
     reachable = {
         ReachabilityState.REACHABLE,
@@ -608,42 +563,23 @@ def analyze_change(
     newly_prohibited: list[str] = []
     removed: list[str] = []
 
-    for sink_id in sorted(
-        set(before_by_sink)
-        | set(after_by_sink)
-    ):
+    for sink_id in sorted(set(before_by_sink) | set(after_by_sink)):
         old = before_by_sink.get(sink_id)
         new = after_by_sink.get(sink_id)
 
-        old_state = (
-            old.state
-            if old
-            else ReachabilityState.UNREACHABLE
-        )
-        new_state = (
-            new.state
-            if new
-            else ReachabilityState.UNREACHABLE
-        )
+        old_state = old.state if old else ReachabilityState.UNREACHABLE
+        new_state = new.state if new else ReachabilityState.UNREACHABLE
 
-        if (
-            old_state not in reachable
-            and new_state in reachable
-        ):
+        if old_state not in reachable and new_state in reachable:
             newly_reachable.append(sink_id)
 
         if (
-            old_state
-            is not ReachabilityState.PROHIBITED_REACHABLE
-            and new_state
-            is ReachabilityState.PROHIBITED_REACHABLE
+            old_state is not ReachabilityState.PROHIBITED_REACHABLE
+            and new_state is ReachabilityState.PROHIBITED_REACHABLE
         ):
             newly_prohibited.append(sink_id)
 
-        if (
-            old_state in reachable
-            and new_state not in reachable
-        ):
+        if old_state in reachable and new_state not in reachable:
             removed.append(sink_id)
 
     return ChangeAnalysis(

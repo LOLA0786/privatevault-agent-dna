@@ -9,6 +9,7 @@ Ordering is measured by first-appearance timestamp of each role within an
 execution. A minimum support guards against inferring an "invariant" from a
 handful of coincidental orderings.
 """
+
 from __future__ import annotations
 
 from collections import defaultdict
@@ -21,9 +22,12 @@ from .interaction_graph import InteractionGraph
 class TemporalInvariant(Invariant):
     name = "temporal"
 
-    def __init__(self, order_threshold: float = 0.98,
-                min_support: int = 5,
-                min_support_frac: float = 0.10) -> None:
+    def __init__(
+        self,
+        order_threshold: float = 0.98,
+        min_support: int = 5,
+        min_support_frac: float = 0.10,
+    ) -> None:
         self.order_threshold = order_threshold
         self.min_support = min_support
         self.min_support_frac = min_support_frac
@@ -47,8 +51,9 @@ class TemporalInvariant(Invariant):
                     a_before_b[(r2, r1)] += 1
                 # ties: contribute to neither direction
 
-        support_floor = max(self.min_support,
-                            int(self.min_support_frac * self.n_executions))
+        support_floor = max(
+            self.min_support, int(self.min_support_frac * self.n_executions)
+        )
         self.orderings.clear()
         for (r1, r2), n_co in cooccur.items():
             if n_co < support_floor:
@@ -75,7 +80,7 @@ class TemporalInvariant(Invariant):
             name=self.name,
             passed=passed,
             severity=severity,
-            hard=bool(violations),     # ordering breach is a hard breach
+            hard=bool(violations),  # ordering breach is a hard breach
             violations=violations,
         )
 

@@ -58,10 +58,7 @@ class GenericJSONGraphAdapter(GraphAdapter):
         else:
             raise GraphFormatError("adapter source must be JSON, path, or mapping")
         graph = AuthorityGraph.from_dict(raw)
-        if any(
-            edge.evidence_state is EvidenceClass.VERIFIED
-            for edge in graph.edges
-        ):
+        if any(edge.evidence_state is EvidenceClass.VERIFIED for edge in graph.edges):
             raise GraphFormatError(
                 "generic JSON cannot assert VERIFIED evidence; "
                 "use a cryptographic authority adapter"
@@ -127,9 +124,7 @@ class MappedCompanyGraphAdapter(GraphAdapter):
             external_type = require_string(node["type"], f"{path}.type")
             mapped = self._node_mapping.get(external_type)
             if mapped is None:
-                raise GraphFormatError(
-                    f"{path}.type: no mapping for {external_type!r}"
-                )
+                raise GraphFormatError(f"{path}.type: no mapping for {external_type!r}")
             try:
                 node_kind = NodeKind(mapped)
             except ValueError as exc:
@@ -173,9 +168,7 @@ class MappedCompanyGraphAdapter(GraphAdapter):
             external_type = require_string(edge["type"], f"{path}.type")
             mapping = self._edge_mapping.get(external_type)
             if mapping is None:
-                raise GraphFormatError(
-                    f"{path}.type: no mapping for {external_type!r}"
-                )
+                raise GraphFormatError(f"{path}.type: no mapping for {external_type!r}")
             require_exact_fields(
                 mapping,
                 required={"kind", "traversable", "evidence_state"},
@@ -226,9 +219,7 @@ class MappedCompanyGraphAdapter(GraphAdapter):
         return AuthorityGraph.from_dict(
             {
                 "spec": GRAPH_SPEC,
-                "graph_id": require_string(
-                    raw["graph_id"], "company_graph.graph_id"
-                ),
+                "graph_id": require_string(raw["graph_id"], "company_graph.graph_id"),
                 "organisation_id": require_string(
                     raw["organisation_id"], "company_graph.organisation_id"
                 ),
@@ -236,9 +227,7 @@ class MappedCompanyGraphAdapter(GraphAdapter):
                 "source_snapshots": [snapshot_hash],
                 "nodes": normalized_nodes,
                 "edges": normalized_edges,
-                "protected_sinks": [
-                    sink.to_dict() for sink in self._protected_sinks
-                ],
+                "protected_sinks": [sink.to_dict() for sink in self._protected_sinks],
             }
         )
 
@@ -282,9 +271,7 @@ def merge_graphs(
             encoded = sink.to_dict()
             existing = sinks.setdefault(sink.node_id, encoded)
             if existing != encoded:
-                raise GraphFormatError(
-                    f"conflicting protected sink {sink.node_id!r}"
-                )
+                raise GraphFormatError(f"conflicting protected sink {sink.node_id!r}")
 
     return AuthorityGraph.from_dict(
         {

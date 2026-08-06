@@ -81,9 +81,7 @@ class ApprovalGraph:
     def from_execution(cls, graph: InteractionGraph) -> ApprovalGraph:
         """Approval edges only. An event with ``approval=True`` means the
         source exercised approval authority over the target's step."""
-        return cls.from_pairs(
-            (e.source, e.target) for e in graph.events if e.approval
-        )
+        return cls.from_pairs((e.source, e.target) for e in graph.events if e.approval)
 
     # ------------------------------------------------------------- accessors
 
@@ -144,7 +142,7 @@ class ApprovalGraph:
 
 @dataclass(frozen=True)
 class StructuralViolation:
-    kind: str          # self_approval | mutual_approval | approval_cycle
+    kind: str  # self_approval | mutual_approval | approval_cycle
     agents: tuple[str, ...]
     detail: str
 
@@ -176,25 +174,37 @@ class StructuralAuthorityInvariant(Invariant):
         for cycle in graph.cycles():
             if len(cycle) == 1:
                 (a,) = cycle
-                violations.append(StructuralViolation(
-                    "self_approval", cycle,
-                    f"{a} may approve its own actions -- dual control "
-                    "exists precisely to prevent this"))
+                violations.append(
+                    StructuralViolation(
+                        "self_approval",
+                        cycle,
+                        f"{a} may approve its own actions -- dual control "
+                        "exists precisely to prevent this",
+                    )
+                )
             elif len(cycle) == 2:
                 a, b = cycle
-                violations.append(StructuralViolation(
-                    "mutual_approval", cycle,
-                    f"{a} and {b} may approve each other -- reciprocal "
-                    "sign-off is the two-party form of self-approval; "
-                    "the approves relation must be antisymmetric"))
+                violations.append(
+                    StructuralViolation(
+                        "mutual_approval",
+                        cycle,
+                        f"{a} and {b} may approve each other -- reciprocal "
+                        "sign-off is the two-party form of self-approval; "
+                        "the approves relation must be antisymmetric",
+                    )
+                )
             else:
                 path = " -> ".join(cycle) + f" -> {cycle[0]}"
-                violations.append(StructuralViolation(
-                    "approval_cycle", cycle,
-                    f"circular approval authority: {path}. No individual "
-                    "grant in this chain is wrong; the composition is a "
-                    "segregation-of-duties breach that per-agent "
-                    "authorization checks cannot detect"))
+                violations.append(
+                    StructuralViolation(
+                        "approval_cycle",
+                        cycle,
+                        f"circular approval authority: {path}. No individual "
+                        "grant in this chain is wrong; the composition is a "
+                        "segregation-of-duties breach that per-agent "
+                        "authorization checks cannot detect",
+                    )
+                )
         return violations
 
     # ---------------------------------------------------- Invariant contract
@@ -219,7 +229,7 @@ class StructuralAuthorityInvariant(Invariant):
             name=self.name,
             passed=not violations,
             severity=1.0 if violations else 0.0,
-            hard=bool(violations),   # definitional breach, never advisory
+            hard=bool(violations),  # definitional breach, never advisory
             violations=messages,
         )
 
@@ -229,6 +239,7 @@ class StructuralAuthorityInvariant(Invariant):
             "requires_training": False,
             "declared_edges": (
                 sorted(f"{a}->{b}" for a, b in self.declared.edges)
-                if self.declared else []
+                if self.declared
+                else []
             ),
         }

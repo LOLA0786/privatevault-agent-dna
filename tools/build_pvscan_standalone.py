@@ -137,7 +137,13 @@ from __future__ import annotations
 
 '''
 
-    return header + "\n".join(sorted(set(all_imports))) + "\n\n\n" + "\n\n\n".join(chunks) + "\n"
+    return (
+        header
+        + "\n".join(sorted(set(all_imports)))
+        + "\n\n\n"
+        + "\n\n\n".join(chunks)
+        + "\n"
+    )
 
 
 def main() -> int:
@@ -152,7 +158,9 @@ def main() -> int:
         try:
             subprocess.run(
                 [sys.executable, "-m", "ruff", *args, str(OUT)],
-                cwd=ROOT, check=False, capture_output=True,
+                cwd=ROOT,
+                check=False,
+                capture_output=True,
             )
         except Exception:
             print("warning: ruff unavailable; generated file not linted")

@@ -27,43 +27,27 @@ def load_vector(name: str) -> dict:
 
 
 def test_business_checks_pass_but_action_is_denied() -> None:
-    vector = load_vector(
-        "denied-outside-authority.json"
-    )
+    vector = load_vector("denied-outside-authority.json")
 
-    assert set(
-        vector["business_checks"].values()
-    ) == {"PASS"}
+    assert set(vector["business_checks"].values()) == {"PASS"}
 
     report = verify_receipt(
         vector["receipt"],
         vector["trust_bundle"],
     )
 
-    assert (
-        report.evidence_state
-        is EvidenceState.VERIFIED
-    )
-    assert (
-        report.decision_conformance
-        is DecisionConformance.CONFORMANT
-    )
+    assert report.evidence_state is EvidenceState.VERIFIED
+    assert report.decision_conformance is DecisionConformance.CONFORMANT
     assert vector["receipt"]["authority_result"] == {
         "verdict": "DENY",
-        "reason_code": (
-            "ACTION_OUTSIDE_DELEGATED_AUTHORITY"
-        ),
+        "reason_code": ("ACTION_OUTSIDE_DELEGATED_AUTHORITY"),
     }
-    assert vector["receipt"]["policy_result"]["verdict"] == (
-        "ALLOW"
-    )
+    assert vector["receipt"]["policy_result"]["verdict"] == ("ALLOW")
     assert vector["receipt"]["final_verdict"] == "DENY"
 
 
 def test_injected_wrapper_cannot_change_authority_derivation() -> None:
-    denied = load_vector(
-        "denied-outside-authority.json"
-    )
+    denied = load_vector("denied-outside-authority.json")
     injected = load_vector("injected-variant.json")
 
     assert denied["raw_input"] != injected["raw_input"]
@@ -73,19 +57,12 @@ def test_injected_wrapper_cannot_change_authority_derivation() -> None:
         != injected["receipt"]["decision_input_digest"]
     )
 
-    assert (
-        denied["receipt"]["requested"]
-        == injected["receipt"]["requested"]
-    )
+    assert denied["receipt"]["requested"] == injected["receipt"]["requested"]
 
     denied_result = denied["receipt"]["authority_result"]
-    injected_result = (
-        injected["receipt"]["authority_result"]
-    )
+    injected_result = injected["receipt"]["authority_result"]
 
-    assert canonicalize(denied_result) == canonicalize(
-        injected_result
-    )
+    assert canonicalize(denied_result) == canonicalize(injected_result)
 
     report = verify_receipt(
         injected["receipt"],
@@ -95,44 +72,29 @@ def test_injected_wrapper_cannot_change_authority_derivation() -> None:
 
 
 def test_verified_nonconformant_allow_is_scanner_critical() -> None:
-    vector = load_vector(
-        "allowed-outside-authority.json"
-    )
+    vector = load_vector("allowed-outside-authority.json")
 
     report = verify_receipt(
         vector["receipt"],
         vector["trust_bundle"],
     )
 
-    assert (
-        report.evidence_state
-        is EvidenceState.VERIFIED
-    )
-    assert (
-        report.decision_conformance
-        is DecisionConformance.NON_CONFORMANT
-    )
+    assert report.evidence_state is EvidenceState.VERIFIED
+    assert report.decision_conformance is DecisionConformance.NON_CONFORMANT
 
     scan = scan_authority_records(
         [vector["receipt"]],
         vector["trust_bundle"],
     )
 
-    assert scan["critical_findings"][0]["finding"] == (
-        "VERIFIED_NON_CONFORMANT_ALLOW"
-    )
+    assert scan["critical_findings"][0]["finding"] == ("VERIFIED_NON_CONFORMANT_ALLOW")
 
 
 def test_case_scoped_grant_allows_same_action_for_ten_minutes() -> None:
-    before = load_vector(
-        "denied-outside-authority.json"
-    )
+    before = load_vector("denied-outside-authority.json")
     after = load_vector("after-grant.json")
 
-    assert (
-        before["receipt"]["requested"]
-        == after["receipt"]["requested"]
-    )
+    assert before["receipt"]["requested"] == after["receipt"]["requested"]
 
     report = verify_receipt(
         after["receipt"],
@@ -142,32 +104,18 @@ def test_case_scoped_grant_allows_same_action_for_ten_minutes() -> None:
 
     grant = after["receipt"]["grant_chain"][-1]
 
-    assert grant["grant_id"] == (
-        "grant-refund-issue-RF-1042-10m"
-    )
-    assert grant["issuer_principal"] == (
-        "refund-owner@example.com"
-    )
-    assert grant["valid_from"] == (
-        "2026-07-28T12:00:00Z"
-    )
-    assert grant["expires_at"] == (
-        "2026-07-28T12:10:00Z"
-    )
-    assert after["receipt"]["final_verdict"] == (
-        "ALLOW"
-    )
+    assert grant["grant_id"] == ("grant-refund-issue-RF-1042-10m")
+    assert grant["issuer_principal"] == ("refund-owner@example.com")
+    assert grant["valid_from"] == ("2026-07-28T12:00:00Z")
+    assert grant["expires_at"] == ("2026-07-28T12:10:00Z")
+    assert after["receipt"]["final_verdict"] == ("ALLOW")
 
 
 def test_vectors_validate_against_published_schemas() -> None:
     schema_dir = Path("spec/authority-v01")
 
     schemas = {
-        name: json.loads(
-            (schema_dir / name).read_text(
-                encoding="utf-8"
-            )
-        )
+        name: json.loads((schema_dir / name).read_text(encoding="utf-8"))
         for name in (
             "trust-bundle.schema.json",
             "grant.schema.json",
@@ -199,13 +147,9 @@ def test_vectors_validate_against_published_schemas() -> None:
     )
 
     for path in sorted(VECTORS.glob("*.json")):
-        vector = json.loads(
-            path.read_text(encoding="utf-8")
-        )
+        vector = json.loads(path.read_text(encoding="utf-8"))
 
-        trust_validator.validate(
-            vector["trust_bundle"]
-        )
+        trust_validator.validate(vector["trust_bundle"])
 
         for grant in vector["receipt"]["grant_chain"]:
             grant_validator.validate(grant)
@@ -214,10 +158,7 @@ def test_vectors_validate_against_published_schemas() -> None:
 
 
 def test_vector_generator_is_deterministic() -> None:
-    before = {
-        path.name: path.read_bytes()
-        for path in sorted(VECTORS.glob("*.json"))
-    }
+    before = {path.name: path.read_bytes() for path in sorted(VECTORS.glob("*.json"))}
 
     result = subprocess.run(
         [
@@ -229,14 +170,9 @@ def test_vector_generator_is_deterministic() -> None:
         check=False,
     )
 
-    assert result.returncode == 0, (
-        result.stdout + result.stderr
-    )
+    assert result.returncode == 0, result.stdout + result.stderr
 
-    after = {
-        path.name: path.read_bytes()
-        for path in sorted(VECTORS.glob("*.json"))
-    }
+    after = {path.name: path.read_bytes() for path in sorted(VECTORS.glob("*.json"))}
 
     assert after == before
 
@@ -252,9 +188,7 @@ def test_customer_demo_shows_authority_derivation() -> None:
         check=False,
     )
 
-    assert result.returncode == 0, (
-        result.stdout + result.stderr
-    )
+    assert result.returncode == 0, result.stdout + result.stderr
 
     output = result.stdout
 

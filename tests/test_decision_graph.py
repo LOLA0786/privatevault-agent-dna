@@ -33,6 +33,7 @@ class StubInvariants:
     def validate(self, capability, previous):
         class R:
             pass
+
         r = R()
         r.violated = capability == self.forbidden
         r.message = "forbidden" if r.violated else ""
@@ -98,7 +99,7 @@ def test_graph_refuses_unsealed_record():
     a = _action("crm.read")
     r = engine.decide(a)
     record = build_record(a, r)
-    record.record_hash = ""          # unseal it
+    record.record_hash = ""  # unseal it
     with pytest.raises(ValueError):
         DecisionGraph().add(record)
 
@@ -132,7 +133,9 @@ def test_lineage_walks_root_to_node():
     last = list(rec.graph)[-1]
     path = rec.graph.lineage(last.decision_id)
     assert [p.capability for p in path] == [
-        "crm.read", "email.send", "storage.export",
+        "crm.read",
+        "email.send",
+        "storage.export",
     ]
 
 

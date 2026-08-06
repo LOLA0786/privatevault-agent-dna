@@ -57,18 +57,13 @@ def test_absent_evidence_dominates_first_scan(
 
     assert report["actions_analysed"] == 3
     assert report["evidence_state"]["ABSENT"] == 3
-    assert (
-        report["decision_conformance"]["NOT_ASSESSABLE"]
-        == 3
-    )
+    assert report["decision_conformance"]["NOT_ASSESSABLE"] == 3
 
 
 def test_verified_nonconformant_allow_is_critical_finding(
     _artifacts_fixture,
 ):
-    receipt = copy.deepcopy(
-        _artifacts_fixture["receipt"]
-    )
+    receipt = copy.deepcopy(_artifacts_fixture["receipt"])
 
     receipt["requested"]["action"] = "payments.delete"
 
@@ -83,21 +78,12 @@ def test_verified_nonconformant_allow_is_critical_finding(
     )
 
     assert report["evidence_state"]["VERIFIED"] == 1
-    assert (
-        report["decision_conformance"]["NON_CONFORMANT"]
-        == 1
-    )
+    assert report["decision_conformance"]["NON_CONFORMANT"] == 1
 
     finding = report["critical_findings"][0]
 
-    assert (
-        finding["finding"]
-        == "VERIFIED_NON_CONFORMANT_ALLOW"
-    )
-    assert (
-        finding["accountable_principal"]
-        == "owner@store.example"
-    )
+    assert finding["finding"] == "VERIFIED_NON_CONFORMANT_ALLOW"
+    assert finding["accountable_principal"] == "owner@store.example"
 
 
 def test_receipt_sequence_linkage_is_checked(
@@ -123,9 +109,7 @@ def test_receipt_sequence_linkage_is_checked(
     assert all(report.ok for report in reports)
 
     broken = copy.deepcopy(second)
-    broken["previous_receipt_hash"] = (
-        "sha256:" + ("f" * 64)
-    )
+    broken["previous_receipt_hash"] = "sha256:" + ("f" * 64)
 
     broken = sign_receipt(
         broken,
@@ -137,18 +121,9 @@ def test_receipt_sequence_linkage_is_checked(
         _artifacts_fixture["bundle"],
     )[1]
 
-    assert (
-        broken_report.evidence_state
-        is EvidenceState.INVALID
-    )
-    assert (
-        broken_report.decision_conformance
-        is DecisionConformance.NOT_ASSESSABLE
-    )
-    assert (
-        broken_report.reason_code
-        == "CHAIN_DISCONTINUOUS"
-    )
+    assert broken_report.evidence_state is EvidenceState.INVALID
+    assert broken_report.decision_conformance is DecisionConformance.NOT_ASSESSABLE
+    assert broken_report.reason_code == "CHAIN_DISCONTINUOUS"
 
 
 def test_authority_cli_accepts_valid_receipt(
@@ -181,21 +156,10 @@ def test_authority_cli_accepts_valid_receipt(
         check=False,
     )
 
-    assert result.returncode == 0, (
-        result.stdout + result.stderr
-    )
-    assert (
-        "evidence_state       VERIFIED"
-        in result.stdout
-    )
-    assert (
-        "decision_conformance CONFORMANT"
-        in result.stdout
-    )
-    assert (
-        "accountable_principal owner@store.example"
-        in result.stdout
-    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "evidence_state       VERIFIED" in result.stdout
+    assert "decision_conformance CONFORMANT" in result.stdout
+    assert "accountable_principal owner@store.example" in result.stdout
 
 
 def test_pv_authority_scan_reports_absent_evidence(
@@ -223,13 +187,8 @@ def test_pv_authority_scan_reports_absent_evidence(
         check=False,
     )
 
-    assert result.returncode == 0, (
-        result.stdout + result.stderr
-    )
-    assert (
-        "AUTHORISATION READINESS ASSESSMENT"
-        in result.stdout
-    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "AUTHORISATION READINESS ASSESSMENT" in result.stdout
     assert "ABSENT 2" in result.stdout
     assert "industry norm" in result.stdout
 
@@ -377,11 +336,7 @@ def test_published_json_schemas_accept_valid_artifacts(
     schema_dir = Path("spec/authority-v01")
 
     schemas = {
-        name: json.loads(
-            (schema_dir / name).read_text(
-                encoding="utf-8"
-            )
-        )
+        name: json.loads((schema_dir / name).read_text(encoding="utf-8"))
         for name in (
             "trust-bundle.schema.json",
             "grant.schema.json",
@@ -402,23 +357,17 @@ def test_published_json_schemas_accept_valid_artifacts(
     Draft202012Validator(
         schemas["trust-bundle.schema.json"],
         registry=registry,
-    ).validate(
-        _artifacts_fixture["bundle"]
-    )
+    ).validate(_artifacts_fixture["bundle"])
 
     Draft202012Validator(
         schemas["grant.schema.json"],
         registry=registry,
-    ).validate(
-        _artifacts_fixture["receipt"]["grant_chain"][0]
-    )
+    ).validate(_artifacts_fixture["receipt"]["grant_chain"][0])
 
     Draft202012Validator(
         schemas["receipt.schema.json"],
         registry=registry,
-    ).validate(
-        _artifacts_fixture["receipt"]
-    )
+    ).validate(_artifacts_fixture["receipt"])
 
 
 def test_duplicate_request_is_detected_within_supplied_scan(
@@ -439,13 +388,9 @@ def test_duplicate_request_is_detected_within_supplied_scan(
 def test_action_wildcards_and_loose_timestamps_are_rejected(
     _artifacts_fixture,
 ):
-    receipt = copy.deepcopy(
-        _artifacts_fixture["receipt"]
-    )
+    receipt = copy.deepcopy(_artifacts_fixture["receipt"])
 
-    receipt["grant_chain"][1]["capabilities"][0][
-        "action"
-    ] = "payments.*"
+    receipt["grant_chain"][1]["capabilities"][0]["action"] = "payments.*"
 
     receipt = sign_receipt(
         receipt,
@@ -459,9 +404,7 @@ def test_action_wildcards_and_loose_timestamps_are_rejected(
 
     assert report["evidence_state"]["INVALID"] == 1
 
-    receipt = copy.deepcopy(
-        _artifacts_fixture["receipt"]
-    )
+    receipt = copy.deepcopy(_artifacts_fixture["receipt"])
     receipt["decision_timestamp"] = "2026-07-28Z"
 
     receipt = sign_receipt(

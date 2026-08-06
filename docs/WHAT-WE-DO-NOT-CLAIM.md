@@ -24,7 +24,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 900+ automated tests, run in CI on every commit
+- 986+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
@@ -128,6 +128,29 @@ proven through the connector). Honest scope of that claim:
   drift/anomaly problem, and we do not claim the deterministic
   breaker solves it.
 - **Agent roles and tool targets are declared config.**
+
+**Loop discovery does not infer hidden agent activity.** It deterministically
+analyzes strict events supplied at the authority boundary and detects circular
+delegation/approval, authorization reuse, malformed causal ancestry, and
+recursive canonical actions. It does not prove collusion, discover actions
+that bypass telemetry, or establish that bytes reached a remote peer; dispatch
+witness and closure evidence remain separate controls.
+
+## Offline Discovery Loop
+
+**We do not claim discovered candidates are safe to deploy automatically.** A
+`PROPOSE` result means that a policy candidate passed declared assertions,
+additive replay, the configured divergence budget, a committed adversarial
+corpus, and supplied structural probes. It still requires a named policy owner,
+normal PR review, and the policy-change gate. The runner cannot install policy.
+
+The priority score is a deterministic triage heuristic, not a learned score or
+scientific validation metric. Wilson intervals describe only the committed
+corpus. Synthetic or operator-authored attack/benign labels are not independent
+ground truth and do not establish production detection accuracy. Optional
+`pv-validation/1` results remain advisory-only. Experimental Hodge and
+authority-reachability analyses do not gate proposals until their schemas and
+independent verifiers are stable.
 
 ## Connector & transport security
 

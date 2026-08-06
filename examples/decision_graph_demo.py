@@ -10,11 +10,11 @@ Decision Graph demo: full pipeline on a compromised trace.
 Reuses the trained scorer and compromised trace from runtime_demo.
 """
 
+from runtime_demo import banner, synthetic_compromised_trace, train
+
 from agent_dna.decision import DecisionEngine
 from agent_dna.decision_recorder import DecisionRecorder
 from agent_dna.runtime import RuntimeMonitor
-
-from runtime_demo import banner, synthetic_compromised_trace, train
 
 
 def main():
@@ -42,9 +42,7 @@ def main():
     last = list(g)[-1]
     for step in g.lineage(last.decision_id):
         print(
-            f"{step.capability:<28}"
-            f" {step.decision:<17}"
-            f" hash={step.record_hash[:12]}.."
+            f"{step.capability:<28} {step.decision:<17} hash={step.record_hash[:12]}.."
         )
 
     banner("CHAIN INTEGRITY")

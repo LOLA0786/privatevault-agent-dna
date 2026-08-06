@@ -57,8 +57,7 @@ def test_ks_statistic_identical_samples_zero():
 
 def test_prior_correction_identity_when_prior_unchanged():
     for p in (0.01, 0.3, 0.5, 0.99):
-        assert math.isclose(prior_odds_correction(p, 0.2, 0.2), p,
-                            abs_tol=1e-12)
+        assert math.isclose(prior_odds_correction(p, 0.2, 0.2), p, abs_tol=1e-12)
 
 
 def test_prior_correction_direction_and_range():

@@ -7,10 +7,9 @@ Converts AttackResult into Schema v1.1 BenchmarkReport.
 from __future__ import annotations
 
 from agent_dna.security_validation.framework.attack_result import AttackResult
-
 from agent_dna.security_validation.schema.report_v1_1 import (
-    AttackInfo,
     Actor,
+    AttackInfo,
     BenchmarkInfo,
     BenchmarkReport,
     Decision,

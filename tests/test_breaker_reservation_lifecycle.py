@@ -159,9 +159,7 @@ def test_stranded_reservations_blind_the_refusal_thrash_detector(
         ).fetchone()[0]
     finally:
         conn.close()
-    assert visible >= 3, (
-        f"only {visible} refusals were visible to the thrash detector"
-    )
+    assert visible >= 3, f"only {visible} refusals were visible to the thrash detector"
 
 
 def test_finalize_failure_does_not_change_the_verdict(tmp_path) -> None:

@@ -51,6 +51,11 @@ are nonconformant by construction. The `outcome: pending` constant on
 decisions makes immutability machine-checkable: implementations that
 mutate decisions in place fail schema validation.
 
+Additional versioned contracts live beside the core DRP schemas. In particular,
+`discovery-loop-v1/` defines the committed adversarial rows and sealed reports
+for the offline, proposal-only policy Discovery Loop. Its report verifier is
+`tools/verify_discovery.py` and imports no PrivateVault runtime code.
+
 ## Test vectors
 
 `test-vectors/` contains four canonical files and their required

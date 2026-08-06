@@ -12,10 +12,9 @@ from agent_dna import (
     FingerprintBuilder,
     ProfileDiffEngine,
 )
-
 from agent_dna.adapters import (
-    synthetic_normal_trace,
     synthetic_compromised_trace,
+    synthetic_normal_trace,
 )
 
 
@@ -38,18 +37,9 @@ def section(title):
 
 def main():
 
-    trusted = build_fp(
-        [
-            synthetic_normal_trace(seed=i, loops=6)
-            for i in range(8)
-        ]
-    )
+    trusted = build_fp([synthetic_normal_trace(seed=i, loops=6) for i in range(8)])
 
-    candidate = build_fp(
-        [
-            synthetic_compromised_trace()
-        ]
-    )
+    candidate = build_fp([synthetic_compromised_trace()])
 
     report = ProfileDiffEngine().diff(
         trusted,

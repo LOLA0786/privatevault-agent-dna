@@ -30,16 +30,21 @@ def main() -> None:
     baseline_caps = list(manifold.capability_counts.keys())
 
     # 2. policy collaborators (swap your real ones in here)
-    invariants = SequenceInvariantEngine(forbidden_transitions=[
-        # segregation-of-duties contracts, authored from policy
-        ("crm.read_contact", "payments.initiate_wire"),
-        ("email.send", "payments.initiate_wire"),
-    ])
+    invariants = SequenceInvariantEngine(
+        forbidden_transitions=[
+            # segregation-of-duties contracts, authored from policy
+            ("crm.read_contact", "payments.initiate_wire"),
+            ("email.send", "payments.initiate_wire"),
+        ]
+    )
     # storage.bulk_export was approved via a change ticket; wire was NOT.
     authz = GrantAuthorizationPolicy(
         baseline_capabilities=baseline_caps,
-        grants=[CapabilityGrant("storage.bulk_export", approved_by="Security Team",
-                                ticket="OPS-842")],
+        grants=[
+            CapabilityGrant(
+                "storage.bulk_export", approved_by="Security Team", ticket="OPS-842"
+            )
+        ],
     )
 
     # 3. one orchestrator owns the verdict

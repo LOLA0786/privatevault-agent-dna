@@ -71,15 +71,21 @@ def test_ambiguous_or_unregistered_names_are_never_assumed_safe(
 
 
 def test_shell_command_evidence_overrides_shell_capability() -> None:
-    assert classify(
-        _action("bash", arguments={"cmd": "git status"})
-    ).effect == READ_ONLY
-    assert classify(
-        _action("bash", arguments={"cmd": "git push --force origin main"})
-    ).effect == IRREVERSIBLE
-    assert classify(
-        _action("bash", arguments={"cmd": "custom-tool --do-something"})
-    ).effect == UNKNOWN
+    assert (
+        classify(_action("bash", arguments={"cmd": "git status"})).effect == READ_ONLY
+    )
+    assert (
+        classify(
+            _action("bash", arguments={"cmd": "git push --force origin main"})
+        ).effect
+        == IRREVERSIBLE
+    )
+    assert (
+        classify(
+            _action("bash", arguments={"cmd": "custom-tool --do-something"})
+        ).effect
+        == UNKNOWN
+    )
 
 
 def test_build_inventory_uses_manifest_and_preserves_unknown() -> None:

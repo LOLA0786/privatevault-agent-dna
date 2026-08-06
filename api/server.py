@@ -86,8 +86,8 @@ def require_api_key(
     here. verify_scope("full") only matches an entry whose scope is
     literally "full"; it does not accept "audit" for a "full"
     requirement (see ApiKeyRegistry.verify_scope)."""
-    reg: ApiKeyRegistry = state.get("apikeys")
-    if reg is None or not reg.enabled:
+    reg = state.get("apikeys")
+    if not isinstance(reg, ApiKeyRegistry) or not reg.enabled:
         return AUTH_DISABLED_PRINCIPAL
     name = reg.verify_scope(x_api_key, required_scope="full")
     if name is None:
@@ -103,8 +103,8 @@ def require_audit_or_full_key(
     key. Full-scope satisfies this because an operator can do
     everything an auditor can; the reverse is enforced by
     require_api_key above, which rejects audit-scoped keys."""
-    reg: ApiKeyRegistry = state.get("apikeys")
-    if reg is None or not reg.enabled:
+    reg = state.get("apikeys")
+    if not isinstance(reg, ApiKeyRegistry) or not reg.enabled:
         return AUTH_DISABLED_PRINCIPAL
     name = reg.verify_scope(x_api_key, required_scope="audit")
     if name is None:
@@ -177,7 +177,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="PrivateVault Agent DNA",
-    version="0.3.0",
+    version="0.4.0",
     lifespan=lifespan,
 )
 

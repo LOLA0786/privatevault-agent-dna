@@ -92,9 +92,7 @@ def test_demo_summary_table_is_present(demo_output: str) -> None:
     )
 
 
-@pytest.mark.parametrize(
-    ("label", "expected"), sorted(EXPECTED_TRIGGER.items())
-)
+@pytest.mark.parametrize(("label", "expected"), sorted(EXPECTED_TRIGGER.items()))
 def test_each_level_is_refused_by_its_own_level(
     demo_output: str, label: str, expected: str
 ) -> None:
@@ -124,9 +122,9 @@ def test_baseline_is_the_only_allow(demo_output: str) -> None:
     permits normal work -- it just shows a system that blocks."""
     rows = _summary_rows(demo_output)
     allowed = [k for k, v in rows.items() if v["verdict"] == "ALLOW"]
-    assert allowed == [
-        k for k in rows if k.startswith("L6  baseline")
-    ], f"expected exactly L6 to be ALLOW, got {allowed}"
+    assert allowed == [k for k in rows if k.startswith("L6  baseline")], (
+        f"expected exactly L6 to be ALLOW, got {allowed}"
+    )
 
 
 def test_demo_chain_verifies_under_the_independent_verifier(
@@ -153,9 +151,7 @@ def test_breaker_narration_matches_the_configured_cap(
     assert m is not None, "L-1 section never reported a breaker trip"
     reached = int(m.group(1).replace(",", ""))
     cap = int(m.group(2).replace(",", ""))
-    assert reached > cap, (
-        f"narration claims a trip at {reached} against cap {cap}"
-    )
+    assert reached > cap, f"narration claims a trip at {reached} against cap {cap}"
     assert f"cap {cap}.00" in demo_output, (
         "the narrated cap does not match the cap the breaker actually "
         "enforced in its refusal reason"

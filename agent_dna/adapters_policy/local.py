@@ -26,11 +26,10 @@ class LocalPolicyAdapter:
     def __init__(self, policy_dir: str | Path = "profiles") -> None:
         self.policy_dir = Path(policy_dir)
         if not self.policy_dir.is_dir():
-            raise FileNotFoundError(
-                f"policy directory not found: {self.policy_dir}")
+            raise FileNotFoundError(f"policy directory not found: {self.policy_dir}")
         paths = sorted(
-            p for p in self.policy_dir.iterdir()
-            if p.suffix in POLICY_SUFFIXES)
+            p for p in self.policy_dir.iterdir() if p.suffix in POLICY_SUFFIXES
+        )
         # load eagerly and loudly: a broken policy file must fail at
         # construction, not be discovered mid-enforcement
         self._checkers: list[tuple[str, PolicyChecker]] = [
@@ -60,8 +59,7 @@ class LocalPolicyAdapter:
             )
             evaluated.extend(f"{name}:{r}" for r in result.rules_evaluated)
             skipped.extend(f"{name}:{r}" for r in result.rules_skipped)
-            not_matched.extend(
-                f"{name}:{r}" for r in result.rules_not_matched)
+            not_matched.extend(f"{name}:{r}" for r in result.rules_not_matched)
             if result.fired:
                 return PolicyCheckResult(
                     fired=True,

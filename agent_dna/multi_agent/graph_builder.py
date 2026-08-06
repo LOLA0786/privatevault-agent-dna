@@ -4,9 +4,10 @@ per-execution :class:`InteractionGraph` objects.
 In production the builder is fed live runtime events; in training it is fed a
 recorded corpus. Same code path either way.
 """
+
 from __future__ import annotations
 
-from typing import Iterable
+from collections.abc import Iterable
 
 from .events import InteractionEvent
 from .interaction_graph import InteractionGraph
@@ -24,7 +25,7 @@ class GraphBuilder:
         g.add_event(event)
         return g
 
-    def ingest_many(self, events: Iterable[InteractionEvent]) -> "GraphBuilder":
+    def ingest_many(self, events: Iterable[InteractionEvent]) -> GraphBuilder:
         for e in events:
             self.ingest(e)
         return self

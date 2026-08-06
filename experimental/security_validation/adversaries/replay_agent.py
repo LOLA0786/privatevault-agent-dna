@@ -6,7 +6,9 @@ execution events, or bypass time-bound consensus requirements.
 
 Maps to: MITRE ATLAS Replay Attack, OWASP LLM10 (Replay), CAPEC-90
 """
+
 import time
+
 from .base import BaseAdversary
 
 
@@ -20,6 +22,7 @@ class ReplayAgent(BaseAdversary):
         "atlas": ["Replay Attack"],
         "capec": ["CAPEC-90"],
     }
+
     def __init__(
         self,
         target_action_id: str = "demo-action",
@@ -27,9 +30,7 @@ class ReplayAgent(BaseAdversary):
     ):
         self.target_action_id = target_action_id
         self.original_timestamp = (
-            original_timestamp
-            if original_timestamp is not None
-            else time.time() - 60
+            original_timestamp if original_timestamp is not None else time.time() - 60
         )
 
     def replay_expired_approval(self, current_time: float) -> bool:
@@ -52,7 +53,6 @@ class ReplayAgent(BaseAdversary):
         status = "FAILED" if replay_succeeded else "BLOCKED"
 
         result = {
-
             "attack_id": self.attack_id,
             "attack_name": self.attack_name,
             "target_agent": target_agent,

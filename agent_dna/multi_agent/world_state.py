@@ -34,31 +34,21 @@ class WorldStateInvariant(Invariant):
         counter: Counter[tuple[str, str]] = Counter()
 
         for graph in graphs:
-            states = [
-                self._state(e)
-                for e in graph
-                if self._state(e) is not None
-            ]
+            states = [self._state(e) for e in graph if self._state(e) is not None]
 
-            for a, b in zip(states, states[1:]):
+            for a, b in zip(states, states[1:], strict=False):
                 counter[(a, b)] += 1
 
         self.allowed_transitions = set(counter)
 
     def check(self, graph: InteractionGraph) -> InvariantResult:
-        states = [
-            self._state(e)
-            for e in graph
-            if self._state(e) is not None
-        ]
+        states = [self._state(e) for e in graph if self._state(e) is not None]
 
         violations: list[str] = []
 
-        for a, b in zip(states, states[1:]):
+        for a, b in zip(states, states[1:], strict=False):
             if (a, b) not in self.allowed_transitions:
-                violations.append(
-                    f"illegal state transition: {a} -> {b}"
-                )
+                violations.append(f"illegal state transition: {a} -> {b}")
 
         total = max(1, len(states) - 1)
         severity = len(violations) / total

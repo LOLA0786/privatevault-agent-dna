@@ -52,6 +52,7 @@ class Invariants:
     def validate(self, capability, previous):
         class R:
             pass
+
         r = R()
         r.violated = capability == "storage.bulk_export"
         r.message = "invariant: bulk export forbidden" if r.violated else ""
@@ -60,8 +61,10 @@ class Invariants:
 
 class Authorizer:
     GRANTED = {
-        "crm.read_contact", "crm.update_contact",
-        "email.send", "payment.pay_invoice",
+        "crm.read_contact",
+        "crm.update_contact",
+        "email.send",
+        "payment.pay_invoice",
     }
 
     def is_authorized(self, agent_id, capability):
@@ -73,8 +76,10 @@ HONEST_EVIDENCE = {
     "planner": {"canonical_target": "INV-1001"},
     "approvals": {"required": False},
     "enterprise_state": {
-        "invoice_amount": 5000.0, "invoice_open": True,
-        "target_verified": True, "duplicate": False,
+        "invoice_amount": 5000.0,
+        "invoice_open": True,
+        "target_verified": True,
+        "duplicate": False,
     },
 }
 
@@ -113,14 +118,14 @@ def main():
         BreakerConfig(
             max_decisions=None,
             window_seconds=60.0,
-            max_cumulative_amount=None,     # inert: the ladder is the subject
+            max_cumulative_amount=None,  # inert: the ladder is the subject
             max_consecutive_refusals=None,
         ),
     )
     breaker = CircuitBreaker(
         log.parent / "breaker.db",
         BreakerConfig(
-            max_decisions=None,             # rate trip off for the demo
+            max_decisions=None,  # rate trip off for the demo
             window_seconds=60.0,
             # Cap matches the L-1 narration below: 17 payments of $60
             # cross $1,000 on the seventeenth.
@@ -131,62 +136,97 @@ def main():
     guarded = GuardedEngine(engine, ladder_breaker)
     monitor = RuntimeMonitor(guarded, recorder=recorder)
     # Same engine, same recorder, same chain -- only the breaker differs.
-    breaker_monitor = RuntimeMonitor(
-        GuardedEngine(engine, breaker), recorder=recorder
-    )
+    breaker_monitor = RuntimeMonitor(GuardedEngine(engine, breaker), recorder=recorder)
 
     register_key("finance-agent", "secret-finance")
-    settle_votes = [cast_vote(
-        "finance-agent", "settle-9982", "REJECT", "settle-9982")]
+    settle_votes = [cast_vote("finance-agent", "settle-9982", "REJECT", "settle-9982")]
 
     scenarios = [
-        ("L0  enterprise constraint   |CISO CRO|  amount tampered 5,000 -> 49,000",
-         intent_to_action(actor_id="sales-agent-01", verb="pay_invoice",
-                          target={"type": "payment", "id": "INV-1001"},
-                          parameters={"amount": 49000.0},
-                          timestamp=time.time()),
-         HONEST_EVIDENCE),
-
-        ("L1  behavioral invariant    |CISO|      forbidden bulk export",
-         intent_to_action(actor_id="sales-agent-01", verb="bulk_export",
-                          target={"type": "storage"},
-                          timestamp=time.time()),
-         None),
-
-        ("L2  multi-agent consensus   |CRO CAIO|  finance agent dissents on settlement",
-         intent_to_action(actor_id="sales-agent-01", verb="settle",
-                          target={"type": "payment", "id": "9982"},
-                          timestamp=time.time()),
-         {"consensus": {"action_id": "settle-9982", "threshold": 0.67,
-                        "votes": settle_votes,
-                        "trust_scores": {"finance-agent": 1.0}}}),
-
-        ("L3  capability grant        |CISO|      ungranted wire transfer",
-         intent_to_action(actor_id="sales-agent-01", verb="initiate_wire",
-                          target={"type": "payments"},
-                          parameters={"amount": 900000},
-                          timestamp=time.time()),
-         None),
-
-        ("L4  economics               |CRO CTO|   cost 25,000x historical average",
-         intent_to_action(actor_id="sales-agent-01", verb="send",
-                          target={"type": "email"},
-                          timestamp=time.time()),
-         {"economics": {"estimated_cost_usd": 500.0,
-                        "historical_avg_cost_usd": 0.02}}),
-
-        ("L5  learned drift           |CAIO|      honest payment, novel for this agent",
-         intent_to_action(actor_id="sales-agent-01", verb="pay_invoice",
-                          target={"type": "payment", "id": "INV-1001"},
-                          parameters={"amount": 5000.0},
-                          timestamp=time.time()),
-         HONEST_EVIDENCE),
-
-        ("L6  baseline                |CTO|       normal in-profile CRM read",
-         intent_to_action(actor_id="sales-agent-01", verb="read_contact",
-                          target={"type": "crm"},
-                          timestamp=time.time()),
-         None),
+        (
+            "L0  enterprise constraint   |CISO CRO|  amount tampered 5,000 -> 49,000",
+            intent_to_action(
+                actor_id="sales-agent-01",
+                verb="pay_invoice",
+                target={"type": "payment", "id": "INV-1001"},
+                parameters={"amount": 49000.0},
+                timestamp=time.time(),
+            ),
+            HONEST_EVIDENCE,
+        ),
+        (
+            "L1  behavioral invariant    |CISO|      forbidden bulk export",
+            intent_to_action(
+                actor_id="sales-agent-01",
+                verb="bulk_export",
+                target={"type": "storage"},
+                timestamp=time.time(),
+            ),
+            None,
+        ),
+        (
+            "L2  multi-agent consensus   |CRO CAIO|  finance agent dissents on settlement",
+            intent_to_action(
+                actor_id="sales-agent-01",
+                verb="settle",
+                target={"type": "payment", "id": "9982"},
+                timestamp=time.time(),
+            ),
+            {
+                "consensus": {
+                    "action_id": "settle-9982",
+                    "threshold": 0.67,
+                    "votes": settle_votes,
+                    "trust_scores": {"finance-agent": 1.0},
+                }
+            },
+        ),
+        (
+            "L3  capability grant        |CISO|      ungranted wire transfer",
+            intent_to_action(
+                actor_id="sales-agent-01",
+                verb="initiate_wire",
+                target={"type": "payments"},
+                parameters={"amount": 900000},
+                timestamp=time.time(),
+            ),
+            None,
+        ),
+        (
+            "L4  economics               |CRO CTO|   cost 25,000x historical average",
+            intent_to_action(
+                actor_id="sales-agent-01",
+                verb="send",
+                target={"type": "email"},
+                timestamp=time.time(),
+            ),
+            {
+                "economics": {
+                    "estimated_cost_usd": 500.0,
+                    "historical_avg_cost_usd": 0.02,
+                }
+            },
+        ),
+        (
+            "L5  learned drift           |CAIO|      honest payment, novel for this agent",
+            intent_to_action(
+                actor_id="sales-agent-01",
+                verb="pay_invoice",
+                target={"type": "payment", "id": "INV-1001"},
+                parameters={"amount": 5000.0},
+                timestamp=time.time(),
+            ),
+            HONEST_EVIDENCE,
+        ),
+        (
+            "L6  baseline                |CTO|       normal in-profile CRM read",
+            intent_to_action(
+                actor_id="sales-agent-01",
+                verb="read_contact",
+                target={"type": "crm"},
+                timestamp=time.time(),
+            ),
+            None,
+        ),
     ]
 
     banner("COMPOSED LINE — SEVEN LEVELS, ONE SCENARIO EACH")
@@ -198,12 +238,21 @@ def main():
         recorder.report_outcome(rec.decision_id, status)
         env = recorder.envelopes[rec.record_hash]
         signed = verify_envelope(env, rec.record_hash)
-        rows.append((desc, action.agent_id, result.decision.value.upper(),
-                     result.triggered_by, signed))
+        rows.append(
+            (
+                desc,
+                action.agent_id,
+                result.decision.value.upper(),
+                result.triggered_by,
+                signed,
+            )
+        )
         print(f"{desc}")
-        print(f"    -> {result.decision.value.upper():<17} "
-              f"trigger={result.triggered_by:<12} "
-              f"signed={'Y' if signed else 'N'}")
+        print(
+            f"    -> {result.decision.value.upper():<17} "
+            f"trigger={result.triggered_by:<12} "
+            f"signed={'Y' if signed else 'N'}"
+        )
         print(f"    reason: {result.reason}")
         print()
 
@@ -214,7 +263,8 @@ def main():
     drained = 0.0
     for i in range(17):
         a = intent_to_action(
-            actor_id="treasury-agent-07", verb="pay_invoice",
+            actor_id="treasury-agent-07",
+            verb="pay_invoice",
             target={"type": "payment", "id": f"INV-2{i:03d}"},
             parameters={"amount": 60.0},
             timestamp=time.time(),
@@ -223,11 +273,14 @@ def main():
         breaker_monitor.process(a, evidence=HONEST_EVIDENCE)
         drained += 60.0
         if breaker.is_tripped("treasury-agent-07"):
-            print(f"    payment {i + 1}: cumulative ${drained:,.0f} "
-                  f"> $1,000 window cap -> BREAKER TRIPPED")
+            print(
+                f"    payment {i + 1}: cumulative ${drained:,.0f} "
+                f"> $1,000 window cap -> BREAKER TRIPPED"
+            )
             break
     a = intent_to_action(
-        actor_id="treasury-agent-07", verb="pay_invoice",
+        actor_id="treasury-agent-07",
+        verb="pay_invoice",
         target={"type": "payment", "id": "INV-2999"},
         parameters={"amount": 60.0},
         timestamp=time.time(),
@@ -236,10 +289,19 @@ def main():
     rec = recorder.graph.find_by_agent("treasury-agent-07")[-1]
     env = recorder.envelopes[rec.record_hash]
     signed = verify_envelope(env, rec.record_hash)
-    rows.append(("L-1 circuit breaker", "treasury-agent-07",
-                 result.decision.value.upper(), result.triggered_by, signed))
-    print(f"    next action -> {result.decision.value.upper()} "
-          f"trigger={result.triggered_by} signed={'Y' if signed else 'N'}")
+    rows.append(
+        (
+            "L-1 circuit breaker",
+            "treasury-agent-07",
+            result.decision.value.upper(),
+            result.triggered_by,
+            signed,
+        )
+    )
+    print(
+        f"    next action -> {result.decision.value.upper()} "
+        f"trigger={result.triggered_by} signed={'Y' if signed else 'N'}"
+    )
     print(f"    reason: {result.reason}")
     print("    -> blocked BEFORE uaal_constraint evaluates: suspension is")
     print("       a standing pre-gate, not a ninth precedence level.")
@@ -254,7 +316,8 @@ def main():
     print(f"signed envelopes         : {len(recorder.envelopes)}")
     proc = subprocess.run(
         [sys.executable, str(VERIFIER), str(log)],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     print(f"independent verifier     : {proc.stdout.strip().splitlines()[-1]}")
 
@@ -267,9 +330,11 @@ def main():
     print(f"original record_hash    : {original_hash}")
     print(f"new record_hash (re-seal): {victim.record_hash}")
     print(f"record re-seals cleanly  : {victim.verify()}  <- internally consistent")
-    print(f"signature still binds    : "
-          f"{verify_envelope(original_env, victim.record_hash)}  <- but signed"
-          f" for a different hash")
+    print(
+        f"signature still binds    : "
+        f"{verify_envelope(original_env, victim.record_hash)}  <- but signed"
+        f" for a different hash"
+    )
     print("-> individually valid record, cryptographically disowned history")
 
     banner("SUMMARY  |everyone|")
@@ -277,10 +342,11 @@ def main():
     print("-" * 100)
     for desc, _agent_id, verdict, trigger, signed in rows:
         short = desc.split("|")[0].strip()
-        print(f"{short:<50} {verdict:<17} {trigger:<12} "
-              f"{'Y' if signed else 'N'}")
+        print(f"{short:<50} {verdict:<17} {trigger:<12} {'Y' if signed else 'N'}")
     print()
-    print("CTO   : every level is a tested code path, 900+ automated tests, CI-guarded.")
+    print(
+        "CTO   : every level is a tested code path, 986+ automated tests, CI-guarded."
+    )
     print("CAIO  : drift (L5) is the only probabilistic level — it can escalate, never")
     print("        override a deterministic BLOCK above it.")
     print("CISO  : the ATTACK section above is a live exploit attempt against our own")
@@ -288,7 +354,9 @@ def main():
     print("        The circuit breaker's suspension survives process restart and")
     print("        reset requires an explicit signed capability grant.")
     print("CRO   : every verdict, including every refusal, is a hash-chained, signed,")
-    print("        independently verifiable record — admissible evidence, not a log line.")
+    print(
+        "        independently verifiable record — admissible evidence, not a log line."
+    )
 
 
 if __name__ == "__main__":

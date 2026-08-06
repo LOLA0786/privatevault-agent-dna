@@ -51,7 +51,9 @@ def wilson_interval(successes: int, n: int, z: float = Z_95) -> tuple[float, flo
 # ---------------------------------------------------------------- AUC
 
 
-def _pair_wins_ties(pos_scores: list[float], sorted_neg: list[float]) -> tuple[float, int]:
+def _pair_wins_ties(
+    pos_scores: list[float], sorted_neg: list[float]
+) -> tuple[float, int]:
     """Sum over all (pos, neg) pairs of [1 if pos>neg, 0.5 if tie].
 
     sorted_neg must be pre-sorted ascending. O(len(pos) * log len(neg)).
@@ -155,7 +157,9 @@ def auc_decomposition(
 def brier_score(probs: list[float], labels: list[int]) -> float:
     """Mean squared error of predicted probability vs outcome."""
     _check_probs(probs, labels)
-    return math.fsum((p - y) ** 2 for p, y in zip(probs, labels, strict=True)) / len(probs)
+    return math.fsum((p - y) ** 2 for p, y in zip(probs, labels, strict=True)) / len(
+        probs
+    )
 
 
 def log_loss(probs: list[float], labels: list[int], eps: float = 1e-15) -> float:
@@ -247,17 +251,31 @@ def segment_reliability(
         n = len(rows)
         n_pos = sum(y for _, y in rows)
         if n < min_samples:
-            out.append(SegmentReliability(key, n, n_pos, None, None, None,
-                                          "insufficient_samples"))
+            out.append(
+                SegmentReliability(
+                    key, n, n_pos, None, None, None, "insufficient_samples"
+                )
+            )
             continue
         if n_pos == 0 or n_pos == n:
-            out.append(SegmentReliability(
-                key, n, n_pos, n_pos / n, wilson_interval(n_pos, n), None,
-                "single_class"))
+            out.append(
+                SegmentReliability(
+                    key,
+                    n,
+                    n_pos,
+                    n_pos / n,
+                    wilson_interval(n_pos, n),
+                    None,
+                    "single_class",
+                )
+            )
             continue
         seg_auc = auc([s for s, _ in rows], [y for _, y in rows])
-        out.append(SegmentReliability(
-            key, n, n_pos, n_pos / n, wilson_interval(n_pos, n), seg_auc, "ok"))
+        out.append(
+            SegmentReliability(
+                key, n, n_pos, n_pos / n, wilson_interval(n_pos, n), seg_auc, "ok"
+            )
+        )
     return out
 
 

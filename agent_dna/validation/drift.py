@@ -96,21 +96,24 @@ def assess_drift(
     a_ref = auc(ref_scores, ref_labels)
     a_cur = auc(cur_scores, cur_labels)
     auc_degraded = (
-        a_ref is not None and a_cur is not None
-        and (a_ref - a_cur) > auc_drop_tolerance
+        a_ref is not None and a_cur is not None and (a_ref - a_cur) > auc_drop_tolerance
     )
     concept = k_pos > ks_threshold or k_neg > ks_threshold or auc_degraded
 
     if concept:
         verdict = "concept_drift"
-        rec = ("P(score|y) changed: re-weighting outputs cannot fix this. "
-               "Investigate the behavioral change; recalibrate or retrain "
-               "the scorer against fresh, independently labelled traces.")
+        rec = (
+            "P(score|y) changed: re-weighting outputs cannot fix this. "
+            "Investigate the behavioral change; recalibrate or retrain "
+            "the scorer against fresh, independently labelled traces."
+        )
     elif label_shift:
         verdict = "label_shift_only"
-        rec = ("Only P(y) moved; ranking behavior is intact. Apply "
-               "prior_odds_correction to probability outputs. "
-               "Retraining is unnecessary.")
+        rec = (
+            "Only P(y) moved; ranking behavior is intact. Apply "
+            "prior_odds_correction to probability outputs. "
+            "Retraining is unnecessary."
+        )
     else:
         verdict = "no_drift"
         rec = "No action required."
@@ -148,12 +151,16 @@ def _insufficient(ref_labels: list[int], cur_labels: list[int]) -> DriftAssessme
         prevalence_current=p_cur,
         prevalence_reference_ci=ci_ref,
         prevalence_current_ci=ci_cur,
-        ks_pos=None, ks_neg=None,
-        auc_reference=None, auc_current=None,
+        ks_pos=None,
+        ks_neg=None,
+        auc_reference=None,
+        auc_current=None,
         verdict="insufficient_data",
-        recommendation=("Below minimum sample count in one or both windows; "
-                        "no drift verdict is issued. Collect more labelled "
-                        "outcomes before acting."),
+        recommendation=(
+            "Below minimum sample count in one or both windows; "
+            "no drift verdict is issued. Collect more labelled "
+            "outcomes before acting."
+        ),
     )
 
 

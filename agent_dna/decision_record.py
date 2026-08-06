@@ -54,14 +54,14 @@ _SHA256_PREFIXED = re.compile(r"sha256:[0-9a-f]{64}")
 @dataclass
 class DecisionRecord:
     # identity / lineage
-    kind: str = field(default="decision", init=False)   # record discriminator
+    kind: str = field(default="decision", init=False)  # record discriminator
     decision_id: str
-    parent_decision: str | None      # previous record for this agent (chain, not DAG — yet)
+    parent_decision: str | None  # previous record for this agent (chain, not DAG — yet)
     agent_id: str
     capability: str
 
     # the decision itself
-    decision: str                       # "allow" | "require_approval" | "block"
+    decision: str  # "allow" | "require_approval" | "block"
     triggered_by: str
     reason: str
     severity: str
@@ -70,11 +70,11 @@ class DecisionRecord:
     evidence_strength: float
 
     # execution context
-    arguments_digest: str               # sha256 of canonical arguments — never raw payloads
-    outcome: str                        # "pending" until an executor reports back
+    arguments_digest: str  # sha256 of canonical arguments — never raw payloads
+    outcome: str  # "pending" until an executor reports back
 
     # schema-reserved: nothing produces these yet (see module docstring)
-    request_id: str | None = None    # link to originating ActionRequest
+    request_id: str | None = None  # link to originating ActionRequest
     goal: str | None = None
     intent: str | None = None
     policy_id: str | None = None
@@ -169,10 +169,7 @@ class DecisionRecord:
             check_version_invariant(self.protocol_version, self.action_digest)
         except ValueError:
             return False
-        return (
-            self.record_hash != ""
-            and self.record_hash == self.compute_hash()
-        )
+        return self.record_hash != "" and self.record_hash == self.compute_hash()
 
     def to_dict(self) -> dict[str, Any]:
         d = self.payload()
@@ -276,7 +273,8 @@ def _build_record(
             else []
         ),
     ).apply_chain(
-        anchor_hash if (parent_decision is None and anchor_hash is not None)
+        anchor_hash
+        if (parent_decision is None and anchor_hash is not None)
         else prev_hash
     )
 

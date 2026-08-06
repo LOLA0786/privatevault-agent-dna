@@ -13,8 +13,11 @@ from agent_dna.trace import AgentAction
 class StubScorer:
     def score(self, action, prev_capability=None):
         return AdvisorySignal(
-            agent_id=action.agent_id, capability=action.capability,
-            drift_score=0.0, severity=Severity.INFO, reasons=[],
+            agent_id=action.agent_id,
+            capability=action.capability,
+            drift_score=0.0,
+            severity=Severity.INFO,
+            reasons=[],
         )
 
 
@@ -23,12 +26,14 @@ def _engine():
 
 
 def _act():
-    return AgentAction(agent_id="a1", capability="settlement.execute",
-                       timestamp=time.time())
+    return AgentAction(
+        agent_id="a1", capability="settlement.execute", timestamp=time.time()
+    )
 
 
 def _signed_votes(agents_and_votes, action_id, message_hash):
     from agent_dna.consensus.signing import cast_vote
+
     votes = []
     for agent_id, vote in agents_and_votes:
         register_key(agent_id, f"secret-{agent_id}")
@@ -45,23 +50,39 @@ def test_no_evidence_skips():
 
 def test_quorum_clears_engine_allows():
     votes = _signed_votes(
-        [("a", "APPROVE"), ("b", "APPROVE")], "act-1", "h1",
+        [("a", "APPROVE"), ("b", "APPROVE")],
+        "act-1",
+        "h1",
     )
     engine = _engine()
-    result = engine.decide(_act(), evidence={"consensus": {
-        "action_id": "act-1", "threshold": 0.67,
-        "votes": votes, "trust_scores": {"a": 0.5, "b": 0.5},
-    }})
+    result = engine.decide(
+        _act(),
+        evidence={
+            "consensus": {
+                "action_id": "act-1",
+                "threshold": 0.67,
+                "votes": votes,
+                "trust_scores": {"a": 0.5, "b": 0.5},
+            }
+        },
+    )
     assert result.decision == Decision.ALLOW
 
 
 def test_quorum_shortfall_escalates_never_blocks():
     votes = _signed_votes([("a", "REJECT")], "act-2", "h2")
     engine = _engine()
-    result = engine.decide(_act(), evidence={"consensus": {
-        "action_id": "act-2", "threshold": 0.67,
-        "votes": votes, "trust_scores": {"a": 1.0},
-    }})
+    result = engine.decide(
+        _act(),
+        evidence={
+            "consensus": {
+                "action_id": "act-2",
+                "threshold": 0.67,
+                "votes": votes,
+                "trust_scores": {"a": 1.0},
+            }
+        },
+    )
     assert result.decision == Decision.REQUIRE_APPROVAL
     assert result.triggered_by == "consensus"
     assert "quorum_shortfall" in result.reason
@@ -73,21 +94,41 @@ def test_forged_vote_does_not_inflate_quorum():
     register_key("real-agent", "real-secret")
     register_key("attacker", "attacker-secret")
     forged_sig = sign_message("attacker", "h3")
-    votes = [{"agent_id": "real-agent", "vote": "APPROVE",
-             "signature": forged_sig, "message_hash": "h3"}]
+    votes = [
+        {
+            "agent_id": "real-agent",
+            "vote": "APPROVE",
+            "signature": forged_sig,
+            "message_hash": "h3",
+        }
+    ]
     engine = _engine()
-    result = engine.decide(_act(), evidence={"consensus": {
-        "action_id": "act-3", "threshold": 0.5,
-        "votes": votes, "trust_scores": {"real-agent": 1.0},
-    }})
+    result = engine.decide(
+        _act(),
+        evidence={
+            "consensus": {
+                "action_id": "act-3",
+                "threshold": 0.5,
+                "votes": votes,
+                "trust_scores": {"real-agent": 1.0},
+            }
+        },
+    )
     assert result.decision == Decision.REQUIRE_APPROVAL
     assert result.triggered_by == "consensus"
 
 
 def test_no_checker_attached_means_no_consensus_level():
     engine = DecisionEngine(scorer=StubScorer())  # consensus=None
-    result = engine.decide(_act(), evidence={"consensus": {
-        "action_id": "act-4", "threshold": 0.99, "votes": [],
-    }})
+    result = engine.decide(
+        _act(),
+        evidence={
+            "consensus": {
+                "action_id": "act-4",
+                "threshold": 0.99,
+                "votes": [],
+            }
+        },
+    )
     assert result.triggered_by != "consensus"
     assert result.decision == Decision.ALLOW

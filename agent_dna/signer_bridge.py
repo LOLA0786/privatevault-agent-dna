@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import os
 import uuid
-from typing import Optional
 
 import pv_runtime
 
@@ -42,14 +41,12 @@ class ReceiptSigner:
 
     def __init__(
         self,
-        seed_hex: Optional[str] = None,
-        key_id: Optional[str] = None,
+        seed_hex: str | None = None,
+        key_id: str | None = None,
     ):
         seed = seed_hex or os.getenv(KEY_ENV)
         if not seed:
-            raise RuntimeError(
-                f"no signing key: pass seed_hex or set {KEY_ENV}"
-            )
+            raise RuntimeError(f"no signing key: pass seed_hex or set {KEY_ENV}")
         self._rust = pv_runtime.RustReceiptSigner(seed)
         del seed  # no seed retained on the Python side
         self.public_key = self._rust.public_key
@@ -59,9 +56,7 @@ class ReceiptSigner:
         """Rule 4: verify the record first; a signature over an
         unverifiable record is meaningless."""
         if not record.verify():
-            raise ValueError(
-                "record is unsealed or tampered; refusing to sign"
-            )
+            raise ValueError("record is unsealed or tampered; refusing to sign")
         return self.sign_hash(record.record_hash)
 
     def sign_hash(self, hash_hex: str) -> SignatureEnvelope:

@@ -39,8 +39,7 @@ def vectors(tmp_path_factory) -> dict:
     the spec on every run; regression-locked by the immutability test."""
     gen_dir = tmp_path_factory.mktemp("rust_conformance_vectors")
     subprocess.run(
-        [sys.executable, "tools/generate_test_vectors.py",
-         "--out", str(gen_dir)],
+        [sys.executable, "tools/generate_test_vectors.py", "--out", str(gen_dir)],
         cwd=ROOT,
         check=True,
         capture_output=True,
@@ -49,9 +48,7 @@ def vectors(tmp_path_factory) -> dict:
     for name in ("clean", "tampered_field"):
         path = gen_dir / f"{name}.jsonl"
         out[name] = [
-            json.loads(line)
-            for line in path.read_text().splitlines()
-            if line.strip()
+            json.loads(line) for line in path.read_text().splitlines() if line.strip()
         ]
     return out
 
@@ -115,9 +112,7 @@ def test_rust_verifies_every_clean_vector_record(vectors):
 
 def test_rust_rejects_tampered_vector(vectors):
     mismatches = sum(
-        1
-        for rec in vectors["tampered_field"]
-        if _rust_hash(rec) != rec["record_hash"]
+        1 for rec in vectors["tampered_field"] if _rust_hash(rec) != rec["record_hash"]
     )
     assert mismatches >= 1, (
         "tampered_field.jsonl fully re-verified in Rust -- the tamper "

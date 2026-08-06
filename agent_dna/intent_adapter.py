@@ -13,7 +13,7 @@ AgentAction. Mapping:
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 from .trace import AgentAction
 
@@ -22,9 +22,9 @@ def intent_to_action(
     *,
     actor_id: str,
     verb: str,
-    target: Optional[Dict[str, Any]] = None,
-    parameters: Optional[Dict[str, Any]] = None,
-    confidence: Optional[float] = None,
+    target: dict[str, Any] | None = None,
+    parameters: dict[str, Any] | None = None,
+    confidence: float | None = None,
     timestamp: float = 0.0,
 ) -> AgentAction:
     target = target or {}
@@ -32,7 +32,7 @@ def intent_to_action(
     namespace = target.get("type", "action")
     if "target" not in parameters and target.get("id") is not None:
         parameters["target"] = target["id"]
-    context: Dict[str, Any] = {}
+    context: dict[str, Any] = {}
     if confidence is not None:
         context["confidence"] = confidence
     return AgentAction(

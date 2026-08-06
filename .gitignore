@@ -1,26 +1,39 @@
+# Python
 __pycache__/
 *.py[cod]
-.pytest_cache/
-.coverage
-htmlcov/
+*.egg-info/
 .venv/
 venv/
-dist/
 build/
-*.egg-info/
-__pycache__/
-*.pyc
+dist/
+
+# Quality and coverage
+.coverage
+htmlcov/
+.mypy_cache/
 .pytest_cache/
-*.tar.gz
+.ruff_cache/
+
+# Frontend
+dashboard/node_modules/
+dashboard/dist/
+
+# Runtime and generated evidence
+data/*.db
+data/*.db-shm
+data/*.db-wal
 audit.csv
 audit.json
 audit.parquet
 files.txt
-data/*.db
-data/*.db-wal
-data/*.db-shm
-*.egg-info
-__pycache__/
 proof-of-run.json
 *.pre-claude-code
 *.pre-closure-*
+
+# Local configuration
+.env
+.env.*
+!.env.example
+
+# Archives
+*.tar.gz

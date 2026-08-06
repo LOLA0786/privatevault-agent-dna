@@ -14,12 +14,12 @@ level in the engine whose outcome is data-driven, not fixed.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from .schema import PolicyDocument, PolicyRule
+from .schema import PolicyDocument
 
 
-def _get_field(obj: Dict[str, Any], dotted_path: str):
+def _get_field(obj: dict[str, Any], dotted_path: str):
     """Walk a dotted path like 'arguments.amount' through nested
     dicts. Returns a sentinel-free None-means-absent result via a
     tuple (found: bool, value: Any) so 'field exists but is None'
@@ -34,7 +34,9 @@ def _get_field(obj: Dict[str, Any], dotted_path: str):
     return True, current
 
 
-def _evaluate_condition(cond, context: Dict[str, Any]) -> Optional[bool]:
+def _evaluate_condition(  # noqa: C901
+    cond, context: dict[str, Any]
+) -> bool | None:
     """Returns True/False if evaluable, None if the field is absent
     (meaning: skip this rule, evidence-honest)."""
     found, actual = _get_field(context, cond.field)
@@ -70,12 +72,12 @@ def _evaluate_condition(cond, context: Dict[str, Any]) -> Optional[bool]:
 @dataclass
 class PolicyCheckResult:
     fired: bool
-    matched_rule_id: Optional[str] = None
-    outcome: Optional[str] = None   # "block" | "require_approval"
+    matched_rule_id: str | None = None
+    outcome: str | None = None  # "block" | "require_approval"
     reason: str = ""
-    rules_evaluated: List[str] = field(default_factory=list)
-    rules_skipped: List[str] = field(default_factory=list)
-    rules_not_matched: List[str] = field(default_factory=list)
+    rules_evaluated: list[str] = field(default_factory=list)
+    rules_skipped: list[str] = field(default_factory=list)
+    rules_not_matched: list[str] = field(default_factory=list)
     # rules_not_matched: capability/agent matched, condition was
     # evaluable, but evaluated False -- the rule was genuinely
     # considered and did not apply. Distinct from rules_skipped
@@ -96,16 +98,16 @@ class PolicyChecker:
         self,
         agent_id: str,
         capability: str,
-        arguments: Optional[Dict[str, Any]] = None,
-        evidence: Optional[Dict[str, Any]] = None,
+        arguments: dict[str, Any] | None = None,
+        evidence: dict[str, Any] | None = None,
     ) -> PolicyCheckResult:
         context = {
             "arguments": arguments or {},
             "evidence": evidence or {},
         }
-        evaluated: List[str] = []
-        skipped: List[str] = []
-        not_matched: List[str] = []
+        evaluated: list[str] = []
+        skipped: list[str] = []
+        not_matched: list[str] = []
 
         for rule in self.document.policies:
             if rule.capability != "*" and rule.capability != capability:
@@ -116,9 +118,12 @@ class PolicyChecker:
             if rule.condition is None:
                 evaluated.append(rule.id)
                 return PolicyCheckResult(
-                    fired=True, matched_rule_id=rule.id,
-                    outcome=rule.outcome, reason=rule.reason,
-                    rules_evaluated=evaluated, rules_skipped=skipped,
+                    fired=True,
+                    matched_rule_id=rule.id,
+                    outcome=rule.outcome,
+                    reason=rule.reason,
+                    rules_evaluated=evaluated,
+                    rules_skipped=skipped,
                     rules_not_matched=not_matched,
                 )
 
@@ -130,15 +135,20 @@ class PolicyChecker:
             evaluated.append(rule.id)
             if result:
                 return PolicyCheckResult(
-                    fired=True, matched_rule_id=rule.id,
-                    outcome=rule.outcome, reason=rule.reason,
-                    rules_evaluated=evaluated, rules_skipped=skipped,
+                    fired=True,
+                    matched_rule_id=rule.id,
+                    outcome=rule.outcome,
+                    reason=rule.reason,
+                    rules_evaluated=evaluated,
+                    rules_skipped=skipped,
                     rules_not_matched=not_matched,
                 )
             else:
                 not_matched.append(rule.id)
 
         return PolicyCheckResult(
-            fired=False, rules_evaluated=evaluated, rules_skipped=skipped,
+            fired=False,
+            rules_evaluated=evaluated,
+            rules_skipped=skipped,
             rules_not_matched=not_matched,
         )

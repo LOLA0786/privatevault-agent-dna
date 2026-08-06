@@ -12,14 +12,13 @@ class BaseAdversary(ABC):
     severity: str = "Unknown"
 
     def prepare(self) -> None:
-        pass
+        return None
 
     @abstractmethod
-    def execute(self, runtime: Any) -> AttackResult:
-        ...
+    def execute(self, runtime: Any) -> AttackResult: ...
 
     def verify(self, result: AttackResult) -> bool:
         return True
 
     def cleanup(self) -> None:
-        pass
+        return None

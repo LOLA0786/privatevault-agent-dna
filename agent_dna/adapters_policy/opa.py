@@ -38,7 +38,7 @@ import ssl
 import time
 from collections import OrderedDict
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -59,9 +59,14 @@ class PolicyResult:
 
     __slots__ = ("fired", "outcome", "reason", "matched_rule_id", "degraded")
 
-    def __init__(self, fired: bool, outcome: str, reason: str,
-                 matched_rule_id: Optional[str] = None,
-                 degraded: bool = False):
+    def __init__(
+        self,
+        fired: bool,
+        outcome: str,
+        reason: str,
+        matched_rule_id: str | None = None,
+        degraded: bool = False,
+    ):
         self.fired = fired
         self.outcome = outcome
         self.reason = reason
@@ -69,16 +74,18 @@ class PolicyResult:
         self.degraded = degraded
 
     def __repr__(self) -> str:
-        return (f"PolicyResult(fired={self.fired}, "
-                f"outcome={self.outcome!r}, rule={self.matched_rule_id!r})")
+        return (
+            f"PolicyResult(fired={self.fired}, "
+            f"outcome={self.outcome!r}, rule={self.matched_rule_id!r})"
+        )
 
 
 class OPAPolicyAdapter:
     """Open Policy Agent connector for regulated deployments."""
 
     DEFAULT_ENDPOINT = "http://localhost:8181"
-    DEFAULT_TIMEOUT = 2.0          # per-attempt ceiling
-    DEFAULT_DEADLINE = 1.0         # TOTAL budget across all attempts
+    DEFAULT_TIMEOUT = 2.0  # per-attempt ceiling
+    DEFAULT_DEADLINE = 1.0  # TOTAL budget across all attempts
     DEFAULT_RETRY_COUNT = 3
     DEFAULT_BACKOFF = 0.05
     DEFAULT_FAIL_DECISION = "block"  # API compat; unavailable RAISES
@@ -88,16 +95,16 @@ class OPAPolicyAdapter:
         self,
         endpoint: str = DEFAULT_ENDPOINT,
         policy_path: str = "agent/governance",
-        bundle_path: Optional[str] = None,
+        bundle_path: str | None = None,
         default_decision: str = DEFAULT_FAIL_DECISION,
         cache_ttl: int = 0,
         enable_metrics: bool = True,
         *,
-        deadline_seconds: Optional[float] = None,
-        token: Optional[str] = None,
-        client_cert: Optional[str] = None,
-        client_key: Optional[str] = None,
-        ca_bundle: Optional[str] = None,
+        deadline_seconds: float | None = None,
+        token: str | None = None,
+        client_cert: str | None = None,
+        client_key: str | None = None,
+        ca_bundle: str | None = None,
         verify_tls: bool = True,
     ):
         self.endpoint = endpoint.rstrip("/")
@@ -108,8 +115,7 @@ class OPAPolicyAdapter:
         self.cache_ttl = cache_ttl
         self.enable_metrics = enable_metrics
         self.deadline_seconds = (
-            deadline_seconds if deadline_seconds is not None
-            else self.DEFAULT_DEADLINE
+            deadline_seconds if deadline_seconds is not None else self.DEFAULT_DEADLINE
         )
         self.token = token
         self.client_cert = client_cert
@@ -117,7 +123,7 @@ class OPAPolicyAdapter:
         self.ca_bundle = ca_bundle
         self.verify_tls = verify_tls
 
-        self._cache: "OrderedDict[str, tuple]" = OrderedDict()
+        self._cache: OrderedDict[str, tuple] = OrderedDict()
         self._request_count = 0
         self._fallback_count = 0
         self._cache_hits = 0
@@ -128,7 +134,7 @@ class OPAPolicyAdapter:
     # ------------------------------------------------------------------
     # transport
     # ------------------------------------------------------------------
-    def _build_ssl_context(self) -> Optional[ssl.SSLContext]:
+    def _build_ssl_context(self) -> ssl.SSLContext | None:
         """mTLS / CA / verification for in-VPC deployment. None for
         plain HTTP endpoints (dev, or OPA on localhost sidecar)."""
         if not self.endpoint.startswith("https"):
@@ -143,20 +149,18 @@ class OPAPolicyAdapter:
             ctx.load_cert_chain(self.client_cert, self.client_key)
         return ctx
 
-    def _headers(self) -> Dict[str, str]:
+    def _headers(self) -> dict[str, str]:
         h = {"Content-Type": "application/json"}
         if self.token:
             h["Authorization"] = f"Bearer {self.token}"
         return h
 
-    def health(self) -> Dict[str, Any]:
+    def health(self) -> dict[str, Any]:
         return {
             "adapter": "opa",
             "endpoint": self.endpoint,
             "reachable": self._ping_opa(),
-            "bundle_loaded": (
-                self.bundle_path.exists() if self.bundle_path else False
-            ),
+            "bundle_loaded": (self.bundle_path.exists() if self.bundle_path else False),
             "cache_entries": len(self._cache),
             "cache_ttl_seconds": self.cache_ttl,
             "deadline_seconds": self.deadline_seconds,
@@ -168,8 +172,7 @@ class OPAPolicyAdapter:
     def _ping_opa(self) -> bool:
         for path in ("/health", "/v1/data/system/info"):
             try:
-                req = Request(f"{self.endpoint}{path}",
-                              headers=self._headers())
+                req = Request(f"{self.endpoint}{path}", headers=self._headers())
                 urlopen(req, timeout=1, context=self._ssl_context)
                 return True
             except Exception:
@@ -179,18 +182,19 @@ class OPAPolicyAdapter:
     # ------------------------------------------------------------------
     # bundle (degraded, air-gapped fallback -- NOT a Rego engine)
     # ------------------------------------------------------------------
-    def load_bundle(self) -> Optional[Dict]:
+    def load_bundle(self) -> dict | None:
         if not self.bundle_path or not self.bundle_path.exists():
             return None
         return json.loads(self.bundle_path.read_text())
 
-    def save_bundle(self, policies: List[Dict],
-                    output_path: str = "policies/opa_bundle.json") -> bool:
+    def save_bundle(
+        self, policies: list[dict], output_path: str = "policies/opa_bundle.json"
+    ) -> bool:
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
         Path(output_path).write_text(json.dumps(policies))
         return True
 
-    def _evaluate_bundle(self, capability: Optional[str]) -> PolicyResult:
+    def _evaluate_bundle(self, capability: str | None) -> PolicyResult:
         """Degraded evaluation against a local capability allowlist.
 
         FAIL-CLOSED RULE: the bundle may DENY authoritatively, and may
@@ -210,12 +214,16 @@ class OPAPolicyAdapter:
 
         if capability and capability in denied:
             return PolicyResult(
-                True, "block", "bundle_denied (degraded: OPA unreachable)",
-                matched_rule_id=f"bundle:denied:{capability}", degraded=True,
+                True,
+                "block",
+                "bundle_denied (degraded: OPA unreachable)",
+                matched_rule_id=f"bundle:denied:{capability}",
+                degraded=True,
             )
         if capability and capability in allowed:
             return PolicyResult(
-                False, "allow",
+                False,
+                "allow",
                 "bundle_allowlisted (degraded: OPA unreachable)",
                 degraded=True,
             )
@@ -231,10 +239,10 @@ class OPAPolicyAdapter:
     # ------------------------------------------------------------------
     def check(
         self,
-        agent_id: Optional[str] = None,
-        capability: Optional[str] = None,
-        arguments: Optional[Dict] = None,
-        evidence: Optional[Dict] = None,
+        agent_id: str | None = None,
+        capability: str | None = None,
+        arguments: dict | None = None,
+        evidence: dict | None = None,
     ) -> PolicyResult:
         payload = {
             "input": {
@@ -244,22 +252,24 @@ class OPAPolicyAdapter:
                 "evidence": evidence or {},
             }
         }
-        key = hashlib.sha256(
-            json.dumps(payload, sort_keys=True).encode()
-        ).hexdigest()[:16]
+        key = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()[
+            :16
+        ]
 
         cached = self._cache_get(key)
         if cached is not None:
             self._cache_hits += 1
             return PolicyResult(
-                cached.fired, cached.outcome,
-                f"{cached.reason} (cached)", cached.matched_rule_id,
+                cached.fired,
+                cached.outcome,
+                f"{cached.reason} (cached)",
+                cached.matched_rule_id,
             )
 
         self._request_count += 1
         deadline = time.monotonic() + self.deadline_seconds
         backoff = self.DEFAULT_BACKOFF
-        last_error: Optional[str] = None
+        last_error: str | None = None
 
         for attempt in range(1, self.DEFAULT_RETRY_COUNT + 1):
             remaining = deadline - time.monotonic()
@@ -280,7 +290,7 @@ class OPAPolicyAdapter:
                 self._cache_put(key, normalized)
                 return normalized
             except PolicyUnavailableError:
-                raise                      # empty/malformed: no retry
+                raise  # empty/malformed: no retry
             except (URLError, HTTPError, OSError, ValueError) as exc:
                 # transient transport/parse failure -- never log
                 # capability arguments in failure paths
@@ -300,7 +310,7 @@ class OPAPolicyAdapter:
             f"({last_error}) and no local bundle is configured"
         )
 
-    def _call_opa(self, payload: Dict, timeout: float) -> Dict:
+    def _call_opa(self, payload: dict, timeout: float) -> dict:
         req = Request(
             f"{self.endpoint}/v1/data/{self.policy_path}",
             data=json.dumps(payload).encode(),
@@ -318,7 +328,7 @@ class OPAPolicyAdapter:
                 )
             return result
 
-    def _normalize(self, result: Dict) -> PolicyResult:
+    def _normalize(self, result: dict) -> PolicyResult:
         fired = bool(result.get("fired", False))
         outcome = result.get("outcome", "allow")
         reason = result.get("reason", "opa_evaluated")
@@ -339,7 +349,7 @@ class OPAPolicyAdapter:
     # ------------------------------------------------------------------
     # cache: opt-in, bounded, never caches denials or degraded results
     # ------------------------------------------------------------------
-    def _cache_get(self, key: str) -> Optional[PolicyResult]:
+    def _cache_get(self, key: str) -> PolicyResult | None:
         if self.cache_ttl <= 0:
             return None
         entry = self._cache.get(key)
@@ -366,11 +376,9 @@ class OPAPolicyAdapter:
         if self._avg_latency_ms == 0.0:
             self._avg_latency_ms = latency_ms
         else:
-            self._avg_latency_ms = (
-                self._avg_latency_ms * 0.9 + latency_ms * 0.1
-            )
+            self._avg_latency_ms = self._avg_latency_ms * 0.9 + latency_ms * 0.1
 
-    def metrics_summary(self) -> Dict:
+    def metrics_summary(self) -> dict:
         return {
             "adapter": "opa",
             "endpoint": self.endpoint,
@@ -383,9 +391,7 @@ class OPAPolicyAdapter:
             "cache_ttl_seconds": self.cache_ttl,
             "deadline_seconds": self.deadline_seconds,
             "default_decision": self.default_decision,
-            "bundle_loaded": (
-                self.bundle_path.exists() if self.bundle_path else False
-            ),
+            "bundle_loaded": (self.bundle_path.exists() if self.bundle_path else False),
             "tls": bool(self._ssl_context),
             "mtls": bool(self.client_cert),
         }

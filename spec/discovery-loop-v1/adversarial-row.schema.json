@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://privatevault.ai/spec/discovery-loop-v1/adversarial-row.schema.json",
+  "title": "PrivateVault Discovery Loop adversarial row v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "spec",
+    "id",
+    "label",
+    "agent_id",
+    "capability",
+    "arguments",
+    "evidence",
+    "baseline_decision"
+  ],
+  "properties": {
+    "spec": {"const": "pv-discovery-adversarial-row/1.0"},
+    "id": {"type": "string", "minLength": 1, "maxLength": 256},
+    "label": {"enum": ["attack", "benign"]},
+    "agent_id": {"type": "string", "minLength": 1, "maxLength": 256},
+    "capability": {"type": "string", "minLength": 1, "maxLength": 256},
+    "arguments": {"type": "object"},
+    "evidence": {"type": ["object", "null"]},
+    "baseline_decision": {"enum": ["allow", "block", "require_approval"]}
+  }
+}

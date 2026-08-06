@@ -4,43 +4,86 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  test:
+  python:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v6
         with:
-          python-version: "3.12"
+          enable-cache: true
 
-      - name: Install (canonical command, matches README)
-        run: pip install -e ".[dev]"
+      - name: Install locked development environment
+        run: uv sync --locked --extra dev
+
+      - name: Format gate
+        run: >-
+          uv run ruff format --check agent_dna api tests tools examples
+          experimental benchmarks end_to_end_coding_agents_demo.py
+          opa_decision_demo.py
+
+      - name: Lint gate
+        run: >-
+          uv run ruff check agent_dna api tests tools examples experimental
+          benchmarks end_to_end_coding_agents_demo.py opa_decision_demo.py
+
+      - name: Static typing
+        run: |
+          uv run mypy agent_dna api
+          uv run mypy --strict --follow-imports=skip agent_dna/security
 
       - name: Full claim gate (suite + adversarial + verifiers, sealed)
-        run: python tools/prove.py -o /tmp/proof-of-run.json
+        run: uv run python tools/prove.py -o /tmp/proof-of-run.json
 
       - name: Upload sealed proof-of-run
         uses: actions/upload-artifact@v4
         with:
           name: proof-of-run
           path: /tmp/proof-of-run.json
+          if-no-files-found: error
 
-      - name: Verify COMMITTED spec vectors (what implementers download)
+      - name: Verify committed spec vectors
         run: |
-          python tools/verify_records.py spec/test-vectors/clean.jsonl
-          ! python tools/verify_records.py spec/test-vectors/tampered_field.jsonl
-          ! python tools/verify_records.py spec/test-vectors/deleted_record.jsonl
-          ! python tools/verify_records.py spec/test-vectors/divergent.jsonl
+          uv run python tools/verify_records.py spec/test-vectors/clean.jsonl
+          ! uv run python tools/verify_records.py spec/test-vectors/tampered_field.jsonl
+          ! uv run python tools/verify_records.py spec/test-vectors/deleted_record.jsonl
+          ! uv run python tools/verify_records.py spec/test-vectors/divergent.jsonl
 
-      - name: Generator reproduces a verifiable set without touching the spec
+      - name: Reproduce vectors without changing the committed spec
         run: |
-          python tools/generate_test_vectors.py --out /tmp/ci_vecs
-          python tools/verify_records.py /tmp/ci_vecs/clean.jsonl
+          uv run python tools/generate_test_vectors.py --out /tmp/ci_vecs
+          uv run python tools/verify_records.py /tmp/ci_vecs/clean.jsonl
           git diff --exit-code spec/test-vectors/
+
+  dashboard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
 
   docker:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - name: Build image
@@ -48,10 +91,14 @@ jobs:
       - name: Container smoke test
         run: |
           docker run -d --name pv -p 8000:8000 -e PV_ALLOW_NO_AUTH=1 privatevault-agent-dna
-          sleep 8
-          curl -sf localhost:8000/health
+          for attempt in {1..20}; do
+            if curl -sf localhost:8000/health; then break; fi
+            if [ "$attempt" = 20 ]; then docker logs pv; exit 1; fi
+            sleep 1
+          done
           code=$(curl -s -o /dev/null -w "%{http_code}" -X POST localhost:8000/v1/decide \
             -H 'Content-Type: application/json' \
             -d '{"agent_id":"ci","capability":"crm.read_contact","timestamp":1751700000}')
           test "$code" = "200"
+          test "$(docker inspect --format '{{.Config.User}}' pv)" = "10001:10001"
           docker stop pv

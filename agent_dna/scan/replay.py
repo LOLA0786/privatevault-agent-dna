@@ -161,7 +161,9 @@ class ScanReport:
 
     @property
     def refusal_rate(self) -> float:
-        return (self.refused / self.evaluated_actions) if self.evaluated_actions else 0.0
+        return (
+            (self.refused / self.evaluated_actions) if self.evaluated_actions else 0.0
+        )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -374,9 +376,7 @@ def replay(
                 )
             )
 
-    report.by_level = dict(
-        sorted(report.by_level.items(), key=lambda kv: -kv[1])
-    )
+    report.by_level = dict(sorted(report.by_level.items(), key=lambda kv: -kv[1]))
     report.refused_by_capability = dict(
         sorted(report.refused_by_capability.items(), key=lambda kv: -kv[1])
     )

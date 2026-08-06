@@ -1,8 +1,8 @@
 from agent_dna import (
     AgentAction,
     ExecutionTrace,
-    InvariantLearner,
     InvariantEngine,
+    InvariantLearner,
 )
 
 #
@@ -11,18 +11,16 @@ from agent_dna import (
 
 trace = ExecutionTrace("bank-agent")
 
-trace.add(AgentAction("bank-agent","read_customer",1))
-trace.add(AgentAction("bank-agent","approve_invoice",2))
-trace.add(AgentAction("bank-agent","payments.initiate_wire",3))
+trace.add(AgentAction("bank-agent", "read_customer", 1))
+trace.add(AgentAction("bank-agent", "approve_invoice", 2))
+trace.add(AgentAction("bank-agent", "payments.initiate_wire", 3))
 
 learner = InvariantLearner()
-engine = InvariantEngine(
-    learner.fit([trace])
-)
+engine = InvariantEngine(learner.fit([trace]))
 
-print("="*65)
+print("=" * 65)
 print("VALID")
-print("="*65)
+print("=" * 65)
 
 print(
     engine.validate(
@@ -33,9 +31,9 @@ print(
 
 print()
 
-print("="*65)
+print("=" * 65)
 print("ATTACK")
-print("="*65)
+print("=" * 65)
 
 print(
     engine.validate(

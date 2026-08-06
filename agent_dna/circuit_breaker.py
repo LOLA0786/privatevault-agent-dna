@@ -39,11 +39,11 @@ GENESIS = "0" * 64
 
 @dataclass(frozen=True)
 class BreakerConfig:
-    max_decisions: int | None = 100          # rate trip; None disables
+    max_decisions: int | None = 100  # rate trip; None disables
     window_seconds: float = 10.0
-    max_cumulative_amount: float | None = None   # volume trip; None disables
-    max_consecutive_refusals: int | None = 5     # thrash trip; None disables
-    cooldown_seconds: float | None = None        # None = manual reset only
+    max_cumulative_amount: float | None = None  # volume trip; None disables
+    max_consecutive_refusals: int | None = 5  # thrash trip; None disables
+    cooldown_seconds: float | None = None  # None = manual reset only
     #
     # Group (swarm) trip conditions. Membership is DECLARED config,
     # not behavioral inference -- the breaker enforces stated
@@ -120,8 +120,9 @@ class CircuitBreaker:
         tripped, reason, tripped_at = row
         cd = self.config.cooldown_seconds
         if cd is not None and (self._clock() - tripped_at) >= cd:
-            self._write_reset(agent_id, actor="system:cooldown",
-                              reason=f"cooldown {cd}s elapsed")
+            self._write_reset(
+                agent_id, actor="system:cooldown", reason=f"cooldown {cd}s elapsed"
+            )
             return None
         return reason
 
@@ -156,8 +157,7 @@ class CircuitBreaker:
 
         if cfg.max_decisions is not None:
             (n,) = self._conn.execute(
-                "SELECT COUNT(*) FROM breaker_events "
-                "WHERE agent_id = ? AND ts >= ?",
+                "SELECT COUNT(*) FROM breaker_events WHERE agent_id = ? AND ts >= ?",
                 (agent_id, since),
             ).fetchone()
             if n > cfg.max_decisions:
@@ -188,9 +188,7 @@ class CircuitBreaker:
                 (agent_id, k),
             ).fetchall()
             if len(rows) == k and all(r[0] != Decision.ALLOW.value for r in rows):
-                return (
-                    f"refusal_thrash: {k} consecutive non-allow verdicts"
-                )
+                return f"refusal_thrash: {k} consecutive non-allow verdicts"
 
         return None
 
@@ -228,10 +226,14 @@ class CircuitBreaker:
                 (*members, since),
             ).fetchone()
             if total > cap:
-                return gid, members, (
-                    f"group_trip:{gid}: cumulative {total:.2f} across "
-                    f"{len(members)} agents in {cfg.window_seconds}s "
-                    f"window (cap {cap:.2f})"
+                return (
+                    gid,
+                    members,
+                    (
+                        f"group_trip:{gid}: cumulative {total:.2f} across "
+                        f"{len(members)} agents in {cfg.window_seconds}s "
+                        f"window (cap {cap:.2f})"
+                    ),
                 )
         return None
 
@@ -281,7 +283,7 @@ class CircuitBreaker:
                 (agent_id, now, amount),
             )
             rid = cur.lastrowid
-            reason = self._evaluate(agent_id, now)      # projected
+            reason = self._evaluate(agent_id, now)  # projected
             breach = None
             if reason is None:
                 breach = self._find_group_breach(agent_id, now)
@@ -297,6 +299,8 @@ class CircuitBreaker:
         if reason is not None:
             self._trip(agent_id, reason, now)
             return reason, None
+        if breach is None:  # defensive: one of reason/breach must explain rejection
+            raise RuntimeError("breaker rejected a reservation without a reason")
         gid, members, greason = breach
         self._trip_group(gid, members, greason, now)
         return greason, None
@@ -328,9 +332,7 @@ class CircuitBreaker:
                 "ORDER BY id DESC LIMIT ?",
                 (agent_id, k),
             ).fetchall()
-            if len(rows) == k and all(
-                r[0] != Decision.ALLOW.value for r in rows
-            ):
+            if len(rows) == k and all(r[0] != Decision.ALLOW.value for r in rows):
                 reason = f"refusal_thrash: {k} consecutive non-allow verdicts"
                 self._trip(agent_id, reason, now)
                 return reason
@@ -348,8 +350,7 @@ class CircuitBreaker:
                 "(agent_id, tripped, reason, tripped_at) VALUES (?, 1, ?, ?)",
                 (m, reason, now),
             )
-        self._append_log(gid, "group_trip", reason,
-                         actor="system:breaker", ts=now)
+        self._append_log(gid, "group_trip", reason, actor="system:breaker", ts=now)
         self._conn.commit()
 
     def reset_group(
@@ -364,8 +365,7 @@ class CircuitBreaker:
         decision than resetting one noisy agent."""
         if not authorize(actor_id, RESET_GROUP_CAPABILITY):
             raise PermissionError(
-                f"actor '{actor_id}' lacks capability "
-                f"'{RESET_GROUP_CAPABILITY}'"
+                f"actor '{actor_id}' lacks capability '{RESET_GROUP_CAPABILITY}'"
             )
         members = (self.config.groups or {}).get(group_id)
         if not members:
@@ -377,9 +377,11 @@ class CircuitBreaker:
                 (m,),
             )
         record = self._append_log(
-            group_id, "group_reset",
+            group_id,
+            "group_reset",
             f"authorized group reset ({len(members)} members)",
-            actor=actor_id, ts=now,
+            actor=actor_id,
+            ts=now,
         )
         self._conn.commit()
         return record
@@ -399,8 +401,7 @@ class CircuitBreaker:
                 f"actor '{actor_id}' lacks capability '{RESET_CAPABILITY}'"
             )
         row = self._conn.execute(
-            "SELECT reason FROM breaker_state "
-            "WHERE agent_id = ? AND tripped = 1",
+            "SELECT reason FROM breaker_state WHERE agent_id = ? AND tripped = 1",
             (agent_id,),
         ).fetchone()
         if row and row[0].startswith("group_trip:"):
@@ -409,8 +410,9 @@ class CircuitBreaker:
                 "must not dissolve a swarm suspension one member at a "
                 "time -- use reset_group (capability breaker.reset_group)"
             )
-        return self._write_reset(agent_id, actor=actor_id,
-                                 reason="authorized manual reset")
+        return self._write_reset(
+            agent_id, actor=actor_id, reason="authorized manual reset"
+        )
 
     def _write_reset(self, agent_id: str, actor: str, reason: str) -> dict:
         now = self._clock()
@@ -467,9 +469,10 @@ class CircuitBreaker:
                 "ts": ts,
                 "prev_hash": prev_hash,
             }
-            if hashlib.sha256(
-                json.dumps(body, sort_keys=True).encode()
-            ).hexdigest() != record_hash:
+            if (
+                hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest()
+                != record_hash
+            ):
                 return False
             prev = record_hash
         return True
@@ -568,9 +571,7 @@ class GuardedEngine:
             reason, rid = self.breaker.reserve(action.agent_id, amount)
         except Exception as exc:
             # a faulting breaker must never become a bypass
-            return self._blocked(
-                action, f"breaker_fault: {type(exc).__name__}: {exc}"
-            )
+            return self._blocked(action, f"breaker_fault: {type(exc).__name__}: {exc}")
         if reason is not None:
             return self._blocked(action, reason)
         # Every path from here MUST finalize the reservation. Rate and

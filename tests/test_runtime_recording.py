@@ -24,6 +24,7 @@ class StubInvariants:
     def validate(self, capability, previous):
         class R:
             pass
+
         r = R()
         r.violated = capability == "wire.drain"
         r.message = "forbidden" if r.violated else ""
@@ -46,12 +47,12 @@ def test_monitor_records_every_decision():
     )
     m = RuntimeMonitor(engine, recorder=recorder)
 
-    m.process(_action("crm.read"))       # ALLOW
-    m.process(_action("wire.drain"))     # BLOCK
-    m.process(_action("email.send"))     # ALLOW
+    m.process(_action("crm.read"))  # ALLOW
+    m.process(_action("wire.drain"))  # BLOCK
+    m.process(_action("email.send"))  # ALLOW
 
     g = recorder.graph
-    assert len(g) == 3                                   # blocks recorded too
+    assert len(g) == 3  # blocks recorded too
     assert len(g.find_blocked()) == 1
     assert g.find_blocked()[0].capability == "wire.drain"
     assert g.verify_chain("agent-1")

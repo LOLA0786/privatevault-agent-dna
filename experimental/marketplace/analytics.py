@@ -5,7 +5,6 @@ exposing individual agent actions or identities.
 """
 
 from collections import Counter
-from typing import Dict, List
 
 
 class AggregateAnalytics:
@@ -14,10 +13,14 @@ class AggregateAnalytics:
     No agent_id, no capability payload, no raw arguments.
     Only: verdict counts, drift score bins, invariant hits.
     """
+
     def __init__(self):
         self.verdict_counts: Counter = Counter()
-        self.drift_bins: Dict[str, int] = {
-            "low": 0, "medium": 0, "high": 0, "critical": 0
+        self.drift_bins: dict[str, int] = {
+            "low": 0,
+            "medium": 0,
+            "high": 0,
+            "critical": 0,
         }
         self.invariant_hits: Counter = Counter()
 
@@ -34,7 +37,7 @@ class AggregateAnalytics:
         if invariant_name:
             self.invariant_hits[invariant_name] += 1
 
-    def global_summary(self) -> Dict:
+    def global_summary(self) -> dict:
         total = sum(self.verdict_counts.values()) or 1
         return {
             "total_decisions": total,

@@ -16,16 +16,21 @@ from agent_dna.trace import AgentAction
 class StubScorer:
     def score(self, action, prev_capability=None):
         return AdvisorySignal(
-            agent_id=action.agent_id, capability=action.capability,
-            drift_score=0.0, severity=Severity.INFO, reasons=[],
+            agent_id=action.agent_id,
+            capability=action.capability,
+            drift_score=0.0,
+            severity=Severity.INFO,
+            reasons=[],
         )
 
 
 class CleanAdapter(EvidenceAdapter):
     """Well-behaved: no ground-truth leak."""
+
     def to_action(self, row):
-        return AgentAction(agent_id=row.raw["agent"], capability="crm.read",
-                           timestamp=time.time())
+        return AgentAction(
+            agent_id=row.raw["agent"], capability="crm.read", timestamp=time.time()
+        )
 
     def to_evidence(self, row):
         return {"enterprise_state": {"invoice_open": True}}
@@ -38,9 +43,11 @@ class LeakyAdapter(EvidenceAdapter):
     """Deliberately misbehaved: leaks a ground-truth-shaped key into
     evidence, simulating the class of mistake the framework exists
     to catch."""
+
     def to_action(self, row):
-        return AgentAction(agent_id=row.raw["agent"], capability="crm.read",
-                           timestamp=time.time())
+        return AgentAction(
+            agent_id=row.raw["agent"], capability="crm.read", timestamp=time.time()
+        )
 
     def to_evidence(self, row):
         return {
@@ -56,8 +63,7 @@ def _engine():
 
 
 def _rows(n=5):
-    return [SourceRow(raw={"agent": f"a{i}", "is_fraud": i % 2 == 0})
-            for i in range(n)]
+    return [SourceRow(raw={"agent": f"a{i}", "is_fraud": i % 2 == 0}) for i in range(n)]
 
 
 def test_clean_adapter_dry_run_reports_no_violations():
@@ -95,8 +101,10 @@ def test_ground_truth_confusion_matrix_populated_when_implemented():
 def test_ground_truth_absent_gracefully_skipped():
     class NoGroundTruthAdapter(EvidenceAdapter):
         def to_action(self, row):
-            return AgentAction(agent_id="a", capability="crm.read",
-                               timestamp=time.time())
+            return AgentAction(
+                agent_id="a", capability="crm.read", timestamp=time.time()
+            )
+
         def to_evidence(self, row):
             return None
 
@@ -129,10 +137,13 @@ def test_run_live_still_refuses_leaky_evidence_even_with_acknowledgement():
 def test_none_evidence_is_valid_not_a_violation():
     """Evidence-honesty: returning None (no evidence available) must
     NOT be flagged as a violation -- it's the correct, safe default."""
+
     class NoEvidenceAdapter(EvidenceAdapter):
         def to_action(self, row):
-            return AgentAction(agent_id="a", capability="crm.read",
-                               timestamp=time.time())
+            return AgentAction(
+                agent_id="a", capability="crm.read", timestamp=time.time()
+            )
+
         def to_evidence(self, row):
             return None
 

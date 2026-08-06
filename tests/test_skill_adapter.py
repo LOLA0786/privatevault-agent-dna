@@ -15,19 +15,23 @@ import json
 def _manifest(tmp, agent_id, allowed, denied):
     d = tmp / "skills" / agent_id
     d.mkdir(parents=True)
-    (d / "skills.json").write_text(json.dumps({
-        "agent_id": agent_id,
-        "allowed_capabilities": allowed,
-        "denied_capabilities": denied,
-    }))
+    (d / "skills.json").write_text(
+        json.dumps(
+            {
+                "agent_id": agent_id,
+                "allowed_capabilities": allowed,
+                "denied_capabilities": denied,
+            }
+        )
+    )
 
 
 def _adapter(tmp):
     from agent_dna.adapters_policy.skill_adapter import SkillAdapter
+
     # policy_dir must exist for the parent; point it at an empty profiles dir
     (tmp / "profiles").mkdir()
-    return SkillAdapter(skill_dir=str(tmp / "skills"),
-                        policy_dir=str(tmp / "profiles"))
+    return SkillAdapter(skill_dir=str(tmp / "skills"), policy_dir=str(tmp / "profiles"))
 
 
 def test_skill_adapter_constructs_without_attribute_error(tmp_path):

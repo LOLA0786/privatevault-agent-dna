@@ -4,10 +4,10 @@ This is the object the invariant learners train on and the runtime validates.
 It stays cheap: no numpy, no networkx. Just enough graph algebra to support
 topology / temporal / authority reasoning.
 """
+
 from __future__ import annotations
 
-from collections import defaultdict
-from typing import Iterable, Iterator
+from collections.abc import Iterable, Iterator
 
 from .events import InteractionEvent
 
@@ -16,19 +16,21 @@ class InteractionGraph:
     def __init__(self, execution_id: str) -> None:
         self.execution_id = execution_id
         self.events: list[InteractionEvent] = []
-        self._roles: dict[str, str] = {}            # agent -> role
-        self._first_seen: dict[str, float] = {}     # agent -> earliest ts
+        self._roles: dict[str, str] = {}  # agent -> role
+        self._first_seen: dict[str, float] = {}  # agent -> earliest ts
 
     # ---- construction -----------------------------------------------------
-    def add_event(self, event: InteractionEvent) -> "InteractionGraph":
+    def add_event(self, event: InteractionEvent) -> InteractionGraph:
         if event.execution_id != self.execution_id:
             raise ValueError(
                 f"event execution_id {event.execution_id!r} does not match "
                 f"graph {self.execution_id!r}"
             )
         self.events.append(event)
-        for agent, role in ((event.source, event.source_role),
-                            (event.target, event.target_role)):
+        for agent, role in (
+            (event.source, event.source_role),
+            (event.target, event.target_role),
+        ):
             # first non-unknown role wins; never downgrade a known role
             if role != "unknown" or agent not in self._roles:
                 self._roles[agent] = role
@@ -37,7 +39,7 @@ class InteractionGraph:
                 self._first_seen[agent] = event.timestamp
         return self
 
-    def extend(self, events: Iterable[InteractionEvent]) -> "InteractionGraph":
+    def extend(self, events: Iterable[InteractionEvent]) -> InteractionGraph:
         for e in events:
             self.add_event(e)
         return self
@@ -94,5 +96,7 @@ class InteractionGraph:
         return iter(self.ordered_events())
 
     def __repr__(self) -> str:
-        return (f"InteractionGraph(execution_id={self.execution_id!r}, "
-                f"nodes={len(self.nodes)}, edges={len(self.edges)})")
+        return (
+            f"InteractionGraph(execution_id={self.execution_id!r}, "
+            f"nodes={len(self.nodes)}, edges={len(self.edges)})"
+        )

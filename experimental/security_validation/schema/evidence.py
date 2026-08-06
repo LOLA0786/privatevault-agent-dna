@@ -4,8 +4,7 @@ Evidence schema.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
-from typing import Dict
+from dataclasses import asdict, dataclass
 
 
 @dataclass
@@ -16,7 +15,7 @@ class EvidenceObject:
     verified: bool = False
     timestamp: str = ""
     uri: str = ""
-    metadata: Dict = None
+    metadata: dict = None
 
     def to_dict(self):
         return asdict(self)

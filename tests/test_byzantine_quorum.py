@@ -31,13 +31,24 @@ def _agents(n):
 
 
 def _cast(q, action, agent, vote, message_hash="mh-1", ts=T0, nonce=None):
-    linked = (f"{q.prev_decision_hash}:{message_hash}"
-              if q.prev_decision_hash else message_hash)
-    q.submit_vote(action, agent, vote, sign_message(agent, linked),
-                  message_hash, timestamp=ts, nonce=nonce)
+    linked = (
+        f"{q.prev_decision_hash}:{message_hash}"
+        if q.prev_decision_hash
+        else message_hash
+    )
+    q.submit_vote(
+        action,
+        agent,
+        vote,
+        sign_message(agent, linked),
+        message_hash,
+        timestamp=ts,
+        nonce=nonce,
+    )
 
 
 # ---------------------------------------------------- honest-path parity
+
 
 def test_four_honest_approvals_reach_quorum():
     q = ByzantineQuorum(clock=_clock_at(T0))
@@ -68,8 +79,7 @@ def test_forged_signature_does_not_count():
     ids = _agents(4)
     for a in ids[:3]:
         _cast(q, "act", a, "APPROVE")
-    q.submit_vote("act", ids[3], "APPROVE", "deadbeef" * 8, "mh-1",
-                  timestamp=T0)
+    q.submit_vote("act", ids[3], "APPROVE", "deadbeef" * 8, "mh-1", timestamp=T0)
     assert q.check_quorum("act") is False
 
 
@@ -77,8 +87,9 @@ def test_prev_hash_links_subsequent_votes_and_unlinked_sigs_fail():
     q = ByzantineQuorum(min_nodes=2, threshold=0.6, clock=_clock_at(T0))
     ids = _agents(2)
     q.set_prev_hash("h" * 8)
-    q.submit_vote("act", ids[0], "APPROVE",
-                  sign_message(ids[0], "mh-1"), "mh-1", timestamp=T0)
+    q.submit_vote(
+        "act", ids[0], "APPROVE", sign_message(ids[0], "mh-1"), "mh-1", timestamp=T0
+    )
     _cast(q, "act", ids[1], "APPROVE")
     assert q.check_quorum("act") is False
     _cast(q, "act", ids[0], "APPROVE")
@@ -90,8 +101,7 @@ def test_votes_property_keeps_legacy_shape():
     (a,) = _agents(1)
     _cast(q, "act", a, "APPROVE", nonce="n-1")
     rows = q.votes["act"]
-    assert set(rows[0]) == {"agent", "vote", "signature", "hash",
-                            "timestamp", "nonce"}
+    assert set(rows[0]) == {"agent", "vote", "signature", "hash", "timestamp", "nonce"}
 
 
 def test_expired_vote_rejected_at_submission():
@@ -102,6 +112,7 @@ def test_expired_vote_rejected_at_submission():
 
 
 # ------------------------------------------------------- F1: future votes
+
 
 def test_f1_future_dated_vote_rejected():
     q = ByzantineQuorum(clock=_clock_at(T0))
@@ -119,6 +130,7 @@ def test_f1_small_clock_skew_tolerated():
 
 # ---------------------------------------------------------- F2: replay
 
+
 def test_f2_replayed_nonce_rejected():
     q = ByzantineQuorum(clock=_clock_at(T0))
     (a,) = _agents(1)
@@ -135,6 +147,7 @@ def test_f2_same_nonce_ok_across_actions():
 
 
 # ----------------------------------------------- F3: ballot stuffing
+
 
 def test_f3_one_agent_repeating_approve_cannot_fake_quorum():
     q = ByzantineQuorum(min_nodes=1, threshold=1.0, clock=_clock_at(T0))
@@ -158,6 +171,7 @@ def test_f3_revote_replaces_previous_ballot():
 
 # ------------------------------------------- F4: expiry in the denominator
 
+
 def test_f4_expired_votes_leave_the_denominator():
     q = ByzantineQuorum(min_nodes=2, threshold=0.9, clock=_clock_at(T0))
     ids = _agents(4)
@@ -171,13 +185,13 @@ def test_f4_expired_votes_leave_the_denominator():
 
 # ------------------------------------------------ F5: trust registry works
 
+
 def test_f5_injected_trust_scores_take_effect():
     reg = TrustRegistry()
     ids = _agents(4)
     for a in ids:
         reg.set_score(a, 0.1)
-    q = ByzantineQuorum(threshold=0.67, trust_registry=reg,
-                        clock=_clock_at(T0))
+    q = ByzantineQuorum(threshold=0.67, trust_registry=reg, clock=_clock_at(T0))
     for a in ids:
         _cast(q, "act", a, "APPROVE")
     assert q.check_quorum("act") is False
@@ -194,6 +208,7 @@ def test_f5_default_construction_keeps_legacy_weighting():
 
 
 # --------------------------------------------------- constructor guards
+
 
 def test_constructor_rejects_degenerate_config():
     for kw in ({"threshold": 0}, {"min_nodes": 0}, {"expiry": 0}):

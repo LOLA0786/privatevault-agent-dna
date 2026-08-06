@@ -7,15 +7,14 @@ Run:
 """
 
 from agent_dna import (
-    BehaviorTimeline,
     BehaviorDynamics,
+    BehaviorTimeline,
     CapabilityManifold,
     FingerprintBuilder,
 )
-
 from agent_dna.adapters import (
-    synthetic_normal_trace,
     synthetic_compromised_trace,
+    synthetic_normal_trace,
 )
 
 
@@ -37,26 +36,19 @@ def main():
     # Baseline
     timeline.add(
         "v1",
-        build_fp([
-            synthetic_normal_trace(seed=i, loops=6)
-            for i in range(8)
-        ]),
+        build_fp([synthetic_normal_trace(seed=i, loops=6) for i in range(8)]),
     )
 
     # Small evolution
     timeline.add(
         "v2",
-        build_fp([
-            synthetic_normal_trace(seed=999, loops=6)
-        ]),
+        build_fp([synthetic_normal_trace(seed=999, loops=6)]),
     )
 
     # Large drift
     timeline.add(
         "v3",
-        build_fp([
-            synthetic_compromised_trace()
-        ]),
+        build_fp([synthetic_compromised_trace()]),
     )
 
     print("\nPrivateVault Agent DNA Timeline")
@@ -74,7 +66,7 @@ def main():
         start=1,
     ):
         print(
-            f"v{i} -> v{i+1}"
+            f"v{i} -> v{i + 1}"
             f"  similarity={result.overall_similarity:.2%}"
             f"  risk={result.risk}"
         )

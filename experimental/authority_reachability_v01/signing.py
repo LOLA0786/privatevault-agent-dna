@@ -29,10 +29,7 @@ def sign_analysis_report(
     """Return a signed envelope over the exact deterministic report."""
 
     report_bytes = canonicalize(dict(report))
-    digest = (
-        "sha256:"
-        + hashlib.sha256(report_bytes).hexdigest()
-    )
+    digest = "sha256:" + hashlib.sha256(report_bytes).hexdigest()
 
     unsigned = {
         "spec": SIGNED_REPORT_SPEC,
@@ -41,16 +38,11 @@ def sign_analysis_report(
         "signer_key_id": signer_key_id,
     }
 
-    signature = signing_key.sign(
-        canonicalize(unsigned)
-    ).signature
+    signature = signing_key.sign(canonicalize(unsigned)).signature
 
     return {
         **unsigned,
-        "signature": (
-            "ed25519:"
-            + base64.b64encode(signature).decode("ascii")
-        ),
+        "signature": ("ed25519:" + base64.b64encode(signature).decode("ascii")),
     }
 
 
@@ -74,43 +66,24 @@ def verify_signed_analysis_report(
     )
 
     if envelope["spec"] != SIGNED_REPORT_SPEC:
-        raise GraphFormatError(
-            "signed_report.spec: unsupported spec"
-        )
+        raise GraphFormatError("signed_report.spec: unsupported spec")
 
     key_id = envelope["signer_key_id"]
-    if (
-        not isinstance(key_id, str)
-        or key_id not in trusted_keys
-    ):
-        raise GraphFormatError(
-            "signed_report.signer_key_id: untrusted key"
-        )
+    if not isinstance(key_id, str) or key_id not in trusted_keys:
+        raise GraphFormatError("signed_report.signer_key_id: untrusted key")
 
     report = envelope["report"]
     if not isinstance(report, Mapping):
-        raise GraphFormatError(
-            "signed_report.report: expected object"
-        )
+        raise GraphFormatError("signed_report.report: expected object")
 
-    expected_hash = (
-        "sha256:"
-        + hashlib.sha256(
-            canonicalize(report)
-        ).hexdigest()
-    )
+    expected_hash = "sha256:" + hashlib.sha256(canonicalize(report)).hexdigest()
 
     if envelope["report_hash"] != expected_hash:
         return False
 
     signature_text = envelope["signature"]
-    if (
-        not isinstance(signature_text, str)
-        or not signature_text.startswith("ed25519:")
-    ):
-        raise GraphFormatError(
-            "signed_report.signature: malformed signature"
-        )
+    if not isinstance(signature_text, str) or not signature_text.startswith("ed25519:"):
+        raise GraphFormatError("signed_report.signature: malformed signature")
 
     try:
         signature = base64.b64decode(
@@ -130,15 +103,9 @@ def verify_signed_analysis_report(
         )
         verifier = VerifyKey(public_key)
     except (ValueError, binascii.Error) as exc:
-        raise GraphFormatError(
-            "signed_report: malformed trusted public key"
-        ) from exc
+        raise GraphFormatError("signed_report: malformed trusted public key") from exc
 
-    unsigned = {
-        key: value
-        for key, value in envelope.items()
-        if key != "signature"
-    }
+    unsigned = {key: value for key, value in envelope.items() if key != "signature"}
 
     try:
         verifier.verify(

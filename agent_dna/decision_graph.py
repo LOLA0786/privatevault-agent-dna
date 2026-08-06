@@ -21,26 +21,26 @@ do not call this a DAG in public claims.
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Dict, Iterator, List, Optional
+from collections.abc import Iterator
 
-from .decision_record import GENESIS_HASH, DecisionRecord
+from .decision_record import DecisionRecord
 from .execution_record import ExecutionEvent
 
 
 class DecisionGraph:
     def __init__(self) -> None:
-        self._records: Dict[str, DecisionRecord] = {}          # decision_id -> record
-        self._order: List[str] = []                            # insertion order
-        self._children: Dict[str, List[str]] = defaultdict(list)
-        self._by_agent: Dict[str, List[str]] = defaultdict(list)
-        self._by_capability: Dict[str, List[str]] = defaultdict(list)
-        self._by_decision: Dict[str, List[str]] = defaultdict(list)
-        self._by_trigger: Dict[str, List[str]] = defaultdict(list)
-        self._executions: Dict[str, ExecutionEvent] = {}   # decision_id -> event
+        self._records: dict[str, DecisionRecord] = {}  # decision_id -> record
+        self._order: list[str] = []  # insertion order
+        self._children: dict[str, list[str]] = defaultdict(list)
+        self._by_agent: dict[str, list[str]] = defaultdict(list)
+        self._by_capability: dict[str, list[str]] = defaultdict(list)
+        self._by_decision: dict[str, list[str]] = defaultdict(list)
+        self._by_trigger: dict[str, list[str]] = defaultdict(list)
+        self._executions: dict[str, ExecutionEvent] = {}  # decision_id -> event
 
     # ---- construction ---------------------------------------------------
 
-    def add(self, record: DecisionRecord) -> "DecisionGraph":
+    def add(self, record: DecisionRecord) -> DecisionGraph:
         if not record.verify():
             raise ValueError(
                 f"record {record.decision_id} is unsealed or tampered; "
@@ -68,15 +68,14 @@ class DecisionGraph:
         self._by_trigger[record.triggered_by].append(record.decision_id)
         return self
 
-    def add_execution(self, event: ExecutionEvent) -> "DecisionGraph":
+    def add_execution(self, event: ExecutionEvent) -> DecisionGraph:
         if not event.verify():
             raise ValueError(
                 f"execution event {event.event_id} is unsealed or tampered"
             )
         if event.decision_ref not in self._records:
             raise ValueError(
-                f"execution event references unknown decision "
-                f"{event.decision_ref}"
+                f"execution event references unknown decision {event.decision_ref}"
             )
         decision = self._records[event.decision_ref]
         if event.prev_hash != decision.record_hash:
@@ -95,7 +94,7 @@ class DecisionGraph:
         ev = self._executions.get(decision_id)
         return ev.status if ev is not None else "pending"
 
-    def find_divergent(self) -> List[DecisionRecord]:
+    def find_divergent(self) -> list[DecisionRecord]:
         """Decisions the runtime BLOCKed that the executor reports as
         executed anyway — enforcement divergence."""
         out = []
@@ -110,17 +109,17 @@ class DecisionGraph:
     def get(self, decision_id: str) -> DecisionRecord:
         return self._records[decision_id]
 
-    def parent(self, decision_id: str) -> Optional[DecisionRecord]:
+    def parent(self, decision_id: str) -> DecisionRecord | None:
         pid = self._records[decision_id].parent_decision
         return self._records[pid] if pid is not None else None
 
-    def children(self, decision_id: str) -> List[DecisionRecord]:
+    def children(self, decision_id: str) -> list[DecisionRecord]:
         return [self._records[c] for c in self._children.get(decision_id, [])]
 
-    def lineage(self, decision_id: str) -> List[DecisionRecord]:
+    def lineage(self, decision_id: str) -> list[DecisionRecord]:
         """Root-to-node path: every decision that led here."""
-        path: List[DecisionRecord] = []
-        cur: Optional[str] = decision_id
+        path: list[DecisionRecord] = []
+        cur: str | None = decision_id
         while cur is not None:
             rec = self._records[cur]
             path.append(rec)
@@ -128,9 +127,9 @@ class DecisionGraph:
         path.reverse()
         return path
 
-    def descendants(self, decision_id: str) -> List[DecisionRecord]:
+    def descendants(self, decision_id: str) -> list[DecisionRecord]:
         """Everything downstream of a decision (replay_after substrate)."""
-        out: List[DecisionRecord] = []
+        out: list[DecisionRecord] = []
         stack = list(self._children.get(decision_id, []))
         while stack:
             cid = stack.pop()
@@ -141,22 +140,19 @@ class DecisionGraph:
 
     # ---- queries ------------------------------------------------------------
 
-    def find_by_agent(self, agent_id: str) -> List[DecisionRecord]:
+    def find_by_agent(self, agent_id: str) -> list[DecisionRecord]:
         return [self._records[i] for i in self._by_agent.get(agent_id, [])]
 
-    def find_by_capability(self, capability: str) -> List[DecisionRecord]:
+    def find_by_capability(self, capability: str) -> list[DecisionRecord]:
         return [self._records[i] for i in self._by_capability.get(capability, [])]
 
-    def find_blocked(self) -> List[DecisionRecord]:
+    def find_blocked(self) -> list[DecisionRecord]:
         return [self._records[i] for i in self._by_decision.get("block", [])]
 
-    def find_requires_approval(self) -> List[DecisionRecord]:
-        return [
-            self._records[i]
-            for i in self._by_decision.get("require_approval", [])
-        ]
+    def find_requires_approval(self) -> list[DecisionRecord]:
+        return [self._records[i] for i in self._by_decision.get("require_approval", [])]
 
-    def find_by_trigger(self, triggered_by: str) -> List[DecisionRecord]:
+    def find_by_trigger(self, triggered_by: str) -> list[DecisionRecord]:
         return [self._records[i] for i in self._by_trigger.get(triggered_by, [])]
 
     # ---- integrity ---------------------------------------------------------
@@ -189,7 +185,7 @@ class DecisionGraph:
             prev = rec.record_hash
         return True
 
-    def verify_all(self) -> Dict[str, bool]:
+    def verify_all(self) -> dict[str, bool]:
         return {a: self.verify_chain(a) for a in self._by_agent}
 
     # ---- misc ---------------------------------------------------------------
@@ -201,7 +197,4 @@ class DecisionGraph:
         return iter(self._records[i] for i in self._order)
 
     def __repr__(self) -> str:
-        return (
-            f"DecisionGraph(records={len(self)}, "
-            f"agents={len(self._by_agent)})"
-        )
+        return f"DecisionGraph(records={len(self)}, agents={len(self._by_agent)})"

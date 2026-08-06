@@ -49,9 +49,7 @@ def _context():
                 "key_id": "reviewer-01",
                 "principal": "reviewer@store.example",
                 "algorithm": "ed25519",
-                "public_key": encode_public_key(
-                    reviewer_key
-                ),
+                "public_key": encode_public_key(reviewer_key),
                 "usages": ["approval_signer"],
             }
         ],
@@ -98,10 +96,7 @@ def _context():
             "subject_principal": "reviewer@store.example",
             "subject_key_id": "reviewer-01",
             "action": "approval.decide",
-            "resource": (
-                "approval_request:"
-                + request["approval_request_id"]
-            ),
+            "resource": ("approval_request:" + request["approval_request_id"]),
         },
         "final_verdict": "ALLOW",
     }
@@ -111,32 +106,18 @@ def _context():
             "spec": APPROVAL_ARTIFACT_SPEC,
             "canonicalization": CANONICALIZATION,
             "approval_id": "approval-001",
-            "approval_request_id": (
-                request["approval_request_id"]
-            ),
+            "approval_request_id": (request["approval_request_id"]),
             "approval_request_digest": request_digest,
             "organisation_id": request["organisation_id"],
             "request_id": request["request_id"],
-            "decision_input_digest": (
-                request["decision_input_digest"]
-            ),
+            "decision_input_digest": (request["decision_input_digest"]),
             "action_digest": request["action_digest"],
-            "evidence_manifest_digest": (
-                request["evidence_manifest_digest"]
-            ),
-            "presentation_digest": (
-                request["presentation_digest"]
-            ),
-            "approval_requirement_digest": (
-                request["approval_requirement_digest"]
-            ),
-            "approver_principal": (
-                "reviewer@store.example"
-            ),
+            "evidence_manifest_digest": (request["evidence_manifest_digest"]),
+            "presentation_digest": (request["presentation_digest"]),
+            "approval_requirement_digest": (request["approval_requirement_digest"]),
+            "approver_principal": ("reviewer@store.example"),
             "approver_key_id": "reviewer-01",
-            "approver_authority_digest": receipt_digest(
-                authority_receipt
-            ),
+            "approver_authority_digest": receipt_digest(authority_receipt),
             "decision": "APPROVE",
             "decided_at": "2026-07-30T12:01:00Z",
             "expires_at": "2026-07-30T12:05:00Z",
@@ -197,10 +178,7 @@ def test_valid_approval_is_executable(monkeypatch):
 
     assert report.ok
     assert report.evidence_state is EvidenceState.VERIFIED
-    assert (
-        report.decision_conformance
-        is DecisionConformance.CONFORMANT
-    )
+    assert report.decision_conformance is DecisionConformance.CONFORMANT
 
 
 def test_forged_signature_is_invalid(monkeypatch):
@@ -254,14 +232,8 @@ def test_changed_request_is_non_conformant(
     )
 
     assert report.evidence_state is EvidenceState.VERIFIED
-    assert (
-        report.decision_conformance
-        is DecisionConformance.NON_CONFORMANT
-    )
-    assert any(
-        "presentation_digest" in failure
-        for failure in report.failures
-    )
+    assert report.decision_conformance is DecisionConformance.NON_CONFORMANT
+    assert any("presentation_digest" in failure for failure in report.failures)
 
 
 def test_denied_artifact_is_not_executable(
@@ -280,10 +252,7 @@ def test_denied_artifact_is_not_executable(
     )
 
     assert not report.ok
-    assert any(
-        "not APPROVE" in failure
-        for failure in report.failures
-    )
+    assert any("not APPROVE" in failure for failure in report.failures)
 
 
 def test_expired_artifact_is_not_executable(
@@ -298,10 +267,7 @@ def test_expired_artifact_is_not_executable(
     )
 
     assert not report.ok
-    assert any(
-        "not valid at execution time" in failure
-        for failure in report.failures
-    )
+    assert any("not valid at execution time" in failure for failure in report.failures)
 
 
 def test_artifact_cannot_outlive_request(
@@ -320,10 +286,7 @@ def test_artifact_cannot_outlive_request(
     )
 
     assert not report.ok
-    assert any(
-        "outlives" in failure
-        for failure in report.failures
-    )
+    assert any("outlives" in failure for failure in report.failures)
 
 
 def test_missing_authority_receipt_is_absent():
@@ -354,10 +317,7 @@ def test_wrong_authority_digest_is_non_conformant(
     )
 
     assert not report.ok
-    assert any(
-        "approver_authority_digest" in failure
-        for failure in report.failures
-    )
+    assert any("approver_authority_digest" in failure for failure in report.failures)
 
 
 def test_authority_must_target_exact_request(
@@ -366,17 +326,11 @@ def test_authority_must_target_exact_request(
     context = _context()
     _trust_authority(monkeypatch)
 
-    authority_receipt = copy.deepcopy(
-        context["authority_receipt"]
-    )
-    authority_receipt["requested"]["resource"] = (
-        "approval_request:another-request"
-    )
+    authority_receipt = copy.deepcopy(context["authority_receipt"])
+    authority_receipt["requested"]["resource"] = "approval_request:another-request"
 
     artifact = copy.deepcopy(context["artifact"])
-    artifact["approver_authority_digest"] = receipt_digest(
-        authority_receipt
-    )
+    artifact["approver_authority_digest"] = receipt_digest(authority_receipt)
     artifact = _resign(context, artifact)
 
     report = _verify(
@@ -386,10 +340,7 @@ def test_authority_must_target_exact_request(
     )
 
     assert not report.ok
-    assert any(
-        "does not target" in failure
-        for failure in report.failures
-    )
+    assert any("does not target" in failure for failure in report.failures)
 
 
 def test_authority_cannot_be_established_after_decision(
@@ -398,17 +349,11 @@ def test_authority_cannot_be_established_after_decision(
     context = _context()
     _trust_authority(monkeypatch)
 
-    authority_receipt = copy.deepcopy(
-        context["authority_receipt"]
-    )
-    authority_receipt["decision_timestamp"] = (
-        "2026-07-30T12:02:00Z"
-    )
+    authority_receipt = copy.deepcopy(context["authority_receipt"])
+    authority_receipt["decision_timestamp"] = "2026-07-30T12:02:00Z"
 
     artifact = copy.deepcopy(context["artifact"])
-    artifact["approver_authority_digest"] = receipt_digest(
-        authority_receipt
-    )
+    artifact["approver_authority_digest"] = receipt_digest(authority_receipt)
     artifact = _resign(context, artifact)
 
     report = _verify(
@@ -418,11 +363,7 @@ def test_authority_cannot_be_established_after_decision(
     )
 
     assert not report.ok
-    assert any(
-        "established after" in failure
-        for failure in report.failures
-    )
-
+    assert any("established after" in failure for failure in report.failures)
 
 
 def _real_authority_context():
@@ -431,9 +372,7 @@ def _real_authority_context():
     runtime_key = SigningKey.generate()
 
     reviewer_entry = next(
-        item
-        for item in context["bundle"]["keys"]
-        if item["key_id"] == "reviewer-01"
+        item for item in context["bundle"]["keys"] if item["key_id"] == "reviewer-01"
     )
     reviewer_entry["usages"] = [
         "subject",
@@ -454,13 +393,9 @@ def _real_authority_context():
             },
             {
                 "key_id": "pv-runtime-01",
-                "principal": (
-                    "privatevault-runtime@store.example"
-                ),
+                "principal": ("privatevault-runtime@store.example"),
                 "algorithm": "ed25519",
-                "public_key": encode_public_key(
-                    runtime_key
-                ),
+                "public_key": encode_public_key(runtime_key),
                 "usages": ["receipt_signer"],
             },
         ]
@@ -477,9 +412,7 @@ def _real_authority_context():
             "organisation_id": "store.example",
             "issuer_principal": "owner@store.example",
             "issuer_key_id": "owner-root-2026",
-            "subject_principal": (
-                "reviewer@store.example"
-            ),
+            "subject_principal": ("reviewer@store.example"),
             "subject_key_id": "reviewer-01",
             "parent_grant_digest": None,
             "capabilities": [
@@ -506,21 +439,14 @@ def _real_authority_context():
             "organisation_id": "store.example",
             "previous_receipt_hash": None,
             "request_id": request["approval_request_id"],
-            "decision_timestamp": (
-                "2026-07-30T12:00:30Z"
-            ),
+            "decision_timestamp": ("2026-07-30T12:00:30Z"),
             "decision_input_digest": request_digest,
             "grant_chain": [grant],
             "requested": {
-                "subject_principal": (
-                    "reviewer@store.example"
-                ),
+                "subject_principal": ("reviewer@store.example"),
                 "subject_key_id": "reviewer-01",
                 "action": "approval.decide",
-                "resource": (
-                    "approval_request:"
-                    + request["approval_request_id"]
-                ),
+                "resource": ("approval_request:" + request["approval_request_id"]),
                 "facts": {},
             },
             "authority_result": {
@@ -541,9 +467,7 @@ def _real_authority_context():
     )
 
     artifact = copy.deepcopy(context["artifact"])
-    artifact["approver_authority_digest"] = receipt_digest(
-        authority_receipt
-    )
+    artifact["approver_authority_digest"] = receipt_digest(authority_receipt)
     artifact = _resign(context, artifact)
 
     context["authority_receipt"] = authority_receipt
@@ -558,20 +482,13 @@ def test_real_authority_receipt_composes():
 
     assert report.ok
     assert report.evidence_state is EvidenceState.VERIFIED
-    assert (
-        report.decision_conformance
-        is DecisionConformance.CONFORMANT
-    )
+    assert report.decision_conformance is DecisionConformance.CONFORMANT
 
 
 def test_tampered_real_authority_receipt_is_invalid():
     context = _real_authority_context()
-    authority_receipt = copy.deepcopy(
-        context["authority_receipt"]
-    )
-    authority_receipt["requested"]["resource"] = (
-        "approval_request:tampered"
-    )
+    authority_receipt = copy.deepcopy(context["authority_receipt"])
+    authority_receipt["requested"]["resource"] = "approval_request:tampered"
 
     report = _verify(
         context,
@@ -580,6 +497,4 @@ def test_tampered_real_authority_receipt_is_invalid():
 
     assert report.evidence_state is EvidenceState.INVALID
     assert report.reason_code is not None
-    assert report.reason_code.startswith(
-        "APPROVER_AUTHORITY_"
-    )
+    assert report.reason_code.startswith("APPROVER_AUTHORITY_")

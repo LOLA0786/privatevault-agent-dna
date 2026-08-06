@@ -2,7 +2,6 @@
 transactional, restart-safe, and store-authoritative."""
 
 import hashlib
-import json
 import sqlite3
 import time
 
@@ -18,15 +17,18 @@ SEED = hashlib.sha256(b"txn-persistence-seed").hexdigest()
 
 
 def _act(agent="txn-agent", cap="crm.read_contact"):
-    return AgentAction(agent_id=agent, capability=cap,
-                       timestamp=time.time())
+    return AgentAction(agent_id=agent, capability=cap, timestamp=time.time())
 
 
 def _res(action, decision=Decision.ALLOW):
     return DecisionResult(
-        decision=decision, triggered_by="baseline", reason="test",
-        capability=action.capability, agent_id=action.agent_id,
-        drift_score=0.0, severity=list(Severity)[0],
+        decision=decision,
+        triggered_by="baseline",
+        reason="test",
+        capability=action.capability,
+        agent_id=action.agent_id,
+        drift_score=0.0,
+        severity=list(Severity)[0],
     )
 
 
@@ -34,9 +36,9 @@ def test_envelope_persists_with_record_and_survives_restart(tmp_path):
     db = tmp_path / "pv.db"
     signer = ReceiptSigner(seed_hex=SEED)
 
-    rec = DecisionRecorder(
-        store=SQLiteDecisionStore(db), signer=signer
-    ).record(_act(), _res(_act()))
+    rec = DecisionRecorder(store=SQLiteDecisionStore(db), signer=signer).record(
+        _act(), _res(_act())
+    )
     h = rec.record_hash
 
     # fresh process: store + recorder rebuilt from disk
@@ -57,7 +59,7 @@ def test_record_and_envelope_are_one_transaction(tmp_path):
 
     class PoisonEnvelope:
         def to_dict(self):
-            return {"signed_hash": {1, 2}}   # sets are not JSON
+            return {"signed_hash": {1, 2}}  # sets are not JSON
 
     original = signer.sign_record
     signer.sign_record = lambda r: PoisonEnvelope()
@@ -117,9 +119,7 @@ def test_multi_writer_outcome_resolves_via_store(tmp_path):
     multi-writer mode deliberately never populates -- outcomes crashed
     exactly when multi-writer was on."""
     db = tmp_path / "pv.db"
-    recorder = DecisionRecorder(
-        store=SQLiteDecisionStore(db), multi_writer_safe=True
-    )
+    recorder = DecisionRecorder(store=SQLiteDecisionStore(db), multi_writer_safe=True)
     rec = recorder.record(_act(), _res(_act()))
     event = recorder.report_outcome(rec.decision_id, "ok")
     assert event.decision_ref == rec.decision_id
@@ -148,13 +148,13 @@ def test_append_atomic_raises_on_duplicate_id_not_false(tmp_path):
     db = tmp_path / "pv.db"
     store = SQLiteDecisionStore(db)
     a = _act()
-    r1 = build_record(a, _res(a), parent_decision=None,
-                      prev_hash="0" * 64)
+    r1 = build_record(a, _res(a), parent_decision=None, prev_hash="0" * 64)
     assert store.append_atomic(r1)
 
-    dup = build_record(a, _res(a), parent_decision=r1.decision_id,
-                       prev_hash=r1.record_hash)
-    dup.decision_id = r1.decision_id          # forge duplicate id
+    dup = build_record(
+        a, _res(a), parent_decision=r1.decision_id, prev_hash=r1.record_hash
+    )
+    dup.decision_id = r1.decision_id  # forge duplicate id
     dup.seal()
     with pytest.raises(ValueError, match="duplicate record id"):
         store.append_atomic(dup)

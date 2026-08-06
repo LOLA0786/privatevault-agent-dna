@@ -1,4 +1,5 @@
 """Tests for Cross-Agent Behavioral Invariants (Phase 1)."""
+
 from __future__ import annotations
 
 import pytest
@@ -16,23 +17,31 @@ from agent_dna.multi_agent import (
 )
 
 ROLE_OF = {
-    "planner": "planning", "risk": "risk", "finance": "finance",
-    "approval": "approval", "payment": "payment",
+    "planner": "planning",
+    "risk": "risk",
+    "finance": "finance",
+    "approval": "approval",
+    "payment": "payment",
 }
 CHAIN = ["planner", "risk", "finance", "approval", "payment"]
 
 
 def ev(exec_id, src, dst, t):
     return InteractionEvent(
-        execution_id=exec_id, source=src, target=dst, timestamp=t,
+        execution_id=exec_id,
+        source=src,
+        target=dst,
+        timestamp=t,
         source_role=ROLE_OF.get(src, "unknown"),
         target_role=ROLE_OF.get(dst, "unknown"),
     )
 
 
 def good(exec_id):
-    return [ev(exec_id, s, d, i + 1.0)
-            for i, (s, d) in enumerate(zip(CHAIN, CHAIN[1:]))]
+    return [
+        ev(exec_id, s, d, i + 1.0)
+        for i, (s, d) in enumerate(zip(CHAIN, CHAIN[1:], strict=False))
+    ]
 
 
 @pytest.fixture
@@ -90,7 +99,7 @@ def test_topology_flags_novel_edge(graphs):
     bad = InteractionGraph("b").add_event(ev("b", "planner", "payment", 1.0))
     res = inv.check(bad)
     assert not res.passed
-    assert not res.hard            # topology alone is soft
+    assert not res.hard  # topology alone is soft
     assert res.severity > 0
 
 
@@ -105,10 +114,12 @@ def test_temporal_learns_orderings(graphs):
 def test_temporal_flags_reorder(graphs):
     inv = TemporalInvariant()
     inv.learn(graphs)
-    bad = InteractionGraph("b").extend([
-        ev("b", "payment", "x", 1.0),
-        ev("b", "finance", "y", 2.0),
-    ])
+    bad = InteractionGraph("b").extend(
+        [
+            ev("b", "payment", "x", 1.0),
+            ev("b", "finance", "y", 2.0),
+        ]
+    )
     res = inv.check(bad)
     assert not res.passed
     assert res.hard
@@ -118,10 +129,16 @@ def test_temporal_flags_reorder(graphs):
 def test_authority_flags_unsanctioned_influence(graphs):
     inv = AuthorityInvariant()
     inv.learn(graphs)
-    bad = InteractionGraph("b").add_event(InteractionEvent(
-        execution_id="b", source="m", target="payment",
-        source_role="marketing", target_role="payment", timestamp=1.0,
-    ))
+    bad = InteractionGraph("b").add_event(
+        InteractionEvent(
+            execution_id="b",
+            source="m",
+            target="payment",
+            source_role="marketing",
+            target_role="payment",
+            timestamp=1.0,
+        )
+    )
     res = inv.check(bad)
     assert not res.passed
     assert res.hard
@@ -142,10 +159,16 @@ def test_validator_allows_good(corpus):
 
 def test_validator_blocks_authority_breach(corpus):
     v = RuntimeValidator.from_corpus(corpus)
-    breach = good("live") + [InteractionEvent(
-        execution_id="live", source="m", target="payment",
-        source_role="marketing", target_role="payment", timestamp=99.0,
-    )]
+    breach = good("live") + [
+        InteractionEvent(
+            execution_id="live",
+            source="m",
+            target="payment",
+            source_role="marketing",
+            target_role="payment",
+            timestamp=99.0,
+        )
+    ]
     assert v.validate_events(breach).verdict is Verdict.BLOCK
 
 

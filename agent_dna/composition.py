@@ -215,7 +215,7 @@ def build_production_runtime(
     }
 
     # ---- config-gated: customer policy ----
-    policy = None
+    policy: Any = None
     if cfg.policy_file:
         from .policy.checker import PolicyChecker
         from .policy.loader import load_policy_file

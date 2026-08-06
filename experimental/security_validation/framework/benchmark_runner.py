@@ -7,8 +7,6 @@ legacy orchestrator untouched.
 
 from __future__ import annotations
 
-from typing import List
-
 from agent_dna.security_validation.framework.attack_result import AttackResult
 from agent_dna.security_validation.framework.pipeline import Pipeline
 from agent_dna.security_validation.framework.registry import Registry
@@ -23,12 +21,11 @@ class BenchmarkRunner:
         self.registry.discover()
         return self.registry.names()
 
-    def execute(self) -> List:
+    def execute(self) -> list:
 
         reports = []
 
         for attack_cls in self.registry.classes():
-
             attack = attack_cls()
 
             result = attack.run(target_agent="demo-target-agent")

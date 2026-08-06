@@ -9,13 +9,14 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import pytest
 
 from agent_dna.adapters_policy.opa import (
-    OPAPolicyAdapter, PolicyUnavailableError,
+    OPAPolicyAdapter,
+    PolicyUnavailableError,
 )
 from agent_dna.decision import Decision, DecisionEngine
 from agent_dna.trace import AgentAction
 from tests.test_p0_audit import StubScorer
 
-DEAD = "http://127.0.0.1:9"          # discard port
+DEAD = "http://127.0.0.1:9"  # discard port
 
 
 def _adapter(**kw):
@@ -54,22 +55,28 @@ def _serve(result, delay=0.0):
 
 # ---- bundle fail-closed (the surviving fail-open branch) --------------
 
+
 def test_bundle_silence_cannot_authorize(tmp_path):
     """A capability in NEITHER list used to return fired=False, which
     the engine skips -> an OPA outage silently became ALLOW."""
     b = tmp_path / "bundle.json"
-    b.write_text(json.dumps({"denied_capabilities": ["storage.bulk_export"],
-                             "allowed_capabilities": []}))
+    b.write_text(
+        json.dumps(
+            {"denied_capabilities": ["storage.bulk_export"], "allowed_capabilities": []}
+        )
+    )
     with pytest.raises(PolicyUnavailableError, match="silence"):
         _adapter(bundle_path=str(b)).check(
-            agent_id="a", capability="payments.initiate_wire")
+            agent_id="a", capability="payments.initiate_wire"
+        )
 
 
 def test_bundle_denial_is_authoritative(tmp_path):
     b = tmp_path / "bundle.json"
     b.write_text(json.dumps({"denied_capabilities": ["storage.bulk_export"]}))
     r = _adapter(bundle_path=str(b)).check(
-        agent_id="a", capability="storage.bulk_export")
+        agent_id="a", capability="storage.bulk_export"
+    )
     assert r.fired and r.outcome == "block" and r.degraded
     assert r.matched_rule_id == "bundle:denied:storage.bulk_export"
 
@@ -77,24 +84,25 @@ def test_bundle_denial_is_authoritative(tmp_path):
 def test_bundle_allowlist_clears_explicitly(tmp_path):
     b = tmp_path / "bundle.json"
     b.write_text(json.dumps({"allowed_capabilities": ["crm.read_contact"]}))
-    r = _adapter(bundle_path=str(b)).check(
-        agent_id="a", capability="crm.read_contact")
+    r = _adapter(bundle_path=str(b)).check(agent_id="a", capability="crm.read_contact")
     assert not r.fired and r.degraded
 
 
 def test_engine_blocks_when_bundle_has_no_opinion(tmp_path):
     b = tmp_path / "bundle.json"
     b.write_text(json.dumps({"denied_capabilities": []}))
-    engine = DecisionEngine(scorer=StubScorer(),
-                            policy=_adapter(bundle_path=str(b)))
-    result = engine.decide(AgentAction(
-        agent_id="a", capability="payments.initiate_wire",
-        timestamp=time.time()))
+    engine = DecisionEngine(scorer=StubScorer(), policy=_adapter(bundle_path=str(b)))
+    result = engine.decide(
+        AgentAction(
+            agent_id="a", capability="payments.initiate_wire", timestamp=time.time()
+        )
+    )
     assert result.decision is Decision.BLOCK
     assert result.triggered_by == "engine_fault"
 
 
 # ---- bounded latency --------------------------------------------------
+
 
 def test_total_deadline_is_respected():
     """Worst case must be the deadline, not attempts x timeout."""
@@ -109,8 +117,9 @@ def test_total_deadline_is_respected():
 def test_slow_opa_fails_closed_within_budget():
     srv = _serve({"fired": False}, delay=1.5)
     try:
-        a = _adapter(endpoint=f"http://127.0.0.1:{srv.server_port}",
-                     deadline_seconds=0.4)
+        a = _adapter(
+            endpoint=f"http://127.0.0.1:{srv.server_port}", deadline_seconds=0.4
+        )
         start = time.monotonic()
         with pytest.raises(PolicyUnavailableError):
             a.check(agent_id="a", capability="x")
@@ -121,14 +130,21 @@ def test_slow_opa_fails_closed_within_budget():
 
 # ---- rule identity ----------------------------------------------------
 
+
 @pytest.mark.parametrize("key", ["rule_id", "policy_id", "matched_rule_id"])
 def test_rule_identity_surfaces_from_rego(key):
-    srv = _serve({"fired": True, "outcome": "block",
-                  "reason": "wire cap exceeded", key: "WIO-PAY-014"})
+    srv = _serve(
+        {
+            "fired": True,
+            "outcome": "block",
+            "reason": "wire cap exceeded",
+            key: "WIO-PAY-014",
+        }
+    )
     try:
-        r = OPAPolicyAdapter(
-            endpoint=f"http://127.0.0.1:{srv.server_port}"
-        ).check(agent_id="a", capability="payments.initiate_wire")
+        r = OPAPolicyAdapter(endpoint=f"http://127.0.0.1:{srv.server_port}").check(
+            agent_id="a", capability="payments.initiate_wire"
+        )
         assert r.fired and r.matched_rule_id == "WIO-PAY-014"
     finally:
         srv.shutdown()
@@ -137,9 +153,9 @@ def test_rule_identity_surfaces_from_rego(key):
 def test_rule_identity_absent_is_honestly_none():
     srv = _serve({"fired": True, "outcome": "block", "reason": "denied"})
     try:
-        r = OPAPolicyAdapter(
-            endpoint=f"http://127.0.0.1:{srv.server_port}"
-        ).check(agent_id="a", capability="x")
+        r = OPAPolicyAdapter(endpoint=f"http://127.0.0.1:{srv.server_port}").check(
+            agent_id="a", capability="x"
+        )
         assert r.matched_rule_id is None
     finally:
         srv.shutdown()
@@ -149,14 +165,15 @@ def test_unknown_outcome_for_fired_rule_refuses_interpretation():
     srv = _serve({"fired": True, "outcome": "maybe", "reason": "?"})
     try:
         with pytest.raises(PolicyUnavailableError, match="unknown outcome"):
-            OPAPolicyAdapter(
-                endpoint=f"http://127.0.0.1:{srv.server_port}"
-            ).check(agent_id="a", capability="x")
+            OPAPolicyAdapter(endpoint=f"http://127.0.0.1:{srv.server_port}").check(
+                agent_id="a", capability="x"
+            )
     finally:
         srv.shutdown()
 
 
 # ---- cache safety -----------------------------------------------------
+
 
 def test_cache_disabled_by_default():
     srv = _serve({"fired": False, "outcome": "allow", "reason": "ok"})
@@ -174,8 +191,9 @@ def test_denials_are_never_cached():
     """A cached denial would outlive the rule's revocation."""
     srv = _serve({"fired": True, "outcome": "block", "reason": "no"})
     try:
-        a = OPAPolicyAdapter(endpoint=f"http://127.0.0.1:{srv.server_port}",
-                             cache_ttl=60)
+        a = OPAPolicyAdapter(
+            endpoint=f"http://127.0.0.1:{srv.server_port}", cache_ttl=60
+        )
         a.check(agent_id="a", capability="x")
         a.check(agent_id="a", capability="x")
         assert a.metrics_summary()["cache_hits"] == 0
@@ -186,8 +204,9 @@ def test_denials_are_never_cached():
 def test_cache_is_bounded():
     srv = _serve({"fired": False, "outcome": "allow", "reason": "ok"})
     try:
-        a = OPAPolicyAdapter(endpoint=f"http://127.0.0.1:{srv.server_port}",
-                             cache_ttl=60)
+        a = OPAPolicyAdapter(
+            endpoint=f"http://127.0.0.1:{srv.server_port}", cache_ttl=60
+        )
         a.MAX_CACHE_ENTRIES = 5
         for i in range(20):
             a.check(agent_id=f"agent-{i}", capability="x")
@@ -197,6 +216,7 @@ def test_cache_is_bounded():
 
 
 # ---- transport config -------------------------------------------------
+
 
 def test_https_endpoint_builds_tls_context():
     a = OPAPolicyAdapter(endpoint="https://opa.internal:8181")

@@ -21,7 +21,9 @@ points at the test file that proves it.
 | Restart survival (single process) | **SHIPPED** | `tests/test_restart_survival.py`, `tests/test_api_restart.py` — chain state rebuilds from store, verified intact after kill+restart |
 | Precedence-order integrity (can't silently reorder) | **SHIPPED** | `tests/test_precedence_contract.py` — hash-pinned contract, CI-checked against the actual code path on every push |
 | Precedence orthogonality (correct winner when multiple levels fire) | **SHIPPED** | `tests/test_precedence_orthogonality.py` |
-| Adversarial scenario coverage | **SHIPPED** | `spec/adversarial/attack_corpus.py`, 11/11 passing, built for external extension |
+| Adversarial scenario coverage | **SHIPPED** | `spec/adversarial/attack_corpus.py`, exercised by `tools/run_adversarial.py`, built for external extension |
+| Cross-agent loop discovery | **SHIPPED** | Strict, bounded, model-free authority/replay/causal analysis with witness paths and deterministic report digests; `tests/test_loop_discovery.py`, `docs/LOOP-DISCOVERY.md` |
+| Offline Discovery Loop | **SHIPPED** | Proposal-only mining, additive history/adversarial replay, divergence budgets, stable security-loop probe, hash-sealed reports, and stdlib verifier; `tests/test_discovery.py`, `docs/DISCOVERY-LOOP.md` |
 | Evidence-adapter ground-truth isolation | **SHIPPED** | `tests/test_adapter_framework.py` — forbidden-key scanning, dry-run-before-live |
 
 ## Concurrency & scale

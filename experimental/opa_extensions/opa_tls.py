@@ -6,9 +6,9 @@ authentication to the OPA adapter connection.
 Compatible with docs/SECURITY.md (end-to-end encryption, key rotation).
 Does NOT modify existing adapter logic.
 """
+
 import ssl
-from urllib.request import urlopen, Request
-from typing import Optional
+from urllib.request import Request, urlopen
 
 
 class OPATLSWrapper:
@@ -16,12 +16,13 @@ class OPATLSWrapper:
     TLS wrapper for OPA REST connections.
     Supports: CA bundle, client cert (mTLS), certificate pinning.
     """
+
     def __init__(
         self,
-        ca_bundle: Optional[str] = None,
-        client_cert: Optional[str] = None,
-        client_key: Optional[str] = None,
-        pin_sha256: Optional[str] = None,
+        ca_bundle: str | None = None,
+        client_cert: str | None = None,
+        client_key: str | None = None,
+        pin_sha256: str | None = None,
     ):
         self.ca_bundle = ca_bundle
         self.client_cert = client_cert

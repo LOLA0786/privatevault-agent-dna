@@ -19,14 +19,10 @@ from pathlib import Path
 VECTORS = Path(__file__).resolve().parent.parent / "spec" / "test-vectors"
 
 PINNED = {
-    "clean.jsonl":
-        "e120ab7f07f815fba4a56f422310d8620e627475a9849cc67a1488a65277de28",
-    "deleted_record.jsonl":
-        "30e78af2989eac144e390936cf908d928894e8d43caeee05e04e16fb57f133b8",
-    "divergent.jsonl":
-        "54c7a970d49edcf08dd123b733b5808b0c7176a821d2011ee2520ec5498135b1",
-    "tampered_field.jsonl":
-        "1ef82be1d8eb0f17bec11bf82426d2c645f9f19d111b8a8a362d5da52989f310",
+    "clean.jsonl": "e120ab7f07f815fba4a56f422310d8620e627475a9849cc67a1488a65277de28",
+    "deleted_record.jsonl": "30e78af2989eac144e390936cf908d928894e8d43caeee05e04e16fb57f133b8",
+    "divergent.jsonl": "54c7a970d49edcf08dd123b733b5808b0c7176a821d2011ee2520ec5498135b1",
+    "tampered_field.jsonl": "1ef82be1d8eb0f17bec11bf82426d2c645f9f19d111b8a8a362d5da52989f310",
 }
 
 
@@ -37,10 +33,10 @@ def test_canonical_vectors_unmodified():
             f"{name} differs from the committed canonical vector "
             f"(got {actual[:12]}…). A test or tool has mutated the spec; "
             "restore with `git checkout -- spec/test-vectors/` and fix "
-            "the writer to target a temp dir.")
+            "the writer to target a temp dir."
+        )
 
 
 def test_no_stray_files_in_vector_dir():
     names = {p.name for p in VECTORS.glob("*.jsonl")}
-    assert names == set(PINNED), (
-        f"unexpected vector files: {names ^ set(PINNED)}")
+    assert names == set(PINNED), f"unexpected vector files: {names ^ set(PINNED)}"

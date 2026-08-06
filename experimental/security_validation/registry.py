@@ -6,7 +6,6 @@ import yaml
 
 
 class AttackRegistry:
-
     def __init__(self, root: Path):
         self.root = root
         self.attacks: dict = {}
@@ -14,7 +13,7 @@ class AttackRegistry:
     def load(self) -> dict:
 
         for file in self.root.glob("*.yaml"):
-            with open(file, "r", encoding="utf-8") as f:
+            with open(file, encoding="utf-8") as f:
                 data = yaml.safe_load(f)
 
             self.attacks[data["id"]] = data

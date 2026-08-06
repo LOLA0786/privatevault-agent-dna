@@ -102,9 +102,7 @@ def test_v01_carries_no_action_digest():
 
 def test_v01_with_action_digest_is_rejected():
     with pytest.raises(ValueError, match="drp/0.1 records carry no action_digest"):
-        DecisionRecord(
-            protocol_version=DRP_V01, action_digest=DIGEST, **_fields()
-        )
+        DecisionRecord(protocol_version=DRP_V01, action_digest=DIGEST, **_fields())
 
 
 def test_v02_without_action_digest_is_rejected():
@@ -116,10 +114,10 @@ def test_v02_without_action_digest_is_rejected():
 @pytest.mark.parametrize(
     "bad",
     [
-        "a" * 64,                    # unprefixed
-        "sha256:" + "A" * 64,        # uppercase hex
-        "sha256:" + "a" * 63,        # short
-        "sha256:zz",                 # not hex
+        "a" * 64,  # unprefixed
+        "sha256:" + "A" * 64,  # uppercase hex
+        "sha256:" + "a" * 63,  # short
+        "sha256:zz",  # not hex
         "",
     ],
 )
@@ -309,9 +307,9 @@ def test_load_rejects_a_record_with_no_protocol_version(tmp_path):
 @pytest.mark.parametrize(
     "mutate",
     [
-        lambda b: b.update(action_digest=DIGEST),           # v0.1 + digest
-        lambda b: b.update(protocol_version=DRP_V02),       # v0.2, no digest
-        lambda b: b.update(protocol_version="drp/9.9"),     # unknown
+        lambda b: b.update(action_digest=DIGEST),  # v0.1 + digest
+        lambda b: b.update(protocol_version=DRP_V02),  # v0.2, no digest
+        lambda b: b.update(protocol_version="drp/9.9"),  # unknown
     ],
     ids=["v01_with_digest", "v02_without_digest", "unknown_version"],
 )

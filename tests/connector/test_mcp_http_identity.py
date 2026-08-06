@@ -39,7 +39,9 @@ def _serve(port, keys_path, breaker_db, suspended_agent):
 
     from agent_dna.apikeys import ApiKeyRegistry
     from agent_dna.circuit_breaker import (
-        BreakerConfig, CircuitBreaker, GuardedEngine,
+        BreakerConfig,
+        CircuitBreaker,
+        GuardedEngine,
     )
     from agent_dna.connector import ConnectorMiddleware
     from agent_dna.connector.adapters import guard_fastmcp
@@ -48,12 +50,14 @@ def _serve(port, keys_path, breaker_db, suspended_agent):
 
     breaker = CircuitBreaker(
         breaker_db,
-        BreakerConfig(max_decisions=None, window_seconds=60.0,
-                      max_cumulative_amount=None,
-                      max_consecutive_refusals=None),
+        BreakerConfig(
+            max_decisions=None,
+            window_seconds=60.0,
+            max_cumulative_amount=None,
+            max_consecutive_refusals=None,
+        ),
     )
-    breaker._trip(suspended_agent, "volume_trip: pre-tripped for test",
-                  time.time())
+    breaker._trip(suspended_agent, "volume_trip: pre-tripped for test", time.time())
     middleware = ConnectorMiddleware(
         engine=GuardedEngine(_engine(), breaker),
         recorder=DecisionRecorder(),
@@ -65,7 +69,7 @@ def _serve(port, keys_path, breaker_db, suspended_agent):
     def read_contact(contact_id: str) -> str:
         return f"contact {contact_id}"
 
-    guard_fastmcp(server, middleware)      # no static key: header-only
+    guard_fastmcp(server, middleware)  # no static key: header-only
     server.run(transport="streamable-http")
 
 
@@ -75,10 +79,14 @@ def http_stack(tmp_path_factory):
     agent_a = generate_key("http-agent-a", scope="full")
     agent_b = generate_key("http-agent-b", scope="full")
     keys_path = tmp / "keys.json"
-    keys_path.write_text(json.dumps({
-        agent_a["hash"]: {"name": "http-agent-a", "scope": "full"},
-        agent_b["hash"]: {"name": "http-agent-b", "scope": "full"},
-    }))
+    keys_path.write_text(
+        json.dumps(
+            {
+                agent_a["hash"]: {"name": "http-agent-a", "scope": "full"},
+                agent_b["hash"]: {"name": "http-agent-b", "scope": "full"},
+            }
+        )
+    )
     port = _free_port()
     proc = multiprocessing.get_context("fork").Process(
         target=_serve,
@@ -101,9 +109,7 @@ async def _call(url, key):
                 async with streamable_http_client(url, http_client=hc) as (r, w, _):
                     async with ClientSession(r, w) as s:
                         await s.initialize()
-                        return await s.call_tool(
-                            "read_contact", {"contact_id": "C-1"}
-                        )
+                        return await s.call_tool("read_contact", {"contact_id": "C-1"})
         except Exception:
             if time.time() > deadline:
                 raise

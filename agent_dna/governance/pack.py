@@ -19,6 +19,7 @@ obligation.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
@@ -91,7 +92,7 @@ class Result(StrEnum):
 _SEVERITY = [Result.BLOCK, Result.REVIEW, Result.PASS, Result.NOT_APPLICABLE]
 
 
-def most_restrictive(results: list[Result]) -> Result:
+def most_restrictive(results: Sequence[Result]) -> Result:
     for candidate in _SEVERITY:
         if candidate in results:
             return candidate
@@ -111,8 +112,11 @@ class Source:
     retrieved_at: str = ""
 
     def label(self) -> str:
-        note = "" if self.citation_status is CitationStatus.VERIFIED else \
-            f"  [citation {self.citation_status.value}]"
+        note = (
+            ""
+            if self.citation_status is CitationStatus.VERIFIED
+            else f"  [citation {self.citation_status.value}]"
+        )
         return f"{self.authority} - {self.document} ({self.status.value}){note}"
 
 
@@ -140,9 +144,9 @@ class SourceRequirement:
     a control someone approved did.
     """
 
-    requirement_id: str          # SRC-CA-OSFI-E23
+    requirement_id: str  # SRC-CA-OSFI-E23
     source: Source
-    effective_from: str = ""     # ISO date; empty means already in force
+    effective_from: str = ""  # ISO date; empty means already in force
 
     def in_force(self, on_date: str) -> bool:
         return not self.effective_from or on_date >= self.effective_from
@@ -150,13 +154,13 @@ class SourceRequirement:
 
 @dataclass(frozen=True)
 class Control:
-    control_id: str              # ORG-... : an executable control, not a law
+    control_id: str  # ORG-... : an executable control, not a law
     title: str
     source: Source
     applicability: Applicability
     mode: Mode
     lifecycle: Lifecycle = Lifecycle.DRAFT
-    mapped_requirements: tuple[str, ...] = ()   # SRC- ids this derives from
+    mapped_requirements: tuple[str, ...] = ()  # SRC- ids this derives from
     required_facts: tuple[str, ...] = ()
     assertion: str = ""
     evidence_required: tuple[str, ...] = ()
@@ -285,13 +289,15 @@ class Pack:
         self, entity_type: str, action_class: str, risk_tier: str
     ) -> list[Control]:
         return [
-            c for c in self.controls
+            c
+            for c in self.controls
             if c.applicability.covers(entity_type, action_class, risk_tier)
         ]
 
     def unverified_citations(self) -> list[Control]:
         return [
-            c for c in self.controls
+            c
+            for c in self.controls
             if c.source.citation_status is not CitationStatus.VERIFIED
         ]
 
@@ -357,7 +363,9 @@ def load_pack(path: str | Path) -> Pack:
                 assertion=item.get("assertion", ""),
                 evidence_required=tuple(item.get("evidence_required", [])),
                 missing_fact_result=Result(item.get("missing_fact_result", "REVIEW")),
-                failed_control_result=Result(item.get("failed_control_result", "BLOCK")),
+                failed_control_result=Result(
+                    item.get("failed_control_result", "BLOCK")
+                ),
                 interpretation_owner=item.get("interpretation_owner", ""),
                 approved_by=item.get("approved_by", ""),
             )

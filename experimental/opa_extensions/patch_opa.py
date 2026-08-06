@@ -4,8 +4,8 @@ Patch agent_dna/adapters_policy/opa.py
 ...
 """
 
-from pathlib import Path
 import shutil
+from pathlib import Path
 
 OPA_FILE = Path("agent_dna/adapters_policy/opa.py")
 
@@ -19,19 +19,21 @@ text = OPA_FILE.read_text()
 
 if "from .opa_tls import OPATLSWrapper" not in text:
     anchor = "from urllib.error import URLError, HTTPError"
-    replacement = anchor + """
+    replacement = (
+        anchor
+        + """
 
 from .opa_tls import OPATLSWrapper
 from .opa_version import OPAVersionTracker"""
+    )
     text = text.replace(anchor, replacement, 1)
 
 marker = "self._avg_latency_ms: float = 0.0"
 
-if (
-    marker in text
-    and "self._tls = OPATLSWrapper()" not in text
-):
-    replacement = marker + """
+if marker in text and "self._tls = OPATLSWrapper()" not in text:
+    replacement = (
+        marker
+        + """
 
         # --------------------------------------------------
         # Optional enterprise extensions (non-breaking)
@@ -42,6 +44,7 @@ if (
             str(self.bundle_path) if self.bundle_path else None
         )
 """
+    )
     text = text.replace(marker, replacement, 1)
 
 OPA_FILE.write_text(text)

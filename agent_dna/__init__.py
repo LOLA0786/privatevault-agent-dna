@@ -1,7 +1,5 @@
-from .trace import AgentAction, ExecutionTrace
-from .manifold import CapabilityManifold
-from .dynamics import BehaviorDynamics
-from .scorer import DriftScorer
+"""Public Python API for PrivateVault Agent DNA."""
+
 from .advisory import (
     AdvisorySignal,
     DeterministicGate,
@@ -10,133 +8,95 @@ from .advisory import (
     Posture,
     Severity,
 )
+from .allowlist import CapabilityRegistry
+from .authorization import AuthorizationPolicy, CapabilityGrant
+from .change_management import ChangeManagementImporter
+from .confidence import ConfidenceEstimator, ConfidenceScore
+from .decision import Decision, DecisionEngine, DecisionResult
+from .diff import DiffReport, ProfileDiffEngine
+from .discovery import (
+    CandidateDisposition,
+    DiscoveryConfig,
+    DiscoveryInputError,
+    DiscoveryResult,
+    DiscoveryStatus,
+    load_adversarial_fixture,
+    run_discovery,
+)
+from .dynamics import BehaviorDynamics
+from .fingerprint import AgentFingerprint, FingerprintBuilder
+from .invariant_engine import InvariantEngine, InvariantViolation
+from .invariants import BehavioralInvariant, InvariantLearner
+from .manifold import CapabilityManifold
+from .profile_store import ProfileStore
+from .reference_policies import GrantAuthorizationPolicy, SequenceInvariantEngine
+from .runtime import RuntimeEvent, RuntimeMonitor
+from .scorer import DriftScorer
+from .security import (
+    AuthorizationState,
+    LoopDecision,
+    LoopDiscoveryReport,
+    LoopEvent,
+    LoopFinding,
+    LoopPolicy,
+    Relation,
+    discover_loops,
+)
+from .similarity import SimilarityEngine, SimilarityResult
+from .timeline import BehaviorTimeline, TimelineEntry
+from .trace import AgentAction, ExecutionTrace
 
 __all__ = [
-    "AgentAction",
-    "ExecutionTrace",
-    "CapabilityManifold",
-    "BehaviorDynamics",
-    "DriftScorer",
     "AdvisorySignal",
-    "DeterministicGate",
-    "GateDecision",
-    "PolicyDecision",
-    "Posture",
-    "Severity",
-]
-
-from .fingerprint import (
-    AgentFingerprint,
-    FingerprintBuilder,
-)
-
-__all__.extend([
+    "AgentAction",
     "AgentFingerprint",
-    "FingerprintBuilder",
-])
-
-from .similarity import (
-    SimilarityEngine,
-    SimilarityResult,
-)
-
-__all__.extend([
-    "SimilarityEngine",
-    "SimilarityResult",
-])
-
-from .profile_store import ProfileStore
-
-__all__.append("ProfileStore")
-
-from .timeline import (
-    BehaviorTimeline,
-    TimelineEntry,
-)
-
-__all__.extend([
-    "BehaviorTimeline",
-    "TimelineEntry",
-])
-
-from .diff import (
-    ProfileDiffEngine,
-    DiffReport,
-)
-
-__all__.extend([
-    "ProfileDiffEngine",
-    "DiffReport",
-])
-
-from .runtime import (
-    RuntimeEvent,
-    RuntimeMonitor,
-)
-
-__all__.extend([
-    "RuntimeEvent",
-    "RuntimeMonitor",
-])
-
-from .allowlist import CapabilityRegistry
-
-__all__.append("CapabilityRegistry")
-
-from .authorization import (
-    AuthorizationPolicy,
-    CapabilityGrant,
-)
-
-__all__.extend([
     "AuthorizationPolicy",
+    "AuthorizationState",
+    "BehaviorDynamics",
+    "BehaviorTimeline",
+    "BehavioralInvariant",
     "CapabilityGrant",
-])
-
-from .change_management import ChangeManagementImporter
-
-__all__.append(
-    "ChangeManagementImporter"
-)
-
-from .confidence import (
-    ConfidenceEstimator,
-    ConfidenceScore,
-)
-
-__all__.extend([
+    "CapabilityManifold",
+    "CapabilityRegistry",
+    "ChangeManagementImporter",
+    "CandidateDisposition",
     "ConfidenceEstimator",
     "ConfidenceScore",
-])
-
-
-from .invariants import (
-    BehavioralInvariant,
-    InvariantLearner,
-)
-
-from .invariant_engine import (
-    InvariantEngine,
-    InvariantViolation,
-)
-
-from .decision import (
-    Decision,
-    DecisionResult,
-    DecisionEngine,
-)
-
-from .reference_policies import (
-    GrantAuthorizationPolicy,
-    SequenceInvariantEngine,
-)
-
-__all__.extend([
     "Decision",
-    "DecisionResult",
     "DecisionEngine",
+    "DecisionResult",
+    "DiscoveryConfig",
+    "DiscoveryInputError",
+    "DiscoveryResult",
+    "DiscoveryStatus",
+    "DeterministicGate",
+    "DiffReport",
+    "DriftScorer",
+    "ExecutionTrace",
+    "FingerprintBuilder",
+    "GateDecision",
     "GrantAuthorizationPolicy",
+    "InvariantEngine",
+    "InvariantLearner",
+    "InvariantViolation",
+    "LoopDecision",
+    "LoopDiscoveryReport",
+    "LoopEvent",
+    "LoopFinding",
+    "LoopPolicy",
+    "PolicyDecision",
+    "Posture",
+    "ProfileDiffEngine",
+    "ProfileStore",
+    "Relation",
+    "RuntimeEvent",
+    "RuntimeMonitor",
     "SequenceInvariantEngine",
-])
-
-
+    "Severity",
+    "SimilarityEngine",
+    "SimilarityResult",
+    "TimelineEntry",
+    "discover_loops",
+    "load_adversarial_fixture",
+    "run_discovery",
+]

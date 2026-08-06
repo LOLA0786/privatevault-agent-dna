@@ -29,7 +29,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 @dataclass
@@ -38,20 +38,20 @@ class AssertionResult:
     expected: str
     actual: str
     passed: bool
-    rule_id: Optional[str] = None
+    rule_id: str | None = None
 
 
 @dataclass
 class GateResult:
-    assertions: List[AssertionResult] = field(default_factory=list)
-    counterfactual: Optional[Dict[str, Any]] = None
-    violations: List[str] = field(default_factory=list)
+    assertions: list[AssertionResult] = field(default_factory=list)
+    counterfactual: dict[str, Any] | None = None
+    violations: list[str] = field(default_factory=list)
 
     @property
     def passed(self) -> bool:
         return not self.violations
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "passed": self.passed,
             "assertions": [vars(a) for a in self.assertions],
@@ -76,7 +76,7 @@ def load_candidate(path: str):
     return PolicyChecker(parse_policy_dict(raw)), assertions
 
 
-def run_assertions(checker, assertions: List[Dict]) -> List[AssertionResult]:
+def run_assertions(checker, assertions: list[dict]) -> list[AssertionResult]:
     results = []
     for i, a in enumerate(assertions):
         name = a.get("name", f"assertion #{i + 1}")
@@ -91,19 +91,24 @@ def run_assertions(checker, assertions: List[Dict]) -> List[AssertionResult]:
             actual = pr.outcome if getattr(pr, "fired", False) else "allow"
             rule_id = getattr(pr, "matched_rule_id", None)
         except KeyError as e:
-            results.append(AssertionResult(
-                name, expected, f"malformed assertion: missing {e}", False))
+            results.append(
+                AssertionResult(
+                    name, expected, f"malformed assertion: missing {e}", False
+                )
+            )
             continue
         except Exception as e:  # noqa: BLE001
-            results.append(AssertionResult(
-                name, expected, f"{type(e).__name__}: {e}", False))
+            results.append(
+                AssertionResult(name, expected, f"{type(e).__name__}: {e}", False)
+            )
             continue
-        results.append(AssertionResult(
-            name, expected, actual, actual == expected, rule_id))
+        results.append(
+            AssertionResult(name, expected, actual, actual == expected, rule_id)
+        )
     return results
 
 
-def counterfactual_from_fixture(checker, fixture_path: str) -> Dict[str, Any]:
+def counterfactual_from_fixture(checker, fixture_path: str) -> dict[str, Any]:
     """Replay against a COMMITTED corpus -- the CI mode.
 
     Each JSONL line: {decision_id, agent_id, capability, arguments,
@@ -117,7 +122,7 @@ def counterfactual_from_fixture(checker, fixture_path: str) -> Dict[str, Any]:
             rows.append(json.loads(line))
 
     newly_blocked, newly_allowed, errors = [], [], 0
-    by_cap: Dict[str, int] = {}
+    by_cap: dict[str, int] = {}
 
     for row in rows:
         try:
@@ -148,39 +153,51 @@ def counterfactual_from_fixture(checker, fixture_path: str) -> Dict[str, Any]:
         "candidate_errors": errors,
         "unchanged": len(rows) - len(newly_blocked) - len(newly_allowed) - errors,
         "newly_blocked_by_capability": dict(
-            sorted(by_cap.items(), key=lambda kv: -kv[1])),
+            sorted(by_cap.items(), key=lambda kv: -kv[1])
+        ),
         "sample_newly_blocked": [
-            {"decision_id": r.get("decision_id"), "capability": r["capability"],
-             "agent_id": r.get("agent_id"), "live": r.get("decision"),
-             "shadow": r["shadow"], "rule": r["rule"]}
+            {
+                "decision_id": r.get("decision_id"),
+                "capability": r["capability"],
+                "agent_id": r.get("agent_id"),
+                "live": r.get("decision"),
+                "shadow": r["shadow"],
+                "rule": r["rule"],
+            }
             for r in newly_blocked[:10]
         ],
     }
 
 
-def counterfactual_from_store(checker, db_path: str, replay_db: str,
-                              retain_fields: List[str],
-                              since_ts: Optional[float] = None,
-                              limit: Optional[int] = None) -> Dict[str, Any]:
+def counterfactual_from_store(
+    checker,
+    db_path: str,
+    replay_db: str,
+    retain_fields: list[str],
+    since_ts: float | None = None,
+    limit: int | None = None,
+) -> dict[str, Any]:
     """Replay against sealed history via the opt-in replay sidecar."""
     from .policy_replay import PolicyReplay, ReplayInputStore
     from .sqlite_store import SQLiteDecisionStore
 
     store = ReplayInputStore(path=replay_db, retain_fields=retain_fields)
     report = PolicyReplay(
-        store=store, decision_store=SQLiteDecisionStore(db_path),
+        store=store,
+        decision_store=SQLiteDecisionStore(db_path),
     ).replay(checker, since_ts=since_ts, limit=limit)
     report["source"] = f"store:{db_path}"
     return report
 
 
-def evaluate_budget(result: GateResult, *, max_new_blocks: Optional[int],
-                    max_new_allows: int = 0) -> GateResult:
+def evaluate_budget(
+    result: GateResult, *, max_new_blocks: int | None, max_new_allows: int = 0
+) -> GateResult:
     for a in result.assertions:
         if not a.passed:
             result.violations.append(
-                f"assertion failed: {a.name!r} expected {a.expected}, "
-                f"got {a.actual}")
+                f"assertion failed: {a.name!r} expected {a.expected}, got {a.actual}"
+            )
 
     cf = result.counterfactual
     if cf and cf.get("status") != "unavailable":
@@ -190,14 +207,17 @@ def evaluate_budget(result: GateResult, *, max_new_blocks: Optional[int],
             result.violations.append(
                 f"would newly BLOCK {nb} previously-allowed decision(s), "
                 f"budget is {max_new_blocks} -- raise --max-new-blocks to "
-                "acknowledge, or narrow the rule")
+                "acknowledge, or narrow the rule"
+            )
         if na > max_new_allows:
             result.violations.append(
                 f"would newly ALLOW {na} previously-refused decision(s), "
                 f"budget is {max_new_allows} -- a rule that RELAXES "
-                "enforcement needs explicit acknowledgement")
+                "enforcement needs explicit acknowledgement"
+            )
         if cf.get("candidate_errors", 0) > 0:
             result.violations.append(
                 f"candidate policy raised {cf['candidate_errors']} error(s) "
-                "during replay -- a rule that crashes cannot gate anything")
+                "during replay -- a rule that crashes cannot gate anything"
+            )
     return result

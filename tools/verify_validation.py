@@ -28,8 +28,7 @@ TOL = 1e-9
 
 
 def canonical(obj) -> str:
-    return json.dumps(obj, sort_keys=True, separators=(",", ":"),
-                      ensure_ascii=True)
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
 
 
 def verify(path: str) -> int:  # noqa: C901 — flat checklist, mirrors verify_records.py
@@ -47,8 +46,9 @@ def verify(path: str) -> int:  # noqa: C901 — flat checklist, mirrors verify_r
     # 1. seal
     actual = hashlib.sha256(canonical(body).encode()).hexdigest()
     if actual != claimed:
-        failures.append(f"seal: hash mismatch (claimed {claimed[:12]}…, "
-                        f"actual {actual[:12]}…)")
+        failures.append(
+            f"seal: hash mismatch (claimed {claimed[:12]}…, actual {actual[:12]}…)"
+        )
 
     # 2. format
     if body.get("format") != "pv-validation/1":
@@ -77,8 +77,7 @@ def verify(path: str) -> int:  # noqa: C901 — flat checklist, mirrors verify_r
     if g:
         s = g["auc_within_contribution"] + g["auc_between_contribution"]
         if abs(s - g["auc"]) > TOL:
-            failures.append(
-                f"identity: within+between={s!r} != auc={g['auc']!r}")
+            failures.append(f"identity: within+between={s!r} != auc={g['auc']!r}")
         sh = g["within_pair_share"] + g["between_pair_share"]
         if abs(sh - 1.0) > TOL:
             failures.append(f"shares: pair shares sum to {sh!r}")
@@ -88,8 +87,7 @@ def verify(path: str) -> int:  # noqa: C901 — flat checklist, mirrors verify_r
     if stype not in ("ranking", "probability"):
         failures.append(f"score.type invalid: {stype!r}")
     if stype == "ranking" and body.get("calibration") is not None:
-        failures.append("honesty: calibration metrics present on a "
-                        "ranking score")
+        failures.append("honesty: calibration metrics present on a ranking score")
 
     # 8. safeguards
     min_n = (body.get("safeguards") or {}).get("min_samples")
@@ -99,12 +97,12 @@ def verify(path: str) -> int:  # noqa: C901 — flat checklist, mirrors verify_r
         for name, table in (body.get("segments") or {}).items():
             for row in table:
                 if row.get("n", 0) < min_n and (
-                    row.get("auc") is not None
-                    or row.get("prevalence") is not None
+                    row.get("auc") is not None or row.get("prevalence") is not None
                 ):
                     failures.append(
                         f"safeguards: segments.{name} key={row.get('key')!r} "
-                        f"n={row.get('n')} < min_samples yet reports metrics")
+                        f"n={row.get('n')} < min_samples yet reports metrics"
+                    )
 
     # 9. label source
     if ds.get("label_source") != "independent":
@@ -119,8 +117,10 @@ def verify(path: str) -> int:  # noqa: C901 — flat checklist, mirrors verify_r
             print(f"FAIL  {f}")
         print(f"\nVERDICT: FAIL ({len(failures)} failure(s))")
         return 1
-    print("VERDICT: PASS (seal, counts, decomposition identity, "
-          "ranking honesty, safeguards, label source)")
+    print(
+        "VERDICT: PASS (seal, counts, decomposition identity, "
+        "ranking honesty, safeguards, label source)"
+    )
     return 0
 
 

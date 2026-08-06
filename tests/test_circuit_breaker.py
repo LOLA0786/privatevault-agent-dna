@@ -10,10 +10,10 @@ TUE-05 circuit breaker — each test exercises the actual failure mode:
 import pytest
 
 from agent_dna.circuit_breaker import (
+    RESET_CAPABILITY,
     BreakerConfig,
     CircuitBreaker,
     GuardedEngine,
-    RESET_CAPABILITY,
 )
 from agent_dna.decision import Decision, DecisionResult, Severity
 
@@ -30,8 +30,7 @@ class FakeClock:
 
 
 class FakeAction:
-    def __init__(self, agent_id="agent-1", capability="payments.transfer",
-                 amount=None):
+    def __init__(self, agent_id="agent-1", capability="payments.transfer", amount=None):
         self.agent_id = agent_id
         self.capability = capability
         if amount is not None:
@@ -67,8 +66,9 @@ def test_runaway_loop_rate_trip(db):
     clock = FakeClock()
     br = CircuitBreaker(
         db,
-        BreakerConfig(max_decisions=50, window_seconds=10.0,
-                      max_consecutive_refusals=None),
+        BreakerConfig(
+            max_decisions=50, window_seconds=10.0, max_consecutive_refusals=None
+        ),
         clock=clock,
     )
     guarded = GuardedEngine(FakeEngine(), br)
@@ -76,7 +76,7 @@ def test_runaway_loop_rate_trip(db):
 
     tripped_at = None
     for i in range(100):
-        clock.tick(0.05)                      # 100 calls in 5s
+        clock.tick(0.05)  # 100 calls in 5s
         r = guarded.decide(a)
         if r.triggered_by == "circuit_breaker":
             tripped_at = i
@@ -94,18 +94,21 @@ def test_salami_drain_volume_trip(db):
     clock = FakeClock()
     br = CircuitBreaker(
         db,
-        BreakerConfig(max_decisions=None, window_seconds=60.0,
-                      max_cumulative_amount=1000.0,
-                      max_consecutive_refusals=None),
+        BreakerConfig(
+            max_decisions=None,
+            window_seconds=60.0,
+            max_cumulative_amount=1000.0,
+            max_consecutive_refusals=None,
+        ),
         clock=clock,
     )
-    engine = FakeEngine(Decision.ALLOW)       # each action individually fine
+    engine = FakeEngine(Decision.ALLOW)  # each action individually fine
     guarded = GuardedEngine(engine, br)
 
     blocked = None
     for i in range(20):
         clock.tick(1.0)
-        r = guarded.decide(FakeAction(amount=60.0))   # 60 << per-action caps
+        r = guarded.decide(FakeAction(amount=60.0))  # 60 << per-action caps
         if r.triggered_by == "circuit_breaker":
             blocked = i
             break
@@ -113,7 +116,7 @@ def test_salami_drain_volume_trip(db):
     # 17 * 60 = 1020 > 1000 -> trips on observe after 17th, blocks 18th call
     assert blocked is not None, "salami drain never tripped the breaker"
     assert "volume_trip" in guarded.decide(FakeAction()).reason
-    assert engine.calls <= 18                 # engine never saw the drained tail
+    assert engine.calls <= 18  # engine never saw the drained tail
 
 
 def test_refusal_thrash_trip(db):
@@ -139,7 +142,8 @@ def test_refusal_thrash_trip(db):
 def test_trip_survives_restart(db):
     clock = FakeClock()
     br1 = CircuitBreaker(
-        db, BreakerConfig(max_decisions=None, max_consecutive_refusals=3),
+        db,
+        BreakerConfig(max_decisions=None, max_consecutive_refusals=3),
         clock=clock,
     )
     for _ in range(3):
@@ -159,7 +163,8 @@ def test_trip_survives_restart(db):
 def test_reset_capability_gated_and_chained(db):
     clock = FakeClock()
     br = CircuitBreaker(
-        db, BreakerConfig(max_decisions=None, max_consecutive_refusals=3),
+        db,
+        BreakerConfig(max_decisions=None, max_consecutive_refusals=3),
         clock=clock,
     )
     for _ in range(3):
@@ -168,7 +173,9 @@ def test_reset_capability_gated_and_chained(db):
     assert br.is_tripped("agent-1")
 
     grants = {("ciso-1", RESET_CAPABILITY)}
-    authorize = lambda actor, cap: (actor, cap) in grants
+
+    def authorize(actor, cap):
+        return (actor, cap) in grants
 
     with pytest.raises(PermissionError):
         br.reset("agent-1", actor_id="intern-7", authorize=authorize)
@@ -177,5 +184,5 @@ def test_reset_capability_gated_and_chained(db):
     record = br.reset("agent-1", actor_id="ciso-1", authorize=authorize)
     assert not br.is_tripped("agent-1")
     assert record["actor"] == "ciso-1"
-    assert record["prev_hash"] != "0" * 64    # chained onto the trip record
+    assert record["prev_hash"] != "0" * 64  # chained onto the trip record
     assert br.verify_log(), "trip/reset chain does not verify"

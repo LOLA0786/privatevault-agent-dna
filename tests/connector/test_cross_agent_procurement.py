@@ -50,11 +50,12 @@ class ThreeWayMatchBeforePay(Invariant):
                 missing = REQUIRED_BEFORE_PAY - seen
                 if missing:
                     return InvariantResult(
-                        name=self.name, passed=False, severity=1.0,
+                        name=self.name,
+                        passed=False,
+                        severity=1.0,
                         hard=True,
                         violations=[
-                            f"payment before three-way match: "
-                            f"missing {sorted(missing)}"
+                            f"payment before three-way match: missing {sorted(missing)}"
                         ],
                     )
             seen.add(e.intent)
@@ -68,14 +69,20 @@ class RoleGatedVendorOnboard(Invariant):
         pass
 
     def check(self, graph):
-        offenders = sorted({
-            e.source for e in graph.events
-            if e.intent.startswith("vendor.onboard")
-            and e.source_role != "procurement"
-        })
+        offenders = sorted(
+            {
+                e.source
+                for e in graph.events
+                if e.intent.startswith("vendor.onboard")
+                and e.source_role != "procurement"
+            }
+        )
         if offenders:
             return InvariantResult(
-                name=self.name, passed=False, severity=1.0, hard=True,
+                name=self.name,
+                passed=False,
+                severity=1.0,
+                hard=True,
                 violations=[f"non-procurement vendor onboard: {offenders}"],
             )
         return InvariantResult(name=self.name, passed=True)
@@ -100,9 +107,13 @@ def _corpus():
     ]
     return [
         InteractionEvent(
-            execution_id="corpus-p1", source=src, target="erp",
-            source_role=AGENTS[src], target_role="erp",
-            timestamp=float(i), intent=intent,
+            execution_id="corpus-p1",
+            source=src,
+            target="erp",
+            source_role=AGENTS[src],
+            target_role="erp",
+            timestamp=float(i),
+            intent=intent,
         )
         for i, (src, intent) in enumerate(steps, start=1)
     ]
@@ -132,9 +143,14 @@ def stack(tmp_path):
             },
         ),
     )
-    breaker = CircuitBreaker(tmp_path / "b.db", BreakerConfig(
-        max_decisions=None, max_cumulative_amount=None,
-        max_consecutive_refusals=None))
+    breaker = CircuitBreaker(
+        tmp_path / "b.db",
+        BreakerConfig(
+            max_decisions=None,
+            max_cumulative_amount=None,
+            max_consecutive_refusals=None,
+        ),
+    )
     mw = ConnectorMiddleware(
         engine=GuardedEngine(_engine(), breaker),
         recorder=DecisionRecorder(),
@@ -145,10 +161,14 @@ def stack(tmp_path):
 
 
 def _call(mw, keys, agent, tool, exec_id):
-    return mw.handle(ToolCallRequest(
-        adapter="test", tool=tool, api_key=keys[agent],
-        context={"execution_id": exec_id},
-    ))
+    return mw.handle(
+        ToolCallRequest(
+            adapter="test",
+            tool=tool,
+            api_key=keys[agent],
+            context={"execution_id": exec_id},
+        )
+    )
 
 
 def test_full_three_way_match_then_pay_not_escalated(stack):
@@ -175,7 +195,7 @@ def test_pay_without_match_blocked(stack):
     assert v.triggered_by == "cross_agent_invariant"
     assert "three-way match" in v.reason
     rec = mw.recorder.graph.find_by_agent("ap-clerk-1")[-1]
-    assert rec.record_hash == v.record_hash    # escalated verdict chained
+    assert rec.record_hash == v.record_hash  # escalated verdict chained
 
 
 def test_vendor_onboard_role_gated(stack):

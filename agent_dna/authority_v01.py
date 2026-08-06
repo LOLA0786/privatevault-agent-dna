@@ -31,9 +31,7 @@ SHA256_RE = re.compile(r"sha256:[0-9a-f]{64}\Z")
 SIGNATURE_RE = re.compile(r"ed25519:[A-Za-z0-9+/]+={0,2}\Z")
 RESOURCE_RE = re.compile(r"[^*]+(?::\*)?\Z")
 ISO_CURRENCY_RE = re.compile(r"[A-Z]{3}\Z")
-RFC3339_UTC_RE = re.compile(
-    r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z\Z"
-)
+RFC3339_UTC_RE = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z\Z")
 SUPPORTED_OPERATORS = frozenset({"lte", "gte", "in", "not_in", "eq"})
 SUPPORTED_USAGES = frozenset(
     {
@@ -150,16 +148,12 @@ def _validate_json_value(value: Any, path: str = "$") -> None:  # noqa: C901
     if isinstance(value, dict):
         for key, item in value.items():
             if not isinstance(key, str):
-                raise AuthorityFormatError(
-                    f"{path}: object key is not a string"
-                )
+                raise AuthorityFormatError(f"{path}: object key is not a string")
             _validate_json_value(key, f"{path}.<key>")
             _validate_json_value(item, f"{path}.{key}")
         return
 
-    raise AuthorityFormatError(
-        f"{path}: unsupported JSON value {type(value).__name__}"
-    )
+    raise AuthorityFormatError(f"{path}: unsupported JSON value {type(value).__name__}")
 
 
 def _utf16_sort_key(value: str) -> bytes:
@@ -195,15 +189,10 @@ def canonicalize(value: Any) -> bytes:
             ordered = sorted(item, key=_utf16_sort_key)
             return (
                 "{"
-                + ",".join(
-                    f"{encode(key)}:{encode(item[key])}"
-                    for key in ordered
-                )
+                + ",".join(f"{encode(key)}:{encode(item[key])}" for key in ordered)
                 + "}"
             )
-        raise AuthorityFormatError(
-            f"unsupported value {type(item).__name__}"
-        )
+        raise AuthorityFormatError(f"unsupported value {type(item).__name__}")
 
     return encode(value).encode("utf-8")
 
@@ -212,11 +201,7 @@ def _unsigned(
     document: Mapping[str, Any],
     signature_field: str,
 ) -> dict[str, Any]:
-    return {
-        key: value
-        for key, value in document.items()
-        if key != signature_field
-    }
+    return {key: value for key, value in document.items() if key != signature_field}
 
 
 def sha256_digest(value: Any) -> str:
@@ -245,14 +230,10 @@ def _signature_bytes(value: Any) -> bytes:
             validate=True,
         )
     except (ValueError, binascii.Error) as exc:
-        raise AuthorityFormatError(
-            "malformed Ed25519 signature"
-        ) from exc
+        raise AuthorityFormatError("malformed Ed25519 signature") from exc
 
     if len(decoded) != 64:
-        raise AuthorityFormatError(
-            "Ed25519 signature must be 64 bytes"
-        )
+        raise AuthorityFormatError("Ed25519 signature must be 64 bytes")
 
     return decoded
 
@@ -264,14 +245,10 @@ def _public_key_bytes(value: Any) -> bytes:
     try:
         decoded = base64.b64decode(value, validate=True)
     except (ValueError, binascii.Error) as exc:
-        raise AuthorityFormatError(
-            "public_key must be valid base64"
-        ) from exc
+        raise AuthorityFormatError("public_key must be valid base64") from exc
 
     if len(decoded) != 32:
-        raise AuthorityFormatError(
-            "Ed25519 public key must be 32 bytes"
-        )
+        raise AuthorityFormatError("Ed25519 public key must be 32 bytes")
 
     return decoded
 
@@ -288,9 +265,7 @@ def sign_document(
     result.pop(signature_field, None)
 
     signature = signing_key.sign(canonicalize(result)).signature
-    result[signature_field] = (
-        "ed25519:" + base64.b64encode(signature).decode("ascii")
-    )
+    result[signature_field] = "ed25519:" + base64.b64encode(signature).decode("ascii")
     return result
 
 
@@ -317,9 +292,7 @@ def sign_receipt(
 
 
 def encode_public_key(signing_key: SigningKey) -> str:
-    return base64.b64encode(
-        bytes(signing_key.verify_key)
-    ).decode("ascii")
+    return base64.b64encode(bytes(signing_key.verify_key)).decode("ascii")
 
 
 def _verify_signature(
@@ -372,21 +345,15 @@ def _require_fields(
     unknown = actual - allowed
 
     if missing:
-        raise AuthorityFormatError(
-            f"{path}: missing fields {sorted(missing)}"
-        )
+        raise AuthorityFormatError(f"{path}: missing fields {sorted(missing)}")
 
     if unknown:
-        raise AuthorityFormatError(
-            f"{path}: unknown fields {sorted(unknown)}"
-        )
+        raise AuthorityFormatError(f"{path}: unknown fields {sorted(unknown)}")
 
 
 def _require_string(value: Any, path: str) -> str:
     if not isinstance(value, str) or not value:
-        raise AuthorityFormatError(
-            f"{path}: expected non-empty string"
-        )
+        raise AuthorityFormatError(f"{path}: expected non-empty string")
     return value
 
 
@@ -395,16 +362,13 @@ def _parse_timestamp(value: Any, path: str) -> datetime:
 
     if not RFC3339_UTC_RE.fullmatch(text):
         raise AuthorityFormatError(
-            f"{path}: timestamp must be RFC 3339 UTC "
-            "with second precision"
+            f"{path}: timestamp must be RFC 3339 UTC with second precision"
         )
 
     try:
         parsed = datetime.fromisoformat(text[:-1] + "+00:00")
     except ValueError as exc:
-        raise AuthorityFormatError(
-            f"{path}: malformed timestamp"
-        ) from exc
+        raise AuthorityFormatError(f"{path}: malformed timestamp") from exc
 
     return parsed
 
@@ -422,31 +386,20 @@ def _validate_money(value: Any, path: str) -> tuple[int, str]:
     currency = money["currency"]
 
     if isinstance(amount, bool) or not isinstance(amount, int):
-        raise AuthorityFormatError(
-            f"{path}.minor_units: expected integer"
-        )
+        raise AuthorityFormatError(f"{path}.minor_units: expected integer")
 
     if not -MAX_SAFE_INTEGER <= amount <= MAX_SAFE_INTEGER:
-        raise AuthorityFormatError(
-            f"{path}.minor_units: outside I-JSON range"
-        )
+        raise AuthorityFormatError(f"{path}.minor_units: outside I-JSON range")
 
-    if (
-        not isinstance(currency, str)
-        or not ISO_CURRENCY_RE.fullmatch(currency)
-    ):
-        raise AuthorityFormatError(
-            f"{path}.currency: expected ISO 4217 code"
-        )
+    if not isinstance(currency, str) or not ISO_CURRENCY_RE.fullmatch(currency):
+        raise AuthorityFormatError(f"{path}.currency: expected ISO 4217 code")
 
     return amount, currency
 
 
 def _validate_comparable(value: Any, path: str) -> None:
     if isinstance(value, bool):
-        raise AuthorityFormatError(
-            f"{path}: boolean is not an ordered value"
-        )
+        raise AuthorityFormatError(f"{path}: boolean is not an ordered value")
 
     if isinstance(value, int):
         return
@@ -455,9 +408,7 @@ def _validate_comparable(value: Any, path: str) -> None:
         _validate_money(value, path)
         return
 
-    raise AuthorityFormatError(
-        f"{path}: expected integer or money object"
-    )
+    raise AuthorityFormatError(f"{path}: expected integer or money object")
 
 
 def _validate_constraint(value: Any, path: str) -> None:
@@ -473,9 +424,7 @@ def _validate_constraint(value: Any, path: str) -> None:
 
     operator = constraint["operator"]
     if operator not in SUPPORTED_OPERATORS:
-        raise AuthorityFormatError(
-            f"{path}.operator: unsupported operator"
-        )
+        raise AuthorityFormatError(f"{path}.operator: unsupported operator")
 
     declared = constraint["value"]
 
@@ -484,19 +433,12 @@ def _validate_constraint(value: Any, path: str) -> None:
 
     elif operator in {"in", "not_in"}:
         if not isinstance(declared, list) or not declared:
-            raise AuthorityFormatError(
-                f"{path}.value: expected non-empty list"
-            )
+            raise AuthorityFormatError(f"{path}.value: expected non-empty list")
 
-        fingerprints = [
-            canonicalize(item)
-            for item in declared
-        ]
+        fingerprints = [canonicalize(item) for item in declared]
 
         if len(fingerprints) != len(set(fingerprints)):
-            raise AuthorityFormatError(
-                f"{path}.value: duplicate set member"
-            )
+            raise AuthorityFormatError(f"{path}.value: duplicate set member")
 
     else:
         _validate_json_value(declared, f"{path}.value")
@@ -522,9 +464,7 @@ def _validate_capability(value: Any, path: str) -> None:
     )
 
     if "*" in action:
-        raise AuthorityFormatError(
-            f"{path}.action: wildcards are not supported"
-        )
+        raise AuthorityFormatError(f"{path}.action: wildcards are not supported")
 
     resource = _require_string(
         capability["resource"],
@@ -533,22 +473,17 @@ def _validate_capability(value: Any, path: str) -> None:
 
     if not RESOURCE_RE.fullmatch(resource):
         raise AuthorityFormatError(
-            f"{path}.resource: only a single trailing ':*' "
-            "wildcard is permitted"
+            f"{path}.resource: only a single trailing ':*' wildcard is permitted"
         )
 
     constraints = capability["constraints"]
     obligations = capability["obligations"]
 
     if not isinstance(constraints, list):
-        raise AuthorityFormatError(
-            f"{path}.constraints: expected list"
-        )
+        raise AuthorityFormatError(f"{path}.constraints: expected list")
 
     if not isinstance(obligations, list):
-        raise AuthorityFormatError(
-            f"{path}.obligations: expected list"
-        )
+        raise AuthorityFormatError(f"{path}.obligations: expected list")
 
     fields: set[str] = set()
 
@@ -561,21 +496,14 @@ def _validate_capability(value: Any, path: str) -> None:
         field = constraint["field"]
 
         if field in fields:
-            raise AuthorityFormatError(
-                f"{path}.constraints: duplicate field {field!r}"
-            )
+            raise AuthorityFormatError(f"{path}.constraints: duplicate field {field!r}")
 
         fields.add(field)
 
-    fingerprints = [
-        canonicalize(item)
-        for item in obligations
-    ]
+    fingerprints = [canonicalize(item) for item in obligations]
 
     if len(fingerprints) != len(set(fingerprints)):
-        raise AuthorityFormatError(
-            f"{path}.obligations: duplicate obligation"
-        )
+        raise AuthorityFormatError(f"{path}.obligations: duplicate obligation")
 
 
 def validate_trust_bundle(
@@ -597,14 +525,11 @@ def validate_trust_bundle(
     )
 
     if trust["spec"] != TRUST_SPEC:
-        raise AuthorityFormatError(
-            "trust_bundle.spec: unsupported spec"
-        )
+        raise AuthorityFormatError("trust_bundle.spec: unsupported spec")
 
     if trust["canonicalization"] != CANONICALIZATION:
         raise AuthorityFormatError(
-            "trust_bundle.canonicalization: "
-            "unsupported canonicalization"
+            "trust_bundle.canonicalization: unsupported canonicalization"
         )
 
     _require_string(
@@ -614,14 +539,8 @@ def validate_trust_bundle(
 
     version = trust["bundle_version"]
 
-    if (
-        isinstance(version, bool)
-        or not isinstance(version, int)
-        or version < 1
-    ):
-        raise AuthorityFormatError(
-            "trust_bundle.bundle_version: expected integer >= 1"
-        )
+    if isinstance(version, bool) or not isinstance(version, int) or version < 1:
+        raise AuthorityFormatError("trust_bundle.bundle_version: expected integer >= 1")
 
     _parse_timestamp(
         trust["pinned_at"],
@@ -629,9 +548,7 @@ def validate_trust_bundle(
     )
 
     if not isinstance(trust["keys"], list) or not trust["keys"]:
-        raise AuthorityFormatError(
-            "trust_bundle.keys: expected non-empty list"
-        )
+        raise AuthorityFormatError("trust_bundle.keys: expected non-empty list")
 
     keys: dict[str, Mapping[str, Any]] = {}
 
@@ -662,32 +579,24 @@ def validate_trust_bundle(
         )
 
         if key["algorithm"] != "ed25519":
-            raise AuthorityFormatError(
-                f"{path}.algorithm: unsupported algorithm"
-            )
+            raise AuthorityFormatError(f"{path}.algorithm: unsupported algorithm")
 
         _public_key_bytes(key["public_key"])
 
         usages = key["usages"]
 
         if not isinstance(usages, list) or not usages:
-            raise AuthorityFormatError(
-                f"{path}.usages: expected non-empty list"
-            )
+            raise AuthorityFormatError(f"{path}.usages: expected non-empty list")
 
         if (
             any(not isinstance(usage, str) for usage in usages)
             or not set(usages) <= SUPPORTED_USAGES
             or len(usages) != len(set(usages))
         ):
-            raise AuthorityFormatError(
-                f"{path}.usages: invalid or duplicate usage"
-            )
+            raise AuthorityFormatError(f"{path}.usages: invalid or duplicate usage")
 
         if key_id in keys:
-            raise AuthorityFormatError(
-                f"trust_bundle.keys: duplicate key_id {key_id}"
-            )
+            raise AuthorityFormatError(f"trust_bundle.keys: duplicate key_id {key_id}")
 
         keys[key_id] = key
 
@@ -723,14 +632,10 @@ def validate_grant(
     )
 
     if value["spec"] != GRANT_SPEC:
-        raise AuthorityFormatError(
-            f"{path}.spec: unsupported spec"
-        )
+        raise AuthorityFormatError(f"{path}.spec: unsupported spec")
 
     if value["canonicalization"] != CANONICALIZATION:
-        raise AuthorityFormatError(
-            f"{path}.canonicalization: unsupported"
-        )
+        raise AuthorityFormatError(f"{path}.canonicalization: unsupported")
 
     for field in (
         "grant_id",
@@ -748,19 +653,14 @@ def validate_grant(
     parent = value["parent_grant_digest"]
 
     if parent is not None and (
-        not isinstance(parent, str)
-        or not SHA256_RE.fullmatch(parent)
+        not isinstance(parent, str) or not SHA256_RE.fullmatch(parent)
     ):
-        raise AuthorityFormatError(
-            f"{path}.parent_grant_digest: malformed digest"
-        )
+        raise AuthorityFormatError(f"{path}.parent_grant_digest: malformed digest")
 
     capabilities = value["capabilities"]
 
     if not isinstance(capabilities, list) or not capabilities:
-        raise AuthorityFormatError(
-            f"{path}.capabilities: expected non-empty list"
-        )
+        raise AuthorityFormatError(f"{path}.capabilities: expected non-empty list")
 
     for index, capability in enumerate(capabilities):
         _validate_capability(
@@ -769,20 +669,12 @@ def validate_grant(
         )
 
     if not isinstance(value["can_delegate"], bool):
-        raise AuthorityFormatError(
-            f"{path}.can_delegate: expected boolean"
-        )
+        raise AuthorityFormatError(f"{path}.can_delegate: expected boolean")
 
     depth = value["remaining_depth"]
 
-    if (
-        isinstance(depth, bool)
-        or not isinstance(depth, int)
-        or depth < 0
-    ):
-        raise AuthorityFormatError(
-            f"{path}.remaining_depth: expected integer >= 0"
-        )
+    if isinstance(depth, bool) or not isinstance(depth, int) or depth < 0:
+        raise AuthorityFormatError(f"{path}.remaining_depth: expected integer >= 0")
 
     valid_from = _parse_timestamp(
         value["valid_from"],
@@ -795,9 +687,7 @@ def validate_grant(
     )
 
     if valid_from >= expires_at:
-        raise AuthorityFormatError(
-            f"{path}: validity interval is empty or inverted"
-        )
+        raise AuthorityFormatError(f"{path}: validity interval is empty or inverted")
 
     _signature_bytes(value["issuer_signature"])
 
@@ -834,14 +724,10 @@ def validate_receipt(  # noqa: C901
     )
 
     if value["spec"] != RECEIPT_SPEC:
-        raise AuthorityFormatError(
-            f"{path}.spec: unsupported spec"
-        )
+        raise AuthorityFormatError(f"{path}.spec: unsupported spec")
 
     if value["canonicalization"] != CANONICALIZATION:
-        raise AuthorityFormatError(
-            f"{path}.canonicalization: unsupported"
-        )
+        raise AuthorityFormatError(f"{path}.canonicalization: unsupported")
 
     for field in (
         "receipt_id",
@@ -854,12 +740,9 @@ def validate_receipt(  # noqa: C901
     previous = value["previous_receipt_hash"]
 
     if previous is not None and (
-        not isinstance(previous, str)
-        or not SHA256_RE.fullmatch(previous)
+        not isinstance(previous, str) or not SHA256_RE.fullmatch(previous)
     ):
-        raise AuthorityFormatError(
-            f"{path}.previous_receipt_hash: malformed digest"
-        )
+        raise AuthorityFormatError(f"{path}.previous_receipt_hash: malformed digest")
 
     _parse_timestamp(
         value["decision_timestamp"],
@@ -868,20 +751,13 @@ def validate_receipt(  # noqa: C901
 
     digest = value["decision_input_digest"]
 
-    if (
-        not isinstance(digest, str)
-        or not SHA256_RE.fullmatch(digest)
-    ):
-        raise AuthorityFormatError(
-            f"{path}.decision_input_digest: malformed digest"
-        )
+    if not isinstance(digest, str) or not SHA256_RE.fullmatch(digest):
+        raise AuthorityFormatError(f"{path}.decision_input_digest: malformed digest")
 
     grant_chain = value["grant_chain"]
 
     if not isinstance(grant_chain, list) or not grant_chain:
-        raise AuthorityFormatError(
-            f"{path}.grant_chain: expected non-empty list"
-        )
+        raise AuthorityFormatError(f"{path}.grant_chain: expected non-empty list")
 
     for index, grant in enumerate(grant_chain):
         validate_grant(
@@ -918,9 +794,7 @@ def validate_receipt(  # noqa: C901
         )
 
     if not isinstance(requested["facts"], Mapping):
-        raise AuthorityFormatError(
-            f"{path}.requested.facts: expected object"
-        )
+        raise AuthorityFormatError(f"{path}.requested.facts: expected object")
 
     _validate_json_value(
         requested["facts"],
@@ -939,9 +813,7 @@ def validate_receipt(  # noqa: C901
     )
 
     if authority["verdict"] not in VERDICTS:
-        raise AuthorityFormatError(
-            f"{path}.authority_result.verdict: invalid"
-        )
+        raise AuthorityFormatError(f"{path}.authority_result.verdict: invalid")
 
     _require_string(
         authority["reason_code"],
@@ -970,9 +842,7 @@ def validate_receipt(  # noqa: C901
         )
 
         if policy["verdict"] not in VERDICTS:
-            raise AuthorityFormatError(
-                f"{path}.policy_result.verdict: invalid"
-            )
+            raise AuthorityFormatError(f"{path}.policy_result.verdict: invalid")
 
         for field in ("policy_id", "policy_version"):
             _require_string(
@@ -982,23 +852,14 @@ def validate_receipt(  # noqa: C901
 
         policy_digest = policy["policy_digest"]
 
-        if (
-            not isinstance(policy_digest, str)
-            or not SHA256_RE.fullmatch(policy_digest)
-        ):
-            raise AuthorityFormatError(
-                f"{path}.policy_result.policy_digest: malformed"
-            )
+        if not isinstance(policy_digest, str) or not SHA256_RE.fullmatch(policy_digest):
+            raise AuthorityFormatError(f"{path}.policy_result.policy_digest: malformed")
 
     if value["composition_profile"] != COMPOSITION_PROFILE:
-        raise AuthorityFormatError(
-            f"{path}.composition_profile: unsupported"
-        )
+        raise AuthorityFormatError(f"{path}.composition_profile: unsupported")
 
     if value["final_verdict"] not in VERDICTS:
-        raise AuthorityFormatError(
-            f"{path}.final_verdict: invalid"
-        )
+        raise AuthorityFormatError(f"{path}.final_verdict: invalid")
 
     _signature_bytes(value["signature"])
 
@@ -1015,11 +876,7 @@ def _compare_ordered(
         if not isinstance(right, int) or isinstance(right, bool):
             return False
 
-        return (
-            left <= right
-            if operator == "lte"
-            else left >= right
-        )
+        return left <= right if operator == "lte" else left >= right
 
     if isinstance(left, Mapping) and isinstance(right, Mapping):
         left_amount, left_currency = _validate_money(left, "left")
@@ -1038,10 +895,7 @@ def _compare_ordered(
 
 
 def _set_fingerprints(values: Sequence[Any]) -> set[bytes]:
-    return {
-        canonicalize(item)
-        for item in values
-    }
+    return {canonicalize(item) for item in values}
 
 
 def constraint_contains(
@@ -1074,16 +928,12 @@ def constraint_contains(
         )
 
     if operator == "in":
-        return _set_fingerprints(
-            cast(list[Any], child_value)
-        ) <= _set_fingerprints(
+        return _set_fingerprints(cast(list[Any], child_value)) <= _set_fingerprints(
             cast(list[Any], parent_value)
         )
 
     if operator == "not_in":
-        return _set_fingerprints(
-            cast(list[Any], child_value)
-        ) >= _set_fingerprints(
+        return _set_fingerprints(cast(list[Any], child_value)) >= _set_fingerprints(
             cast(list[Any], parent_value)
         )
 
@@ -1105,8 +955,7 @@ def _resource_contains(parent: str, child: str) -> bool:
 
 def resource_matches(pattern: str, resource: str) -> bool:
     return pattern == resource or (
-        pattern.endswith(":*")
-        and resource.startswith(pattern[:-1])
+        pattern.endswith(":*") and resource.startswith(pattern[:-1])
     )
 
 
@@ -1136,16 +985,13 @@ def contains(
         return False
 
     child_constraints = {
-        item["field"]: item
-        for item in child_capability["constraints"]
+        item["field"]: item for item in child_capability["constraints"]
     }
 
     # Every parent constraint must remain present in the child.
     # Absence never means implicit inheritance.
     for parent_constraint in parent_capability["constraints"]:
-        child_constraint = child_constraints.get(
-            parent_constraint["field"]
-        )
+        child_constraint = child_constraints.get(parent_constraint["field"])
 
         if child_constraint is None:
             return False
@@ -1156,13 +1002,9 @@ def contains(
         ):
             return False
 
-    parent_obligations = _set_fingerprints(
-        parent_capability["obligations"]
-    )
+    parent_obligations = _set_fingerprints(parent_capability["obligations"])
 
-    child_obligations = _set_fingerprints(
-        child_capability["obligations"]
-    )
+    child_obligations = _set_fingerprints(child_capability["obligations"])
 
     # A child may add obligations but may never shed a parent obligation.
     return parent_obligations <= child_obligations
@@ -1244,12 +1086,9 @@ def evaluate_authority(
     matching: list[Mapping[str, Any]] = []
 
     for capability in leaf_grant["capabilities"]:
-        if (
-            capability["action"] == requested["action"]
-            and resource_matches(
-                capability["resource"],
-                requested["resource"],
-            )
+        if capability["action"] == requested["action"] and resource_matches(
+            capability["resource"],
+            requested["resource"],
         ):
             matching.append(capability)
 
@@ -1296,27 +1135,12 @@ def compose_final(
     if profile != COMPOSITION_PROFILE:
         return "DENY"
 
-    if (
-        not authority_result
-        or authority_result.get("verdict") != "ALLOW"
-    ):
-        verdict = (
-            authority_result.get("verdict")
-            if authority_result
-            else None
-        )
+    if not authority_result or authority_result.get("verdict") != "ALLOW":
+        verdict = authority_result.get("verdict") if authority_result else None
 
-        return (
-            verdict
-            if verdict in VERDICTS
-            else "DENY"
-        )
+        return verdict if verdict in VERDICTS else "DENY"
 
-    policy_verdict = (
-        policy_result.get("verdict")
-        if policy_result
-        else None
-    )
+    policy_verdict = policy_result.get("verdict") if policy_result else None
 
     if policy_verdict in VERDICTS:
         return cast(str, policy_verdict)
@@ -1350,20 +1174,13 @@ def _resolve_key(
             f"key {key_id!r} is absent from trust bundle",
         )
 
-    if (
-        principal is not None
-        and key["principal"] != principal
-    ):
+    if principal is not None and key["principal"] != principal:
         _invalid(
             "KEY_CONTINUITY_BROKEN",
-            f"key {key_id!r} belongs to "
-            f"{key['principal']!r}, not {principal!r}",
+            f"key {key_id!r} belongs to {key['principal']!r}, not {principal!r}",
         )
 
-    if (
-        usage is not None
-        and usage not in key["usages"]
-    ):
+    if usage is not None and usage not in key["usages"]:
         _invalid(
             "KEY_USAGE_INVALID",
             f"key {key_id!r} lacks required usage {usage!r}",
@@ -1409,15 +1226,10 @@ def _verify_evidence(  # noqa: C901
             "receipt signature is invalid",
         )
 
-    if (
-        check_previous
-        and receipt["previous_receipt_hash"]
-        != expected_previous_hash
-    ):
+    if check_previous and receipt["previous_receipt_hash"] != expected_previous_hash:
         _invalid(
             "CHAIN_DISCONTINUOUS",
-            "previous_receipt_hash does not match "
-            "supplied predecessor",
+            "previous_receipt_hash does not match supplied predecessor",
         )
 
     chain = receipt["grant_chain"]
@@ -1435,8 +1247,7 @@ def _verify_evidence(  # noqa: C901
         if grant["organisation_id"] != bundle["organisation_id"]:
             _invalid(
                 "CHAIN_DISCONTINUOUS",
-                f"grant {grant['grant_id']!r} belongs "
-                "to another organisation",
+                f"grant {grant['grant_id']!r} belongs to another organisation",
             )
 
         issuer_key = _resolve_key(
@@ -1455,8 +1266,7 @@ def _verify_evidence(  # noqa: C901
         except (AuthorityFormatError, BadSignatureError):
             _invalid(
                 "GRANT_SIGNATURE_INVALID",
-                f"grant {grant['grant_id']!r} "
-                "signature is invalid",
+                f"grant {grant['grant_id']!r} signature is invalid",
             )
 
         valid_from = _parse_timestamp(
@@ -1473,8 +1283,7 @@ def _verify_evidence(  # noqa: C901
         if not valid_from <= decision_time < expires_at:
             _invalid(
                 "GRANT_NOT_VALID_AT_DECISION_TIME",
-                f"grant {grant['grant_id']!r} "
-                "is not valid at decision time",
+                f"grant {grant['grant_id']!r} is not valid at decision time",
             )
 
         if index == 0:
@@ -1487,8 +1296,7 @@ def _verify_evidence(  # noqa: C901
             if "root_authority" not in issuer_key["usages"]:
                 _invalid(
                     "KEY_USAGE_INVALID",
-                    "root grant issuer key lacks "
-                    "root_authority usage",
+                    "root grant issuer key lacks root_authority usage",
                 )
 
             # Derived only from the pinned bundle, never the receipt.
@@ -1504,26 +1312,19 @@ def _verify_evidence(  # noqa: C901
         else:
             parent = chain[index - 1]
 
-            if (
-                grant["parent_grant_digest"]
-                != grant_digest(parent)
-            ):
+            if grant["parent_grant_digest"] != grant_digest(parent):
                 _invalid(
                     "CHAIN_DISCONTINUOUS",
-                    f"grant {grant['grant_id']!r} "
-                    "does not link to its parent",
+                    f"grant {grant['grant_id']!r} does not link to its parent",
                 )
 
             if (
-                parent["subject_principal"]
-                != grant["issuer_principal"]
-                or parent["subject_key_id"]
-                != grant["issuer_key_id"]
+                parent["subject_principal"] != grant["issuer_principal"]
+                or parent["subject_key_id"] != grant["issuer_key_id"]
             ):
                 _invalid(
                     "KEY_CONTINUITY_BROKEN",
-                    f"grant {grant['grant_id']!r} issuer "
-                    "is not its parent subject",
+                    f"grant {grant['grant_id']!r} issuer is not its parent subject",
                 )
 
             # Parent authority controls whether delegation may occur.
@@ -1531,16 +1332,11 @@ def _verify_evidence(  # noqa: C901
             if not parent["can_delegate"]:
                 _invalid(
                     "DELEGATION_NOT_PERMITTED",
-                    f"grant {parent['grant_id']!r} "
-                    "cannot delegate",
+                    f"grant {parent['grant_id']!r} cannot delegate",
                 )
 
-            if (
-                parent["remaining_depth"] <= 0
-                or not (
-                    grant["remaining_depth"]
-                    < parent["remaining_depth"]
-                )
+            if parent["remaining_depth"] <= 0 or not (
+                grant["remaining_depth"] < parent["remaining_depth"]
             ):
                 _invalid(
                     "DELEGATION_DEPTH_EXCEEDED",
@@ -1567,12 +1363,7 @@ def _verify_evidence(  # noqa: C901
                 "child.expires_at",
             )
 
-            if not (
-                parent_from
-                <= child_from
-                < child_until
-                <= parent_until
-            ):
+            if not (parent_from <= child_from < child_until <= parent_until):
                 _invalid(
                     "GRANT_EXCEEDS_PARENT_AUTHORITY",
                     "child validity window exceeds parent",
@@ -1587,13 +1378,11 @@ def _verify_evidence(  # noqa: C901
                         parent_capability,
                         child_capability,
                     )
-                    for parent_capability
-                    in parent["capabilities"]
+                    for parent_capability in parent["capabilities"]
                 ):
                     _invalid(
                         "GRANT_EXCEEDS_PARENT_AUTHORITY",
-                        f"grant {grant['grant_id']!r} "
-                        "widens capability scope",
+                        f"grant {grant['grant_id']!r} widens capability scope",
                     )
 
         authority_nodes.append(
@@ -1603,20 +1392,11 @@ def _verify_evidence(  # noqa: C901
             )
         )
 
-    principals = [
-        principal
-        for principal, _ in authority_nodes
-    ]
+    principals = [principal for principal, _ in authority_nodes]
 
-    key_ids = [
-        key_id
-        for _, key_id in authority_nodes
-    ]
+    key_ids = [key_id for _, key_id in authority_nodes]
 
-    if (
-        len(principals) != len(set(principals))
-        or len(key_ids) != len(set(key_ids))
-    ):
+    if len(principals) != len(set(principals)) or len(key_ids) != len(set(key_ids)):
         _invalid(
             "CHAIN_DISCONTINUOUS",
             "principal or key cycle detected",
@@ -1626,10 +1406,8 @@ def _verify_evidence(  # noqa: C901
     requested = receipt["requested"]
 
     if (
-        leaf["subject_principal"]
-        != requested["subject_principal"]
-        or leaf["subject_key_id"]
-        != requested["subject_key_id"]
+        leaf["subject_principal"] != requested["subject_principal"]
+        or leaf["subject_key_id"] != requested["subject_key_id"]
     ):
         _invalid(
             "KEY_CONTINUITY_BROKEN",
@@ -1688,8 +1466,7 @@ def verify_receipt(
 
     if dict(receipt["authority_result"]) != expected_authority:
         failures.append(
-            "authority_result does not match independently "
-            "recomputed authority"
+            "authority_result does not match independently recomputed authority"
         )
 
     # Step 9: independently recompute the declared composition profile.
@@ -1712,11 +1489,7 @@ def verify_receipt(
             if failures
             else DecisionConformance.CONFORMANT
         ),
-        (
-            "DECISION_NON_CONFORMANT"
-            if failures
-            else None
-        ),
+        ("DECISION_NON_CONFORMANT" if failures else None),
         tuple(failures),
         accountable_principal,
     )
@@ -1737,22 +1510,15 @@ def verify_receipt_sequence(
         request_id = receipt.get("request_id")
 
         duplicate = (
-            isinstance(receipt_id, str)
-            and receipt_id in seen_receipt_ids
-        ) or (
-            isinstance(request_id, str)
-            and request_id in seen_request_ids
-        )
+            isinstance(receipt_id, str) and receipt_id in seen_receipt_ids
+        ) or (isinstance(request_id, str) and request_id in seen_request_ids)
 
         if duplicate:
             report = VerificationReport(
                 EvidenceState.INVALID,
                 DecisionConformance.NOT_ASSESSABLE,
                 "REPLAY_DUPLICATE",
-                (
-                    "duplicate receipt_id or request_id "
-                    "in supplied sequence",
-                ),
+                ("duplicate receipt_id or request_id in supplied sequence",),
             )
 
         elif evidence_chain_broken:
@@ -1760,10 +1526,7 @@ def verify_receipt_sequence(
                 EvidenceState.INVALID,
                 DecisionConformance.NOT_ASSESSABLE,
                 "CHAIN_DISCONTINUOUS",
-                (
-                    "an earlier receipt made the supplied "
-                    "sequence invalid",
-                ),
+                ("an earlier receipt made the supplied sequence invalid",),
             )
 
         else:
@@ -1771,9 +1534,7 @@ def verify_receipt_sequence(
                 receipt,
                 trust_bundle,
                 expected_previous_hash=(
-                    receipt_digest(previous)
-                    if previous is not None
-                    else None
+                    receipt_digest(previous) if previous is not None else None
                 ),
                 check_previous=previous is not None,
             )
@@ -1800,15 +1561,9 @@ def scan_authority_records(  # noqa: C901
 ) -> dict[str, Any]:
     """Scan receipts or wrapper rows carrying authority_receipt."""
 
-    counts = {
-        state.value: 0
-        for state in EvidenceState
-    }
+    counts = {state.value: 0 for state in EvidenceState}
 
-    conformance = {
-        state.value: 0
-        for state in DecisionConformance
-    }
+    conformance = {state.value: 0 for state in DecisionConformance}
 
     findings: list[dict[str, Any]] = []
     previous_receipt: Mapping[str, Any] | None = None
@@ -1826,9 +1581,7 @@ def scan_authority_records(  # noqa: C901
 
         if receipt is None:
             counts[EvidenceState.ABSENT.value] += 1
-            conformance[
-                DecisionConformance.NOT_ASSESSABLE.value
-            ] += 1
+            conformance[DecisionConformance.NOT_ASSESSABLE.value] += 1
             continue
 
         if not isinstance(receipt, Mapping):
@@ -1844,22 +1597,15 @@ def scan_authority_records(  # noqa: C901
             request_id = receipt.get("request_id")
 
             duplicate = (
-                isinstance(receipt_id, str)
-                and receipt_id in seen_receipt_ids
-            ) or (
-                isinstance(request_id, str)
-                and request_id in seen_request_ids
-            )
+                isinstance(receipt_id, str) and receipt_id in seen_receipt_ids
+            ) or (isinstance(request_id, str) and request_id in seen_request_ids)
 
             if duplicate:
                 report = VerificationReport(
                     EvidenceState.INVALID,
                     DecisionConformance.NOT_ASSESSABLE,
                     "REPLAY_DUPLICATE",
-                    (
-                        "duplicate receipt_id or request_id "
-                        "in supplied records",
-                    ),
+                    ("duplicate receipt_id or request_id in supplied records",),
                 )
 
             elif evidence_chain_broken:
@@ -1867,10 +1613,7 @@ def scan_authority_records(  # noqa: C901
                     EvidenceState.INVALID,
                     DecisionConformance.NOT_ASSESSABLE,
                     "CHAIN_DISCONTINUOUS",
-                    (
-                        "an earlier receipt made the supplied "
-                        "sequence invalid",
-                    ),
+                    ("an earlier receipt made the supplied sequence invalid",),
                 )
 
             else:
@@ -1903,19 +1646,14 @@ def scan_authority_records(  # noqa: C901
         # evidence is authentic, but it does not support the ALLOW.
         if (
             report.evidence_state is EvidenceState.VERIFIED
-            and report.decision_conformance
-            is DecisionConformance.NON_CONFORMANT
+            and report.decision_conformance is DecisionConformance.NON_CONFORMANT
             and receipt.get("final_verdict") == "ALLOW"
         ):
             findings.append(
                 {
                     "row": index,
-                    "finding": (
-                        "VERIFIED_NON_CONFORMANT_ALLOW"
-                    ),
-                    "accountable_principal": (
-                        report.accountable_principal
-                    ),
+                    "finding": ("VERIFIED_NON_CONFORMANT_ALLOW"),
+                    "accountable_principal": (report.accountable_principal),
                     "failures": list(report.failures),
                 }
             )

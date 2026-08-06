@@ -68,9 +68,7 @@ def test_valid_approval_request():
 
 def test_changed_action_parameters_are_rejected():
     request = _approval_request()
-    request["action"]["parameters"]["amount"][
-        "minor_units"
-    ] = 500000
+    request["action"]["parameters"]["amount"]["minor_units"] = 500000
 
     with pytest.raises(
         AuthorityFormatError,
@@ -116,10 +114,7 @@ def test_key_order_does_not_change_request_digest():
     request = _approval_request()
     reordered = dict(reversed(list(request.items())))
 
-    assert (
-        approval_request_digest(request)
-        == approval_request_digest(reordered)
-    )
+    assert approval_request_digest(request) == approval_request_digest(reordered)
 
 
 def test_different_evidence_changes_request_digest():
@@ -127,10 +122,7 @@ def test_different_evidence_changes_request_digest():
     changed = copy.deepcopy(original)
     changed["evidence_manifest_digest"] = ONE_DIGEST
 
-    assert (
-        approval_request_digest(original)
-        != approval_request_digest(changed)
-    )
+    assert approval_request_digest(original) != approval_request_digest(changed)
 
 
 def _unsigned_approval_artifact(request):
@@ -138,27 +130,15 @@ def _unsigned_approval_artifact(request):
         "spec": APPROVAL_ARTIFACT_SPEC,
         "canonicalization": CANONICALIZATION,
         "approval_id": "approval-001",
-        "approval_request_id": (
-            request["approval_request_id"]
-        ),
-        "approval_request_digest": (
-            approval_request_digest(request)
-        ),
+        "approval_request_id": (request["approval_request_id"]),
+        "approval_request_digest": (approval_request_digest(request)),
         "organisation_id": request["organisation_id"],
         "request_id": request["request_id"],
-        "decision_input_digest": (
-            request["decision_input_digest"]
-        ),
+        "decision_input_digest": (request["decision_input_digest"]),
         "action_digest": request["action_digest"],
-        "evidence_manifest_digest": (
-            request["evidence_manifest_digest"]
-        ),
-        "presentation_digest": (
-            request["presentation_digest"]
-        ),
-        "approval_requirement_digest": (
-            request["approval_requirement_digest"]
-        ),
+        "evidence_manifest_digest": (request["evidence_manifest_digest"]),
+        "presentation_digest": (request["presentation_digest"]),
+        "approval_requirement_digest": (request["approval_requirement_digest"]),
         "approver_principal": "reviewer@store.example",
         "approver_key_id": "reviewer-01",
         "approver_authority_digest": ONE_DIGEST,
@@ -179,9 +159,7 @@ def test_signed_approval_artifact_is_valid():
 
     assert validate_approval_artifact(artifact) == artifact
     assert artifact["signature"].startswith("ed25519:")
-    assert approval_artifact_digest(artifact).startswith(
-        "sha256:"
-    )
+    assert approval_artifact_digest(artifact).startswith("sha256:")
 
 
 def test_artifact_rejects_unknown_decision():

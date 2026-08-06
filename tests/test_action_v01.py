@@ -95,9 +95,7 @@ def test_non_canonical_parameter_values_are_rejected(value):
     """Rejected at validation, not silently coerced at digest time: a
     coerced value would digest to something no verifier reproduces."""
     with pytest.raises(AuthorityFormatError):
-        validate_execution_action(
-            dict(VALID, parameters={"amount": value})
-        )
+        validate_execution_action(dict(VALID, parameters={"amount": value}))
 
 
 @pytest.mark.parametrize(

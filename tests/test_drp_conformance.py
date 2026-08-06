@@ -31,7 +31,7 @@ def test_protocol_version_present_and_hashed():
     assert d["protocol_version"] == "drp/0.1"
     assert rec.verify()
     rec.protocol_version = "drp/9.9"
-    assert not rec.verify()          # version is inside the digest
+    assert not rec.verify()  # version is inside the digest
 
 
 def test_request_id_flows_and_is_hashed():

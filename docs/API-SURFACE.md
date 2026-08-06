@@ -1,6 +1,6 @@
 # PrivateVault — HTTP API Surface
 
-Version 0.3.0. This document describes the enforcement and audit
+Version 0.4.0. This document describes the enforcement and audit
 endpoints an external client consumes. It is the contract an operator
 console, an SDK, or an integration builds against.
 

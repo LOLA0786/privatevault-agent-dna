@@ -8,14 +8,13 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Union
 
 import yaml
 
 from .schema import PolicyDocument, parse_policy_dict
 
 
-def load_policy_file(path: Union[str, Path]) -> PolicyDocument:
+def load_policy_file(path: str | Path) -> PolicyDocument:
     path = Path(path)
     if not path.exists():
         raise FileNotFoundError(f"policy file not found: {path}")

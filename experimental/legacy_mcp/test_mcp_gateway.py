@@ -3,18 +3,21 @@ Tests the gateway logic directly (no MCP transport/stdio needed —
 transport is a thin decorator layer, sanity-checked separately)."""
 
 import pytest
+from agent_dna.mcp_gateway import MCPGateway
 
 from agent_dna.advisory import AdvisorySignal, Severity
 from agent_dna.decision import DecisionEngine
 from agent_dna.decision_recorder import DecisionRecorder
-from agent_dna.mcp_gateway import MCPGateway
 
 
 class StubScorer:
     def score(self, action, prev_capability=None):
         return AdvisorySignal(
-            agent_id=action.agent_id, capability=action.capability,
-            drift_score=0.0, severity=Severity.INFO, reasons=[],
+            agent_id=action.agent_id,
+            capability=action.capability,
+            drift_score=0.0,
+            severity=Severity.INFO,
+            reasons=[],
         )
 
 
@@ -22,6 +25,7 @@ class Invariants:
     def validate(self, capability, previous):
         class R:
             pass
+
         r = R()
         r.violated = capability == "storage.bulk_export"
         r.message = "forbidden" if r.violated else ""
@@ -86,8 +90,8 @@ def test_blocked_and_divergent_queries():
 
 def test_per_agent_baselines_do_not_cross_contaminate():
     gw = _gateway()
-    gw.decide("agent-a", "storage.bulk_export")   # BLOCK for agent-a
-    r = gw.decide("agent-b", "crm.read_contact")   # unrelated agent
+    gw.decide("agent-a", "storage.bulk_export")  # BLOCK for agent-a
+    r = gw.decide("agent-b", "crm.read_contact")  # unrelated agent
     assert r["decision"] == "allow"
 
 
@@ -97,7 +101,14 @@ def test_server_module_imports_with_mcp_installed():
     test — that would require spinning up stdio, out of scope here."""
     pytest.importorskip("mcp")
     import importlib
+
     server = importlib.import_module("agent_dna.mcp_server")
-    for name in ("pv_decide", "pv_report_outcome", "pv_verify",
-                 "pv_lineage", "pv_blocked", "pv_divergent"):
+    for name in (
+        "pv_decide",
+        "pv_report_outcome",
+        "pv_verify",
+        "pv_lineage",
+        "pv_blocked",
+        "pv_divergent",
+    ):
         assert hasattr(server, name), f"{name} not found on server module"

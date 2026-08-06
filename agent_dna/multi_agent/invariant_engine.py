@@ -10,6 +10,7 @@ Aggregation policy (deterministic, explainable):
 Soft severities combine via noisy-OR so multiple weak signals accumulate
 toward review/block without ever exceeding 1.0.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -21,7 +22,7 @@ from .interaction_graph import InteractionGraph
 @dataclass
 class EngineVerdict:
     verdict: Verdict
-    score: float                      # aggregated soft severity in [0,1]
+    score: float  # aggregated soft severity in [0,1]
     results: list[InvariantResult] = field(default_factory=list)
     reasons: list[str] = field(default_factory=list)
 
@@ -40,19 +41,22 @@ class EngineVerdict:
 
 
 class InvariantEngine:
-    def __init__(self, invariants: list[Invariant] | None = None,
-                block_threshold: float = 0.80,
-                review_threshold: float = 0.05) -> None:
+    def __init__(
+        self,
+        invariants: list[Invariant] | None = None,
+        block_threshold: float = 0.80,
+        review_threshold: float = 0.05,
+    ) -> None:
         self.invariants: list[Invariant] = invariants or []
         self.block_threshold = block_threshold
         self.review_threshold = review_threshold
         self._learned = False
 
-    def add(self, invariant: Invariant) -> "InvariantEngine":
+    def add(self, invariant: Invariant) -> InvariantEngine:
         self.invariants.append(invariant)
         return self
 
-    def learn(self, graphs: list[InteractionGraph]) -> "InvariantEngine":
+    def learn(self, graphs: list[InteractionGraph]) -> InvariantEngine:
         for inv in self.invariants:
             inv.learn(graphs)
         self._learned = True
@@ -62,7 +66,7 @@ class InvariantEngine:
     def _noisy_or(severities: list[float]) -> float:
         prod = 1.0
         for s in severities:
-            prod *= (1.0 - max(0.0, min(1.0, s)))
+            prod *= 1.0 - max(0.0, min(1.0, s))
         return 1.0 - prod
 
     def evaluate(self, graph: InteractionGraph) -> EngineVerdict:
@@ -80,8 +84,10 @@ class InvariantEngine:
                 reasons.extend(r.violations)
         elif soft_score >= self.block_threshold:
             verdict = Verdict.BLOCK
-            reasons.append(f"aggregate soft severity {soft_score:.2f} "
-                        f">= block threshold {self.block_threshold:.2f}")
+            reasons.append(
+                f"aggregate soft severity {soft_score:.2f} "
+                f">= block threshold {self.block_threshold:.2f}"
+            )
         elif soft_score >= self.review_threshold:
             verdict = Verdict.REVIEW
             for r in results:
@@ -90,8 +96,9 @@ class InvariantEngine:
         else:
             verdict = Verdict.ALLOW
 
-        return EngineVerdict(verdict=verdict, score=soft_score,
-                            results=results, reasons=reasons)
+        return EngineVerdict(
+            verdict=verdict, score=soft_score, results=results, reasons=reasons
+        )
 
     def describe(self) -> dict:
         return {

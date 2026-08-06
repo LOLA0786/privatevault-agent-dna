@@ -13,6 +13,7 @@ def _client(tmp_path, monkeypatch):
     monkeypatch.setenv("PV_API_KEYS_DB", str(tmp_path / "keys.db"))
     monkeypatch.setenv("PV_AUTH_DISABLED", "1")
     import api.server as server
+
     importlib.reload(server)
     return TestClient(server.app)
 

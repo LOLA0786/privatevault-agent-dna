@@ -273,9 +273,7 @@ def report(
         witness,
         authorization,
         w["trust_bundle"],
-        observed_action=observed_action
-        if observed_action is not None
-        else w["action"],
+        observed_action=observed_action if observed_action is not None else w["action"],
         observed_dispatch=w["dispatch"],
         wire_bytes=wire_bytes,
         peer_identity_bytes=PEER_BYTES,
@@ -303,8 +301,10 @@ def main() -> int:
     print("Agent      service-agent@retail.example")
     print("Case       CASE-40218")
     print(f"Authority  refunds.issue, standing cap {usd(GRANT_CAP_MINOR)}")
-    print(f"Wire bytes {len(WIRE_BYTES)} bytes, digest "
-          f"{sha256_bytes_digest(WIRE_BYTES)[:24]}...")
+    print(
+        f"Wire bytes {len(WIRE_BYTES)} bytes, digest "
+        f"{sha256_bytes_digest(WIRE_BYTES)[:24]}..."
+    )
     print()
 
     w = world()
@@ -313,13 +313,17 @@ def main() -> int:
 
     print("THE HONEST CHAIN")
     print(THIN)
-    print(f"  authorization  {execution_authorization_digest(w['authorization'])[:30]}...")
+    print(
+        f"  authorization  {execution_authorization_digest(w['authorization'])[:30]}..."
+    )
     print(f"  witness        {dispatch_witness_digest(witness)[:30]}...")
     print("  each record names the digest of the one before it")
     print()
 
     outcomes = {}
-    outcomes["clean"] = report("refund dispatched as authorised", w, w["authorization"], witness, closure)
+    outcomes["clean"] = report(
+        "refund dispatched as authorised", w, w["authorization"], witness, closure
+    )
 
     print()
     print("THE SAME REFUND, ONE FIELD CHANGED")
@@ -330,16 +334,24 @@ def main() -> int:
     inflated["parameters"]["amount"]["minor_units"] = 2400000  # 24,000.00
     outcomes["inflated"] = report(
         f"amount raised to {usd(2400000)} after authorisation",
-        w, w["authorization"], witness, closure,
+        w,
+        w["authorization"],
+        witness,
+        closure,
         observed_action=inflated,
     )
 
     # 2. One byte of the instruction differs from what was authorised.
-    tampered_bytes = WIRE_BYTES.replace(b'"amount_minor":240000', b'"amount_minor":240009')
+    tampered_bytes = WIRE_BYTES.replace(
+        b'"amount_minor":240000', b'"amount_minor":240009'
+    )
     tampered_witness = witness_for(w, wire_bytes=tampered_bytes)
     outcomes["wire"] = report(
         "one byte of the refund instruction changed in flight",
-        w, w["authorization"], tampered_witness, closure,
+        w,
+        w["authorization"],
+        tampered_witness,
+        closure,
         wire_bytes=tampered_bytes,
     )
 

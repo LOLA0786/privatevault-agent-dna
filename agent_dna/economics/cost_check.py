@@ -18,15 +18,15 @@ violation — ceiling is REQUIRE_APPROVAL, same as authorization/drift.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 @dataclass
 class CostCheckResult:
     flagged: bool
-    reasons: List[str] = field(default_factory=list)
-    checks_run: List[str] = field(default_factory=list)
-    checks_skipped: List[str] = field(default_factory=list)
+    reasons: list[str] = field(default_factory=list)
+    checks_run: list[str] = field(default_factory=list)
+    checks_skipped: list[str] = field(default_factory=list)
 
 
 class CostAnomalyChecker:
@@ -38,12 +38,12 @@ class CostAnomalyChecker:
 
     def check(
         self,
-        evidence: Optional[Dict[str, Any]] = None,
+        evidence: dict[str, Any] | None = None,
     ) -> CostCheckResult:
         evidence = (evidence or {}).get("economics")
-        run: List[str] = []
-        skipped: List[str] = []
-        reasons: List[str] = []
+        run: list[str] = []
+        skipped: list[str] = []
+        reasons: list[str] = []
 
         if evidence is None:
             return CostCheckResult(

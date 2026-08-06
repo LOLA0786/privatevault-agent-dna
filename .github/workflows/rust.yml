@@ -4,20 +4,32 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: rust-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   rust-conformance:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: "1.97.1"
-          components: clippy
+          components: clippy,rustfmt
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Rust format gate
+        working-directory: rust
+        run: cargo fmt --check
 
       # Panic family denied at crate level; warnings are errors here.
       - name: Clippy (zero warnings)
@@ -58,6 +70,7 @@ jobs:
 
   rust-supply-chain:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable

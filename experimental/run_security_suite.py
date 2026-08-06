@@ -7,9 +7,7 @@ from agent_dna.security_validation.orchestrator import AttackOrchestrator
 def main():
     orchestrator = AttackOrchestrator()
 
-    summary = orchestrator.run_all(
-        target_agent="demo-agent"
-    )
+    summary = orchestrator.run_all(target_agent="demo-agent")
 
     reports_dir = Path("agent_dna/security_validation/reports")
     reports_dir.mkdir(parents=True, exist_ok=True)

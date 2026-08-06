@@ -1,4 +1,4 @@
- # PrivateVault Agent DNA
+# PrivateVault Agent DNA
 
 Decision security runtime for autonomous AI agents. Sits between an
 agent and its executors, evaluates every action against a fixed
@@ -23,7 +23,7 @@ agent ──► POST /v1/decide ──► precedence engine ──► 200 / 202 
 
 ```bash
 pip install -e ".[dev]"
-python -m pytest -q                    # 900+ tests
+python -m pytest -q                    # 986+ tests
 ```
 
 Three properties worth checking before reading further:
@@ -42,12 +42,23 @@ python tools/verify_records.py <audit export .jsonl>
 python tools/verify_records.py <audit export .jsonl> \
   --envelopes <envelope export .jsonl> \
   --trusted-key <trusted public key>
+
+# deterministic cross-agent security loop discovery
+pv loop discover --input examples/loop_discovery/clean.jsonl \
+  --json /tmp/loop-report.json
+
+# offline policy discovery: mine, replay, evaluate, propose (never apply)
+pv discover run --history-db decisions.db \
+  --replay-db decisions.db.replay.db --replay-fields amount \
+  --adversarial-fixture examples/discovery_loop/adversarial.jsonl \
+  --json /tmp/discovery-report.json --out-dir /tmp/discovery-proposals
+python tools/verify_discovery.py /tmp/discovery-report.json
 ```
 
 As a service:
 
 ```bash
-docker compose up --wait
+PV_ALLOW_NO_AUTH=1 docker compose up --wait  # local development only
 curl -i -X POST localhost:8000/v1/decide \
   -H 'Content-Type: application/json' \
   -d '{"agent_id":"a1","capability":"crm.read_contact","timestamp":0}'
@@ -55,6 +66,42 @@ curl -i -X POST localhost:8000/v1/decide \
 
 The HTTP status code is the verdict: `200` allow, `202`
 require_approval, `403` block.
+
+Production startup is fail-closed: configure `PV_API_KEYS_FILE`, or the service
+refuses to start. `PV_ALLOW_NO_AUTH=1` is an explicit local-development escape
+hatch and must never be used on a networked deployment.
+
+## PrivateVault Discovery Loop
+
+`agent_dna.discovery` closes a low-compute, offline experimental cycle over
+sealed decision evidence: mine candidate controls, run additive shadow replay
+against history and a committed adversarial corpus, evaluate deterministic
+gates and structural probes, then emit ranked, evidence-linked PR proposals.
+Nothing is applied automatically. The report has a strict wire contract and an
+independent standard-library verifier. Learned validation remains advisory and
+the online L0-L7 path is unchanged. See `docs/DISCOVERY-LOOP.md` and
+`spec/discovery-loop-v1/`.
+
+## Agent security loop detector
+
+`agent_dna.security.loop_discovery` performs bounded, deterministic graph
+analysis before consequential multi-agent dispatch. It distinguishes circular
+authority from ordinary request/response traffic:
+
+| Evidence | Outcome |
+|---|---|
+| Delegation or approval cycle | `BLOCK` |
+| Reused single-use authorization | `BLOCK` |
+| Causal parent cycle, cross-trace parent, or excess depth | `BLOCK` |
+| Second identical action in one lineage | `REVIEW` |
+| Third identical action in one lineage | `BLOCK` |
+| Bidirectional invocation without stronger evidence | `REVIEW` |
+
+The analyzer uses strict schemas, rejects unknown fields, emits stable witness
+paths and report digests, and makes no model or network calls. A digest is an
+integrity identifier, not proof of dispatch; production adapters must retain the
+input events and report beside signed authorization, witness, and closure
+evidence. See `docs/LOOP-DISCOVERY.md` and `spec/loop-discovery-v1/`.
 
 ## Decision model
 
@@ -186,14 +233,16 @@ tools/verify_records.py independent chain and signature verifier
 | `agent_dna/economics/` | L5 cost-ratio anomaly and ROI floor |
 | `agent_dna/validation/` | pv-validation/1 metrics, reports, runtime guard |
 | `agent_dna/circuit_breaker.py` | Spending and frequency breakers, group suspension |
-| `agent_dna/multi_agent/` | Cross-agent invariants. Tested library, not yet in the serving path |
+| `agent_dna/multi_agent/` | Cross-agent topology, temporal, authority, trust, and consensus invariants |
+| `agent_dna/security/loop_discovery.py` | Deterministic authority/replay/causal-loop analyzer |
+| `agent_dna/discovery.py` | Offline mine/replay/evaluate/rank policy discovery runner |
 | `agent_dna/decision_record.py`, `decision_recorder.py`, `decision_graph.py` | Sealed records, chaining, lineage |
 | `agent_dna/decision_store.py`, `sqlite_store.py` | Append-only persistence |
 | `agent_dna/signer.py`, `apikeys.py` | Ed25519 receipts, hashed API keys |
 | `api/server.py` | FastAPI decision service |
 | `agent_dna/mcp_server.py`, `connector/` | MCP tools and transport enforcement |
 | `spec/` | Wire format: schemas, canonical vectors, precedence contract |
-| `tools/` | `verify_records.py`, `verify_validation.py`, `benchmark.py`, `run_adversarial.py` |
+| `tools/` | Independent verifiers, benchmarks, and adversarial runners |
 | `experimental/` | Unwired sketches. Nothing here carries claims |
 
 ## Limitations
@@ -210,8 +259,13 @@ production. The short version:
   formal verification.
 - MCP transport enforcement has not been load-tested under high
   concurrent client counts.
-- `agent_dna/multi_agent/` is a tested library, not yet wired into
-  the serving path.
+- Cross-agent invariants are wired only when a connector supplies a declared
+  execution correlation window. The runtime does not infer missing correlation.
+- Loop discovery is a deterministic analyzer and CLI; each production adapter
+  remains responsible for invoking it at the authority boundary and retaining
+  its report with dispatch evidence.
+- The offline Discovery Loop proposes policy changes but cannot approve, merge,
+  or deploy them. Corpus Wilson intervals are not production accuracy claims.
 
 ## Security
 

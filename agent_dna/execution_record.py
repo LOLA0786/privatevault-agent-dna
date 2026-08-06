@@ -26,7 +26,7 @@ import json
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Dict, List
+from typing import Any
 
 VALID_STATUS = ("ok", "error", "refused")
 
@@ -40,15 +40,15 @@ class ExecutionEvent:
     protocol_version: str = field(default=PROTOCOL_VERSION, init=False)
     event_id: str = ""
     agent_id: str = ""
-    decision_ref: str = ""              # decision_id this reports on
-    status: str = ""                    # "ok" | "error" | "refused"
+    decision_ref: str = ""  # decision_id this reports on
+    status: str = ""  # "ok" | "error" | "refused"
     detail: str = ""
-    edges: List[Dict[str, str]] = field(default_factory=list)
+    edges: list[dict[str, str]] = field(default_factory=list)
     timestamp: float = field(default_factory=time.time)
-    prev_hash: str = ""                 # record_hash of the decision (anchor)
+    prev_hash: str = ""  # record_hash of the decision (anchor)
     record_hash: str = ""
 
-    def payload(self) -> Dict[str, Any]:
+    def payload(self) -> dict[str, Any]:
         return {
             "kind": self.kind,
             "protocol_version": self.protocol_version,
@@ -68,17 +68,14 @@ class ExecutionEvent:
         )
         return hashlib.sha256(canonical.encode()).hexdigest()
 
-    def seal(self) -> "ExecutionEvent":
+    def seal(self) -> ExecutionEvent:
         self.record_hash = self.compute_hash()
         return self
 
     def verify(self) -> bool:
-        return (
-            self.record_hash != ""
-            and self.record_hash == self.compute_hash()
-        )
+        return self.record_hash != "" and self.record_hash == self.compute_hash()
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         d = self.payload()
         d["record_hash"] = self.record_hash
         return d

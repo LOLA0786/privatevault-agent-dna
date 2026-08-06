@@ -49,8 +49,8 @@ def test_signature_covers_history_via_hash():
     rec = _record()
     env = signer.sign_record(rec)
 
-    rec.prev_hash = "f" * 64          # re-chain attempt
-    rec.record_hash = rec.compute_hash()   # attacker re-seals
+    rec.prev_hash = "f" * 64  # re-chain attempt
+    rec.record_hash = rec.compute_hash()  # attacker re-seals
     assert not verify_envelope(env.to_dict(), rec.record_hash)
 
 

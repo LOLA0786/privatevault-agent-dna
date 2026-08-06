@@ -4,6 +4,7 @@
 The private key written here mints execution authority. It must never leave
 the control plane and must never be readable by an agent process.
 """
+
 from __future__ import annotations
 
 import json

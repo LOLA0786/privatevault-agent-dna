@@ -7,16 +7,15 @@ All adversarial agents inherit from this class.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Dict, List
+from datetime import UTC
 
 
 class BaseAdversary(ABC):
-
     attack_id: str = "UNKNOWN"
 
     attack_name: str = "Unnamed Attack"
 
-    framework_mappings: Dict = {}
+    framework_mappings: dict = {}
 
     severity: str = "Medium"
 
@@ -26,17 +25,17 @@ class BaseAdversary(ABC):
     attacker_agent: str = "red-team-agent"
 
     # Multi-agent attacks may override this instead
-    attacker_agents: List[str] = []
+    attacker_agents: list[str] = []
 
     @abstractmethod
-    def run(self, target_agent: str) -> Dict:
+    def run(self, target_agent: str) -> dict:
         """
         Execute attack against target.
         Must return structured result.
         """
         raise NotImplementedError
 
-    def metadata(self) -> Dict:
+    def metadata(self) -> dict:
 
         return {
             "attack_id": self.attack_id,
@@ -45,7 +44,7 @@ class BaseAdversary(ABC):
             "framework_mappings": self.framework_mappings,
         }
 
-    def required_evidence(self) -> List[str]:
+    def required_evidence(self) -> list[str]:
 
         return [
             "decision_receipt",
@@ -53,29 +52,26 @@ class BaseAdversary(ABC):
             "runtime_trace",
         ]
 
-    def attack_context(self, target_agent: str) -> Dict:
+    def attack_context(self, target_agent: str) -> dict:
         """
         Standard metadata attached to every benchmark result.
         """
-        from datetime import datetime, timezone
         import uuid
+        from datetime import datetime
 
         return {
             "schema_version": self.schema_version,
             "benchmark_run_id": str(uuid.uuid4()),
-            "attack_timestamp": datetime.now(timezone.utc).isoformat(),
-
+            "attack_timestamp": datetime.now(UTC).isoformat(),
             "attack": {
                 "id": self.attack_id,
                 "name": self.attack_name,
                 "severity": self.severity,
             },
-
             "attacker": {
                 "agent": self.attacker_agent,
                 "agents": self.attacker_agents,
             },
-
             "target": {
                 "agent": target_agent,
             },

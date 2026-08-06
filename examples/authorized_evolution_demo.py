@@ -5,7 +5,6 @@ from agent_dna import (
     FingerprintBuilder,
     ProfileDiffEngine,
 )
-
 from agent_dna.adapters import (
     synthetic_compromised_trace,
     synthetic_normal_trace,
@@ -23,18 +22,9 @@ def build_fp(traces):
     )
 
 
-trusted = build_fp(
-    [
-        synthetic_normal_trace(seed=i, loops=6)
-        for i in range(8)
-    ]
-)
+trusted = build_fp([synthetic_normal_trace(seed=i, loops=6) for i in range(8)])
 
-candidate = build_fp(
-    [
-        synthetic_compromised_trace()
-    ]
-)
+candidate = build_fp([synthetic_compromised_trace()])
 
 policy = AuthorizationPolicy()
 
@@ -61,21 +51,16 @@ print("\nAuthorized Evolution")
 print("--------------------")
 
 if report.authorized_additions:
-
     policy = AuthorizationPolicy()
 
     for capability in report.authorized_additions:
-
         grant = policy.lookup(
             trusted.agent_id,
             capability,
         )
 
         if grant:
-            print(
-                f"✓ {grant.capability}"
-                f"  ({grant.approved_by}, {grant.ticket})"
-            )
+            print(f"✓ {grant.capability}  ({grant.approved_by}, {grant.ticket})")
         else:
             print(f"✓ {capability}")
 

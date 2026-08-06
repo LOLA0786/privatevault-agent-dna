@@ -12,8 +12,14 @@ import numpy as np
 from hodge import ComplexBuilder, decompose, verify_chain_complex
 
 AGENTS = [
-    "treasury", "ops_a", "ops_b", "approver_a",
-    "approver_b", "vendor_api", "ledger", "recon",
+    "treasury",
+    "ops_a",
+    "ops_b",
+    "approver_a",
+    "approver_b",
+    "vendor_api",
+    "ledger",
+    "recon",
 ]
 
 
@@ -146,9 +152,7 @@ def wilson(successes: int, trials: int, z: float = 1.96) -> tuple[float, float]:
     p = successes / trials
     denom = 1 + z**2 / trials
     centre = (p + z**2 / (2 * trials)) / denom
-    margin = (
-        z * np.sqrt(p * (1 - p) / trials + z**2 / (4 * trials**2))
-    ) / denom
+    margin = (z * np.sqrt(p * (1 - p) / trials + z**2 / (4 * trials**2))) / denom
     return (max(0.0, centre - margin), min(1.0, centre + margin))
 
 
@@ -183,14 +187,14 @@ def main(n_per_family: int = 200, seed: int = 20260731) -> None:
             if components.residual() > 1e-9:
                 raise AssertionError(f"decomposition residual in {name}")
 
-            energies[name].append((
-                components.gradient_energy,
-                components.curl_energy,
-                components.harmonic_energy,
-            ))
-            rows.append(
-                (name, label, baseline_score(builder), hodge_score(builder))
+            energies[name].append(
+                (
+                    components.gradient_energy,
+                    components.curl_energy,
+                    components.harmonic_energy,
+                )
             )
+            rows.append((name, label, baseline_score(builder), hodge_score(builder)))
 
     print("=" * 74)
     print("ENERGY DECOMPOSITION BY FAMILY (mean fraction of total flow energy)")
@@ -220,36 +224,22 @@ def main(n_per_family: int = 200, seed: int = 20260731) -> None:
     print("co-signed circulation (benign) vs uncosigned circulation (attack)")
     print("=" * 74)
     subset = [
-        r for r in rows
-        if r[0] in ("benign_cosigned_loop", "attack_authority_cycle")
+        r for r in rows if r[0] in ("benign_cosigned_loop", "attack_authority_cycle")
     ]
     sub_labels = [r[1] for r in subset]
-    print(
-        f"baseline four-method AUC : "
-        f"{auc([r[2] for r in subset], sub_labels):.3f}"
-    )
-    print(
-        f"hodge harmonic AUC       : "
-        f"{auc([r[3] for r in subset], sub_labels):.3f}"
-    )
+    print(f"baseline four-method AUC : {auc([r[2] for r in subset], sub_labels):.3f}")
+    print(f"hodge harmonic AUC       : {auc([r[3] for r in subset], sub_labels):.3f}")
 
     print()
     print("=" * 74)
     print("HONEST NEGATIVE: sequential escalation is a path, not a cycle")
     print("=" * 74)
     subset = [
-        r for r in rows
-        if r[0] in ("benign_hierarchy", "attack_sequential_escalation")
+        r for r in rows if r[0] in ("benign_hierarchy", "attack_sequential_escalation")
     ]
     sub_labels = [r[1] for r in subset]
-    print(
-        f"baseline four-method AUC : "
-        f"{auc([r[2] for r in subset], sub_labels):.3f}"
-    )
-    print(
-        f"hodge harmonic AUC       : "
-        f"{auc([r[3] for r in subset], sub_labels):.3f}"
-    )
+    print(f"baseline four-method AUC : {auc([r[2] for r in subset], sub_labels):.3f}")
+    print(f"hodge harmonic AUC       : {auc([r[3] for r in subset], sub_labels):.3f}")
 
     print()
     print("=" * 74)
@@ -261,8 +251,7 @@ def main(n_per_family: int = 200, seed: int = 20260731) -> None:
         lo, hi = wilson(len(fires), trials)
         kind = "detect" if label == 1 else "FALSE POS"
         print(
-            f"{name:<32}{kind:>11}  {len(fires)/trials:>6.1%}  "
-            f"[{lo:.1%}, {hi:.1%}]"
+            f"{name:<32}{kind:>11}  {len(fires) / trials:>6.1%}  [{lo:.1%}, {hi:.1%}]"
         )
 
 

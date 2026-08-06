@@ -8,8 +8,6 @@ enforcement) or, worse, let an action through by accident.
 
 import time
 
-import pytest
-
 from agent_dna.decision import Decision, DecisionEngine
 from agent_dna.trace import AgentAction
 
@@ -52,8 +50,11 @@ def test_raising_invariants_fails_closed():
     class OKScorer:
         def score(self, action, prev_capability=None):
             return AdvisorySignal(
-                agent_id=action.agent_id, capability=action.capability,
-                drift_score=0.0, severity=Severity.INFO, reasons=[],
+                agent_id=action.agent_id,
+                capability=action.capability,
+                drift_score=0.0,
+                severity=Severity.INFO,
+                reasons=[],
             )
 
     engine = DecisionEngine(scorer=OKScorer(), invariants=RaisingInvariants())
@@ -68,8 +69,11 @@ def test_raising_authorizer_fails_closed():
     class OKScorer:
         def score(self, action, prev_capability=None):
             return AdvisorySignal(
-                agent_id=action.agent_id, capability=action.capability,
-                drift_score=0.0, severity=Severity.INFO, reasons=[],
+                agent_id=action.agent_id,
+                capability=action.capability,
+                drift_score=0.0,
+                severity=Severity.INFO,
+                reasons=[],
             )
 
     engine = DecisionEngine(scorer=OKScorer(), authorizer=RaisingAuthorizer())
@@ -84,8 +88,11 @@ def test_raising_uaal_fails_closed():
     class OKScorer:
         def score(self, action, prev_capability=None):
             return AdvisorySignal(
-                agent_id=action.agent_id, capability=action.capability,
-                drift_score=0.0, severity=Severity.INFO, reasons=[],
+                agent_id=action.agent_id,
+                capability=action.capability,
+                drift_score=0.0,
+                severity=Severity.INFO,
+                reasons=[],
             )
 
     engine = DecisionEngine(scorer=OKScorer(), uaal=RaisingUAAL())
