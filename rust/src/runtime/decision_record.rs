@@ -38,11 +38,9 @@ fn check_version_invariant(
     match protocol_version {
         DRP_V01 => {
             if action_digest.is_some() {
-                return Err(
-                    "drp/0.1 records carry no action_digest; a bound record \
+                return Err("drp/0.1 records carry no action_digest; a bound record \
                      must declare drp/0.2"
-                        .into(),
-                );
+                    .into());
             }
             Ok(())
         }
@@ -53,11 +51,13 @@ fn check_version_invariant(
                     .into(),
             ),
             Some(digest) => {
-                let hex = digest.strip_prefix("sha256:").ok_or_else(|| {
-                    format!("malformed action_digest {digest:?}")
-                })?;
+                let hex = digest
+                    .strip_prefix("sha256:")
+                    .ok_or_else(|| format!("malformed action_digest {digest:?}"))?;
                 if hex.len() != 64
-                    || !hex.chars().all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c))
+                    || !hex
+                        .chars()
+                        .all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c))
                 {
                     return Err(format!("malformed action_digest {digest:?}"));
                 }
