@@ -18,11 +18,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from agent_dna.advisory import AdvisorySignal, Severity          # noqa: E402
-from agent_dna.decision import Decision, DecisionEngine          # noqa: E402
-from agent_dna.decision_recorder import DecisionRecorder         # noqa: E402
-from agent_dna.decision_store import DecisionStore               # noqa: E402
-from agent_dna.trace import AgentAction                          # noqa: E402
+from agent_dna.advisory import AdvisorySignal, Severity  # noqa: E402
+from agent_dna.decision import Decision, DecisionEngine  # noqa: E402
+from agent_dna.decision_recorder import DecisionRecorder  # noqa: E402
+from agent_dna.decision_store import DecisionStore  # noqa: E402
+from agent_dna.trace import AgentAction  # noqa: E402
 
 DEFAULT_OUT = Path(__file__).resolve().parent.parent / "spec" / "test-vectors"
 
@@ -42,11 +42,11 @@ class Invariants:
     def validate(self, capability, previous):
         class R:
             pass
+
         r = R()
         r.violated = capability == "payments.drain_account"
         r.message = (
-            "invariant: payments.drain_account is forbidden"
-            if r.violated else ""
+            "invariant: payments.drain_account is forbidden" if r.violated else ""
         )
         return r
 
@@ -61,7 +61,7 @@ def build_stream(path, *, divergent=False):
     for cap in (
         "crm.read_contact",
         "email.send",
-        "payments.drain_account",   # BLOCK
+        "payments.drain_account",  # BLOCK
         "crm.update_contact",
     ):
         a = AgentAction(
@@ -93,13 +93,13 @@ def main(out: Path | None = None):
     pass a temp dir instead — the committed vectors are pinned by
     tests/test_vector_immutability.py.
     """
-    OUT = out or DEFAULT_OUT
-    OUT.mkdir(parents=True, exist_ok=True)
-    for f in OUT.glob("*.jsonl"):
+    output = out or DEFAULT_OUT
+    output.mkdir(parents=True, exist_ok=True)
+    for f in output.glob("*.jsonl"):
         f.unlink()
 
     # 1. clean
-    clean = build_stream(OUT / "clean.jsonl")
+    clean = build_stream(output / "clean.jsonl")
 
     # 2. tampered field — flip the BLOCK to allow
     lines = clean.read_text().splitlines()
@@ -109,30 +109,36 @@ def main(out: Path | None = None):
         if d.get("kind") == "decision" and d.get("decision") == "block":
             d["decision"] = "allow"
         tampered.append(json.dumps(d, sort_keys=True, separators=(",", ":")))
-    (OUT / "tampered_field.jsonl").write_text("\n".join(tampered) + "\n")
+    (output / "tampered_field.jsonl").write_text("\n".join(tampered) + "\n")
 
     # 3. deleted record — drop the BLOCK decision line
     kept = [
-        line for line in lines
+        line
+        for line in lines
         if not (
             json.loads(line).get("kind") == "decision"
             and json.loads(line).get("decision") == "block"
         )
     ]
-    (OUT / "deleted_record.jsonl").write_text("\n".join(kept) + "\n")
+    (output / "deleted_record.jsonl").write_text("\n".join(kept) + "\n")
 
     # 4. divergence — regenerate with executor claiming the BLOCK ran
-    build_stream(OUT / "divergent.jsonl", divergent=True)
+    build_stream(output / "divergent.jsonl", divergent=True)
 
-    for f in sorted(OUT.glob("*.jsonl")):
+    for f in sorted(output.glob("*.jsonl")):
         n = len(f.read_text().splitlines())
         print(f"wrote {f.name} ({n} records)")
 
 
 if __name__ == "__main__":
     import argparse
+
     _ap = argparse.ArgumentParser()
-    _ap.add_argument("--out", type=Path, default=None,
-                     help="output dir (default: canonical spec/test-vectors)")
+    _ap.add_argument(
+        "--out",
+        type=Path,
+        default=None,
+        help="output dir (default: canonical spec/test-vectors)",
+    )
     _args = _ap.parse_args()
     main(_args.out)

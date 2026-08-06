@@ -60,10 +60,12 @@ def test_decomposition_identity_exact_on_random_data():
     segs = [rng.choice(["a", "b", "c", "d"]) for _ in range(400)]
     d = auc_decomposition(scores, labels, segs)
     assert math.isclose(
-        d.auc_global, d.within_contribution + d.between_contribution,
-        rel_tol=0, abs_tol=1e-12)
-    assert math.isclose(
-        d.within_pair_share + d.between_pair_share, 1.0, abs_tol=1e-12)
+        d.auc_global,
+        d.within_contribution + d.between_contribution,
+        rel_tol=0,
+        abs_tol=1e-12,
+    )
+    assert math.isclose(d.within_pair_share + d.between_pair_share, 1.0, abs_tol=1e-12)
     assert math.isclose(d.auc_global, auc(scores, labels), abs_tol=1e-12)
 
 
@@ -111,8 +113,7 @@ def test_segment_reliability_by_agent_capability_and_cross():
 
 
 def test_min_sample_safeguard_withholds_metrics():
-    rows = segment_reliability([0.9, 0.1], [1, 0], ["tiny", "tiny"],
-                               min_samples=30)
+    rows = segment_reliability([0.9, 0.1], [1, 0], ["tiny", "tiny"], min_samples=30)
     assert rows[0].status == "insufficient_samples"
     assert rows[0].auc is None and rows[0].prevalence is None
 

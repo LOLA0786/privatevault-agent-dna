@@ -12,7 +12,7 @@ so behavioral baselines and precedence state stay isolated per agent.
 from __future__ import annotations
 
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from .decision import DecisionEngine
 from .decision_recorder import DecisionRecorder
@@ -24,7 +24,7 @@ class MCPGateway:
     def __init__(self, engine: DecisionEngine, recorder: DecisionRecorder) -> None:
         self.engine = engine
         self.recorder = recorder
-        self._monitors: Dict[str, RuntimeMonitor] = {}
+        self._monitors: dict[str, RuntimeMonitor] = {}
 
     def _monitor_for(self, agent_id: str) -> RuntimeMonitor:
         if agent_id not in self._monitors:
@@ -37,10 +37,10 @@ class MCPGateway:
         self,
         agent_id: str,
         capability: str,
-        arguments: Optional[Dict[str, Any]] = None,
-        evidence: Optional[Dict[str, Any]] = None,
-        timestamp: Optional[float] = None,
-    ) -> Dict[str, Any]:
+        arguments: dict[str, Any] | None = None,
+        evidence: dict[str, Any] | None = None,
+        timestamp: float | None = None,
+    ) -> dict[str, Any]:
         action = AgentAction(
             agent_id=agent_id,
             capability=capability,
@@ -60,19 +60,19 @@ class MCPGateway:
 
     def report_outcome(
         self, decision_id: str, status: str, detail: str = ""
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         event = self.recorder.report_outcome(decision_id, status, detail)
         return event.to_dict()
 
-    def verify(self) -> Dict[str, bool]:
+    def verify(self) -> dict[str, bool]:
         return self.recorder.graph.verify_all()
 
-    def lineage(self, decision_id: str) -> List[Dict[str, Any]]:
+    def lineage(self, decision_id: str) -> list[dict[str, Any]]:
         path = self.recorder.graph.lineage(decision_id)
         return [r.to_dict() for r in path]
 
-    def blocked(self) -> List[Dict[str, Any]]:
+    def blocked(self) -> list[dict[str, Any]]:
         return [r.to_dict() for r in self.recorder.graph.find_blocked()]
 
-    def divergent(self) -> List[Dict[str, Any]]:
+    def divergent(self) -> list[dict[str, Any]]:
         return [r.to_dict() for r in self.recorder.graph.find_divergent()]

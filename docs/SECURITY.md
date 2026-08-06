@@ -43,7 +43,7 @@ actions, plus a tamper-evident evidence layer. Two security goals:
   arguments, evidence), not natural language; a deterministic DENY is
   final (`test_decision_engine.py`, `test_policy_checker.py`,
   `test_capability_grants.py`, `test_circuit_breaker.py`,
-  `tools/run_adversarial.py` — 11/11).
+  `tools/run_adversarial.py`).
 - **T3** → per-record SHA-256 over canonical content + per-agent hash
   chaining; edits, deletions, reorders break verification
   (`test_p0_audit.py`, `test_spec_vectors.py`). Optional Ed25519
@@ -55,7 +55,10 @@ actions, plus a tamper-evident evidence layer. Two security goals:
   constant-time comparison), expiry, minimum distinct voters,
   Byzantine-resilient thresholds; unsigned/expired votes never count
   (`test_secure_quorum.py`, `test_weighted_quorum.py`); cross-agent
-  interaction contracts (`test_multi_agent_invariants.py`).
+  interaction contracts and event-level trust degradation
+  (`test_multi_agent_invariants.py`, `test_trust_invariant.py`); circular
+  authority, authorization reuse, recursive actions, and malformed causal
+  provenance (`test_loop_discovery.py`).
 - **T6** → API keys SHA-256-hashed at rest; scopes enforced
   server-side; an audit-scoped key can never exercise enforcement
   authority (`test_apikeys_scope.py`, `test_api_audit_scope.py` —
@@ -90,6 +93,10 @@ actions, plus a tamper-evident evidence layer. Two security goals:
   sealed (`pv-validation/1`, `docs/VALIDATION-MATH.md`); a missing or
   failed validation report never loosens enforcement
   (`test_validation_guard.py`).
+- **A5 — Discovery output is untrusted configuration input.** The offline
+  Discovery Loop can only emit proposal files. A human-owned PR and the normal
+  policy gate remain mandatory; priority scores and corpus labels cannot grant
+  execution authority (`test_discovery.py`).
 
 ## 4. Residual risks (known, open)
 
@@ -101,6 +108,9 @@ actions, plus a tamper-evident evidence layer. Two security goals:
   Determinism`).
 - MCP transport enforcement is not yet load-tested under high
   concurrent client counts.
+- Loop discovery cannot observe an event that a framework or executor does not
+  emit. Production adapters must invoke it before consequential dispatch and
+  retain its report with the signed execution evidence.
 - Behavioral baselines are calibrated on synthetic traces until a
   customer pilot trace is wired; this bounds the advisory layer's
   value, not the deterministic layers' correctness.

@@ -15,7 +15,7 @@ VECTORS = ROOT / "spec" / "test-vectors"
 
 def _load_validator(name):
     schema = json.loads((SCHEMAS / name).read_text())
-    Draft202012Validator.check_schema(schema)   # the schema itself is valid
+    Draft202012Validator.check_schema(schema)  # the schema itself is valid
     return Draft202012Validator(schema)
 
 
@@ -33,9 +33,8 @@ def test_every_record_validates(vector):
         rec = json.loads(line)
         validator = EXECUTION if rec.get("kind") == "execution" else DECISION
         errors = list(validator.iter_errors(rec))
-        assert not errors, (
-            f"{vector.name}:{lineno}: "
-            + "; ".join(e.message for e in errors)
+        assert not errors, f"{vector.name}:{lineno}: " + "; ".join(
+            e.message for e in errors
         )
 
 

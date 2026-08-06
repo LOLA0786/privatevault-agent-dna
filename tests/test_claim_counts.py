@@ -72,9 +72,7 @@ def collected(request) -> int:
 
 
 @pytest.mark.parametrize("relpath", sorted(CLAIM_SITES))
-def test_documented_test_count_matches_reality(
-    relpath: str, collected: int
-) -> None:
+def test_documented_test_count_matches_reality(relpath: str, collected: int) -> None:
     path = REPO_ROOT / relpath
     assert path.exists(), f"claim site {relpath} no longer exists"
 
@@ -100,9 +98,7 @@ def test_documented_test_count_matches_reality(
         # ABSOLUTE floor rather than "collected < claimed": the latter
         # would silently skip whenever the claim was too high, which is
         # precisely the failure this guard exists to catch.
-        pytest.skip(
-            f"partial run: only {collected} tests collected"
-        )
+        pytest.skip(f"partial run: only {collected} tests collected")
     assert claimed <= collected, (
         f"{relpath} claims {claimed} tests; the suite collects only "
         f"{collected}. The claim overstates the evidence, which is the "

@@ -39,20 +39,30 @@ GENESIS = "0" * 64
 class StubScorer:
     def score(self, action, prev_capability=None):
         return AdvisorySignal(
-            agent_id=action.agent_id, capability=action.capability,
-            drift_score=0.0, severity=Severity.INFO, reasons=[],
+            agent_id=action.agent_id,
+            capability=action.capability,
+            drift_score=0.0,
+            severity=Severity.INFO,
+            reasons=[],
         )
 
 
 def _act(agent_id="a1", capability="crm.read_contact", arguments=None):
     return AgentAction(
-        agent_id=agent_id, capability=capability,
-        timestamp=time.time(), arguments=arguments or {},
+        agent_id=agent_id,
+        capability=capability,
+        timestamp=time.time(),
+        arguments=arguments or {},
     )
 
 
-def _record(decision_id, agent_id="agent-x", parent=None,
-            prev_hash=GENESIS, capability="crm.read_contact"):
+def _record(
+    decision_id,
+    agent_id="agent-x",
+    parent=None,
+    prev_hash=GENESIS,
+    capability="crm.read_contact",
+):
     return DecisionRecord(
         protocol_version=DRP_V01,
         decision_id=decision_id,
@@ -75,7 +85,8 @@ def _record(decision_id, agent_id="agent-x", parent=None,
 def _run_verifier(path: Path) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, str(ROOT / "tools" / "verify_records.py"), str(path)],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
 
 
@@ -83,11 +94,15 @@ def _run_verifier(path: Path) -> subprocess.CompletedProcess:
 # P0-1  OPA fail-closed
 # =====================================================================
 
+
 def _dead_opa():
     from agent_dna.adapters_policy.opa import OPAPolicyAdapter
-    a = OPAPolicyAdapter(endpoint="http://127.0.0.1:9",  # discard port
-                         default_decision="block")
-    a.DEFAULT_RETRY_COUNT = 1     # instance attrs shadow class constants
+
+    a = OPAPolicyAdapter(
+        endpoint="http://127.0.0.1:9",  # discard port
+        default_decision="block",
+    )
+    a.DEFAULT_RETRY_COUNT = 1  # instance attrs shadow class constants
     a.DEFAULT_BACKOFF = 0.0
     a.DEFAULT_TIMEOUT = 0.2
     return a
@@ -106,6 +121,7 @@ def test_opa_unavailable_engine_blocks():
 
 def test_opa_unavailable_adapter_contract():
     from agent_dna.adapters_policy.opa import PolicyUnavailableError
+
     with pytest.raises(PolicyUnavailableError):
         _dead_opa().check(agent_id="a1", capability="payments.wire")
 
@@ -126,6 +142,7 @@ class _EmptyOPAHandler(BaseHTTPRequestHandler):
 
 def test_opa_empty_result_is_not_allow():
     from agent_dna.adapters_policy.opa import OPAPolicyAdapter
+
     srv = HTTPServer(("127.0.0.1", 0), _EmptyOPAHandler)
     t = threading.Thread(target=srv.serve_forever, daemon=True)
     t.start()
@@ -137,6 +154,7 @@ def test_opa_empty_result_is_not_allow():
         a.DEFAULT_RETRY_COUNT = 1
         a.DEFAULT_BACKOFF = 0.0
         from agent_dna.adapters_policy.opa import PolicyUnavailableError
+
         with pytest.raises(PolicyUnavailableError):
             a.check(agent_id="a1", capability="payments.wire")
     finally:
@@ -146,6 +164,7 @@ def test_opa_empty_result_is_not_allow():
 # =====================================================================
 # P0-2  API identity binding
 # =====================================================================
+
 
 def _api_client(tmp_path, monkeypatch, key_names=("agent-a", "agent-b")):
     """Two full-scope keys named after the agents they should be bound
@@ -166,8 +185,10 @@ def _api_client(tmp_path, monkeypatch, key_names=("agent-a", "agent-b")):
     import importlib
 
     import api.server as server
+
     importlib.reload(server)
     from fastapi.testclient import TestClient
+
     return TestClient(server.app), keys
 
 
@@ -178,7 +199,7 @@ def test_key_cannot_decide_as_another_agent(tmp_path, monkeypatch):
             "/v1/decide",
             headers={"X-API-Key": keys["agent-a"]},
             json={
-                "agent_id": "agent-b",          # NOT the authenticated identity
+                "agent_id": "agent-b",  # NOT the authenticated identity
                 "capability": "crm.read_contact",
                 "timestamp": time.time(),
             },
@@ -205,13 +226,15 @@ def test_key_cannot_report_outcome_for_another_agent(tmp_path, monkeypatch):
 
         r2 = c.post(
             "/v1/outcome",
-            headers={"X-API-Key": keys["agent-b"]},   # different identity
-            json={"decision_id": decision_id, "status": "ok",
-                  "detail": "cross-agent report"},
+            headers={"X-API-Key": keys["agent-b"]},  # different identity
+            json={
+                "decision_id": decision_id,
+                "status": "ok",
+                "detail": "cross-agent report",
+            },
         )
         assert r2.status_code in (403, 404, 409), (
-            f"agent-b reported an outcome on agent-a's decision: "
-            f"{r2.status_code}"
+            f"agent-b reported an outcome on agent-a's decision: {r2.status_code}"
         )
 
 
@@ -219,14 +242,12 @@ def test_key_cannot_report_outcome_for_another_agent(tmp_path, monkeypatch):
 # P0-4  independent verifier lineage
 # =====================================================================
 
+
 def test_verifier_rejects_nonexistent_parent(tmp_path):
     r1 = _record("d-1")
-    r2 = _record("d-2", parent="ghost-decision-id",
-                 prev_hash=r1.record_hash)
+    r2 = _record("d-2", parent="ghost-decision-id", prev_hash=r1.record_hash)
     f = tmp_path / "false_parent.jsonl"
-    f.write_text(
-        json.dumps(r1.to_dict()) + "\n" + json.dumps(r2.to_dict()) + "\n"
-    )
+    f.write_text(json.dumps(r1.to_dict()) + "\n" + json.dumps(r2.to_dict()) + "\n")
     proc = _run_verifier(f)
     assert "PASS" not in proc.stdout, (
         "fabricated parent_decision verified clean:\n" + proc.stdout
@@ -235,11 +256,9 @@ def test_verifier_rejects_nonexistent_parent(tmp_path):
 
 def test_verifier_rejects_duplicate_decision_id(tmp_path):
     r1 = _record("d-dup")
-    r2 = _record("d-dup", prev_hash=r1.record_hash)   # same id, chained
+    r2 = _record("d-dup", prev_hash=r1.record_hash)  # same id, chained
     f = tmp_path / "dup_id.jsonl"
-    f.write_text(
-        json.dumps(r1.to_dict()) + "\n" + json.dumps(r2.to_dict()) + "\n"
-    )
+    f.write_text(json.dumps(r1.to_dict()) + "\n" + json.dumps(r2.to_dict()) + "\n")
     proc = _run_verifier(f)
     assert "PASS" not in proc.stdout, (
         "duplicate decision_id verified clean:\n" + proc.stdout
@@ -249,7 +268,7 @@ def test_verifier_rejects_duplicate_decision_id(tmp_path):
 def test_anchor_verdict_is_consistent_between_verifiers(tmp_path):
     from agent_dna.decision_graph import DecisionGraph
 
-    anchor = "ab" * 32                       # non-genesis provenance anchor
+    anchor = "ab" * 32  # non-genesis provenance anchor
     r1 = _record("d-anchored", prev_hash=anchor)
 
     graph = DecisionGraph().add(r1)
@@ -269,13 +288,18 @@ def test_anchor_verdict_is_consistent_between_verifiers(tmp_path):
 # P0-5  circuit breaker preflight
 # =====================================================================
 
+
 def _breaker(db, cap=100.0):
     from agent_dna.circuit_breaker import BreakerConfig, CircuitBreaker
+
     return CircuitBreaker(
         db,
-        BreakerConfig(max_decisions=None, window_seconds=60.0,
-                      max_cumulative_amount=cap,
-                      max_consecutive_refusals=None),
+        BreakerConfig(
+            max_decisions=None,
+            window_seconds=60.0,
+            max_cumulative_amount=cap,
+            max_consecutive_refusals=None,
+        ),
     )
 
 
@@ -283,10 +307,14 @@ class _AllowEngine:
     def decide(self, action, prev_capability=None, evidence=None):
         from agent_dna.decision import DecisionResult
         from agent_dna.decision import Severity as Sev
+
         return DecisionResult(
-            decision=Decision.ALLOW, triggered_by="baseline",
-            reason="stub", capability=action.capability,
-            agent_id=action.agent_id, drift_score=0.0,
+            decision=Decision.ALLOW,
+            triggered_by="baseline",
+            reason="stub",
+            capability=action.capability,
+            agent_id=action.agent_id,
+            drift_score=0.0,
             severity=list(Sev)[0],
         )
 
@@ -303,12 +331,13 @@ class _Payment:
 
 def test_threshold_crossing_payment_blocked_before_execution(tmp_path):
     from agent_dna.circuit_breaker import GuardedEngine
+
     guarded = GuardedEngine(_AllowEngine(), _breaker(tmp_path / "b.db"))
 
     first = guarded.decide(_Payment(amount=60.0))
-    assert first.decision is Decision.ALLOW          # 60 <= 100, fine
+    assert first.decision is Decision.ALLOW  # 60 <= 100, fine
 
-    second = guarded.decide(_Payment(amount=60.0))   # projects to 120
+    second = guarded.decide(_Payment(amount=60.0))  # projects to 120
     assert second.decision is Decision.BLOCK, (
         "the cap-crossing payment itself was allowed "
         f"(got {second.decision}); a post-hoc trip is not a spending cap"
@@ -317,10 +346,11 @@ def test_threshold_crossing_payment_blocked_before_execution(tmp_path):
 
 def test_arguments_amount_reaches_breaker(tmp_path):
     from agent_dna.circuit_breaker import GuardedEngine
+
     guarded = GuardedEngine(_AllowEngine(), _breaker(tmp_path / "b2.db"))
 
     tripped = False
-    for _ in range(5):                                # 5 x 60 = 300 >> 100
+    for _ in range(5):  # 5 x 60 = 300 >> 100
         r = guarded.decide(_Payment(arguments={"amount": 60.0}))
         if r.decision is Decision.BLOCK:
             tripped = True
@@ -338,6 +368,7 @@ def test_concurrent_payments_cannot_all_pass_same_budget(tmp_path):
     import threading as _threading
 
     from agent_dna.circuit_breaker import GuardedEngine
+
     guarded = GuardedEngine(_AllowEngine(), _breaker(tmp_path / "bc.db"))
 
     results = []
@@ -355,14 +386,13 @@ def test_concurrent_payments_cannot_all_pass_same_budget(tmp_path):
         t.join()
 
     allowed = sum(1 for d in results if d is Decision.ALLOW)
-    assert allowed == 1, (
-        f"{allowed} of 8 concurrent 60-unit payments passed a 100 cap"
-    )
+    assert allowed == 1, f"{allowed} of 8 concurrent 60-unit payments passed a 100 cap"
 
 
 # =====================================================================
 # P0-6  quorum dedup + replay
 # =====================================================================
+
 
 def test_one_voter_cannot_vote_twice():
     from agent_dna.consensus.secure_quorum import SecureQuorum, TrustRegistry
@@ -374,7 +404,7 @@ def test_one_voter_cannot_vote_twice():
     q = SecureQuorum(threshold=0.67, trust_registry=tr)
 
     v = cast_vote("solo", "action-1", "APPROVE", "h-1")
-    for _ in range(3):                                 # same vote, thrice
+    for _ in range(3):  # same vote, thrice
         q.submit("action-1", v)
 
     assert not q.check_quorum("action-1"), (
@@ -393,7 +423,7 @@ def test_vote_cannot_replay_across_actions():
 
     v = cast_vote("honest", "action-1", "APPROVE", "shared-hash")
     q.submit("action-1", v)
-    assert q.check_quorum("action-1")                  # legitimate
+    assert q.check_quorum("action-1")  # legitimate
 
     # attacker replays the captured vote into a DIFFERENT action
     q.submit("action-2", v)
@@ -406,12 +436,12 @@ def test_vote_cannot_replay_across_actions():
 # P0-7  UAAL evidence honesty
 # =====================================================================
 
+
 def test_malformed_amount_fails_closed():
     from agent_dna.uaal_layer import UAALConstraintChecker
 
     res = UAALConstraintChecker().check(
-        _act(capability="payments.pay_invoice",
-             arguments={"amount": "not-a-number"}),
+        _act(capability="payments.pay_invoice", arguments={"amount": "not-a-number"}),
         evidence={"enterprise_state": {"invoice_amount": 100}},
     )
     assert res.violated or "monetary_conservation" not in [
@@ -426,15 +456,14 @@ def test_empty_enterprise_state_is_not_verified_state():
     from agent_dna.uaal_layer import UAALConstraintChecker
 
     res = UAALConstraintChecker().check(
-        _act(capability="payments.pay_invoice",
-             arguments={"amount": 999}),
-        evidence={"enterprise_state": {}},             # key present, empty
+        _act(capability="payments.pay_invoice", arguments={"amount": 999}),
+        evidence={"enterprise_state": {}},  # key present, empty
     )
     state_passed = any(
         d["name"] == "enterprise_state" and d["passed"] for d in res.detail
     )
-    assert res.violated or "enterprise_state" in res.checks_skipped or (
-        not state_passed
+    assert (
+        res.violated or "enterprise_state" in res.checks_skipped or (not state_passed)
     ), (
         "an empty enterprise_state was evaluated as a VALID verified "
         f"state: detail={res.detail}"

@@ -19,7 +19,7 @@ traces, same as api/server.py — stated explicitly, not hidden.
 from __future__ import annotations
 
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
@@ -54,9 +54,9 @@ mcp = FastMCP("privatevault-decision-security")
 def pv_decide(
     agent_id: str,
     capability: str,
-    arguments: Optional[Dict[str, Any]] = None,
-    evidence: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    arguments: dict[str, Any] | None = None,
+    evidence: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Submit an agent action for pre-execution enforcement. Returns
     decision (allow/require_approval/block), triggered_by (which
     precedence level decided), and a decision_id/record_hash for
@@ -67,7 +67,7 @@ def pv_decide(
 @mcp.tool()
 def pv_report_outcome(
     decision_id: str, status: str, detail: str = ""
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Report what actually executed for a prior decision. status
     must be one of: ok, error, refused. Anchored to the decision's
     hash; at most one report per decision_id."""
@@ -75,26 +75,26 @@ def pv_report_outcome(
 
 
 @mcp.tool()
-def pv_verify() -> Dict[str, bool]:
+def pv_verify() -> dict[str, bool]:
     """Verify hash-chain integrity per agent. True means the chain
     is intact and unmodified."""
     return gateway.verify()
 
 
 @mcp.tool()
-def pv_lineage(decision_id: str) -> List[Dict[str, Any]]:
+def pv_lineage(decision_id: str) -> list[dict[str, Any]]:
     """Full root-to-node decision lineage for a given decision_id."""
     return gateway.lineage(decision_id)
 
 
 @mcp.tool()
-def pv_blocked() -> List[Dict[str, Any]]:
+def pv_blocked() -> list[dict[str, Any]]:
     """All decisions with verdict BLOCK, across all agents."""
     return gateway.blocked()
 
 
 @mcp.tool()
-def pv_divergent() -> List[Dict[str, Any]]:
+def pv_divergent() -> list[dict[str, Any]]:
     """Enforcement divergences: decisions that were BLOCK but whose
     reported outcome was 'ok' — the runtime said no and the world
     executed anyway."""

@@ -12,7 +12,7 @@ SKIPPED -- never treated as passed or failed.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 VALID_OPERATORS = {">", ">=", "<", "<=", "==", "!=", "in", "not_in"}
 VALID_OUTCOMES = {"block", "require_approval"}
@@ -20,7 +20,7 @@ VALID_OUTCOMES = {"block", "require_approval"}
 
 @dataclass
 class PolicyCondition:
-    field: str          # dotted path, e.g. "arguments.amount"
+    field: str  # dotted path, e.g. "arguments.amount"
     operator: str
     value: Any
 
@@ -35,12 +35,12 @@ class PolicyCondition:
 @dataclass
 class PolicyRule:
     id: str
-    capability: str          # exact match; "*" matches any capability
-    outcome: str              # "block" or "require_approval"
+    capability: str  # exact match; "*" matches any capability
+    outcome: str  # "block" or "require_approval"
     reason: str
-    agent_id: Optional[str] = None     # None = applies to all agents
-    condition: Optional[PolicyCondition] = None  # None = always fires
-                                                   # when capability/agent match
+    agent_id: str | None = None  # None = applies to all agents
+    condition: PolicyCondition | None = None  # None = always fires
+    # when capability/agent match
 
     def __post_init__(self):
         if self.outcome not in VALID_OUTCOMES:
@@ -52,7 +52,7 @@ class PolicyRule:
 
 @dataclass
 class PolicyDocument:
-    policies: List[PolicyRule] = field(default_factory=list)
+    policies: list[PolicyRule] = field(default_factory=list)
     version: str = "1.0"
 
     def validate_ids_unique(self) -> None:
@@ -62,7 +62,7 @@ class PolicyDocument:
             raise ValueError(f"duplicate policy IDs: {sorted(dupes)}")
 
 
-def parse_policy_dict(raw: Dict[str, Any]) -> PolicyDocument:
+def parse_policy_dict(raw: dict[str, Any]) -> PolicyDocument:
     """Parse a raw dict (loaded from YAML/JSON) into a validated
     PolicyDocument. Raises ValueError with a specific message on any
     malformed rule -- fails loudly at load time, never silently."""
@@ -82,21 +82,21 @@ def parse_policy_dict(raw: Dict[str, Any]) -> PolicyDocument:
             c = p["condition"]
             for req in ("field", "operator", "value"):
                 if req not in c:
-                    raise ValueError(
-                        f"policy {p['id']}'s condition missing '{req}'"
-                    )
+                    raise ValueError(f"policy {p['id']}'s condition missing '{req}'")
             condition = PolicyCondition(
                 field=c["field"], operator=c["operator"], value=c["value"]
             )
 
-        rules.append(PolicyRule(
-            id=p["id"],
-            capability=p["capability"],
-            outcome=p["outcome"],
-            reason=p["reason"],
-            agent_id=p.get("agent_id"),
-            condition=condition,
-        ))
+        rules.append(
+            PolicyRule(
+                id=p["id"],
+                capability=p["capability"],
+                outcome=p["outcome"],
+                reason=p["reason"],
+                agent_id=p.get("agent_id"),
+                condition=condition,
+            )
+        )
 
     doc = PolicyDocument(policies=rules, version=raw.get("version", "1.0"))
     doc.validate_ids_unique()

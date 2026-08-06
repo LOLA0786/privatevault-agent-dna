@@ -4,8 +4,15 @@ path is tested real or not at all."""
 
 from pathlib import Path
 
-FORBIDDEN = ("unittest.mock", "from mock import", "import mock",
-             "mocker.", "MagicMock", "monkeypatch")
+FORBIDDEN = (
+    "unittest.mock",
+    "from mock import",
+    "import mock",
+    "mocker.",
+    "MagicMock",
+    "monkeypatch",
+)
+
 
 def test_no_mocks_on_enforcement_path():
     here = Path(__file__).parent
@@ -17,6 +24,6 @@ def test_no_mocks_on_enforcement_path():
         for token in FORBIDDEN:
             if token in text:
                 offenders.append(f"{f.name}: {token}")
-    assert not offenders, (
-        "mocking machinery on the enforcement path:\n" + "\n".join(offenders)
+    assert not offenders, "mocking machinery on the enforcement path:\n" + "\n".join(
+        offenders
     )

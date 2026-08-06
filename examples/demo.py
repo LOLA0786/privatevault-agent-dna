@@ -16,7 +16,6 @@ from agent_dna import (
     DriftScorer,
     PolicyDecision,
 )
-
 from agent_dna.adapters import (
     synthetic_compromised_trace,
     synthetic_normal_trace,
@@ -35,10 +34,7 @@ def main() -> None:
     # Learn trusted profile
     # ------------------------------------------------------------------
 
-    training = [
-        synthetic_normal_trace(seed=i, loops=6)
-        for i in range(8)
-    ]
+    training = [synthetic_normal_trace(seed=i, loops=6) for i in range(8)]
 
     manifold = CapabilityManifold().fit(training)
     dynamics = BehaviorDynamics().fit(training)
@@ -91,7 +87,6 @@ def main() -> None:
     prev = None
 
     for action in compromised.actions:
-
         signal = scorer.score(
             action,
             prev,
@@ -102,11 +97,7 @@ def main() -> None:
             signal,
         )
 
-        flag = (
-            ">>"
-            if signal.severity.value != "info"
-            else "  "
-        )
+        flag = ">>" if signal.severity.value != "info" else "  "
 
         print(
             f"{flag} "
@@ -129,8 +120,7 @@ def main() -> None:
     banner("BOUNDARY CHECK")
 
     print(
-        "Advisory can escalate ALLOW -> require_approval, "
-        "but a policy DENY stays DENY."
+        "Advisory can escalate ALLOW -> require_approval, but a policy DENY stays DENY."
     )
 
     signal = scorer.score(
@@ -143,10 +133,7 @@ def main() -> None:
         signal,
     )
 
-    print(
-        f"  policy=DENY + critical advisory "
-        f"-> {denied.decision.value}"
-    )
+    print(f"  policy=DENY + critical advisory -> {denied.decision.value}")
 
     print(f"  {denied.rationale}")
 

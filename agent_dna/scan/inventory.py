@@ -81,15 +81,24 @@ MCP_MANIFEST_V1: dict[str, tuple[str, str]] = {
     "calendar_toolkit.add_event_to_calendar": (MUTATING, "creates a calendar event"),
     "scientific_calculator.basic_arithmetic": (READ_ONLY, "computes, no side effect"),
     "cloud_storage.upload_file": (IRREVERSIBLE, "sends data outside local scope"),
-    "event_streaming.produce_message": (IRREVERSIBLE, "emits to a stream, not recallable"),
+    "event_streaming.produce_message": (
+        IRREVERSIBLE,
+        "emits to a stream, not recallable",
+    ),
     "cli_executor.exec": (UNKNOWN, "shell: effect depends on the command"),
     "file_server.write_file": (MUTATING, "writes a file"),
     "memory.create_entities": (MUTATING, "writes to a knowledge store"),
     "recipe_manager.create_recipe": (MUTATING, "creates a stored record"),
     "image_processor.analyze_image_properties": (READ_ONLY, "inspects an image"),
     "audio_processor.analyze_audio_file": (READ_ONLY, "inspects an audio file"),
-    "sensor_data_processor.process_sensor_data": (READ_ONLY, "computes over sensor input"),
-    "sequential_thinking.sequentialthinking": (READ_ONLY, "reasoning step, no external effect"),
+    "sensor_data_processor.process_sensor_data": (
+        READ_ONLY,
+        "computes over sensor input",
+    ),
+    "sequential_thinking.sequentialthinking": (
+        READ_ONLY,
+        "reasoning step, no external effect",
+    ),
     "ml_inference.predict": (READ_ONLY, "runs inference, no external effect"),
 }
 
@@ -102,23 +111,38 @@ DEFAULT_RULES: tuple[Rule, ...] = (
     Rule(r"read|view|glob|grep|ls|cat|search", READ_ONLY, "reads only"),
     Rule(r"webfetch|websearch|fetch", READ_ONLY, "retrieves remote content"),
     Rule(r"todowrite|notebookread", READ_ONLY, "local scratch state"),
-    Rule(r"write|edit|multiedit|notebookedit|create_file|str_replace",
-         MUTATING, "writes to the filesystem"),
-    Rule(r"bash|shell|sh|exec|run_command|terminal",
-         UNKNOWN, "shell: effect depends on the command"),
+    Rule(
+        r"write|edit|multiedit|notebookedit|create_file|str_replace",
+        MUTATING,
+        "writes to the filesystem",
+    ),
+    Rule(
+        r"bash|shell|sh|exec|run_command|terminal",
+        UNKNOWN,
+        "shell: effect depends on the command",
+    ),
     Rule(r"task|agent|dispatch.*", UNKNOWN, "delegates to another agent"),
     # Money-moving fallbacks require both a financial namespace and an
     # explicit money-moving operation.  payments.get_balance is not a write.
-    Rule(r"(?:payment|payout|transfer|wire|settle|disburse)s?\."
-         r"(?:execute|initiate|send|transfer|wire|remit|drain)(?:[_-].*)?",
-         IRREVERSIBLE, "moves money"),
+    Rule(
+        r"(?:payment|payout|transfer|wire|settle|disburse)s?\."
+        r"(?:execute|initiate|send|transfer|wire|remit|drain)(?:[_-].*)?",
+        IRREVERSIBLE,
+        "moves money",
+    ),
     Rule(r"refund\.(issue|execute)|.*\.refund", IRREVERSIBLE, "issues a refund"),
-    Rule(r".*\.(delete|destroy|purge|drop|revoke)", IRREVERSIBLE,
-         "destroys data or access"),
+    Rule(
+        r".*\.(delete|destroy|purge|drop|revoke)",
+        IRREVERSIBLE,
+        "destroys data or access",
+    ),
     Rule(r".*\.(publish|deploy|release)", IRREVERSIBLE, "publishes externally"),
     Rule(r".*\.(export|download|dump)", IRREVERSIBLE, "removes data from scope"),
-    Rule(r".*\.(recommend|analyse|analyze|read|get|list|search)", READ_ONLY,
-         "produces a recommendation or read"),
+    Rule(
+        r".*\.(recommend|analyse|analyze|read|get|list|search)",
+        READ_ONLY,
+        "produces a recommendation or read",
+    ),
     Rule(r".*\.(update|patch|set|create|write)", MUTATING, "changes stored state"),
 )
 
@@ -126,21 +150,42 @@ DEFAULT_RULES: tuple[Rule, ...] = (
 COMMAND_RULES: tuple[tuple[str, str, str], ...] = (
     (r"\bgit\s+push\b.*(--force|-f)\b", IRREVERSIBLE, "force-push rewrites history"),
     (r"\bgit\s+reset\s+--hard\b", IRREVERSIBLE, "discards work irrecoverably"),
-    (r"\brm\s+(-[a-z]*r[a-z]*f|-[a-z]*f[a-z]*r)\b", IRREVERSIBLE, "recursive force delete"),
+    (
+        r"\brm\s+(-[a-z]*r[a-z]*f|-[a-z]*f[a-z]*r)\b",
+        IRREVERSIBLE,
+        "recursive force delete",
+    ),
     (r"\b(npm|yarn|pnpm)\s+publish\b", IRREVERSIBLE, "publishes a package"),
     (r"\bpip\s+.*\bupload\b|\btwine\s+upload\b", IRREVERSIBLE, "publishes a package"),
     (r"\bdocker\s+push\b", IRREVERSIBLE, "publishes an image"),
-    (r"\b(kubectl|helm)\s+(apply|delete|upgrade)\b", IRREVERSIBLE, "changes a live cluster"),
+    (
+        r"\b(kubectl|helm)\s+(apply|delete|upgrade)\b",
+        IRREVERSIBLE,
+        "changes a live cluster",
+    ),
     (r"\bterraform\s+(apply|destroy)\b", IRREVERSIBLE, "changes live infrastructure"),
     (r"\bgh\s+(release|pr\s+merge)\b", IRREVERSIBLE, "publishes or merges"),
-    (r"\bcurl\b.*(-X\s*(POST|PUT|DELETE|PATCH)|--data)", IRREVERSIBLE,
-     "sends a state-changing request"),
-    (r"\bgit\s+(commit|add|checkout|merge|rebase)\b", MUTATING, "changes the repository"),
+    (
+        r"\bcurl\b.*(-X\s*(POST|PUT|DELETE|PATCH)|--data)",
+        IRREVERSIBLE,
+        "sends a state-changing request",
+    ),
+    (
+        r"\bgit\s+(commit|add|checkout|merge|rebase)\b",
+        MUTATING,
+        "changes the repository",
+    ),
     (r"\b(mv|cp|mkdir|touch|chmod|chown)\b", MUTATING, "changes the filesystem"),
-    (r"\b(npm|yarn|pnpm|pip|apt|brew)\s+(install|add)\b", MUTATING,
-     "installs dependencies"),
-    (r"\b(ls|cat|grep|find|head|tail|wc|git\s+(status|log|diff|show))\b",
-     READ_ONLY, "reads only"),
+    (
+        r"\b(npm|yarn|pnpm|pip|apt|brew)\s+(install|add)\b",
+        MUTATING,
+        "installs dependencies",
+    ),
+    (
+        r"\b(ls|cat|grep|find|head|tail|wc|git\s+(status|log|diff|show))\b",
+        READ_ONLY,
+        "reads only",
+    ),
 )
 
 _SHELL_ARG_KEYS = ("command", "cmd", "script", "shell_command", "input")
@@ -170,7 +215,7 @@ def _canonical_mcp(capability: str) -> str | None:
 @dataclass(frozen=True)
 class Classification:
     effect: str
-    basis: str          # "manifest" | "capability" | "command" | "default"
+    basis: str  # "manifest" | "capability" | "command" | "default"
     note: str
 
 
@@ -358,7 +403,9 @@ class InventoryReport:
         return sorted(self.agents.values(), key=lambda a: (-a.reach, -a.irreversible))
 
 
-def build_inventory(result: Any, rules: tuple[Rule, ...] = DEFAULT_RULES) -> InventoryReport:
+def build_inventory(
+    result: Any, rules: tuple[Rule, ...] = DEFAULT_RULES
+) -> InventoryReport:
     """result: an IngestResult from agent_dna.scan.ingest."""
     report = InventoryReport(
         source_path=result.source_path,
@@ -395,8 +442,12 @@ def build_inventory(result: Any, rules: tuple[Rule, ...] = DEFAULT_RULES) -> Inv
         else:
             profile.read_only += 1
         ts = action.timestamp
-        profile.first_seen = ts if profile.first_seen is None else min(profile.first_seen, ts)
-        profile.last_seen = ts if profile.last_seen is None else max(profile.last_seen, ts)
+        profile.first_seen = (
+            ts if profile.first_seen is None else min(profile.first_seen, ts)
+        )
+        profile.last_seen = (
+            ts if profile.last_seen is None else max(profile.last_seen, ts)
+        )
 
     report.agents = dict(per_agent)
     return report

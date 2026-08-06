@@ -24,12 +24,12 @@ import sys
 import tempfile
 from pathlib import Path
 
+from runtime_demo import banner, synthetic_compromised_trace, train
+
 from agent_dna.decision import Decision, DecisionEngine
 from agent_dna.decision_recorder import DecisionRecorder
 from agent_dna.decision_store import DecisionStore
 from agent_dna.runtime import RuntimeMonitor
-
-from runtime_demo import banner, synthetic_compromised_trace, train
 
 ROOT = Path(__file__).resolve().parent.parent
 VERIFIER = ROOT / "tools" / "verify_records.py"
@@ -41,11 +41,13 @@ class Invariants:
     def validate(self, capability, previous):
         class R:
             pass
+
         r = R()
         r.violated = capability == "storage.bulk_export"
         r.message = (
             "invariant: storage.bulk_export is contractually forbidden"
-            if r.violated else ""
+            if r.violated
+            else ""
         )
         return r
 
@@ -67,10 +69,11 @@ class Authorizer:
 def run_verifier(path):
     proc = subprocess.run(
         [sys.executable, str(VERIFIER), str(path)],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
-    verdict = [l for l in proc.stdout.splitlines() if l.startswith("VERDICT")]
-    fails = [l for l in proc.stdout.splitlines() if "FAIL " in l]
+    verdict = [line for line in proc.stdout.splitlines() if line.startswith("VERDICT")]
+    fails = [line for line in proc.stdout.splitlines() if "FAIL " in line]
     for line in fails[:3]:
         print(line)
     print(verdict[0] if verdict else "no verdict")
@@ -111,10 +114,7 @@ def main():
     for rec, result in decided:
         status = "ok" if result.decision == Decision.ALLOW else "refused"
         ev = recorder.report_outcome(rec.decision_id, status)
-        print(
-            f"{rec.capability:<28} outcome={status:<8}"
-            f" anchor={ev.prev_hash[:10]}.."
-        )
+        print(f"{rec.capability:<28} outcome={status:<8} anchor={ev.prev_hash[:10]}..")
 
     g = recorder.graph
 
@@ -132,10 +132,7 @@ def main():
     banner("4. LINEAGE (root -> last decision, hash-chained)")
     last = list(g)[-1]
     for step in g.lineage(last.decision_id):
-        print(
-            f"{step.capability:<28} {step.decision:<17}"
-            f" {step.record_hash[:12]}.."
-        )
+        print(f"{step.capability:<28} {step.decision:<17} {step.record_hash[:12]}..")
 
     # ---- 5. integrity, in memory and on disk ----------------------------
     banner("5. CHAIN INTEGRITY")
@@ -161,8 +158,9 @@ def main():
     banner("7. ATTACK: delete the refusal from the log file")
     deleted = workdir / "deleted.jsonl"
     kept = [
-        l for l in log.read_text().splitlines()
-        if json.loads(l).get("decision") != "block"
+        line
+        for line in log.read_text().splitlines()
+        if json.loads(line).get("decision") != "block"
     ]
     deleted.write_text("\n".join(kept) + "\n")
     run_verifier(deleted)

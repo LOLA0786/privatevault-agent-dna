@@ -1,0 +1,14 @@
+.git
+.github
+.venv
+**/__pycache__
+**/*.pyc
+.mypy_cache
+.pytest_cache
+.ruff_cache
+dashboard/node_modules
+dashboard/dist
+data/*.db*
+privatevault_agent_dna.egg-info
+proof-of-run.json
+*.zip

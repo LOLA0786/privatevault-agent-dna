@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NoReturn
 
 from nacl.exceptions import BadSignatureError
 
@@ -32,9 +32,7 @@ from agent_dna.execution_v01 import (
     validate_execution_authorization,
 )
 
-DISPATCH_WITNESS_SPEC = (
-    "pv-dispatch-witness/0.1-experimental"
-)
+DISPATCH_WITNESS_SPEC = "pv-dispatch-witness/0.1-experimental"
 
 _WITNESS_FIELDS = frozenset(
     {
@@ -95,9 +93,7 @@ def _require_object(
     path: str,
 ) -> Mapping[str, Any]:
     if not isinstance(value, Mapping):
-        raise AuthorityFormatError(
-            f"{path}: expected object"
-        )
+        raise AuthorityFormatError(f"{path}: expected object")
     return value
 
 
@@ -111,15 +107,10 @@ def _require_exact_fields(
     unexpected = actual - expected
 
     if missing:
-        raise AuthorityFormatError(
-            f"{path}: missing fields {sorted(missing)}"
-        )
+        raise AuthorityFormatError(f"{path}: missing fields {sorted(missing)}")
 
     if unexpected:
-        raise AuthorityFormatError(
-            f"{path}: unexpected fields "
-            f"{sorted(unexpected)}"
-        )
+        raise AuthorityFormatError(f"{path}: unexpected fields {sorted(unexpected)}")
 
 
 def _require_string(
@@ -127,9 +118,7 @@ def _require_string(
     path: str,
 ) -> str:
     if not isinstance(value, str) or not value:
-        raise AuthorityFormatError(
-            f"{path}: expected non-empty string"
-        )
+        raise AuthorityFormatError(f"{path}: expected non-empty string")
     return value
 
 
@@ -137,13 +126,8 @@ def _require_digest(
     value: Any,
     path: str,
 ) -> str:
-    if (
-        not isinstance(value, str)
-        or not SHA256_RE.fullmatch(value)
-    ):
-        raise AuthorityFormatError(
-            f"{path}: malformed SHA-256 digest"
-        )
+    if not isinstance(value, str) or not SHA256_RE.fullmatch(value):
+        raise AuthorityFormatError(f"{path}: malformed SHA-256 digest")
     return value
 
 
@@ -151,22 +135,13 @@ def _parse_timestamp(
     value: Any,
     path: str,
 ) -> datetime:
-    if (
-        not isinstance(value, str)
-        or not RFC3339_UTC_RE.fullmatch(value)
-    ):
-        raise AuthorityFormatError(
-            f"{path}: expected RFC3339 UTC timestamp"
-        )
+    if not isinstance(value, str) or not RFC3339_UTC_RE.fullmatch(value):
+        raise AuthorityFormatError(f"{path}: expected RFC3339 UTC timestamp")
 
     try:
-        return datetime.fromisoformat(
-            value.removesuffix("Z") + "+00:00"
-        )
+        return datetime.fromisoformat(value.removesuffix("Z") + "+00:00")
     except ValueError as exc:
-        raise AuthorityFormatError(
-            f"{path}: invalid timestamp"
-        ) from exc
+        raise AuthorityFormatError(f"{path}: invalid timestamp") from exc
 
 
 def _validate_observed_dispatch(
@@ -223,14 +198,10 @@ def validate_dispatch_witness(  # noqa: C901
     )
 
     if value["spec"] != DISPATCH_WITNESS_SPEC:
-        raise AuthorityFormatError(
-            f"{path}.spec: unsupported spec"
-        )
+        raise AuthorityFormatError(f"{path}.spec: unsupported spec")
 
     if value["canonicalization"] != CANONICALIZATION:
-        raise AuthorityFormatError(
-            f"{path}.canonicalization: unsupported"
-        )
+        raise AuthorityFormatError(f"{path}.canonicalization: unsupported")
 
     for field in (
         "dispatch_witness_id",
@@ -253,14 +224,8 @@ def validate_dispatch_witness(  # noqa: C901
     )
 
     attempt = value["attempt"]
-    if (
-        isinstance(attempt, bool)
-        or not isinstance(attempt, int)
-        or attempt < 1
-    ):
-        raise AuthorityFormatError(
-            f"{path}.attempt: expected integer >= 1"
-        )
+    if isinstance(attempt, bool) or not isinstance(attempt, int) or attempt < 1:
+        raise AuthorityFormatError(f"{path}.attempt: expected integer >= 1")
 
     for field in (
         "execution_authorization_digest",
@@ -285,8 +250,7 @@ def validate_dispatch_witness(  # noqa: C901
     ):
         if value[field] != observed_dispatch[field]:
             raise AuthorityFormatError(
-                f"{path}.{field}: does not match "
-                f"observed_dispatch.{field}"
+                f"{path}.{field}: does not match observed_dispatch.{field}"
             )
 
     wire_bytes_length = value["wire_bytes_length"]
@@ -295,19 +259,11 @@ def validate_dispatch_witness(  # noqa: C901
         or not isinstance(wire_bytes_length, int)
         or wire_bytes_length < 0
     ):
-        raise AuthorityFormatError(
-            f"{path}.wire_bytes_length: "
-            "expected integer >= 0"
-        )
+        raise AuthorityFormatError(f"{path}.wire_bytes_length: expected integer >= 0")
 
     signature = value["signature"]
-    if (
-        not isinstance(signature, str)
-        or not SIGNATURE_RE.fullmatch(signature)
-    ):
-        raise AuthorityFormatError(
-            f"{path}.signature: malformed Ed25519 signature"
-        )
+    if not isinstance(signature, str) or not SIGNATURE_RE.fullmatch(signature):
+        raise AuthorityFormatError(f"{path}.signature: malformed Ed25519 signature")
 
     canonicalize(value)
     return value
@@ -336,24 +292,16 @@ def create_dispatch_witness(
         "dispatch_witness_metadata",
     )
 
-    validated_authorization = (
-        validate_execution_authorization(
-            authorization
-        )
-    )
+    validated_authorization = validate_execution_authorization(authorization)
     validate_trust_bundle(trust_bundle)
     trust = _require_object(
         trust_bundle,
         "trust_bundle",
     )
 
-    if (
-        trust["organisation_id"]
-        != validated_authorization["organisation_id"]
-    ):
+    if trust["organisation_id"] != validated_authorization["organisation_id"]:
         raise AuthorityFormatError(
-            "authorization and trust bundle "
-            "organisations differ"
+            "authorization and trust bundle organisations differ"
         )
 
     observed_action = _require_object(
@@ -362,9 +310,7 @@ def create_dispatch_witness(
     )
     canonicalize(observed_action)
 
-    observed_dispatch = _validate_observed_dispatch(
-        observed_dispatch
-    )
+    observed_dispatch = _validate_observed_dispatch(observed_dispatch)
 
     wire_digest = sha256_bytes_digest(
         wire_bytes,
@@ -379,50 +325,26 @@ def create_dispatch_witness(
     unsigned = {
         "spec": DISPATCH_WITNESS_SPEC,
         "canonicalization": CANONICALIZATION,
-        "dispatch_witness_id": (
-            metadata["dispatch_witness_id"]
-        ),
-        "organisation_id": (
-            validated_authorization["organisation_id"]
-        ),
-        "request_id": (
-            validated_authorization["request_id"]
-        ),
+        "dispatch_witness_id": (metadata["dispatch_witness_id"]),
+        "organisation_id": (validated_authorization["organisation_id"]),
+        "request_id": (validated_authorization["request_id"]),
         "execution_authorization_id": (
-            validated_authorization[
-                "execution_authorization_id"
-            ]
+            validated_authorization["execution_authorization_id"]
         ),
         "execution_authorization_digest": (
-            execution_authorization_digest(
-                validated_authorization
-            )
+            execution_authorization_digest(validated_authorization)
         ),
         "observed_at": metadata["observed_at"],
         "attempt": metadata["attempt"],
-        "witness_component_id": (
-            metadata["witness_component_id"]
-        ),
-        "observed_action_digest": sha256_digest(
-            observed_action
-        ),
-        "observed_dispatch": dict(
-            observed_dispatch
-        ),
-        "wire_content_type": (
-            metadata["wire_content_type"]
-        ),
-        "wire_content_encoding": (
-            metadata["wire_content_encoding"]
-        ),
+        "witness_component_id": (metadata["witness_component_id"]),
+        "observed_action_digest": sha256_digest(observed_action),
+        "observed_dispatch": dict(observed_dispatch),
+        "wire_content_type": (metadata["wire_content_type"]),
+        "wire_content_encoding": (metadata["wire_content_encoding"]),
         "wire_bytes_digest": wire_digest,
-        "wire_bytes_length": len(
-            exact_wire_bytes
-        ),
+        "wire_bytes_length": len(exact_wire_bytes),
         "peer_identity_digest": peer_digest,
-        "trust_bundle_digest": sha256_digest(
-            trust
-        ),
+        "trust_bundle_digest": sha256_digest(trust),
         "signer_key_id": metadata["signer_key_id"],
     }
 
@@ -458,7 +380,7 @@ class _DispatchEvidenceError(Exception):
 def _dispatch_fail(
     reason_code: str,
     detail: str,
-) -> None:
+) -> NoReturn:
     raise _DispatchEvidenceError(
         reason_code,
         detail,
@@ -483,24 +405,16 @@ def _verify_dispatch_signatures(
     authorization: Mapping[str, Any],
     keys: Mapping[str, Mapping[str, Any]],
 ) -> Mapping[str, Any]:
-    authorization_key_id = authorization[
-        "signer_key_id"
-    ]
-    authorization_key = keys.get(
-        authorization_key_id
-    )
+    authorization_key_id = authorization["signer_key_id"]
+    authorization_key = keys.get(authorization_key_id)
 
     if authorization_key is None:
         _dispatch_fail(
             "AUTHORIZATION_TRUST_ROOT_UNKNOWN",
-            f"authorization key {authorization_key_id!r} "
-            "is absent from trust bundle",
+            f"authorization key {authorization_key_id!r} is absent from trust bundle",
         )
 
-    if (
-        "execution_authorization_signer"
-        not in authorization_key["usages"]
-    ):
+    if "execution_authorization_signer" not in authorization_key["usages"]:
         _dispatch_fail(
             "AUTHORIZATION_KEY_USAGE_INVALID",
             f"key {authorization_key_id!r} lacks required "
@@ -513,25 +427,19 @@ def _verify_dispatch_signatures(
     if witness_key is None:
         _dispatch_fail(
             "WITNESS_TRUST_ROOT_UNKNOWN",
-            f"witness key {witness_key_id!r} is absent "
-            "from trust bundle",
+            f"witness key {witness_key_id!r} is absent from trust bundle",
         )
 
-    if "dispatch_witness_signer" not in witness_key[
-        "usages"
-    ]:
+    if "dispatch_witness_signer" not in witness_key["usages"]:
         _dispatch_fail(
             "WITNESS_KEY_USAGE_INVALID",
-            f"key {witness_key_id!r} lacks required "
-            "usage 'dispatch_witness_signer'",
+            f"key {witness_key_id!r} lacks required usage 'dispatch_witness_signer'",
         )
 
     if (
         authorization_key_id == witness_key_id
-        or authorization_key["public_key"]
-        == witness_key["public_key"]
-        or authorization_key["principal"]
-        == witness_key["principal"]
+        or authorization_key["public_key"] == witness_key["public_key"]
+        or authorization_key["principal"] == witness_key["principal"]
     ):
         _dispatch_fail(
             "WITNESS_NOT_INDEPENDENT",
@@ -543,9 +451,7 @@ def _verify_dispatch_signatures(
         verify_document_signature(
             authorization,
             signature_field="signature",
-            public_key=authorization_key[
-                "public_key"
-            ],
+            public_key=authorization_key["public_key"],
         )
     except (AuthorityFormatError, BadSignatureError):
         _dispatch_fail(
@@ -587,14 +493,8 @@ def _prepare_dispatch_verification(
     int,
     str,
 ]:
-    validated_witness = validate_dispatch_witness(
-        witness
-    )
-    validated_authorization = (
-        validate_execution_authorization(
-            authorization
-        )
-    )
+    validated_witness = validate_dispatch_witness(witness)
+    validated_authorization = validate_execution_authorization(authorization)
     keys = validate_trust_bundle(trust_bundle)
     trust = _require_object(
         trust_bundle,
@@ -617,10 +517,7 @@ def _prepare_dispatch_verification(
     measured_wire_length = len(bytes(wire_bytes))
     measured_peer_digest = sha256_bytes_digest(
         peer_identity_bytes,
-        (
-            "dispatch_verification."
-            "peer_identity_bytes"
-        ),
+        ("dispatch_verification.peer_identity_bytes"),
     )
 
     return (
@@ -657,122 +554,65 @@ def _dispatch_binding_failures(  # noqa: C901
             if field == "execution_authorization_id"
             else field
         )
-        if (
-            witness[field]
-            != authorization[authorization_field]
-        ):
+        if witness[field] != authorization[authorization_field]:
             failures.append(
-                f"dispatch witness {field} does not match "
-                "the execution authorization"
+                f"dispatch witness {field} does not match the execution authorization"
             )
 
-    expected_authorization_digest = (
-        execution_authorization_digest(
-            authorization
-        )
-    )
-    if (
-        witness["execution_authorization_digest"]
-        != expected_authorization_digest
-    ):
+    expected_authorization_digest = execution_authorization_digest(authorization)
+    if witness["execution_authorization_digest"] != expected_authorization_digest:
         failures.append(
-            "dispatch witness does not bind the supplied "
-            "execution authorization"
+            "dispatch witness does not bind the supplied execution authorization"
         )
 
-    measured_action_digest = sha256_digest(
-        observed_action
-    )
-    if (
-        witness["observed_action_digest"]
-        != measured_action_digest
-    ):
+    measured_action_digest = sha256_digest(observed_action)
+    if witness["observed_action_digest"] != measured_action_digest:
         failures.append(
-            "dispatch witness action digest does not match "
-            "the observed action"
+            "dispatch witness action digest does not match the observed action"
         )
 
-    if (
-        authorization["action_digest"]
-        != measured_action_digest
-    ):
-        failures.append(
-            "observed action is not the authorized action"
-        )
+    if authorization["action_digest"] != measured_action_digest:
+        failures.append("observed action is not the authorized action")
 
-    if (
-        canonicalize(authorization["action"])
-        != canonicalize(observed_action)
-    ):
-        failures.append(
-            "observed action does not exactly match the "
-            "authorized action"
-        )
+    if canonicalize(authorization["action"]) != canonicalize(observed_action):
+        failures.append("observed action does not exactly match the authorized action")
 
-    if (
-        canonicalize(witness["observed_dispatch"])
-        != canonicalize(observed_dispatch)
-    ):
-        failures.append(
-            "dispatch witness does not exactly match the "
-            "observed dispatch"
-        )
+    if canonicalize(witness["observed_dispatch"]) != canonicalize(observed_dispatch):
+        failures.append("dispatch witness does not exactly match the observed dispatch")
 
-    if (
-        canonicalize(authorization["dispatch"])
-        != canonicalize(observed_dispatch)
-    ):
+    if canonicalize(authorization["dispatch"]) != canonicalize(observed_dispatch):
         failures.append(
-            "observed dispatch does not exactly match the "
-            "authorized dispatch"
+            "observed dispatch does not exactly match the authorized dispatch"
         )
 
     if witness["wire_bytes_digest"] != measured_wire_digest:
         failures.append(
-            "dispatch witness wire digest does not match "
-            "the observed outbound bytes"
+            "dispatch witness wire digest does not match the observed outbound bytes"
         )
 
-    if (
-        authorization["expected_wire_bytes_digest"]
-        != measured_wire_digest
-    ):
+    if authorization["expected_wire_bytes_digest"] != measured_wire_digest:
         failures.append(
-            "observed outbound bytes are not the exact "
-            "bytes authorized by the permit"
+            "observed outbound bytes are not the exact bytes authorized by the permit"
         )
 
     if witness["wire_bytes_length"] != measured_wire_length:
         failures.append(
-            "dispatch witness wire length does not match "
-            "the observed outbound bytes"
+            "dispatch witness wire length does not match the observed outbound bytes"
         )
 
-    if (
-        authorization["expected_wire_bytes_length"]
-        != measured_wire_length
-    ):
+    if authorization["expected_wire_bytes_length"] != measured_wire_length:
         failures.append(
-            "observed outbound byte length does not match "
-            "the signed permit"
+            "observed outbound byte length does not match the signed permit"
         )
 
-    if (
-        witness["peer_identity_digest"]
-        != measured_peer_digest
-    ):
+    if witness["peer_identity_digest"] != measured_peer_digest:
         failures.append(
-            "dispatch witness peer identity does not match "
-            "the observed peer"
+            "dispatch witness peer identity does not match the observed peer"
         )
 
-    if (
-        authorization["expected_peer_identity_digest"]
-        != measured_peer_digest
-    ):
+    if authorization["expected_peer_identity_digest"] != measured_peer_digest:
         failures.append(
-            "observed peer identity is not the peer "
-            "authorized by the permit"
+            "observed peer identity is not the peer authorized by the permit"
         )
 
     observed_at = _parse_timestamp(
@@ -789,16 +629,10 @@ def _dispatch_binding_failures(  # noqa: C901
     )
 
     if not not_before <= observed_at < expires_at:
-        failures.append(
-            "dispatch occurred outside the authorization "
-            "validity window"
-        )
+        failures.append("dispatch occurred outside the authorization validity window")
 
     if witness["attempt"] != 1:
-        failures.append(
-            "single-use authorization cannot witness "
-            "a retry attempt"
-        )
+        failures.append("single-use authorization cannot witness a retry attempt")
 
     return failures
 
@@ -890,19 +724,15 @@ def verify_dispatch_witness(  # noqa: C901
             str(exc),
         )
 
-    organisation_id = validated_authorization[
-        "organisation_id"
-    ]
+    organisation_id = validated_authorization["organisation_id"]
     if (
         trust["organisation_id"] != organisation_id
-        or validated_witness["organisation_id"]
-        != organisation_id
+        or validated_witness["organisation_id"] != organisation_id
     ):
         return _dispatch_report(
             EvidenceState.INVALID,
             "ORGANISATION_MISMATCH",
-            "witness, authorization, and trust bundle "
-            "organisations differ",
+            "witness, authorization, and trust bundle organisations differ",
         )
 
     try:
@@ -918,22 +748,15 @@ def verify_dispatch_witness(  # noqa: C901
             exc.detail,
         )
 
-    actual_trust_bundle_digest = sha256_digest(
-        trust
-    )
+    actual_trust_bundle_digest = sha256_digest(trust)
     if (
-        validated_authorization[
-            "trust_bundle_digest"
-        ]
-        != actual_trust_bundle_digest
-        or validated_witness["trust_bundle_digest"]
-        != actual_trust_bundle_digest
+        validated_authorization["trust_bundle_digest"] != actual_trust_bundle_digest
+        or validated_witness["trust_bundle_digest"] != actual_trust_bundle_digest
     ):
         return _dispatch_report(
             EvidenceState.INVALID,
             "TRUST_BUNDLE_DIGEST_MISMATCH",
-            "authorization or witness does not bind the "
-            "supplied trust bundle",
+            "authorization or witness does not bind the supplied trust bundle",
         )
 
     failures = _dispatch_binding_failures(
@@ -953,11 +776,7 @@ def verify_dispatch_witness(  # noqa: C901
             if failures
             else DecisionConformance.CONFORMANT
         ),
-        (
-            "DISPATCH_NON_CONFORMANT"
-            if failures
-            else None
-        ),
+        ("DISPATCH_NON_CONFORMANT" if failures else None),
         tuple(failures),
         witness_key["principal"],
     )

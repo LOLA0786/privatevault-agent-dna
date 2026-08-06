@@ -31,6 +31,7 @@ class StubInvariants:
     def validate(self, capability, previous):
         class R:
             pass
+
         r = R()
         r.violated = capability == "wire.drain"
         r.message = "forbidden" if r.violated else ""
@@ -75,18 +76,18 @@ def test_round_trip_reloads_verified_graph(tmp_path):
     # lineage survives the round trip
     last = list(g)[-1]
     assert [r.capability for r in g.lineage(last.decision_id)] == [
-        "crm.read", "wire.drain", "email.send",
+        "crm.read",
+        "wire.drain",
+        "email.send",
     ]
 
 
 def test_follows_edges_on_disk(tmp_path):
     path = tmp_path / "decisions.jsonl"
     _populate(path)
-    lines = [json.loads(l) for l in path.read_text().splitlines()]
+    lines = [json.loads(line) for line in path.read_text().splitlines()]
     assert lines[0]["edges"] == []
-    assert lines[1]["edges"] == [
-        {"type": "follows", "target": lines[0]["decision_id"]}
-    ]
+    assert lines[1]["edges"] == [{"type": "follows", "target": lines[0]["decision_id"]}]
 
 
 def test_independent_verifier_passes_clean_file(tmp_path):
@@ -103,7 +104,7 @@ def test_independent_verifier_detects_tampered_field(tmp_path):
 
     lines = path.read_text().splitlines()
     doctored = json.loads(lines[1])
-    doctored["decision"] = "allow"          # flip the BLOCK to ALLOW
+    doctored["decision"] = "allow"  # flip the BLOCK to ALLOW
     lines[1] = json.dumps(doctored, sort_keys=True, separators=(",", ":"))
     path.write_text("\n".join(lines) + "\n")
 
@@ -118,7 +119,7 @@ def test_independent_verifier_detects_deleted_record(tmp_path):
     _populate(path)
 
     lines = path.read_text().splitlines()
-    del lines[1]                            # silently drop the BLOCK
+    del lines[1]  # silently drop the BLOCK
     path.write_text("\n".join(lines) + "\n")
 
     proc = _run_verifier(path)
@@ -128,6 +129,7 @@ def test_independent_verifier_detects_deleted_record(tmp_path):
 
 def test_store_refuses_unsealed_record(tmp_path):
     import pytest
+
     from agent_dna.decision_record import build_record
 
     engine = DecisionEngine(scorer=StubScorer())

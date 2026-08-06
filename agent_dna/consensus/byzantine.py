@@ -99,8 +99,10 @@ class ByzantineQuorum:
         self.prev_decision_hash: str | None = None
         self._clock = clock
         self._registry = trust_registry  # None => fresh default per check (legacy)
-        self._ballots: dict[str, dict[str, _Ballot]] = {}   # action -> agent -> ballot
-        self._seen_nonces: dict[str, set[tuple[str, str]]] = {}  # action -> {(agent, nonce)}
+        self._ballots: dict[str, dict[str, _Ballot]] = {}  # action -> agent -> ballot
+        self._seen_nonces: dict[
+            str, set[tuple[str, str]]
+        ] = {}  # action -> {(agent, nonce)}
 
     # ------------------------------------------------------------------ chain
 
@@ -137,12 +139,14 @@ class ByzantineQuorum:
             if key in seen:
                 raise ValueError(
                     f"replayed vote: nonce {effective_nonce!r} already "
-                    f"used by {agent_id!r} for action {action_id!r}")
+                    f"used by {agent_id!r} for action {action_id!r}"
+                )
             seen.add(key)
 
         linked = (
             f"{self.prev_decision_hash}:{message_hash}"
-            if self.prev_decision_hash else message_hash
+            if self.prev_decision_hash
+            else message_hash
         )
         # F3: one ballot per agent per action; a re-vote replaces.
         self._ballots.setdefault(action_id, {})[agent_id] = _Ballot(
@@ -162,7 +166,8 @@ class ByzantineQuorum:
 
         # F4: one filtered set drives every count -- fresh AND verified.
         valid = [
-            b for b in self._ballots.get(action_id, {}).values()
+            b
+            for b in self._ballots.get(action_id, {}).values()
             if now - b.timestamp <= self.expiry
             and verify_signature(b.agent, b.linked_hash, b.signature)
         ]

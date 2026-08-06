@@ -21,20 +21,18 @@ may downgrade because the capability was explicitly approved.
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional
-
 from .advisory import (
     AdvisorySignal,
     Posture,
     Severity,
 )
 from .dynamics import (
-    BehaviorDynamics,
     _START,
+    BehaviorDynamics,
 )
+from .invariant_engine import InvariantEngine
 from .manifold import CapabilityManifold
 from .rate import RateAnomalyDetector
-from .invariant_engine import InvariantEngine
 from .trace import AgentAction
 
 _RARE_FREQ = 0.005
@@ -47,7 +45,6 @@ _CRITICAL = 0.70
 
 
 class DriftScorer:
-
     def __init__(
         self,
         manifold: CapabilityManifold,
@@ -56,14 +53,10 @@ class DriftScorer:
     ) -> None:
 
         if not manifold.fitted:
-            raise ValueError(
-                "CapabilityManifold must be fitted."
-            )
+            raise ValueError("CapabilityManifold must be fitted.")
 
         if not dynamics.fitted:
-            raise ValueError(
-                "BehaviorDynamics must be fitted."
-            )
+            raise ValueError("BehaviorDynamics must be fitted.")
 
         self.manifold = manifold
         self.dynamics = dynamics
@@ -76,12 +69,12 @@ class DriftScorer:
     def score(
         self,
         action: AgentAction,
-        prev_capability: Optional[str] = None,
-        prev_timestamp: Optional[float] = None,
+        prev_capability: str | None = None,
+        prev_timestamp: float | None = None,
     ) -> AdvisorySignal:
 
-        reasons: List[str] = []
-        components: Dict[str, float] = {}
+        reasons: list[str] = []
+        components: dict[str, float] = {}
 
         components["novelty"] = self._novelty(
             action,
@@ -104,14 +97,12 @@ class DriftScorer:
         #
 
         if self.invariants is not None:
-
             violation = self.invariants.validate(
                 action.capability,
                 prev_capability,
             )
 
             if violation.violated:
-
                 components["invariant"] = 1.0
 
                 reasons.append(
@@ -119,11 +110,9 @@ class DriftScorer:
                 )
 
             else:
-
                 components["invariant"] = 0.0
 
         else:
-
             components["invariant"] = 0.0
 
         #
@@ -131,11 +120,9 @@ class DriftScorer:
         #
 
         if prev_timestamp is None:
-
             components["rate"] = 0.0
 
         else:
-
             interval = max(
                 0.0,
                 action.timestamp - prev_timestamp,
@@ -157,11 +144,9 @@ class DriftScorer:
         #
 
         if components["novelty"] >= 1.0:
-
             drift = 0.90
 
         else:
-
             drift = (
                 0.40 * components["novelty"]
                 + 0.25 * components["arguments"]
@@ -178,25 +163,19 @@ class DriftScorer:
         )
 
         if drift >= _CRITICAL:
-
             severity = Severity.CRITICAL
             posture = Posture.RECOMMEND_BLOCK
 
         elif drift >= _ELEVATED:
-
             severity = Severity.ELEVATED
             posture = Posture.REQUIRE_APPROVAL
 
         else:
-
             severity = Severity.INFO
             posture = Posture.LOG
 
         if severity == Severity.INFO and not reasons:
-
-            reasons.append(
-                "Action consistent with trusted behavioral profile."
-            )
+            reasons.append("Action consistent with trusted behavioral profile.")
 
         return AdvisorySignal(
             agent_id=action.agent_id,
@@ -215,13 +194,12 @@ class DriftScorer:
     def _novelty(
         self,
         action: AgentAction,
-        reasons: List[str],
+        reasons: list[str],
     ) -> float:
 
         if not self.manifold.known_capability(
             action.capability,
         ):
-
             reasons.append(
                 f"Capability '{action.capability}' has never appeared in the trusted profile."
             )
@@ -234,10 +212,7 @@ class DriftScorer:
             )
             < _RARE_FREQ
         ):
-
-            reasons.append(
-                f"Capability '{action.capability}' is rarely used."
-            )
+            reasons.append(f"Capability '{action.capability}' is rarely used.")
 
             return 0.40
 
@@ -246,8 +221,8 @@ class DriftScorer:
     def _sequence(
         self,
         action: AgentAction,
-        prev: Optional[str],
-        reasons: List[str],
+        prev: str | None,
+        reasons: list[str],
     ) -> float:
 
         previous = prev if prev is not None else _START
@@ -264,8 +239,7 @@ class DriftScorer:
             min(
                 1.0,
                 (surprise - ceiling)
-                /
-                max(
+                / max(
                     ceiling,
                     1.0,
                 ),
@@ -273,15 +247,12 @@ class DriftScorer:
         )
 
         if score >= 0.85:
-
             if previous == _START:
-
                 reasons.append(
                     f"Transition from session start to '{action.capability}' is improbable."
                 )
 
             else:
-
                 reasons.append(
                     f"Transition from '{previous}' to '{action.capability}' is improbable."
                 )
@@ -291,7 +262,7 @@ class DriftScorer:
     def _arguments(
         self,
         action: AgentAction,
-        reasons: List[str],
+        reasons: list[str],
     ) -> float:
 
         worst = 0.0
@@ -301,7 +272,6 @@ class DriftScorer:
         )
 
         for feature, value in features.items():
-
             #
             # Numeric
             #
@@ -310,7 +280,6 @@ class DriftScorer:
                 value,
                 float,
             ):
-
                 z = self.manifold.numeric_zscore(
                     action.capability,
                     feature,
@@ -321,37 +290,30 @@ class DriftScorer:
                     continue
 
                 if z == float("inf"):
-
                     score = 1.0
 
                 else:
-
                     score = max(
                         0.0,
                         min(
                             1.0,
-                            (z - _Z_LOW)
-                            /
-                            (_Z_HIGH - _Z_LOW),
+                            (z - _Z_LOW) / (_Z_HIGH - _Z_LOW),
                         ),
                     )
 
                 if score >= 0.50:
-
                     bounds = self.manifold.numeric_bounds(
                         action.capability,
                         feature,
                     )
 
                     if bounds:
-
                         reasons.append(
                             f"Argument '{feature}'={value:g} is outside trusted range "
                             f"({bounds[0]:g}..{bounds[1]:g})."
                         )
 
                     else:
-
                         reasons.append(
                             f"Argument '{feature}'={value:g} is outside trusted range."
                         )
@@ -366,13 +328,11 @@ class DriftScorer:
             #
 
             else:
-
                 if self.manifold.categorical_is_novel(
                     action.capability,
                     feature,
                     str(value),
                 ):
-
                     reasons.append(
                         f"Argument '{feature}'='{value}' was never seen for "
                         f"'{action.capability}'."

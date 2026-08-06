@@ -22,10 +22,14 @@ def keys_file(tmp_path):
     agent = generate_key("harness-agent-01", scope="full")
     auditor = generate_key("auditor-1", scope="audit")
     path = tmp_path / "keys.json"
-    path.write_text(json.dumps({
-        agent["hash"]: {"name": "harness-agent-01", "scope": "full"},
-        auditor["hash"]: {"name": "auditor-1", "scope": "audit"},
-    }))
+    path.write_text(
+        json.dumps(
+            {
+                agent["hash"]: {"name": "harness-agent-01", "scope": "full"},
+                auditor["hash"]: {"name": "auditor-1", "scope": "audit"},
+            }
+        )
+    )
     return path, agent["key"], auditor["key"]
 
 
@@ -34,9 +38,12 @@ def middleware(tmp_path, keys_file):
     path, agent_key, auditor_key = keys_file
     breaker = CircuitBreaker(
         tmp_path / "breaker.db",
-        BreakerConfig(max_decisions=None, window_seconds=60.0,
-                      max_cumulative_amount=None,
-                      max_consecutive_refusals=None),
+        BreakerConfig(
+            max_decisions=None,
+            window_seconds=60.0,
+            max_cumulative_amount=None,
+            max_consecutive_refusals=None,
+        ),
     )
     mw = ConnectorMiddleware(
         engine=GuardedEngine(_engine(), breaker),
@@ -56,7 +63,7 @@ def test_no_key_blocked_and_not_recorded(middleware):
     assert v.decision == "block"
     assert v.triggered_by == "identity"
     assert v.record_hash is None
-    assert len(mw.recorder.graph) == 0     # unauthenticated writes nothing
+    assert len(mw.recorder.graph) == 0  # unauthenticated writes nothing
 
 
 def test_invalid_key_blocked(middleware):
@@ -97,7 +104,7 @@ def test_tripped_breaker_blocks_via_connector(middleware):
     v = mw.handle(_req(agent_key))
     assert v.decision == "block"
     assert v.triggered_by == "circuit_breaker"
-    assert v.record_hash is not None       # the refusal itself is chained
+    assert v.record_hash is not None  # the refusal itself is chained
 
 
 def test_connector_fault_is_block(middleware):
@@ -107,8 +114,8 @@ def test_connector_fault_is_block(middleware):
         def __getattr__(self, name):
             raise RuntimeError("boom")
 
-    mw.engine = Bomb()                     # sabotage after construction
-    mw._monitors.clear()                   # force monitor rebuild on bomb
+    mw.engine = Bomb()  # sabotage after construction
+    mw._monitors.clear()  # force monitor rebuild on bomb
     v = mw.handle(_req(agent_key))
     assert v.decision == "block"
     assert v.triggered_by in ("connector_fault", "engine_fault")

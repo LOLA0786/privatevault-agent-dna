@@ -23,32 +23,34 @@ import threading
 import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from typing import Dict, Optional, Tuple
 
-from ..multi_agent import InteractionEvent, Verdict
+from ..multi_agent import InteractionEvent
 from ..multi_agent.runtime_validator import RuntimeValidator
 
 
 @dataclass(frozen=True)
 class CrossAgentConfig:
-    agent_roles: Dict[str, str] = field(default_factory=dict)
+    agent_roles: dict[str, str] = field(default_factory=dict)
     # capability (exact or prefix before '.') -> (target, target_role)
-    tool_targets: Dict[str, Tuple[str, str]] = field(default_factory=dict)
-    max_window_events: int = 500        # per execution, memory bound
-    max_executions: int = 1000          # LRU-evicted beyond this
+    tool_targets: dict[str, tuple[str, str]] = field(default_factory=dict)
+    max_window_events: int = 500  # per execution, memory bound
+    max_executions: int = 1000  # LRU-evicted beyond this
 
 
 class CrossAgentEnforcer:
-    def __init__(self, validator: RuntimeValidator,
-                 config: CrossAgentConfig = CrossAgentConfig()) -> None:
+    def __init__(
+        self,
+        validator: RuntimeValidator,
+        config: CrossAgentConfig | None = None,
+    ) -> None:
         self.validator = validator
-        self.config = config
-        self._windows: "OrderedDict[str, list]" = OrderedDict()
-        self._lock = threading.Lock()   # executions span agents; the
-                                        # per-agent middleware locks
-                                        # cannot protect a shared window
+        self.config = config or CrossAgentConfig()
+        self._windows: OrderedDict[str, list[InteractionEvent]] = OrderedDict()
+        self._lock = threading.Lock()  # executions span agents; the
+        # per-agent middleware locks
+        # cannot protect a shared window
 
-    def _target_for(self, capability: str) -> Tuple[str, str]:
+    def _target_for(self, capability: str) -> tuple[str, str]:
         tt = self.config.tool_targets
         if capability in tt:
             return tt[capability]
@@ -57,8 +59,9 @@ class CrossAgentEnforcer:
             return tt[prefix]
         return (prefix or "unknown", "unknown")
 
-    def observe(self, execution_id: str, agent_id: str,
-                capability: str) -> Optional[object]:
+    def observe(
+        self, execution_id: str, agent_id: str, capability: str
+    ) -> object | None:
         """Append this call's interaction event to its execution
         window and validate the window. Returns the EngineVerdict
         (never raises into the caller's decision path — the

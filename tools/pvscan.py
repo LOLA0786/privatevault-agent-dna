@@ -47,7 +47,8 @@ def find_logs(target: Path, max_files: int) -> list[Path]:
     if not target.is_dir():
         raise SystemExit(f"pvscan: no such file or directory: {target}")
     found = sorted(
-        p for p in target.rglob("*")
+        p
+        for p in target.rglob("*")
         if p.is_file()
         and p.suffix.lower() in RECURSIVE_LOG_SUFFIXES
         and p.stat().st_size > 0
@@ -118,8 +119,10 @@ class Totals:
 
         if inv.time_span:
             lo, hi = inv.time_span
-            self.span = (lo, hi) if self.span is None else (
-                min(self.span[0], lo), max(self.span[1], hi)
+            self.span = (
+                (lo, hi)
+                if self.span is None
+                else (min(self.span[0], lo), max(self.span[1], hi))
             )
 
     @property
@@ -159,8 +162,7 @@ def render(t: Totals, target: Path, top_agents: int = 15) -> str:
     add(f"Distinct tools    {len(t.tools)}")
     if t.reported_outcomes:
         outcomes = ", ".join(
-            f"{name} {count}"
-            for name, count in sorted(t.reported_outcomes.items())
+            f"{name} {count}" for name, count in sorted(t.reported_outcomes.items())
         )
         add(f"Source outcomes   {outcomes}")
         add("                  Source labels only; not execution proof.")
@@ -196,9 +198,7 @@ def render(t: Totals, target: Path, top_agents: int = 15) -> str:
         add("  None observed in this window.")
     else:
         total = sum(u.irreversible for u in irreversible)
-        add(
-            f"  {total} observed attempt(s) classified irreversible if executed."
-        )
+        add(f"  {total} observed attempt(s) classified irreversible if executed.")
         add("  This inventory does not prove dispatch or a real-world effect.")
         for usage in irreversible:
             who = ", ".join(sorted(usage.agents)[:3])
@@ -210,7 +210,9 @@ def render(t: Totals, target: Path, top_agents: int = 15) -> str:
     ranked = sorted(
         t.agents.values(), key=lambda a: (-a.irreversible, -len(a.capabilities))
     )
-    add(f"  {'agent / session':30} {'acts':>5} {'tools':>6} {'irrev':>6} {'unknown':>8}")
+    add(
+        f"  {'agent / session':30} {'acts':>5} {'tools':>6} {'irrev':>6} {'unknown':>8}"
+    )
     for profile in ranked[:top_agents]:
         add(
             f"  {profile.agent_id[:30]:30} {profile.actions:5} "
@@ -281,7 +283,9 @@ def to_json(t: Totals, target: Path) -> dict:
                 "agents": sorted(u.agents),
                 "examples": u.examples,
             }
-            for u in sorted(t.tools.values(), key=lambda u: (EFFECTS.index(u.worst), -u.count))
+            for u in sorted(
+                t.tools.values(), key=lambda u: (EFFECTS.index(u.worst), -u.count)
+            )
         ],
         "agents": [
             {
@@ -307,17 +311,33 @@ def main(argv: list[str] | None = None) -> int:
         description="Read-only inventory of what agents in a log can do.",
     )
     parser.add_argument("path", help="log file, or directory to search recursively")
-    parser.add_argument("--format", default="auto", choices=FORMATS,
-                        help="override log format detection")
+    parser.add_argument(
+        "--format",
+        default="auto",
+        choices=FORMATS,
+        help="override log format detection",
+    )
     parser.add_argument("--json", metavar="OUT", help="also write a JSON report")
-    parser.add_argument("--max-files", type=int, default=500,
-                        help="stop after this many files (default 500)")
-    parser.add_argument("--agent-id", default=None,
-                        help="identity for logs that carry none")
-    parser.add_argument("--top", type=int, default=15,
-                        help="agents to list before summarising (default 15)")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="list the files that would be read, then stop")
+    parser.add_argument(
+        "--max-files",
+        type=int,
+        default=500,
+        help="stop after this many files (default 500)",
+    )
+    parser.add_argument(
+        "--agent-id", default=None, help="identity for logs that carry none"
+    )
+    parser.add_argument(
+        "--top",
+        type=int,
+        default=15,
+        help="agents to list before summarising (default 15)",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="list the files that would be read, then stop",
+    )
     args = parser.parse_args(argv)
 
     target = Path(args.path).expanduser()
@@ -365,5 +385,6 @@ if __name__ == "__main__":
         raise SystemExit(main())
     except BrokenPipeError:  # piped into head/less; not an error
         import os
+
         os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
         raise SystemExit(0) from None

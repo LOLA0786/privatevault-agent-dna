@@ -7,20 +7,15 @@ from agent_dna import (
     Posture,
     Severity,
 )
-
 from agent_dna.adapters import (
     synthetic_compromised_trace,
     synthetic_normal_trace,
 )
-
 from agent_dna.trace import AgentAction
 
 
 def _fit():
-    training = [
-        synthetic_normal_trace(seed=i, loops=6)
-        for i in range(8)
-    ]
+    training = [synthetic_normal_trace(seed=i, loops=6) for i in range(8)]
 
     manifold = CapabilityManifold().fit(training)
     dynamics = BehaviorDynamics().fit(training)
@@ -32,9 +27,7 @@ def _fit():
 
 
 def test_manifold_learns_vocabulary():
-    manifold = CapabilityManifold().fit(
-        [synthetic_normal_trace(seed=1)]
-    )
+    manifold = CapabilityManifold().fit([synthetic_normal_trace(seed=1)])
 
     assert manifold.fitted
     assert manifold.known_capability("crm.read_contact")
@@ -85,10 +78,7 @@ def test_unseen_capability_is_critical():
 
     assert signal.severity == Severity.CRITICAL
     assert signal.components["novelty"] == 1.0
-    assert any(
-        "never appeared" in r
-        for r in signal.reasons
-    )
+    assert any("never appeared" in r for r in signal.reasons)
 
 
 def test_novel_categorical_argument_flagged():
@@ -111,10 +101,7 @@ def test_novel_categorical_argument_flagged():
 
     assert signal.components["arguments"] == 1.0
 
-    assert any(
-        "exfil-drop.ru" in r
-        for r in signal.reasons
-    )
+    assert any("exfil-drop.ru" in r for r in signal.reasons)
 
 
 def test_numeric_outlier_flagged():

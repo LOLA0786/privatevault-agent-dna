@@ -23,7 +23,7 @@ store. They surface in the returned verdict only.
 from __future__ import annotations
 
 import threading
-from typing import Dict, Optional
+import time
 
 from ..apikeys import ApiKeyRegistry
 from ..decision import Decision, DecisionResult, Severity
@@ -32,12 +32,11 @@ from ..runtime import RuntimeMonitor
 from ..trace import AgentAction
 from .models import ToolCallRequest, ToolCallVerdict
 
-import time
-
 
 class ConnectorMiddleware:
-    def __init__(self, engine, recorder, keys: ApiKeyRegistry,
-                 cross_agent=None, shadow=None) -> None:
+    def __init__(
+        self, engine, recorder, keys: ApiKeyRegistry, cross_agent=None, shadow=None
+    ) -> None:
         """engine: GuardedEngine (or DecisionEngine-compatible).
         recorder: DecisionRecorder — required, the verdict must carry
         a chain record_hash. keys: ApiKeyRegistry with enabled=True;
@@ -53,10 +52,10 @@ class ConnectorMiddleware:
         self.engine = engine
         self.recorder = recorder
         self.keys = keys
-        self.cross_agent = cross_agent   # optional CrossAgentEnforcer
+        self.cross_agent = cross_agent  # optional CrossAgentEnforcer
         self.shadow = shadow
-        self._monitors: Dict[str, RuntimeMonitor] = {}
-        self._locks: Dict[str, threading.Lock] = {}
+        self._monitors: dict[str, RuntimeMonitor] = {}
+        self._locks: dict[str, threading.Lock] = {}
         self._registry_lock = threading.Lock()
 
     # -- per-agent monitor: mirrors api/server.py _monitor_for --------
@@ -71,9 +70,7 @@ class ConnectorMiddleware:
                 # recorders (the in-memory graph is not populated there;
                 # the store is the truth). Found by
                 # tests/connector/test_multi_agent_isolation.py.
-                self._monitors[agent_id] = RuntimeMonitor(
-                    self.engine, recorder=None
-                )
+                self._monitors[agent_id] = RuntimeMonitor(self.engine, recorder=None)
                 self._locks[agent_id] = threading.Lock()
             return self._monitors[agent_id], self._locks[agent_id]
 
@@ -147,9 +144,7 @@ class ConnectorMiddleware:
         execution_id = (request.context or {}).get("execution_id")
         if not execution_id:
             return result
-        engine_verdict = self.cross_agent.observe(
-            execution_id, agent_id, request.tool
-        )
+        engine_verdict = self.cross_agent.observe(execution_id, agent_id, request.tool)
         if engine_verdict.verdict is CabiVerdict.ALLOW:
             return result
         target = (
@@ -157,20 +152,23 @@ class ConnectorMiddleware:
             if engine_verdict.verdict is CabiVerdict.BLOCK
             else Decision.REQUIRE_APPROVAL
         )
-        if (self._ESCALATION_RANK[target.value]
-                <= self._ESCALATION_RANK[result.decision.value]):
-            return result                # never relax
+        if (
+            self._ESCALATION_RANK[target.value]
+            <= self._ESCALATION_RANK[result.decision.value]
+        ):
+            return result  # never relax
         return DecisionResult(
             decision=target,
             triggered_by="cross_agent_invariant",
             reason="; ".join(engine_verdict.reasons)
-                   or f"cross-agent invariant verdict "
-                      f"{engine_verdict.verdict.value} "
-                      f"(score={engine_verdict.score:.3f})",
+            or f"cross-agent invariant verdict "
+            f"{engine_verdict.verdict.value} "
+            f"(score={engine_verdict.score:.3f})",
             capability=request.tool,
             agent_id=agent_id,
             drift_score=result.drift_score,
-            severity=(Severity.CRITICAL if target is Decision.BLOCK
-                      else result.severity),
+            severity=(
+                Severity.CRITICAL if target is Decision.BLOCK else result.severity
+            ),
             advisory_reasons=list(result.advisory_reasons),
         )

@@ -50,8 +50,7 @@ class LabelSourceError(ValueError):
 
 
 def canonical_json(obj: Any) -> str:
-    return json.dumps(obj, sort_keys=True, separators=(",", ":"),
-                      ensure_ascii=True)
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
 
 
 def seal(body: dict[str, Any]) -> dict[str, Any]:
@@ -82,11 +81,13 @@ def build_report(
     """
     if score_type not in ("ranking", "probability"):
         raise ScoreTypeError(
-            f"score_type must be 'ranking' or 'probability', got {score_type!r}")
+            f"score_type must be 'ranking' or 'probability', got {score_type!r}"
+        )
     if label_source != "independent":
         raise LabelSourceError(
             "labels must be independently sourced (label_source='independent'); "
-            "outcomes labelled by the scored system itself are refused")
+            "outcomes labelled by the scored system itself are refused"
+        )
     if not label_source_note.strip():
         raise LabelSourceError("label_source_note must name the label source")
     n = len(scores)
@@ -122,8 +123,8 @@ def build_report(
             "by_agent": _seg(scores, labels, agents, min_samples),
             "by_capability": _seg(scores, labels, capabilities, min_samples),
             "by_agent_capability": _seg(
-                scores, labels, cross_segments(agents, capabilities),
-                min_samples),
+                scores, labels, cross_segments(agents, capabilities), min_samples
+            ),
         },
         "calibration": None,
         "drift": None,
@@ -160,21 +161,25 @@ def build_report(
 
     if reference is not None:
         ref_scores, ref_labels = reference
-        body["drift"] = _drift_dict(assess_drift(
-            ref_scores, ref_labels, scores, labels, min_samples=min_samples))
+        body["drift"] = _drift_dict(
+            assess_drift(
+                ref_scores, ref_labels, scores, labels, min_samples=min_samples
+            )
+        )
 
     return seal(body)
 
 
-def calibration_metrics_for(score_type: str,
-                            probs: list[float],
-                            labels: list[int]) -> dict[str, float]:
+def calibration_metrics_for(
+    score_type: str, probs: list[float], labels: list[int]
+) -> dict[str, float]:
     """Explicit gate: refuse calibration math for ranking scores."""
     if score_type != "probability":
         raise ScoreTypeError(
             "Brier/log-loss/ECE are defined for calibrated probabilities; "
             f"score_type={score_type!r} is a ranking score. Refusing to emit "
-            "calibration numbers that would be quoted as if meaningful.")
+            "calibration numbers that would be quoted as if meaningful."
+        )
     return {
         "brier": brier_score(probs, labels),
         "log_loss": log_loss(probs, labels),

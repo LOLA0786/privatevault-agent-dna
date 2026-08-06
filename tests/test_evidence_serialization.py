@@ -3,7 +3,7 @@
 import time
 
 from agent_dna.advisory import AdvisorySignal, Severity
-from agent_dna.decision import DecisionEngine, Decision
+from agent_dna.decision import DecisionEngine
 from agent_dna.trace import AgentAction
 
 
@@ -36,4 +36,5 @@ def test_to_dict_carries_evidence():
     assert d["evidence_strength"] > 0.0
 
     import json
+
     json.dumps(d)

@@ -10,7 +10,6 @@ from agent_dna import (
     ChangeManagementImporter,
 )
 
-
 policy = AuthorizationPolicy()
 
 importer = ChangeManagementImporter(policy)

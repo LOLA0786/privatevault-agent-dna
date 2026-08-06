@@ -219,7 +219,7 @@ plus the spec vectors on every push.
 
 ## 9. Status — precise, by design
 
-**Shipped and tested (561 automated tests):** seven-level precedence
+**Shipped and tested by the automated CI suite:** seven-level precedence
 engine including multi-agent consensus and cost/ROI economics;
 behavioral drift scoring; grants with expiry/revocation/budget; sealed
 hash-chained records with external-provenance anchoring for chain

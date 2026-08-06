@@ -102,7 +102,7 @@ def main(n: int = 300, seed: int = 20260731) -> None:
         print(
             f"{coverage:>10.0%}{np.mean(benign):>14.3f}"
             f"{np.mean(attack):>14.3f}{auc(scores, labels):>8.3f}"
-            f"{false_positives/n:>10.1%} [{lo:.0%},{hi:.0%}]"
+            f"{false_positives / n:>10.1%} [{lo:.0%},{hi:.0%}]"
         )
 
     print()

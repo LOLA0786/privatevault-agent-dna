@@ -14,14 +14,13 @@ from .manifold import CapabilityManifold
 
 @dataclass
 class ConfidenceScore:
-    score: float          # 0..1
-    level: str            # LOW / MEDIUM / HIGH
+    score: float  # 0..1
+    level: str  # LOW / MEDIUM / HIGH
     training_actions: int
     rationale: str
 
 
 class ConfidenceEstimator:
-
     LOW_THRESHOLD = 100
     HIGH_THRESHOLD = 1000
 

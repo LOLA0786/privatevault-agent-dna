@@ -8,8 +8,6 @@ The streaming monitor must be an enforcing path, not an advisory one.
 
 import time
 
-import pytest
-
 from agent_dna.advisory import AdvisorySignal, Severity
 from agent_dna.decision import Decision, DecisionEngine
 from agent_dna.runtime import RuntimeMonitor
@@ -41,12 +39,10 @@ class StubInvariants:
     def validate(self, capability, previous):
         class R:
             pass
+
         r = R()
         r.violated = capability == self.forbidden
-        r.message = (
-            f"invariant: {capability} forbidden"
-            if r.violated else ""
-        )
+        r.message = f"invariant: {capability} forbidden" if r.violated else ""
         return r
 
 
@@ -110,10 +106,10 @@ def test_blocked_action_does_not_advance_behavioral_state():
     """A rejected probe must not shift the baseline."""
     m = _monitor()
 
-    m.process(_action("crm.read"))          # ALLOW
+    m.process(_action("crm.read"))  # ALLOW
     assert m.previous_capability == "crm.read"
 
-    m.process(_action("wire.drain"))         # BLOCK
+    m.process(_action("wire.drain"))  # BLOCK
     assert m.previous_capability == "crm.read", (
         "BLOCKed action advanced previous_capability — "
         "rejected probes can walk the invariant chain"

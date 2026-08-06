@@ -24,26 +24,34 @@ def _recorder():
 
 
 def test_agent_action_carries_request_id():
-    a = AgentAction(agent_id="a1", capability="crm.read_contact",
-                    timestamp=1.0, request_id="req-abc-123")
+    a = AgentAction(
+        agent_id="a1",
+        capability="crm.read_contact",
+        timestamp=1.0,
+        request_id="req-abc-123",
+    )
     assert a.request_id == "req-abc-123"
 
 
 def test_request_id_reaches_the_sealed_record():
     engine = DecisionEngine()
     recorder = _recorder()
-    action = AgentAction(agent_id="a1", capability="crm.read_contact",
-                         timestamp=1.0, request_id="req-abc-123")
+    action = AgentAction(
+        agent_id="a1",
+        capability="crm.read_contact",
+        timestamp=1.0,
+        request_id="req-abc-123",
+    )
     result = engine.decide(action)
     record = recorder.record(action, result)
     assert record.request_id == "req-abc-123", (
-        "request_id was dropped between the action and the sealed record")
+        "request_id was dropped between the action and the sealed record"
+    )
 
 
 def test_absent_request_id_is_null_not_an_error():
     engine = DecisionEngine()
     recorder = _recorder()
-    action = AgentAction(agent_id="a1", capability="crm.read_contact",
-                         timestamp=1.0)
+    action = AgentAction(agent_id="a1", capability="crm.read_contact", timestamp=1.0)
     record = recorder.record(action, engine.decide(action))
     assert record.request_id is None

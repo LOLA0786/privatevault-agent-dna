@@ -26,19 +26,20 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from agent_dna.decision import DecisionEngine          # noqa: E402
-from agent_dna.grants import GrantRegistry              # noqa: E402
-from agent_dna.trace import AgentAction                 # noqa: E402
-from agent_dna.uaal_layer import UAALConstraintChecker   # noqa: E402
+from agent_dna.decision import DecisionEngine  # noqa: E402
+from agent_dna.grants import GrantRegistry  # noqa: E402
+from agent_dna.trace import AgentAction  # noqa: E402
+from agent_dna.uaal_layer import UAALConstraintChecker  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "examples"))
-from runtime_demo import train                           # noqa: E402
+from runtime_demo import train  # noqa: E402
 
 
 class Invariants:
     def validate(self, capability, previous):
         class R:
             pass
+
         r = R()
         r.violated = capability == "storage.bulk_export"
         r.message = "forbidden" if r.violated else ""
@@ -56,10 +57,8 @@ CAPS = [
 
 def build_engine():
     reg = GrantRegistry()
-    reg.grant(agent_id="bench-agent", capability="crm.read_contact",
-              granted_by="bench")
-    reg.grant(agent_id="bench-agent", capability="email.send",
-              granted_by="bench")
+    reg.grant(agent_id="bench-agent", capability="crm.read_contact", granted_by="bench")
+    reg.grant(agent_id="bench-agent", capability="email.send", granted_by="bench")
     return DecisionEngine(
         scorer=train(),
         invariants=Invariants(),

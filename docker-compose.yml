@@ -6,8 +6,9 @@ services:
     volumes:
       - pv_data:/data
     environment:
-      - PV_ALLOW_NO_AUTH=1  # dev only: API refuses to start without this or configured keys
-      - PV_DB_PATH=/data/privatevault.db
+      PV_ALLOW_NO_AUTH: "${PV_ALLOW_NO_AUTH:-0}"
+      PV_API_KEYS_FILE: "${PV_API_KEYS_FILE:-}"
+      PV_DB_PATH: /data/privatevault.db
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c",

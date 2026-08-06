@@ -7,6 +7,7 @@ classic privilege-escalation / lateral-influence control: even if a brand new
 agent shows up, if a *marketing* agent tries to drive a *payment* agent and
 that pairing was never sanctioned, it is stopped.
 """
+
 from __future__ import annotations
 
 from collections import Counter
@@ -59,7 +60,7 @@ class AuthorityInvariant(Invariant):
             name=self.name,
             passed=passed,
             severity=severity,
-            hard=bool(violations),     # unsanctioned influence is a hard breach
+            hard=bool(violations),  # unsanctioned influence is a hard breach
             violations=violations,
         )
 

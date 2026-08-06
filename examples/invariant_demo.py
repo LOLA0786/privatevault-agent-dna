@@ -1,8 +1,8 @@
 from agent_dna import (
     AgentAction,
     ExecutionTrace,
-    InvariantLearner,
     InvariantEngine,
+    InvariantLearner,
 )
 
 #

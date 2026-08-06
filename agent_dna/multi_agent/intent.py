@@ -22,9 +22,7 @@ class IntentInvariant(Invariant):
         for graph in graphs:
             for event in graph:
                 if event.intent:
-                    self.allowed[event.source_role].add(
-                        event.intent.strip().lower()
-                    )
+                    self.allowed[event.source_role].add(event.intent.strip().lower())
 
     def check(self, graph: InteractionGraph) -> InvariantResult:
         violations: list[str] = []

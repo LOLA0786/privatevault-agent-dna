@@ -146,9 +146,7 @@ def scenario_facts(
         "amount": 6000,
         "currency": market["currency"],
         "cross_border": not allowed,
-        "destination_country": (
-            market["local_destination"] if allowed else "SG"
-        ),
+        "destination_country": (market["local_destination"] if allowed else "SG"),
         "approved_destination_countries": [
             market["local_destination"],
         ],
@@ -194,9 +192,7 @@ def print_controls(
             )
         else:
             print(
-                f"  {item.result.value:<7} "
-                f"{item.control_id:<48} "
-                f"binding={item.binding}"
+                f"  {item.result.value:<7} {item.control_id:<48} binding={item.binding}"
             )
 
 
@@ -306,16 +302,11 @@ def run_scenario(
         facts,
     )
 
-    final_result = combine_evaluations(
-        [mapping_evaluation, customer_evaluation]
-    )
+    final_result = combine_evaluations([mapping_evaluation, customer_evaluation])
 
     print()
     print("=" * 96)
-    print(
-        f"{market_code.upper()}  {market['name']}  |  "
-        f"scenario: {scenario.upper()}"
-    )
+    print(f"{market_code.upper()}  {market['name']}  |  scenario: {scenario.upper()}")
     print("=" * 96)
     print(f"Action              {ACTION_CLASS}")
     print(f"Risk tier           {RISK_TIER}")
@@ -330,34 +321,19 @@ def run_scenario(
     print("Business policy     PASS")
     print("Delegated authority PASS")
     print()
-    print(
-        f"{market['regulator']} READINESS MAPPING — "
-        "VISIBLE, BUT DOES NOT BIND"
-    )
+    print(f"{market['regulator']} READINESS MAPPING — VISIBLE, BUT DOES NOT BIND")
     print("-" * 96)
     print_controls(mapping_evaluation, readiness=True)
-    print(
-        f"  Display result:   {mapping_evaluation.result.value}"
-    )
-    print(
-        f"  Enforced result:  "
-        f"{mapping_evaluation.enforced_result.value}"
-    )
-    print(
-        f"  Bundle hash:      {mapping_evaluation.bundle_hash}"
-    )
+    print(f"  Display result:   {mapping_evaluation.result.value}")
+    print(f"  Enforced result:  {mapping_evaluation.enforced_result.value}")
+    print(f"  Bundle hash:      {mapping_evaluation.bundle_hash}")
 
     print()
     print("CUSTOMER INTERNAL POLICY — ACTIVE AND BINDING")
     print("-" * 96)
     print_controls(customer_evaluation, readiness=False)
-    print(
-        f"  Enforced result:  "
-        f"{customer_evaluation.enforced_result.value}"
-    )
-    print(
-        f"  Bundle hash:      {customer_evaluation.bundle_hash}"
-    )
+    print(f"  Enforced result:  {customer_evaluation.enforced_result.value}")
+    print(f"  Bundle hash:      {customer_evaluation.bundle_hash}")
 
     print()
     print(f"FINAL VERDICT       {VERDICT_LABEL[final_result]}")
@@ -411,16 +387,10 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    customer_pack = load_pack(
-        PACK_DIR / "customer-internal-policy.yaml"
-    )
+    customer_pack = load_pack(PACK_DIR / "customer-internal-policy.yaml")
 
     markets = ("ca", "ae") if args.market == "all" else (args.market,)
-    scenarios = (
-        ("blocked", "allowed")
-        if args.case == "all"
-        else (args.case,)
-    )
+    scenarios = ("blocked", "allowed") if args.case == "all" else (args.case,)
 
     print("=" * 96)
     print("PRIVATEVAULT GOVERNANCE MARKET-ENTRY DEMO")
@@ -439,8 +409,7 @@ def main() -> None:
     print("=" * 96)
     print("DEMO ASSERTIONS: PASS")
     print(
-        "Non-binding mappings stayed visible but could not alter "
-        "any execution verdict."
+        "Non-binding mappings stayed visible but could not alter any execution verdict."
     )
     print()
     print("WHAT THIS DOES")

@@ -6,7 +6,6 @@ import time
 from agent_dna.advisory import AdvisorySignal, Severity
 from agent_dna.decision import Decision, DecisionEngine
 from agent_dna.intent_adapter import intent_to_action
-from agent_dna.trace import AgentAction
 from agent_dna.uaal_layer import UAALConstraintChecker
 
 
@@ -28,6 +27,7 @@ class StubInvariants:
     def validate(self, capability, previous):
         class R:
             pass
+
         r = R()
         r.violated = False
         r.message = ""
@@ -117,4 +117,4 @@ def test_missing_evidence_skips_not_fails():
 def test_no_uaal_slot_means_no_l0():
     engine = DecisionEngine(scorer=StubScorer(), invariants=StubInvariants())
     result = engine.decide(_pay(49000.0), evidence=EVIDENCE)
-    assert result.decision == Decision.ALLOW   # nothing checks amounts
+    assert result.decision == Decision.ALLOW  # nothing checks amounts

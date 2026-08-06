@@ -17,19 +17,24 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("PV_DB_PATH", str(tmp_path / "pv.db"))
     # import after env is set so DB_PATH picks it up
     import importlib
+
     import api.server as server
+
     importlib.reload(server)
     with TestClient(server.app) as c:
         yield c
 
 
 def _decide(client, capability, agent="api-agent-01"):
-    return client.post("/v1/decide", json={
-        "agent_id": agent,
-        "capability": capability,
-        "timestamp": time.time(),
-        "arguments": {"note": "test"},
-    })
+    return client.post(
+        "/v1/decide",
+        json={
+            "agent_id": agent,
+            "capability": capability,
+            "timestamp": time.time(),
+            "arguments": {"note": "test"},
+        },
+    )
 
 
 def test_allow_returns_200_with_sealed_record(client):
@@ -53,16 +58,24 @@ def test_outcome_roundtrip_and_conflict(client):
     r = _decide(client, "crm.read_contact")
     did = r.json()["record"]["decision_id"]
 
-    ok = client.post("/v1/outcome", json={
-        "decision_id": did, "status": "ok",
-    })
+    ok = client.post(
+        "/v1/outcome",
+        json={
+            "decision_id": did,
+            "status": "ok",
+        },
+    )
     assert ok.status_code == 200
     assert ok.json()["event"]["decision_ref"] == did
 
-    dup = client.post("/v1/outcome", json={
-        "decision_id": did, "status": "error",
-    })
-    assert dup.status_code == 409          # one execution per decision
+    dup = client.post(
+        "/v1/outcome",
+        json={
+            "decision_id": did,
+            "status": "error",
+        },
+    )
+    assert dup.status_code == 409  # one execution per decision
 
 
 def test_queries(client):
@@ -82,10 +95,13 @@ def test_queries(client):
 def test_verify_and_audit_export(client, tmp_path):
     _decide(client, "crm.read_contact")
     r = _decide(client, "crm.update_contact")
-    client.post("/v1/outcome", json={
-        "decision_id": r.json()["record"]["decision_id"],
-        "status": "ok",
-    })
+    client.post(
+        "/v1/outcome",
+        json={
+            "decision_id": r.json()["record"]["decision_id"],
+            "status": "ok",
+        },
+    )
 
     v = client.get("/v1/verify")
     assert v.json()["chains"] == {"api-agent-01": True}
@@ -97,7 +113,8 @@ def test_verify_and_audit_export(client, tmp_path):
 
     proc = subprocess.run(
         [sys.executable, str(VERIFIER), str(audit)],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     assert proc.returncode == 0, proc.stdout
     assert "VERDICT: PASS" in proc.stdout

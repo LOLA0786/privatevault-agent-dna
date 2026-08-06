@@ -4,16 +4,15 @@ Reference implementations of invariant and authorization policies.
 
 from __future__ import annotations
 
-import warnings
-
 import time
+import warnings
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable, Optional, Tuple
-
 
 # ----------------------------------------------------------------------
 # Invariants
 # ----------------------------------------------------------------------
+
 
 @dataclass
 class InvariantResult:
@@ -22,24 +21,26 @@ class InvariantResult:
 
 
 class SequenceInvariantEngine:
-
     def __init__(
         self,
-        forbidden_transitions: Iterable[Tuple[str, str]],
+        forbidden_transitions: Iterable[tuple[str, str]],
     ):
         self.forbidden = set(forbidden_transitions)
 
     def validate(
         self,
         capability: str,
-        previous: Optional[str],
+        previous: str | None,
     ) -> InvariantResult:
 
-        if previous is not None and (
-            previous,
-            capability,
-        ) in self.forbidden:
-
+        if (
+            previous is not None
+            and (
+                previous,
+                capability,
+            )
+            in self.forbidden
+        ):
             return InvariantResult(
                 True,
                 (
@@ -55,17 +56,17 @@ class SequenceInvariantEngine:
 # Authorization
 # ----------------------------------------------------------------------
 
+
 @dataclass
 class CapabilityGrant:
     capability: str
     approved_by: str = ""
     ticket: str = ""
     environment: str = "prod"
-    expires_at: Optional[float] = None
+    expires_at: float | None = None
 
 
 class GrantAuthorizationPolicy:
-
     def __init__(
         self,
         baseline_capabilities,
@@ -73,18 +74,17 @@ class GrantAuthorizationPolicy:
     ):
         warnings.warn(
             "GrantAuthorizationPolicy is deprecated; use agent_dna.grants.GrantRegistry (audit set 4)",
-            DeprecationWarning, stacklevel=2)
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.baseline = set(baseline_capabilities)
-        self.grants = {
-            g.capability: g
-            for g in grants
-        }
+        self.grants = {g.capability: g for g in grants}
 
     def is_authorized(
         self,
         agent_id: str,
         capability: str,
-        now: Optional[float] = None,
+        now: float | None = None,
     ) -> bool:
 
         if capability in self.baseline:
@@ -95,11 +95,7 @@ class GrantAuthorizationPolicy:
         if grant is None:
             return False
 
-        if (
-            grant.expires_at is not None
-            and
-            (now or time.time()) > grant.expires_at
-        ):
+        if grant.expires_at is not None and (now or time.time()) > grant.expires_at:
             return False
 
         return True

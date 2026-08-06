@@ -273,9 +273,7 @@ def evaluate_pack(
     evaluations = tuple(evaluate_control(control, facts) for control in applicable)
 
     results = [
-        item.result
-        for item in evaluations
-        if item.result is not Result.NOT_APPLICABLE
+        item.result for item in evaluations if item.result is not Result.NOT_APPLICABLE
     ]
 
     # `result` is the readiness/display result. It deliberately shows

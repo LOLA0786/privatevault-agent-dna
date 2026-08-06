@@ -21,6 +21,7 @@ def _open_fd_count():
 def test_repeated_export_does_not_leak_fds(tmp_path):
     import tempfile
     from pathlib import Path
+
     # emulate the export's temp-file creation the fixed way
     baseline = _open_fd_count()
     for _ in range(50):
@@ -30,5 +31,5 @@ def test_repeated_export_does_not_leak_fds(tmp_path):
         os.unlink(p)
     after = _open_fd_count()
     assert after - baseline < 10, (
-        f"fd count grew {baseline}->{after}; the export path is leaking "
-        "descriptors")
+        f"fd count grew {baseline}->{after}; the export path is leaking descriptors"
+    )

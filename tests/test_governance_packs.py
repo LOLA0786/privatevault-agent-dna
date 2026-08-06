@@ -20,12 +20,7 @@ from agent_dna.governance.pack import (
     load_pack,
 )
 
-PACK_DIR = (
-    Path(__file__).resolve().parents[1]
-    / "agent_dna"
-    / "governance"
-    / "packs"
-)
+PACK_DIR = Path(__file__).resolve().parents[1] / "agent_dna" / "governance" / "packs"
 ACTION_CLASS = "payment_execution"
 RISK_TIER = "high"
 
@@ -133,9 +128,7 @@ def test_readiness_mapping_cannot_change_enforcement(
     expected: Result,
 ) -> None:
     mapping = load_pack(PACK_DIR / mapping_file)
-    customer = load_pack(
-        PACK_DIR / "customer-internal-policy.yaml"
-    )
+    customer = load_pack(PACK_DIR / "customer-internal-policy.yaml")
 
     entity_type = _entity_type_for(mapping, customer)
 
@@ -174,15 +167,11 @@ def test_readiness_mapping_cannot_change_enforcement(
     assert not any(item.binding for item in mapping_result.controls)
 
     assert customer_result.enforced_result is expected
-    assert combine_evaluations(
-        [mapping_result, customer_result]
-    ) is expected
+    assert combine_evaluations([mapping_result, customer_result]) is expected
 
 
 def test_non_active_would_block_becomes_non_binding_review() -> None:
-    customer = load_pack(
-        PACK_DIR / "customer-internal-policy.yaml"
-    )
+    customer = load_pack(PACK_DIR / "customer-internal-policy.yaml")
     active = next(
         control
         for control in customer.controls
@@ -203,9 +192,7 @@ def test_non_active_would_block_becomes_non_binding_review() -> None:
 
 
 def test_active_control_rejects_unverified_source() -> None:
-    customer = load_pack(
-        PACK_DIR / "customer-internal-policy.yaml"
-    )
+    customer = load_pack(PACK_DIR / "customer-internal-policy.yaml")
     active = customer.controls[0]
     unverified_source = replace(
         active.source,
@@ -220,9 +207,7 @@ def test_active_control_rejects_unverified_source() -> None:
 
 
 def test_bundle_hash_covers_decision_semantics() -> None:
-    pack = load_pack(
-        PACK_DIR / "customer-internal-policy.yaml"
-    )
+    pack = load_pack(PACK_DIR / "customer-internal-policy.yaml")
     original = pack.bundle_hash()
     control = pack.controls[0]
     remaining = pack.controls[1:]
@@ -252,8 +237,7 @@ def test_bundle_hash_covers_decision_semantics() -> None:
             applicability=replace(
                 control.applicability,
                 risk_tiers=(
-                    control.applicability.risk_tiers
-                    | frozenset({"__hash_test_tier__"})
+                    control.applicability.risk_tiers | frozenset({"__hash_test_tier__"})
                 ),
             ),
         ),
@@ -285,9 +269,7 @@ def test_requirement_order_does_not_change_bundle_hash() -> None:
 
     reordered = replace(
         pack,
-        requirements=dict(
-            reversed(list(pack.requirements.items()))
-        ),
+        requirements=dict(reversed(list(pack.requirements.items()))),
     )
 
     assert reordered.bundle_hash() == pack.bundle_hash()

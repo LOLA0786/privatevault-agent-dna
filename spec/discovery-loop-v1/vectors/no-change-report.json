@@ -1,0 +1,52 @@
+{
+  "body": {
+    "spec": "pv-discovery-loop-report/1.0",
+    "configuration": {
+      "min_support": 5,
+      "numeric_field": "amount",
+      "since_ts": null,
+      "max_new_blocks": 0,
+      "max_candidates": 100,
+      "max_history_records": 100000,
+      "max_adversarial_rows": 10000,
+      "as_of": 0.0
+    },
+    "input_digest": "sha256:253de5d5d54a9a46a2334651fcf4a18a67787b336e01b67c445362293ed7e839",
+    "status": "NO_CHANGE",
+    "source_counts": {
+      "sealed_decisions": 0,
+      "retained_inputs": 0,
+      "adversarial_rows": 0,
+      "candidates": 0
+    },
+    "probes": {
+      "agent_security_loops": {
+        "state": "ABSENT",
+        "effect": "no structural loop evidence supplied"
+      },
+      "advisory_validation": {
+        "state": "ABSENT",
+        "effect": "advisory drift validation is orthogonal to deterministic policy"
+      },
+      "experimental_structural_probes": {
+        "state": "QUARANTINED",
+        "detail": "Hodge and authority-reachability outputs are not gating until they have stable schemas and independent verifiers"
+      }
+    },
+    "disposition_counts": {
+      "PROPOSE": 0,
+      "REVIEW": 0,
+      "REJECT": 0,
+      "ADVISORY": 0
+    },
+    "experiments": [],
+    "claims": [
+      "All candidates are proposals; none were applied.",
+      "Counterfactuals use additive semantics and cannot relax existing levels.",
+      "Priority score is a deterministic triage heuristic, not a validation metric.",
+      "Wilson intervals describe the committed adversarial corpus only.",
+      "Advisory-model validation never authorizes deterministic policy changes."
+    ]
+  },
+  "report_hash": "sha256:10bb7bf0db07eeed41af4a3fd69eeedb0031c49c393cecbcec5b3f603ae55a8e"
+}

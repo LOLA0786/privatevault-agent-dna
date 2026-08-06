@@ -9,26 +9,26 @@ path, N transports.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 @dataclass(frozen=True, slots=True)
 class ToolCallRequest:
-    adapter: str                      # "mcp" | "openai" | ...
-    tool: str                         # capability name, e.g. "payments.transfer"
-    api_key: Optional[str]            # binds the caller to an agent identity
-    arguments: Dict[str, Any] = field(default_factory=dict)
-    context: Dict[str, Any] = field(default_factory=dict)
-    evidence: Optional[dict] = None   # UAAL/consensus/economics evidence pass-through
+    adapter: str  # "mcp" | "openai" | ...
+    tool: str  # capability name, e.g. "payments.transfer"
+    api_key: str | None  # binds the caller to an agent identity
+    arguments: dict[str, Any] = field(default_factory=dict)
+    context: dict[str, Any] = field(default_factory=dict)
+    evidence: dict | None = None  # UAAL/consensus/economics evidence pass-through
 
 
 @dataclass(frozen=True, slots=True)
 class ToolCallVerdict:
-    decision: str                     # Decision enum value: allow|require_approval|block
+    decision: str  # Decision enum value: allow|require_approval|block
     triggered_by: str
     reason: str
-    agent_id: Optional[str]           # None only for identity refusals
-    record_hash: Optional[str]        # None only when no chain record exists (identity/fault)
+    agent_id: str | None  # None only for identity refusals
+    record_hash: str | None  # None only when no chain record exists (identity/fault)
     signed: bool = False
 
     @property

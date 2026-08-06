@@ -29,7 +29,7 @@ contributes ZERO weight -- dropped at submission, never a crash.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from .secure_quorum import SecureQuorum, TrustRegistry
 
@@ -38,14 +38,14 @@ from .secure_quorum import SecureQuorum, TrustRegistry
 class ConsensusResult:
     flagged: bool
     reason: str = ""
-    checks_run: List[str] = field(default_factory=list)
-    checks_skipped: List[str] = field(default_factory=list)
+    checks_run: list[str] = field(default_factory=list)
+    checks_skipped: list[str] = field(default_factory=list)
 
 
 class ConsensusChecker:
     DEFAULT_THRESHOLD = 0.67
 
-    def check(self, evidence: Optional[Dict[str, Any]] = None) -> ConsensusResult:
+    def check(self, evidence: dict[str, Any] | None = None) -> ConsensusResult:
         consensus = (evidence or {}).get("consensus")
         if consensus is None:
             return ConsensusResult(flagged=False, checks_skipped=["quorum"])
@@ -61,7 +61,7 @@ class ConsensusChecker:
 
         quorum = SecureQuorum(threshold=threshold, trust_registry=registry)
         for v in votes:
-            quorum.submit(action_id, v)   # invalid votes drop to zero
+            quorum.submit(action_id, v)  # invalid votes drop to zero
 
         approved = quorum.check_quorum(action_id)
         if approved:

@@ -7,8 +7,9 @@ agents would deny.
 
 Maps to: MITRE ATLAS Execution Hijacking, PBFT Byzantine failure
 """
-from agent_dna.consensus import ByzantineQuorum
-from agent_dna.consensus.signing import sign_message, register_key
+
+from agent_dna.consensus.signing import sign_message
+
 from .base import BaseAdversary
 
 
@@ -17,7 +18,7 @@ class CollusionAgent(BaseAdversary):
     attack_name = "Multi-Agent Collusion"
     severity = "Critical"
 
-    framework_mappings = {'owasp': ['LLM08'], 'atlas': ['Multi-Agent Manipulation']}
+    framework_mappings = {"owasp": ["LLM08"], "atlas": ["Multi-Agent Manipulation"]}
 
     def __init__(
         self,
@@ -46,12 +47,14 @@ class CollusionAgent(BaseAdversary):
         for agent in self.malicious_agents:
             # In real attack: attacker has access to agent signing key
             forged_sig = sign_message(agent, message_hash)  # Uses registered key
-            forged_votes.append({
-                "agent_id": agent,
-                "vote": "APPROVE",
-                "signature": forged_sig,
-                "message_hash": message_hash,
-            })
+            forged_votes.append(
+                {
+                    "agent_id": agent,
+                    "vote": "APPROVE",
+                    "signature": forged_sig,
+                    "message_hash": message_hash,
+                }
+            )
         return forged_votes
 
     def attempt_collusion(self) -> str:
@@ -59,7 +62,6 @@ class CollusionAgent(BaseAdversary):
 
     def run(self, target_agent: str):
         result = {
-
             "attack_id": self.attack_id,
             "attack_name": self.attack_name,
             "target_agent": target_agent,

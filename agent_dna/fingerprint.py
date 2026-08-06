@@ -11,7 +11,6 @@ import hashlib
 import json
 import math
 from dataclasses import dataclass
-from typing import Dict, List
 
 from .dynamics import BehaviorDynamics
 from .manifold import CapabilityManifold
@@ -29,10 +28,10 @@ class AgentFingerprint:
 
     behavior_hash: str
 
-    capability_counts: Dict[str, int]
-    transitions: List[str]
+    capability_counts: dict[str, int]
+    transitions: list[str]
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         return {
             "agent_id": self.agent_id,
             "trained_actions": self.trained_actions,
@@ -46,7 +45,6 @@ class AgentFingerprint:
 
 
 class FingerprintBuilder:
-
     def build(
         self,
         agent_id: str,

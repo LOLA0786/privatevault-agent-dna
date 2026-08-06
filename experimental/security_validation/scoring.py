@@ -12,17 +12,21 @@ Total: 100
 Every adversary must emit structured result (see adversaries/base.py).
 Every scenario produces a benchmark scorecard.
 """
-from typing import Dict, List, Optional
 
 
 class SecurityScorecard:
-    def __init__(self, scenario_id: str, framework_mappings: Optional[Dict] = None):
+    def __init__(self, scenario_id: str, framework_mappings: dict | None = None):
         self.scenario_id = scenario_id
         self.mappings = framework_mappings or {}
 
-    def compute(self, prevention: int = 0, detection: int = 0,
-                containment: int = 0, recovery: int = 0,
-                auditability: int = 0) -> int:
+    def compute(
+        self,
+        prevention: int = 0,
+        detection: int = 0,
+        containment: int = 0,
+        recovery: int = 0,
+        auditability: int = 0,
+    ) -> int:
         weights = {
             "prevention": 0.40,
             "detection": 0.20,
@@ -40,9 +44,9 @@ class SecurityScorecard:
         total = sum(scores[k] * weights[k] for k in weights)
         return round(min(total, 100), 1)
 
-    def generate_report(self, score: float,
-                        evidence_refs: List[str],
-                        framework_refs: Optional[Dict] = None) -> Dict:
+    def generate_report(
+        self, score: float, evidence_refs: list[str], framework_refs: dict | None = None
+    ) -> dict:
         return {
             "scenario_id": self.scenario_id,
             "security_score": score,

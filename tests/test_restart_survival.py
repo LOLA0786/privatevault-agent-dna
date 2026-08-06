@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 
 from agent_dna.advisory import AdvisorySignal, Severity
-from agent_dna.decision import Decision, DecisionEngine
+from agent_dna.decision import DecisionEngine
 from agent_dna.decision_recorder import DecisionRecorder
 from agent_dna.decision_store import DecisionStore
 from agent_dna.sqlite_store import SQLiteDecisionStore
@@ -71,11 +71,12 @@ def _restart_scenario(store_factory, tmp_path):
 
 def test_restart_jsonl(tmp_path):
     path = tmp_path / "d.jsonl"
-    r = _restart_scenario(lambda: DecisionStore(path), tmp_path)
+    _restart_scenario(lambda: DecisionStore(path), tmp_path)
 
     proc = subprocess.run(
         [sys.executable, str(VERIFIER), str(path)],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     assert proc.returncode == 0, proc.stdout
     assert "VERDICT: PASS" in proc.stdout
@@ -83,13 +84,14 @@ def test_restart_jsonl(tmp_path):
 
 def test_restart_sqlite(tmp_path):
     db = tmp_path / "d.db"
-    r = _restart_scenario(lambda: SQLiteDecisionStore(db), tmp_path)
+    _restart_scenario(lambda: SQLiteDecisionStore(db), tmp_path)
 
     export = tmp_path / "export.jsonl"
     SQLiteDecisionStore(db).export_jsonl(export)
     proc = subprocess.run(
         [sys.executable, str(VERIFIER), str(export)],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     assert proc.returncode == 0, proc.stdout
     assert "VERDICT: PASS" in proc.stdout

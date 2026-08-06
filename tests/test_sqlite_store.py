@@ -29,6 +29,7 @@ class StubInvariants:
     def validate(self, capability, previous):
         class R:
             pass
+
         r = R()
         r.violated = capability == "wire.drain"
         r.message = "forbidden" if r.violated else ""
@@ -66,7 +67,8 @@ def test_export_passes_independent_verifier(tmp_path):
     out = store.export_jsonl(tmp_path / "export.jsonl")
     proc = subprocess.run(
         [sys.executable, str(VERIFIER), str(out)],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     assert proc.returncode == 0, proc.stdout
     assert "VERDICT: PASS" in proc.stdout
@@ -75,6 +77,7 @@ def test_export_passes_independent_verifier(tmp_path):
 
 def test_sqlite_refuses_unsealed(tmp_path):
     import pytest
+
     from agent_dna.decision_record import build_record
 
     engine = DecisionEngine(scorer=StubScorer())

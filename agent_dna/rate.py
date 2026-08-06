@@ -18,7 +18,6 @@ class RateSignal:
 
 
 class RateAnomalyDetector:
-
     def __init__(self, manifold: CapabilityManifold):
         self.manifold = manifold
 

@@ -259,9 +259,7 @@ def report(
         witness,
         authorization,
         w["trust_bundle"],
-        observed_action=observed_action
-        if observed_action is not None
-        else w["action"],
+        observed_action=observed_action if observed_action is not None else w["action"],
         observed_dispatch=w["dispatch"],
         wire_bytes=wire_bytes,
         peer_identity_bytes=PEER_BYTES,
@@ -273,9 +271,7 @@ def report(
         print("         chain     not evaluated, upstream evidence failed")
         return
 
-    chain = verify_closure_chain(
-        authorization, witness, closure, w["trust_bundle"]
-    )
+    chain = verify_closure_chain(authorization, witness, closure, w["trust_bundle"])
     print(f"  [{_mark(chain)}] {label}")
     _show("boundary", boundary)
     _show("chain", chain)
@@ -287,8 +283,10 @@ def main() -> int:
     print(RULE)
     print("Agent      treasury-agent@bank.example")
     print("Invoice    INV-8841")
-    print(f"Wire bytes {len(WIRE_BYTES)} bytes, digest "
-          f"{sha256_bytes_digest(WIRE_BYTES)[:24]}...")
+    print(
+        f"Wire bytes {len(WIRE_BYTES)} bytes, digest "
+        f"{sha256_bytes_digest(WIRE_BYTES)[:24]}..."
+    )
     print()
 
     w = world()
@@ -297,12 +295,19 @@ def main() -> int:
 
     print("THE HONEST CHAIN")
     print(THIN)
-    print(f"  authorization  {execution_authorization_digest(w['authorization'])[:30]}...")
+    print(
+        f"  authorization  {execution_authorization_digest(w['authorization'])[:30]}..."
+    )
     print(f"  witness        {dispatch_witness_digest(witness)[:30]}...")
     print("  closure        binds both, signed by a distinct key")
     print()
-    report("exact authorised payment, dispatched once", w,
-           w["authorization"], witness, closure)
+    report(
+        "exact authorised payment, dispatched once",
+        w,
+        w["authorization"],
+        witness,
+        closure,
+    )
 
     print()
     print("THE SAME CHAIN, ONE FIELD CHANGED")
@@ -313,9 +318,14 @@ def main() -> int:
     tampered_action["parameters"]["amount"]["minor_units"] = 250000000000
     try:
         bad_witness = witness_for(w, action=tampered_action)
-        report("amount changed to 250 crore after authorisation", w,
-               w["authorization"], bad_witness, closure,
-               observed_action=tampered_action)
+        report(
+            "amount changed to 250 crore after authorisation",
+            w,
+            w["authorization"],
+            bad_witness,
+            closure,
+            observed_action=tampered_action,
+        )
     except Exception as exc:
         print("  [REFUSED ] amount changed to 250 crore after authorisation")
         print(f"         refused at witness creation: {type(exc).__name__}")
@@ -323,9 +333,14 @@ def main() -> int:
     # 2. different bytes on the wire
     try:
         swapped = witness_for(w, wire_bytes=b'{"credit":"ATTACKER-ACCOUNT"}')
-        report("different bytes presented for dispatch", w,
-               w["authorization"], swapped, closure,
-               wire_bytes=b'{"credit":"ATTACKER-ACCOUNT"}')
+        report(
+            "different bytes presented for dispatch",
+            w,
+            w["authorization"],
+            swapped,
+            closure,
+            wire_bytes=b'{"credit":"ATTACKER-ACCOUNT"}',
+        )
     except Exception as exc:
         print("  [REFUSED ] different bytes presented for dispatch")
         print(f"         refused at witness creation: {type(exc).__name__}")
@@ -341,8 +356,13 @@ def main() -> int:
     second["nonce"] = "exec-nonce-8842-inv-8842-rtgs"
     second = sign_execution_authorization(second, w["runtime_key"])
 
-    report("closure from one payment presented against another", w,
-           second, witness, closure)
+    report(
+        "closure from one payment presented against another",
+        w,
+        second,
+        witness,
+        closure,
+    )
 
     # 4. settlement claimed without evidence
     try:

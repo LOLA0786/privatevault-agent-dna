@@ -14,7 +14,9 @@ from __future__ import annotations
 
 import random
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 
 from .decision import DecisionResult
 from .decision_graph import DecisionGraph
@@ -33,8 +35,8 @@ class DecisionRecorder:
     def __init__(
         self,
         graph: DecisionGraph | None = None,
-        store=None,                       # optional DecisionStore
-        signer=None,                      # optional ReceiptSigner
+        store=None,  # optional DecisionStore
+        signer=None,  # optional ReceiptSigner
         multi_writer_safe: bool = False,
     ) -> None:
         """multi_writer_safe: when True, every record() call reads the
@@ -50,9 +52,11 @@ class DecisionRecorder:
         self.store = store
         self.signer = signer
         self.multi_writer_safe = multi_writer_safe
-        self.envelopes: dict[str, dict] = {}   # record_hash -> envelope
+        self.envelopes: dict[str, dict] = {}  # record_hash -> envelope
         # opt-in retrospective-replay input capture (composition sets this)
-        self.replay_capture = None
+        self.replay_capture: Callable[[str, str, str, dict[str, Any]], None] | None = (
+            None
+        )
         self._chains: dict[str, _ChainState] = {}
         if multi_writer_safe and store is None:
             raise ValueError("multi_writer_safe=True requires a store")
@@ -100,7 +104,7 @@ class DecisionRecorder:
             parent_decision=chain.last_decision_id,
             prev_hash=chain.last_hash,
             anchor_hash=anchor_hash if is_fresh_chain else None,
-                    request_id=getattr(action, 'request_id', None),
+            request_id=getattr(action, "request_id", None),
         )
         # Audit set 4 ordering: sign first (pure function of the
         # sealed record), then persist record AND envelope in ONE
@@ -129,8 +133,11 @@ class DecisionRecorder:
         if self.replay_capture is not None:
             try:
                 self.replay_capture(
-                    rec.decision_id, action.agent_id,
-                    action.capability, getattr(action, "arguments", {}))
+                    rec.decision_id,
+                    action.agent_id,
+                    action.capability,
+                    getattr(action, "arguments", {}),
+                )
             except Exception:
                 pass  # replay capture is diagnostic; never breaks recording
         return rec
@@ -149,9 +156,7 @@ class DecisionRecorder:
         claimed this agent's chain from the same prev_hash first),
         re-reads the now-updated head and retries."""
         for attempt in range(max_retries):
-            last_decision_id, last_hash = self.store.get_chain_head(
-                action.agent_id
-            )
+            last_decision_id, last_hash = self.store.get_chain_head(action.agent_id)
             is_fresh_chain = last_decision_id is None
             rec = build_record(
                 action,
@@ -159,11 +164,12 @@ class DecisionRecorder:
                 parent_decision=last_decision_id,
                 prev_hash=last_hash,
                 anchor_hash=anchor_hash if is_fresh_chain else None,
-                        request_id=getattr(action, 'request_id', None),
-        )
+                request_id=getattr(action, "request_id", None),
+            )
             env_dict = (
                 self.signer.sign_record(rec).to_dict()
-                if self.signer is not None else None
+                if self.signer is not None
+                else None
             )
             if self.store.append_atomic(rec, envelope=env_dict):
                 if env_dict is not None:
@@ -223,6 +229,6 @@ class DecisionRecorder:
             detail=detail,
         )
         if self.store is not None:
-            self.store.append(event)   # durability + DB uniqueness first
+            self.store.append(event)  # durability + DB uniqueness first
         self.graph.add_execution(event)
         return event

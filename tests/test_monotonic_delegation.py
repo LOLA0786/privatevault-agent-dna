@@ -34,9 +34,7 @@ def test_child_must_link_to_its_actual_parent(artifacts):  # noqa: F811
     receipt = _replace_child(
         artifacts,
         lambda child: child.update(
-            parent_grant_digest=grant_digest(
-                artifacts["receipt"]["grant_chain"][1]
-            )
+            parent_grant_digest=grant_digest(artifacts["receipt"]["grant_chain"][1])
         ),
     )
     report = _report(artifacts, receipt)

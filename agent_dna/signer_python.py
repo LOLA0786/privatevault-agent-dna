@@ -82,7 +82,7 @@ class ReceiptSigner:
         seed = seed_hex or os.getenv(KEY_ENV)
         if not seed:
             raise RuntimeError(f"no signing key: pass seed_hex or set {KEY_ENV}")
-        self._sk = SigningKey(seed, encoder=HexEncoder)
+        self._sk = SigningKey(seed.encode("ascii"), encoder=HexEncoder)
         self.public_key = self._sk.verify_key.encode(encoder=HexEncoder).decode()
         self.key_id = key_id
 
@@ -110,12 +110,12 @@ class ReceiptSigner:
         )
 
 
-def rotate_key(old_seed_hex: str, new_seed_hex: str | None = None) -> dict[str, str]:
+def rotate_key(old_seed_hex: str, new_seed_hex: str | None = None) -> dict[str, Any]:
     """Explicit key rotation: produces a new envelope binding old->new.
     Industrial standard requires rotation events to be audit-logged."""
-    old_sk = SigningKey(old_seed_hex, encoder=HexEncoder)
+    old_sk = SigningKey(old_seed_hex.encode("ascii"), encoder=HexEncoder)
     new_seed = new_seed_hex or SigningKey.generate().encode(encoder=HexEncoder).decode()
-    new_sk = SigningKey(new_seed, encoder=HexEncoder)
+    new_sk = SigningKey(new_seed.encode("ascii"), encoder=HexEncoder)
     rotation_hash = hashlib.sha256((old_seed_hex + new_seed).encode()).hexdigest()
     envelope = SignatureEnvelope(
         envelope_id=f"rotate-{uuid.uuid4()}",

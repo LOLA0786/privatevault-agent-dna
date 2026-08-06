@@ -8,11 +8,10 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any
 
 
 class GrantStore:
-
     def __init__(
         self,
         path: str = "profiles/grants.json",
@@ -27,15 +26,13 @@ class GrantStore:
 
             self.path.write_text("{}")
 
-    def load(self) -> Dict[str, Any]:
+    def load(self) -> dict[str, Any]:
 
-        return json.loads(
-            self.path.read_text()
-        )
+        return json.loads(self.path.read_text())
 
     def save(
         self,
-        data: Dict[str, Any],
+        data: dict[str, Any],
     ) -> None:
 
         self.path.write_text(

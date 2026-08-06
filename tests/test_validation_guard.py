@@ -7,9 +7,9 @@ import time
 from agent_dna.validation import ValidationGuard, build_report, seal
 
 
-def _report(auc_target="high", score_type="probability", ece=None,
-            expired=False):
+def _report(auc_target="high", score_type="probability", ece=None, expired=False):
     import random
+
     rng = random.Random(9)
     n = 120
     labels = [int(rng.random() < 0.3) for _ in range(n)]
@@ -18,12 +18,16 @@ def _report(auc_target="high", score_type="probability", ece=None,
     else:
         scores = [rng.random() for _ in labels]
     env = build_report(
-        score_name="drift_score", score_type=score_type,
-        scores=scores, labels=labels,
+        score_name="drift_score",
+        score_type=score_type,
+        scores=scores,
+        labels=labels,
         agents=[f"a{i % 3}" for i in range(n)],
         capabilities=["c1" if i % 2 else "c2" for i in range(n)],
-        label_source="independent", label_source_note="risk ops",
-        now=time.time() - (100 * 24 * 3600 if expired else 0))
+        label_source="independent",
+        label_source_note="risk ops",
+        now=time.time() - (100 * 24 * 3600 if expired else 0),
+    )
     if ece is not None:
         body = env["body"]
         body["calibration"]["ece"] = ece
@@ -81,8 +85,7 @@ def test_expired_report_ignored(tmp_path):
 
 
 def test_calibration_warning_is_report_only(tmp_path):
-    g = ValidationGuard(report_path=_write(tmp_path,
-                                           _report("high", ece=0.25)))
+    g = ValidationGuard(report_path=_write(tmp_path, _report("high", ece=0.25)))
     assert g.loaded
     assert any("report-only" in w for w in g.warnings())
     assert g.effective_drift_threshold(0.5) == 0.5
@@ -92,5 +95,9 @@ def test_guard_has_no_deterministic_level_surface():
     """The tighten-only drift hook is the guard's ONLY runtime effect;
     nothing on the API mentions or reaches L0-L4."""
     api = [a for a in dir(ValidationGuard) if not a.startswith("_")]
-    assert set(api) == {"effective_drift_threshold", "warnings", "loaded",
-                        "report_path"}
+    assert set(api) == {
+        "effective_drift_threshold",
+        "warnings",
+        "loaded",
+        "report_path",
+    }

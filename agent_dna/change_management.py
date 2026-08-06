@@ -7,13 +7,12 @@ AuthorizationPolicy.
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any
 
 from .authorization import AuthorizationPolicy
 
 
 class ChangeManagementImporter:
-
     def __init__(
         self,
         policy: AuthorizationPolicy | None = None,
@@ -27,7 +26,7 @@ class ChangeManagementImporter:
 
     def import_change(
         self,
-        record: Dict[str, Any],
+        record: dict[str, Any],
     ) -> None:
 
         self.policy.grant(
@@ -54,7 +53,7 @@ class ChangeManagementImporter:
 
     def import_servicenow(
         self,
-        record: Dict[str, Any],
+        record: dict[str, Any],
     ) -> None:
 
         self.import_change(
@@ -80,7 +79,7 @@ class ChangeManagementImporter:
 
     def import_jira(
         self,
-        issue: Dict[str, Any],
+        issue: dict[str, Any],
     ) -> None:
 
         self.import_change(

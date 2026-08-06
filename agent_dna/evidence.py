@@ -9,7 +9,6 @@ enforcement decisions.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List
 
 
 @dataclass
@@ -22,7 +21,7 @@ class EvidenceItem:
 
 @dataclass
 class EvidenceReport:
-    items: List[EvidenceItem] = field(default_factory=list)
+    items: list[EvidenceItem] = field(default_factory=list)
 
     @property
     def overall_strength(self) -> float:
@@ -30,10 +29,7 @@ class EvidenceReport:
         if not self.items:
             return 0.0
 
-        return sum(
-            i.score * i.confidence
-            for i in self.items
-        ) / len(self.items)
+        return sum(i.score * i.confidence for i in self.items) / len(self.items)
 
     def add(
         self,
@@ -67,15 +63,12 @@ class EvidenceEngine:
         #
 
         if drift_score > 0.0:
-
             report.add(
                 EvidenceItem(
                     name="Behavioral Drift",
                     score=drift_score,
                     confidence=confidence,
-                    summary=(
-                        f"Runtime drift score {drift_score:.2f}"
-                    ),
+                    summary=(f"Runtime drift score {drift_score:.2f}"),
                 )
             )
 
@@ -84,7 +77,6 @@ class EvidenceEngine:
         #
 
         if invariant:
-
             report.add(
                 EvidenceItem(
                     name="Behavioral Invariant",
@@ -99,7 +91,6 @@ class EvidenceEngine:
         #
 
         if not authorized:
-
             report.add(
                 EvidenceItem(
                     name="Authorization",

@@ -1,18 +1,20 @@
 """Runtime entrypoint for the Decision Security Runtime."""
+
 from __future__ import annotations
 
-from typing import Iterable
+from collections.abc import Iterable
 
 from .authority import AuthorityInvariant
 from .base import Verdict
 from .consensus import ConsensusInvariant
 from .events import InteractionEvent
 from .graph_builder import GraphBuilder
-from .interaction_graph import InteractionGraph
 from .intent import IntentInvariant
+from .interaction_graph import InteractionGraph
 from .invariant_engine import EngineVerdict, InvariantEngine
 from .temporal import TemporalInvariant
 from .topology import TopologyInvariant
+from .trust import TrustInvariant
 from .world_state import WorldStateInvariant
 
 
@@ -23,6 +25,7 @@ def default_engine() -> InvariantEngine:
             TemporalInvariant(),
             AuthorityInvariant(),
             ConsensusInvariant(),
+            TrustInvariant(),
             IntentInvariant(),
             WorldStateInvariant(),
         ]
@@ -33,7 +36,7 @@ class RuntimeValidator:
     def __init__(self, engine: InvariantEngine | None = None) -> None:
         self.engine = engine or default_engine()
 
-    def learn(self, graphs: list[InteractionGraph]) -> "RuntimeValidator":
+    def learn(self, graphs: list[InteractionGraph]) -> RuntimeValidator:
         self.engine.learn(graphs)
         return self
 
@@ -42,7 +45,7 @@ class RuntimeValidator:
         cls,
         events: Iterable[InteractionEvent],
         engine: InvariantEngine | None = None,
-    ) -> "RuntimeValidator":
+    ) -> RuntimeValidator:
         builder = GraphBuilder().ingest_many(events)
         validator = cls(engine)
         validator.learn(builder.build_all())
@@ -53,7 +56,7 @@ class RuntimeValidator:
         cls,
         graphs: list[InteractionGraph],
         engine: InvariantEngine | None = None,
-    ) -> "RuntimeValidator":
+    ) -> RuntimeValidator:
         return cls(engine).learn(graphs)
 
     def validate(self, graph: InteractionGraph) -> EngineVerdict:

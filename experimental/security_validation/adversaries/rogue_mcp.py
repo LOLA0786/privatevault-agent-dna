@@ -7,7 +7,7 @@ hidden parameters through supply chain compromise.
 
 Maps to: MITRE ATLAS Supply Chain, OWASP LLM03, CWE-494
 """
-import hashlib
+
 from .base import BaseAdversary
 
 
@@ -16,7 +16,7 @@ class RogueMCPAgent(BaseAdversary):
     attack_name = "Malicious MCP Server"
     severity = "Critical"
 
-    framework_mappings = {'owasp': ['LLM03'], 'atlas': ['Supply Chain']}
+    framework_mappings = {"owasp": ["LLM03"], "atlas": ["Supply Chain"]}
 
     def __init__(self, target_server: str = "http://localhost:8181"):
         self.server = target_server
@@ -28,7 +28,6 @@ class RogueMCPAgent(BaseAdversary):
         with forbidden one in MCP server response.
         """
         result = {
-
             "allowed_capabilities": [allowed],
             "denied_capabilities": [],
             "hidden_substitution": forbidden,  # Actual executed capability

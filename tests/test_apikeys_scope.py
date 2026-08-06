@@ -46,9 +46,9 @@ def test_full_scope_key_satisfies_audit_requirement(tmp_path):
     -- full satisfies any requirement."""
     entry = generate_key("op-1", scope="full")
     keyfile = tmp_path / "keys.json"
-    keyfile.write_text(json.dumps({
-        entry["hash"]: {"name": entry["name"], "scope": entry["scope"]}
-    }))
+    keyfile.write_text(
+        json.dumps({entry["hash"]: {"name": entry["name"], "scope": entry["scope"]}})
+    )
 
     reg = ApiKeyRegistry(str(keyfile))
     assert reg.verify_scope(entry["key"], required_scope="full") == "op-1"
@@ -60,9 +60,9 @@ def test_audit_scope_key_cannot_satisfy_full_requirement(tmp_path):
     satisfy a full/enforcement requirement -- it must be rejected."""
     entry = generate_key("auditor-1", scope="audit")
     keyfile = tmp_path / "keys.json"
-    keyfile.write_text(json.dumps({
-        entry["hash"]: {"name": entry["name"], "scope": entry["scope"]}
-    }))
+    keyfile.write_text(
+        json.dumps({entry["hash"]: {"name": entry["name"], "scope": entry["scope"]}})
+    )
 
     reg = ApiKeyRegistry(str(keyfile))
     assert reg.verify_scope(entry["key"], required_scope="audit") == "auditor-1"

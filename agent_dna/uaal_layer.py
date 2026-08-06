@@ -36,6 +36,7 @@ from .trace import AgentAction
 @dataclass
 class _CEA:
     """Canonical Enterprise Action — the shape EAV evaluates."""
+
     verb: str
     object_id: str | None
     amount: float | None
@@ -60,7 +61,7 @@ _EVIDENCE_REQ = {
     "authority_preservation": ("approvals",),
     "monetary_conservation": ("enterprise_state",),
     "enterprise_state": ("enterprise_state",),
-    "capability_preservation": (),          # needs only the action itself
+    "capability_preservation": (),  # needs only the action itself
 }
 
 # Fail-open fix (scoped). Missing identity/authority evidence blocks
@@ -72,18 +73,27 @@ _EVIDENCE_REQ = {
 # suspicious and still skips honestly, so L0 does not force every
 # benign call to carry planner evidence.
 _SENSITIVE_PREFIXES = (
-    "secrets.", "infra.", "network.egress", "cloud.assume_role",
-    "iam.", "admin.", "security.",
+    "secrets.",
+    "infra.",
+    "network.egress",
+    "cloud.assume_role",
+    "iam.",
+    "admin.",
+    "security.",
 )
-_MANDATORY_FOR_SENSITIVE = frozenset({
-    "identity_preservation",
-    "authority_preservation",
-})
+_MANDATORY_FOR_SENSITIVE = frozenset(
+    {
+        "identity_preservation",
+        "authority_preservation",
+    }
+)
 
 
 def _is_sensitive(capability: str) -> bool:
-    return any(capability.startswith(p) or f".{p.rstrip('.')}" in capability
-              for p in _SENSITIVE_PREFIXES)
+    return any(
+        capability.startswith(p) or f".{p.rstrip('.')}" in capability
+        for p in _SENSITIVE_PREFIXES
+    )
 
 
 class UAALConstraintChecker:
@@ -130,9 +140,8 @@ class UAALConstraintChecker:
             name = r["name"]
             needed = _EVIDENCE_REQ.get(name, ())
             if needed and not all(k in evidence for k in needed):
-                sensitive = (
-                    name in _MANDATORY_FOR_SENSITIVE
-                    and _is_sensitive(action.capability)
+                sensitive = name in _MANDATORY_FOR_SENSITIVE and _is_sensitive(
+                    action.capability
                 )
                 if sensitive:
                     # fail closed: a sensitive action with no declared
@@ -140,12 +149,17 @@ class UAALConstraintChecker:
                     # missing evidence there is a block, not a skip
                     missing = [k for k in needed if k not in evidence]
                     failures.append(
-                        f"{name}: missing_required_evidence "
-                        f"({', '.join(missing)})")
+                        f"{name}: missing_required_evidence ({', '.join(missing)})"
+                    )
                     run.append(name)
-                    detail.append({"name": name, "passed": False,
-                                   "reason": "missing_required_evidence",
-                                   "missing_evidence": missing})
+                    detail.append(
+                        {
+                            "name": name,
+                            "passed": False,
+                            "reason": "missing_required_evidence",
+                            "missing_evidence": missing,
+                        }
+                    )
                 else:
                     skipped.append(name)
                 continue
@@ -163,7 +177,9 @@ class UAALConstraintChecker:
 
         return UAALResult(
             violated=bool(failures),
-            message="; ".join(failures) if failures else (
+            message="; ".join(failures)
+            if failures
+            else (
                 f"uaal: {len(run)} checks passed"
                 + (f", {len(skipped)} skipped (no evidence)" if skipped else "")
             ),

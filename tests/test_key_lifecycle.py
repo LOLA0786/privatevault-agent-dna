@@ -46,8 +46,10 @@ def test_allowed_rotation_is_sealed_into_the_chain(tmp_path):
     rt = _runtime(tmp_path)
     old = generate_keypair()["signing_key"]
     out = rotate_and_record(
-        engine=_Ladder(Decision.ALLOW), recorder=rt.recorder,
-        agent_id="sec-officer-01", old_seed_hex=old,
+        engine=_Ladder(Decision.ALLOW),
+        recorder=rt.recorder,
+        agent_id="sec-officer-01",
+        old_seed_hex=old,
         reason="scheduled 90-day rotation",
     )
     assert out["new_public_key"]
@@ -55,10 +57,12 @@ def test_allowed_rotation_is_sealed_into_the_chain(tmp_path):
 
     export = rt.store.export_jsonl(tmp_path / "audit.jsonl")
     lines = export.read_text().splitlines()
-    assert any(ROTATION_CAPABILITY in ln for ln in lines), \
+    assert any(ROTATION_CAPABILITY in ln for ln in lines), (
         "rotation left no record in the chain"
-    assert any(out["new_public_key"] in ln for ln in lines), \
+    )
+    assert any(out["new_public_key"] in ln for ln in lines), (
         "new public key not anchored in the execution outcome"
+    )
     rt.store.close()
 
 
@@ -67,12 +71,15 @@ def test_refused_rotation_raises_and_is_still_recorded(tmp_path):
     old = generate_keypair()["signing_key"]
     with pytest.raises(RotationRefused, match="block"):
         rotate_and_record(
-            engine=_Ladder(Decision.BLOCK), recorder=rt.recorder,
-            agent_id="unauthorised-agent", old_seed_hex=old,
+            engine=_Ladder(Decision.BLOCK),
+            recorder=rt.recorder,
+            agent_id="unauthorised-agent",
+            old_seed_hex=old,
         )
     export = rt.store.export_jsonl(tmp_path / "audit.jsonl")
-    assert ROTATION_CAPABILITY in export.read_text(), \
+    assert ROTATION_CAPABILITY in export.read_text(), (
         "a denied rotation attempt must still be auditable"
+    )
     rt.store.close()
 
 
@@ -82,8 +89,10 @@ def test_rotation_is_capability_gated_not_a_side_door(tmp_path):
     old = generate_keypair()["signing_key"]
     with pytest.raises(RotationRefused):
         rotate_and_record(
-            engine=_Ladder(Decision.REQUIRE_APPROVAL), recorder=rt.recorder,
-            agent_id="sec-officer-01", old_seed_hex=old,
+            engine=_Ladder(Decision.REQUIRE_APPROVAL),
+            recorder=rt.recorder,
+            agent_id="sec-officer-01",
+            old_seed_hex=old,
         )
     rt.store.close()
 
@@ -97,13 +106,17 @@ def test_rotated_chain_still_verifies(tmp_path):
     rt = _runtime(tmp_path)
     old = generate_keypair()["signing_key"]
     rotate_and_record(
-        engine=_Ladder(Decision.ALLOW), recorder=rt.recorder,
-        agent_id="sec-officer-01", old_seed_hex=old, reason="rotation",
+        engine=_Ladder(Decision.ALLOW),
+        recorder=rt.recorder,
+        agent_id="sec-officer-01",
+        old_seed_hex=old,
+        reason="rotation",
     )
     export = rt.store.export_jsonl(tmp_path / "audit.jsonl")
     rt.store.close()
     proc = subprocess.run(
         [sys.executable, "tools/verify_records.py", str(export)],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     assert proc.returncode == 0, proc.stdout + proc.stderr

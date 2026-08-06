@@ -23,17 +23,16 @@ deterministic and auditable; the ML adds earlier warning, not a new bypass.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Dict, List
+from enum import StrEnum
 
 
-class Severity(str, Enum):
+class Severity(StrEnum):
     INFO = "info"
     ELEVATED = "elevated"
     CRITICAL = "critical"
 
 
-class Posture(str, Enum):
+class Posture(StrEnum):
     LOG = "log"
     REQUIRE_APPROVAL = "require_approval"
     RECOMMEND_BLOCK = "recommend_block"
@@ -45,11 +44,11 @@ class AdvisorySignal:
     capability: str
     drift_score: float  # 0.0 .. 1.0
     severity: Severity
-    components: Dict[str, float] = field(default_factory=dict)
-    reasons: List[str] = field(default_factory=list)
+    components: dict[str, float] = field(default_factory=dict)
+    reasons: list[str] = field(default_factory=list)
     recommended_posture: Posture = Posture.LOG
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         return {
             "agent_id": self.agent_id,
             "capability": self.capability,
@@ -63,7 +62,8 @@ class AdvisorySignal:
 
 # ---- enforcement boundary -----------------------------------------------
 
-class PolicyDecision(str, Enum):
+
+class PolicyDecision(StrEnum):
     ALLOW = "allow"
     REQUIRE_APPROVAL = "require_approval"
     DENY = "deny"

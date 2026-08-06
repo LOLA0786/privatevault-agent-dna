@@ -52,8 +52,7 @@ SCENARIO = [
     ("treasury-agent-07", "crm.read_contact", {}, "ok"),
     ("treasury-agent-07", "crm.read_contact", {}, "ok"),
     ("treasury-agent-07", "payments.transfer", {"amount": 4_200_000}, "ok"),
-    ("treasury-agent-07", "payments.drain_account", {"amount": 9_900_000},
-     "refused"),
+    ("treasury-agent-07", "payments.drain_account", {"amount": 9_900_000}, "refused"),
     ("ops-agent-02", "crm.read_contact", {}, "ok"),
     ("ops-agent-02", "storage.bulk_export", {"rows": 1_400_000}, "refused"),
 ]
@@ -87,10 +86,12 @@ def build_ledger(out: Path) -> Path:
     tmp = Path(tempfile.mkdtemp(prefix="pv_bundle_"))
     policy_path = tmp / "policy.yaml"
     policy_path.write_text(POLICY)
-    rt = build_production_runtime(RuntimeConfig(
-        db_path=str(tmp / "pv.db"),
-        policy_file=str(policy_path),
-    ))
+    rt = build_production_runtime(
+        RuntimeConfig(
+            db_path=str(tmp / "pv.db"),
+            policy_file=str(policy_path),
+        )
+    )
     # engine -> recorder is exactly what RuntimeMonitor.process does;
     # we drive it directly only to hold the sealed record so executor
     # feedback can be anchored to its decision_id.
@@ -118,14 +119,20 @@ def make_divergent(clean: Path, out: Path) -> bool:
     """Flip one execution event that reported 'refused' on a blocked
     decision to 'ok' -- the runtime said BLOCK, the world executed."""
     rows = [json.loads(line) for line in clean.read_text().splitlines() if line]
-    blocked = {r["decision_id"] for r in rows
-               if r.get("kind") == "decision" and r.get("decision") == "block"}
+    blocked = {
+        r["decision_id"]
+        for r in rows
+        if r.get("kind") == "decision" and r.get("decision") == "block"
+    }
     for r in rows:
         if r.get("kind") == "execution" and r.get("decision_ref") in blocked:
             r["status"] = "ok"
-            out.write_text("\n".join(json.dumps(x, sort_keys=True,
-                                                separators=(",", ":"))
-                                     for x in rows) + "\n")
+            out.write_text(
+                "\n".join(
+                    json.dumps(x, sort_keys=True, separators=(",", ":")) for x in rows
+                )
+                + "\n"
+            )
             return True
     return False
 
@@ -136,9 +143,12 @@ def make_tampered(clean: Path, out: Path) -> bool:
     for r in rows:
         if r.get("kind") == "decision" and r.get("decision") == "block":
             r["reason"] = "approved by treasury desk"
-            out.write_text("\n".join(json.dumps(x, sort_keys=True,
-                                                separators=(",", ":"))
-                                     for x in rows) + "\n")
+            out.write_text(
+                "\n".join(
+                    json.dumps(x, sort_keys=True, separators=(",", ":")) for x in rows
+                )
+                + "\n"
+            )
             return True
     return False
 

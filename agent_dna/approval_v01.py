@@ -68,9 +68,7 @@ def _require_object(
     path: str,
 ) -> Mapping[str, Any]:
     if not isinstance(value, Mapping):
-        raise AuthorityFormatError(
-            f"{path}: expected object"
-        )
+        raise AuthorityFormatError(f"{path}: expected object")
     return value
 
 
@@ -84,14 +82,10 @@ def _require_exact_fields(
     extra = sorted(actual - required)
 
     if missing:
-        raise AuthorityFormatError(
-            f"{path}: missing fields {missing}"
-        )
+        raise AuthorityFormatError(f"{path}: missing fields {missing}")
 
     if extra:
-        raise AuthorityFormatError(
-            f"{path}: unexpected fields {extra}"
-        )
+        raise AuthorityFormatError(f"{path}: unexpected fields {extra}")
 
 
 def _require_string(
@@ -99,9 +93,7 @@ def _require_string(
     path: str,
 ) -> str:
     if not isinstance(value, str) or not value:
-        raise AuthorityFormatError(
-            f"{path}: expected non-empty string"
-        )
+        raise AuthorityFormatError(f"{path}: expected non-empty string")
     return value
 
 
@@ -110,14 +102,10 @@ def _require_digest(
     path: str,
 ) -> str:
     if not isinstance(value, str):
-        raise AuthorityFormatError(
-            f"{path}: expected SHA-256 digest"
-        )
+        raise AuthorityFormatError(f"{path}: expected SHA-256 digest")
 
     if not SHA256_RE.fullmatch(value):
-        raise AuthorityFormatError(
-            f"{path}: malformed SHA-256 digest"
-        )
+        raise AuthorityFormatError(f"{path}: malformed SHA-256 digest")
 
     return value
 
@@ -126,22 +114,13 @@ def _parse_timestamp(
     value: Any,
     path: str,
 ) -> datetime:
-    if (
-        not isinstance(value, str)
-        or not RFC3339_UTC_RE.fullmatch(value)
-    ):
-        raise AuthorityFormatError(
-            f"{path}: expected RFC3339 UTC timestamp"
-        )
+    if not isinstance(value, str) or not RFC3339_UTC_RE.fullmatch(value):
+        raise AuthorityFormatError(f"{path}: expected RFC3339 UTC timestamp")
 
     try:
-        return datetime.fromisoformat(
-            value.removesuffix("Z") + "+00:00"
-        )
+        return datetime.fromisoformat(value.removesuffix("Z") + "+00:00")
     except ValueError as exc:
-        raise AuthorityFormatError(
-            f"{path}: invalid timestamp"
-        ) from exc
+        raise AuthorityFormatError(f"{path}: invalid timestamp") from exc
 
 
 def validate_approval_request(
@@ -160,14 +139,11 @@ def validate_approval_request(
     )
 
     if value["spec"] != APPROVAL_REQUEST_SPEC:
-        raise AuthorityFormatError(
-            "approval_request.spec: unsupported spec"
-        )
+        raise AuthorityFormatError("approval_request.spec: unsupported spec")
 
     if value["canonicalization"] != CANONICALIZATION:
         raise AuthorityFormatError(
-            "approval_request.canonicalization: "
-            "unsupported canonicalization"
+            "approval_request.canonicalization: unsupported canonicalization"
         )
 
     for field in (
@@ -191,8 +167,7 @@ def validate_approval_request(
 
     if created_at >= expires_at:
         raise AuthorityFormatError(
-            "approval_request.expires_at: "
-            "must be after created_at"
+            "approval_request.expires_at: must be after created_at"
         )
 
     nonce = _require_string(
@@ -201,8 +176,7 @@ def validate_approval_request(
     )
     if not 16 <= len(nonce) <= 256:
         raise AuthorityFormatError(
-            "approval_request.nonce: "
-            "length must be between 16 and 256"
+            "approval_request.nonce: length must be between 16 and 256"
         )
 
     for field in (
@@ -248,8 +222,7 @@ def validate_approval_request(
     expected_action_digest = sha256_digest(action)
     if value["action_digest"] != expected_action_digest:
         raise AuthorityFormatError(
-            "approval_request.action_digest: "
-            "does not match action"
+            "approval_request.action_digest: does not match action"
         )
 
     return value
@@ -262,6 +235,7 @@ def approval_request_digest(
 
     validated = validate_approval_request(request)
     return sha256_digest(validated)
+
 
 _ARTIFACT_FIELDS = frozenset(
     {
@@ -304,14 +278,11 @@ def validate_approval_artifact(
     )
 
     if value["spec"] != APPROVAL_ARTIFACT_SPEC:
-        raise AuthorityFormatError(
-            "approval_artifact.spec: unsupported spec"
-        )
+        raise AuthorityFormatError("approval_artifact.spec: unsupported spec")
 
     if value["canonicalization"] != CANONICALIZATION:
         raise AuthorityFormatError(
-            "approval_artifact.canonicalization: "
-            "unsupported canonicalization"
+            "approval_artifact.canonicalization: unsupported canonicalization"
         )
 
     for field in (
@@ -344,8 +315,7 @@ def validate_approval_artifact(
     decision = value["decision"]
     if decision not in APPROVAL_DECISIONS:
         raise AuthorityFormatError(
-            "approval_artifact.decision: "
-            "expected APPROVE or DENY"
+            "approval_artifact.decision: expected APPROVE or DENY"
         )
 
     decided_at = _parse_timestamp(
@@ -359,18 +329,13 @@ def validate_approval_artifact(
 
     if decided_at >= expires_at:
         raise AuthorityFormatError(
-            "approval_artifact.expires_at: "
-            "must be after decided_at"
+            "approval_artifact.expires_at: must be after decided_at"
         )
 
     signature = value["signature"]
-    if (
-        not isinstance(signature, str)
-        or not SIGNATURE_RE.fullmatch(signature)
-    ):
+    if not isinstance(signature, str) or not SIGNATURE_RE.fullmatch(signature):
         raise AuthorityFormatError(
-            "approval_artifact.signature: "
-            "malformed Ed25519 signature"
+            "approval_artifact.signature: malformed Ed25519 signature"
         )
 
     canonicalize(value)
@@ -466,8 +431,7 @@ def verify_approval_for_execution(  # noqa: C901
 
     if (
         trust_bundle["organisation_id"] != organisation_id
-        or validated_artifact["organisation_id"]
-        != organisation_id
+        or validated_artifact["organisation_id"] != organisation_id
     ):
         return _approval_invalid(
             "ORGANISATION_MISMATCH",
@@ -495,8 +459,7 @@ def verify_approval_for_execution(  # noqa: C901
     if "approval_signer" not in key["usages"]:
         return _approval_invalid(
             "KEY_USAGE_INVALID",
-            f"key {key_id!r} lacks required usage "
-            "'approval_signer'",
+            f"key {key_id!r} lacks required usage 'approval_signer'",
         )
 
     try:
@@ -520,20 +483,12 @@ def verify_approval_for_execution(  # noqa: C901
         return VerificationReport(
             authority_report.evidence_state,
             DecisionConformance.NOT_ASSESSABLE,
-            (
-                "APPROVER_AUTHORITY_"
-                + (
-                    authority_report.reason_code
-                    or "INVALID"
-                )
-            ),
+            ("APPROVER_AUTHORITY_" + (authority_report.reason_code or "INVALID")),
             authority_report.failures,
             authority_report.accountable_principal,
         )
 
-    request_digest = approval_request_digest(
-        validated_request
-    )
+    request_digest = approval_request_digest(validated_request)
     failures: list[str] = []
 
     expected_bindings = (
@@ -554,28 +509,20 @@ def verify_approval_for_execution(  # noqa: C901
     )
 
     for artifact_field, request_field in expected_bindings:
-        if (
-            validated_artifact[artifact_field]
-            != validated_request[request_field]
-        ):
+        if validated_artifact[artifact_field] != validated_request[request_field]:
             failures.append(
                 f"approval_artifact.{artifact_field} does not "
                 f"match approval_request.{request_field}"
             )
 
-    if (
-        validated_artifact["approval_request_digest"]
-        != request_digest
-    ):
+    if validated_artifact["approval_request_digest"] != request_digest:
         failures.append(
             "approval_artifact.approval_request_digest does not "
             "match the supplied approval request"
         )
 
     if validated_artifact["decision"] != "APPROVE":
-        failures.append(
-            "approval artifact decision is not APPROVE"
-        )
+        failures.append("approval artifact decision is not APPROVE")
 
     request_created = _parse_timestamp(
         validated_request["created_at"],
@@ -595,95 +542,59 @@ def verify_approval_for_execution(  # noqa: C901
     )
 
     if not request_created <= decided_at < request_expires:
-        failures.append(
-            "approval decision is outside the request validity window"
-        )
+        failures.append("approval decision is outside the request validity window")
 
     if artifact_expires > request_expires:
-        failures.append(
-            "approval artifact outlives its approval request"
-        )
+        failures.append("approval artifact outlives its approval request")
 
     if not decided_at <= execution_time < artifact_expires:
-        failures.append(
-            "approval artifact is not valid at execution time"
-        )
+        failures.append("approval artifact is not valid at execution time")
 
     if execution_time >= request_expires:
-        failures.append(
-            "approval request is expired at execution time"
-        )
+        failures.append("approval request is expired at execution time")
 
-    expected_authority_digest = receipt_digest(
-        approver_authority_receipt
-    )
+    expected_authority_digest = receipt_digest(approver_authority_receipt)
 
-    if (
-        validated_artifact["approver_authority_digest"]
-        != expected_authority_digest
-    ):
+    if validated_artifact["approver_authority_digest"] != expected_authority_digest:
         failures.append(
-            "approver_authority_digest does not match the supplied "
-            "authority receipt"
+            "approver_authority_digest does not match the supplied authority receipt"
         )
 
     authority_requested = approver_authority_receipt["requested"]
-    expected_resource = (
-        "approval_request:"
-        + validated_request["approval_request_id"]
-    )
+    expected_resource = "approval_request:" + validated_request["approval_request_id"]
 
-    if (
-        approver_authority_receipt["organisation_id"]
-        != organisation_id
-    ):
-        failures.append(
-            "approver authority receipt organisation does not match"
-        )
+    if approver_authority_receipt["organisation_id"] != organisation_id:
+        failures.append("approver authority receipt organisation does not match")
 
     if (
         approver_authority_receipt["request_id"]
         != validated_request["approval_request_id"]
     ):
         failures.append(
-            "approver authority receipt request_id does not bind "
-            "the approval request"
+            "approver authority receipt request_id does not bind the approval request"
         )
 
-    if (
-        approver_authority_receipt["decision_input_digest"]
-        != request_digest
-    ):
+    if approver_authority_receipt["decision_input_digest"] != request_digest:
         failures.append(
-            "approver authority receipt does not bind the approval "
-            "request digest"
+            "approver authority receipt does not bind the approval request digest"
         )
 
     if (
-        authority_requested["subject_principal"]
-        != approver_principal
+        authority_requested["subject_principal"] != approver_principal
         or authority_requested["subject_key_id"] != key_id
     ):
-        failures.append(
-            "approver authority subject does not match the artifact "
-            "signer"
-        )
+        failures.append("approver authority subject does not match the artifact signer")
 
     if authority_requested["action"] != APPROVAL_AUTHORITY_ACTION:
-        failures.append(
-            "approver authority action is not approval.decide"
-        )
+        failures.append("approver authority action is not approval.decide")
 
     if authority_requested["resource"] != expected_resource:
         failures.append(
-            "approver authority resource does not target this "
-            "approval request"
+            "approver authority resource does not target this approval request"
         )
 
     if approver_authority_receipt["final_verdict"] != "ALLOW":
-        failures.append(
-            "approver authority receipt does not allow approval"
-        )
+        failures.append("approver authority receipt does not allow approval")
 
     authority_time = _parse_timestamp(
         approver_authority_receipt["decision_timestamp"],
@@ -692,8 +603,7 @@ def verify_approval_for_execution(  # noqa: C901
 
     if authority_time > decided_at:
         failures.append(
-            "approver authority was established after the approval "
-            "decision"
+            "approver authority was established after the approval decision"
         )
 
     if not authority_report.ok:

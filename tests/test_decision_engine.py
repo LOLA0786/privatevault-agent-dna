@@ -6,12 +6,12 @@ from agent_dna import (
     DecisionEngine,
     DriftScorer,
     GrantAuthorizationPolicy,
+    InvariantViolation,
     SequenceInvariantEngine,
     Severity,
-    InvariantViolation,
 )
-from agent_dna.advisory import AdvisorySignal, Posture
 from agent_dna.adapters import synthetic_normal_trace
+from agent_dna.advisory import AdvisorySignal, Posture
 from agent_dna.trace import AgentAction
 
 
@@ -34,6 +34,7 @@ def _signal(
 # ------------------------------------------------------------------
 # Pure precedence
 # ------------------------------------------------------------------
+
 
 def test_invariant_violation_blocks():
 
@@ -174,6 +175,7 @@ def test_precedence_order():
 # Wired integration
 # ------------------------------------------------------------------
 
+
 def _engine():
 
     training = [
@@ -203,9 +205,7 @@ def _engine():
     )
 
     authz = GrantAuthorizationPolicy(
-        baseline_capabilities=list(
-            manifold.capability_counts.keys()
-        ),
+        baseline_capabilities=list(manifold.capability_counts.keys()),
         grants=[
             CapabilityGrant(
                 capability="storage.bulk_export",

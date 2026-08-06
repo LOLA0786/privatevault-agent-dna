@@ -22,22 +22,50 @@ def _h(rec):
 
 
 def _decision(did, cap, verdict, ts=1000.0):
-    return _h({"kind": "decision", "decision_id": did, "agent_id": "a1",
-               "capability": cap, "decision": verdict, "timestamp": ts,
-               "reason": "t", "prev_hash": "0" * 64, "triggered_by": "x"})
+    return _h(
+        {
+            "kind": "decision",
+            "decision_id": did,
+            "agent_id": "a1",
+            "capability": cap,
+            "decision": verdict,
+            "timestamp": ts,
+            "reason": "t",
+            "prev_hash": "0" * 64,
+            "triggered_by": "x",
+        }
+    )
 
 
 def _effect(obs, seq, dref, etype, ts=1002.0, epoch="ep-1"):
-    return _h({"kind": "effect", "observer_id": obs, "seq": seq,
-               "decision_ref": dref, "effect_type": etype, "target": etype,
-               "timestamp": ts, "epoch_id": epoch,
-               "observer_sig": "ed25519:sig"})
+    return _h(
+        {
+            "kind": "effect",
+            "observer_id": obs,
+            "seq": seq,
+            "decision_ref": dref,
+            "effect_type": etype,
+            "target": etype,
+            "timestamp": ts,
+            "epoch_id": epoch,
+            "observer_sig": "ed25519:sig",
+        }
+    )
 
 
 def _epoch(obs, s0, s1, eid="ep-1"):
-    return _h({"kind": "coverage_epoch", "observer_id": obs, "epoch_id": eid,
-               "seq_start": s0, "seq_end": s1, "window_start": 0.0,
-               "window_end": 9e9, "observer_sig": "ed25519:sig"})
+    return _h(
+        {
+            "kind": "coverage_epoch",
+            "observer_id": obs,
+            "epoch_id": eid,
+            "seq_start": s0,
+            "seq_end": s1,
+            "window_start": 0.0,
+            "window_end": 9e9,
+            "observer_sig": "ed25519:sig",
+        }
+    )
 
 
 def test_clean_reconciliation_passes():
@@ -70,9 +98,11 @@ def test_orphan_effect_no_decision_ref():
 
 def test_observer_gap_missing_seq_in_asserted_epoch():
     decs = [_decision("d1", "c", "allow"), _decision("d2", "c", "allow")]
-    effs = [_epoch("obs-A", 1, 3),
-            _effect("obs-A", 1, "d1", "c"),
-            _effect("obs-A", 3, "d2", "c")]
+    effs = [
+        _epoch("obs-A", 1, 3),
+        _effect("obs-A", 1, "d1", "c"),
+        _effect("obs-A", 3, "d2", "c"),
+    ]
     rep = re.reconcile(decs, effs)
     assert any(f.kind == "OBSERVER_GAP" for f in rep.findings)
 
@@ -88,8 +118,9 @@ def test_stale_effect_is_unauthorized():
     decs = [_decision("d1", "c", "allow", ts=1000.0)]
     effs = [_epoch("obs-A", 1, 1), _effect("obs-A", 1, "d1", "c", ts=1000.0 + 600)]
     rep = re.reconcile(decs, effs)
-    assert any(f.kind == "UNAUTHORIZED_EFFECT" and "fresh" in f.detail
-               for f in rep.findings)
+    assert any(
+        f.kind == "UNAUTHORIZED_EFFECT" and "fresh" in f.detail for f in rep.findings
+    )
 
 
 def test_unsigned_observation_flagged():
@@ -112,19 +143,24 @@ def test_tampered_effect_record_detected():
 def test_second_observer_catches_what_first_omitted():
     decs = [_decision("d1", "c", "allow")]
     effs = [
-        _epoch("obs-A", 1, 1), _effect("obs-A", 1, "d1", "c"),
-        _epoch("obs-B", 1, 1), _effect("obs-B", 1, "no-such-allow", "exfil"),
+        _epoch("obs-A", 1, 1),
+        _effect("obs-A", 1, "d1", "c"),
+        _epoch("obs-B", 1, 1),
+        _effect("obs-B", 1, "no-such-allow", "exfil"),
     ]
     rep = re.reconcile(decs, effs)
     assert len(rep.observers) == 2
-    assert any(f.kind == "UNAUTHORIZED_EFFECT" and "obs-B" in f.detail
-               for f in rep.findings)
+    assert any(
+        f.kind == "UNAUTHORIZED_EFFECT" and "obs-B" in f.detail for f in rep.findings
+    )
 
 
 def _cli(*paths):
     return subprocess.run(
         [sys.executable, "tools/reconcile_effects.py", *paths],
-        capture_output=True, text=True)
+        capture_output=True,
+        text=True,
+    )
 
 
 def test_canonical_clean_vector_passes():

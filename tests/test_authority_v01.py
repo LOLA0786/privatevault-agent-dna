@@ -61,38 +61,28 @@ def artifacts():
                 "key_id": "delegate-01",
                 "principal": "delegate@store.example",
                 "algorithm": "ed25519",
-                "public_key": encode_public_key(
-                    keys["delegate"]
-                ),
+                "public_key": encode_public_key(keys["delegate"]),
                 "usages": ["grant_issuer"],
             },
             {
                 "key_id": "merch-agent-01",
                 "principal": "merch-agent-01@store.example",
                 "algorithm": "ed25519",
-                "public_key": encode_public_key(
-                    keys["subject"]
-                ),
+                "public_key": encode_public_key(keys["subject"]),
                 "usages": ["subject"],
             },
             {
                 "key_id": "pv-runtime-01",
-                "principal": (
-                    "privatevault-runtime@store.example"
-                ),
+                "principal": ("privatevault-runtime@store.example"),
                 "algorithm": "ed25519",
-                "public_key": encode_public_key(
-                    keys["runtime"]
-                ),
+                "public_key": encode_public_key(keys["runtime"]),
                 "usages": ["receipt_signer"],
             },
             {
                 "key_id": "delegate-replacement",
                 "principal": "delegate@store.example",
                 "algorithm": "ed25519",
-                "public_key": encode_public_key(
-                    keys["replacement"]
-                ),
+                "public_key": encode_public_key(keys["replacement"]),
                 "usages": ["grant_issuer"],
             },
         ],
@@ -137,9 +127,7 @@ def artifacts():
             "subject_principal": "delegate@store.example",
             "subject_key_id": "delegate-01",
             "parent_grant_digest": None,
-            "capabilities": [
-                copy.deepcopy(capability)
-            ],
+            "capabilities": [copy.deepcopy(capability)],
             "can_delegate": True,
             "remaining_depth": 2,
             "valid_from": T0,
@@ -156,14 +144,10 @@ def artifacts():
             "organisation_id": "store.example",
             "issuer_principal": "delegate@store.example",
             "issuer_key_id": "delegate-01",
-            "subject_principal": (
-                "merch-agent-01@store.example"
-            ),
+            "subject_principal": ("merch-agent-01@store.example"),
             "subject_key_id": "merch-agent-01",
             "parent_grant_digest": grant_digest(root),
-            "capabilities": [
-                copy.deepcopy(capability)
-            ],
+            "capabilities": [copy.deepcopy(capability)],
             "can_delegate": False,
             "remaining_depth": 1,
             "valid_from": T0,
@@ -184,9 +168,7 @@ def artifacts():
             "decision_input_digest": ZERO_DIGEST,
             "grant_chain": [root, child],
             "requested": {
-                "subject_principal": (
-                    "merch-agent-01@store.example"
-                ),
+                "subject_principal": ("merch-agent-01@store.example"),
                 "subject_key_id": "merch-agent-01",
                 "action": "payments.initiate",
                 "resource": "account:4471",
@@ -297,11 +279,7 @@ def _report(
 ):
     return verify_receipt(
         receipt or artifacts["receipt"],
-        (
-            artifacts["bundle"]
-            if bundle is None
-            else bundle
-        ),
+        (artifacts["bundle"] if bundle is None else bundle),
     )
 
 
@@ -328,9 +306,7 @@ def test_trust_root_asserted_in_record_is_ignored(
     artifacts,
 ):
     receipt = copy.deepcopy(artifacts["receipt"])
-    receipt["accountable_principal"] = (
-        "attacker@example.net"
-    )
+    receipt["accountable_principal"] = "attacker@example.net"
 
     receipt = sign_receipt(
         receipt,
@@ -348,16 +324,11 @@ def test_receipt_signed_by_subject_key_rejected(
 ):
     receipt = _replace_receipt(
         artifacts,
-        lambda value: value.update(
-            signer_key_id="merch-agent-01"
-        ),
+        lambda value: value.update(signer_key_id="merch-agent-01"),
         signing_key="subject",
     )
 
-    assert (
-        _report(artifacts, receipt).reason_code
-        == "KEY_USAGE_INVALID"
-    )
+    assert _report(artifacts, receipt).reason_code == "KEY_USAGE_INVALID"
 
 
 def test_root_grant_by_non_root_authority_key_rejected(
@@ -389,10 +360,7 @@ def test_root_grant_by_non_root_authority_key_rejected(
         artifacts["keys"]["runtime"],
     )
 
-    assert (
-        _report(artifacts, receipt).reason_code
-        == "KEY_USAGE_INVALID"
-    )
+    assert _report(artifacts, receipt).reason_code == "KEY_USAGE_INVALID"
 
 
 # --- identity continuity ----------------------------------------------
@@ -403,16 +371,11 @@ def test_principal_matches_but_key_differs_rejected(
 ):
     receipt = _replace_child(
         artifacts,
-        lambda child: child.update(
-            issuer_key_id="delegate-replacement"
-        ),
+        lambda child: child.update(issuer_key_id="delegate-replacement"),
         signing_key="replacement",
     )
 
-    assert (
-        _report(artifacts, receipt).reason_code
-        == "KEY_CONTINUITY_BROKEN"
-    )
+    assert _report(artifacts, receipt).reason_code == "KEY_CONTINUITY_BROKEN"
 
 
 def test_leaf_subject_differs_from_requested_actor_rejected(
@@ -421,16 +384,11 @@ def test_leaf_subject_differs_from_requested_actor_rejected(
     receipt = _replace_receipt(
         artifacts,
         lambda value: value["requested"].update(
-            subject_principal=(
-                "other-agent@store.example"
-            )
+            subject_principal=("other-agent@store.example")
         ),
     )
 
-    assert (
-        _report(artifacts, receipt).reason_code
-        == "KEY_CONTINUITY_BROKEN"
-    )
+    assert _report(artifacts, receipt).reason_code == "KEY_CONTINUITY_BROKEN"
 
 
 # --- attenuation -------------------------------------------------------
@@ -440,10 +398,7 @@ def test_identical_scope_permitted(artifacts):
     report = _report(artifacts)
 
     assert report.evidence_state is EvidenceState.VERIFIED
-    assert (
-        report.decision_conformance
-        is DecisionConformance.CONFORMANT
-    )
+    assert report.decision_conformance is DecisionConformance.CONFORMANT
 
 
 def test_cross_product_escalation_rejected(artifacts):
@@ -495,24 +450,16 @@ def test_cross_product_escalation_rejected(artifacts):
         artifacts["keys"]["runtime"],
     )
 
-    assert (
-        _report(artifacts, receipt).reason_code
-        == "GRANT_EXCEEDS_PARENT_AUTHORITY"
-    )
+    assert _report(artifacts, receipt).reason_code == "GRANT_EXCEEDS_PARENT_AUTHORITY"
 
 
 def test_constant_depth_rejected(artifacts):
     receipt = _replace_child(
         artifacts,
-        lambda child: child.update(
-            remaining_depth=2
-        ),
+        lambda child: child.update(remaining_depth=2),
     )
 
-    assert (
-        _report(artifacts, receipt).reason_code
-        == "DELEGATION_DEPTH_EXCEEDED"
-    )
+    assert _report(artifacts, receipt).reason_code == "DELEGATION_DEPTH_EXCEEDED"
 
 
 def test_non_delegable_parent_cannot_issue_child(
@@ -520,29 +467,19 @@ def test_non_delegable_parent_cannot_issue_child(
 ):
     receipt = _replace_root(
         artifacts,
-        lambda root: root.update(
-            can_delegate=False
-        ),
+        lambda root: root.update(can_delegate=False),
     )
 
-    assert (
-        _report(artifacts, receipt).reason_code
-        == "DELEGATION_NOT_PERMITTED"
-    )
+    assert _report(artifacts, receipt).reason_code == "DELEGATION_NOT_PERMITTED"
 
 
 def test_obligation_cannot_be_shed(artifacts):
     receipt = _replace_child(
         artifacts,
-        lambda child: child["capabilities"][0].update(
-            obligations=[]
-        ),
+        lambda child: child["capabilities"][0].update(obligations=[]),
     )
 
-    assert (
-        _report(artifacts, receipt).reason_code
-        == "GRANT_EXCEEDS_PARENT_AUTHORITY"
-    )
+    assert _report(artifacts, receipt).reason_code == "GRANT_EXCEEDS_PARENT_AUTHORITY"
 
 
 def test_missing_constraint_field_is_violation_not_default(
@@ -550,39 +487,27 @@ def test_missing_constraint_field_is_violation_not_default(
 ):
     receipt = _replace_child(
         artifacts,
-        lambda child: (
-            child["capabilities"][0]["constraints"].pop()
-        ),
+        lambda child: child["capabilities"][0]["constraints"].pop(),
     )
 
-    assert (
-        _report(artifacts, receipt).reason_code
-        == "GRANT_EXCEEDS_PARENT_AUTHORITY"
-    )
+    assert _report(artifacts, receipt).reason_code == "GRANT_EXCEEDS_PARENT_AUTHORITY"
 
 
 def test_operator_mismatch_rejected(artifacts):
     def mutate(child):
-        child["capabilities"][0]["constraints"][0][
-            "operator"
-        ] = "gte"
+        child["capabilities"][0]["constraints"][0]["operator"] = "gte"
 
     receipt = _replace_child(
         artifacts,
         mutate,
     )
 
-    assert (
-        _report(artifacts, receipt).reason_code
-        == "GRANT_EXCEEDS_PARENT_AUTHORITY"
-    )
+    assert _report(artifacts, receipt).reason_code == "GRANT_EXCEEDS_PARENT_AUTHORITY"
 
 
 def test_gte_constraint_narrows_upward(artifacts):
     def mutate(child):
-        child["capabilities"][0]["constraints"][1][
-            "value"
-        ] = 3
+        child["capabilities"][0]["constraints"][1]["value"] = 3
 
     receipt = _replace_child(
         artifacts,
@@ -602,9 +527,7 @@ def test_gte_constraint_narrows_upward(artifacts):
 
 def test_cycle_detected(artifacts):
     def mutate(child):
-        child["subject_principal"] = (
-            "owner@store.example"
-        )
+        child["subject_principal"] = "owner@store.example"
         child["subject_key_id"] = "owner-root-2026"
 
     receipt = _replace_child(
@@ -613,22 +536,15 @@ def test_cycle_detected(artifacts):
     )
 
     receipt = copy.deepcopy(receipt)
-    receipt["requested"]["subject_principal"] = (
-        "owner@store.example"
-    )
-    receipt["requested"]["subject_key_id"] = (
-        "owner-root-2026"
-    )
+    receipt["requested"]["subject_principal"] = "owner@store.example"
+    receipt["requested"]["subject_key_id"] = "owner-root-2026"
 
     receipt = sign_receipt(
         receipt,
         artifacts["keys"]["runtime"],
     )
 
-    assert (
-        _report(artifacts, receipt).reason_code
-        == "CHAIN_DISCONTINUOUS"
-    )
+    assert _report(artifacts, receipt).reason_code == "CHAIN_DISCONTINUOUS"
 
 
 # --- time --------------------------------------------------------------
@@ -659,9 +575,7 @@ def test_expired_at_decision_time_not_verification_time(
     )
 
     receipt["grant_chain"] = [root, child]
-    receipt["decision_timestamp"] = (
-        "2020-06-01T00:00:00Z"
-    )
+    receipt["decision_timestamp"] = "2020-06-01T00:00:00Z"
 
     receipt = sign_receipt(
         receipt,
@@ -673,21 +587,14 @@ def test_expired_at_decision_time_not_verification_time(
 
 
 def test_half_open_interval_boundary(artifacts):
-    boundary = artifacts["receipt"][
-        "decision_timestamp"
-    ]
+    boundary = artifacts["receipt"]["decision_timestamp"]
 
     receipt = _replace_root(
         artifacts,
-        lambda root: root.update(
-            expires_at=boundary
-        ),
+        lambda root: root.update(expires_at=boundary),
     )
 
-    assert (
-        _report(artifacts, receipt).reason_code
-        == "GRANT_NOT_VALID_AT_DECISION_TIME"
-    )
+    assert _report(artifacts, receipt).reason_code == "GRANT_NOT_VALID_AT_DECISION_TIME"
 
 
 # --- decision semantics ------------------------------------------------
@@ -700,9 +607,7 @@ def test_correct_deny_is_verified_and_conformant(
         receipt["requested"]["action"] = "payments.delete"
         receipt["authority_result"] = {
             "verdict": "DENY",
-            "reason_code": (
-                "ACTION_OUTSIDE_DELEGATED_AUTHORITY"
-            ),
+            "reason_code": ("ACTION_OUTSIDE_DELEGATED_AUTHORITY"),
         }
         receipt["final_verdict"] = "DENY"
 
@@ -712,10 +617,7 @@ def test_correct_deny_is_verified_and_conformant(
     )
 
     assert report.evidence_state is EvidenceState.VERIFIED
-    assert (
-        report.decision_conformance
-        is DecisionConformance.CONFORMANT
-    )
+    assert report.decision_conformance is DecisionConformance.CONFORMANT
 
 
 def test_allow_outside_scope_is_verified_and_nonconformant(
@@ -723,9 +625,7 @@ def test_allow_outside_scope_is_verified_and_nonconformant(
 ):
     receipt = _replace_receipt(
         artifacts,
-        lambda value: value["requested"].update(
-            action="payments.delete"
-        ),
+        lambda value: value["requested"].update(action="payments.delete"),
     )
 
     report = _report(artifacts, receipt)
@@ -734,10 +634,7 @@ def test_allow_outside_scope_is_verified_and_nonconformant(
     assert report.evidence_state is EvidenceState.VERIFIED
 
     # But the grant does not authorize payments.delete.
-    assert (
-        report.decision_conformance
-        is DecisionConformance.NON_CONFORMANT
-    )
+    assert report.decision_conformance is DecisionConformance.NON_CONFORMANT
 
     # This is the scanner's highest-value row.
     assert receipt["final_verdict"] == "ALLOW"
@@ -786,10 +683,7 @@ def test_recorded_final_verdict_contradicting_profile_is_nonconformant(
     )
 
     assert report.evidence_state is EvidenceState.VERIFIED
-    assert (
-        report.decision_conformance
-        is DecisionConformance.NON_CONFORMANT
-    )
+    assert report.decision_conformance is DecisionConformance.NON_CONFORMANT
 
 
 # --- hygiene -----------------------------------------------------------
@@ -800,9 +694,7 @@ def test_duplicate_json_keys_rejected():
         AuthorityFormatError,
         match="duplicate JSON key",
     ):
-        strict_json_loads(
-            '{"spec":"a","spec":"b"}'
-        )
+        strict_json_loads('{"spec":"a","spec":"b"}')
 
 
 def test_unknown_algorithm_rejected(artifacts):
@@ -821,22 +713,15 @@ def test_unknown_algorithm_rejected(artifacts):
 def test_malformed_timestamp_rejected(artifacts):
     receipt = _replace_receipt(
         artifacts,
-        lambda value: value.update(
-            decision_timestamp="not-a-time"
-        ),
+        lambda value: value.update(decision_timestamp="not-a-time"),
     )
 
-    assert (
-        _report(artifacts, receipt).reason_code
-        == "SCHEMA_INVALID"
-    )
+    assert _report(artifacts, receipt).reason_code == "SCHEMA_INVALID"
 
 
 def test_currency_mismatch_rejected(artifacts):
     def mutate(receipt):
-        receipt["requested"]["facts"]["amount"][
-            "currency"
-        ] = "USD"
+        receipt["requested"]["facts"]["amount"]["currency"] = "USD"
 
         receipt["authority_result"] = {
             "verdict": "DENY",
@@ -851,7 +736,4 @@ def test_currency_mismatch_rejected(artifacts):
     )
 
     assert report.evidence_state is EvidenceState.VERIFIED
-    assert (
-        report.decision_conformance
-        is DecisionConformance.CONFORMANT
-    )
+    assert report.decision_conformance is DecisionConformance.CONFORMANT

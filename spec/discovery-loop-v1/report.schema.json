@@ -1,0 +1,230 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://privatevault.ai/spec/discovery-loop-v1/report.schema.json",
+  "title": "PrivateVault Discovery Loop report v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["body", "report_hash"],
+  "properties": {
+    "report_hash": {"$ref": "#/$defs/digest"},
+    "body": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "spec",
+        "configuration",
+        "input_digest",
+        "status",
+        "source_counts",
+        "probes",
+        "disposition_counts",
+        "experiments",
+        "claims"
+      ],
+      "properties": {
+        "spec": {"const": "pv-discovery-loop-report/1.0"},
+        "configuration": {"$ref": "#/$defs/configuration"},
+        "input_digest": {"$ref": "#/$defs/digest"},
+        "status": {
+          "enum": ["NO_CHANGE", "PROPOSALS_READY", "REVIEW_REQUIRED", "STRUCTURAL_BLOCK"]
+        },
+        "source_counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["sealed_decisions", "retained_inputs", "adversarial_rows", "candidates"],
+          "properties": {
+            "sealed_decisions": {"type": "integer", "minimum": 0},
+            "retained_inputs": {"type": "integer", "minimum": 0},
+            "adversarial_rows": {"type": "integer", "minimum": 0},
+            "candidates": {"type": "integer", "minimum": 0}
+          }
+        },
+        "probes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["agent_security_loops", "advisory_validation", "experimental_structural_probes"],
+          "properties": {
+            "agent_security_loops": {"type": "object"},
+            "advisory_validation": {"type": "object"},
+            "experimental_structural_probes": {"type": "object"}
+          }
+        },
+        "disposition_counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["PROPOSE", "REVIEW", "REJECT", "ADVISORY"],
+          "properties": {
+            "PROPOSE": {"type": "integer", "minimum": 0},
+            "REVIEW": {"type": "integer", "minimum": 0},
+            "REJECT": {"type": "integer", "minimum": 0},
+            "ADVISORY": {"type": "integer", "minimum": 0}
+          }
+        },
+        "experiments": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/experiment"}
+        },
+        "claims": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "configuration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "min_support",
+        "numeric_field",
+        "since_ts",
+        "max_new_blocks",
+        "max_candidates",
+        "max_history_records",
+        "max_adversarial_rows",
+        "as_of"
+      ],
+      "properties": {
+        "min_support": {"type": "integer", "minimum": 1},
+        "numeric_field": {"type": "string", "minLength": 1, "maxLength": 128},
+        "since_ts": {"oneOf": [{"type": "number", "minimum": 0}, {"type": "null"}]},
+        "max_new_blocks": {"type": "integer", "minimum": 0},
+        "max_candidates": {"type": "integer", "minimum": 1, "maximum": 1000},
+        "max_history_records": {"type": "integer", "minimum": 1, "maximum": 1000000},
+        "max_adversarial_rows": {"type": "integer", "minimum": 1, "maximum": 100000},
+        "as_of": {"type": "number", "minimum": 0}
+      }
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "experiment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidate_id",
+        "kind",
+        "severity",
+        "capability",
+        "support",
+        "candidate_digest",
+        "policy_digest",
+        "evidence_record_hashes",
+        "assertions",
+        "history",
+        "adversarial",
+        "disposition",
+        "priority_score",
+        "reasons"
+      ],
+      "properties": {
+        "candidate_id": {"type": "string", "minLength": 1},
+        "kind": {"enum": ["policy", "grant", "advisory"]},
+        "severity": {"enum": ["HIGH", "MEDIUM"]},
+        "capability": {"type": "string", "minLength": 1},
+        "support": {"type": "integer", "minimum": 0},
+        "candidate_digest": {"$ref": "#/$defs/digest"},
+        "policy_digest": {"oneOf": [{"$ref": "#/$defs/digest"}, {"type": "null"}]},
+        "evidence_record_hashes": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "uniqueItems": true
+        },
+        "assertions": {"$ref": "#/$defs/assertions"},
+        "history": {"$ref": "#/$defs/evaluationOrNotApplicable"},
+        "adversarial": {"$ref": "#/$defs/evaluationOrNotApplicable"},
+        "disposition": {"enum": ["PROPOSE", "REVIEW", "REJECT", "ADVISORY"]},
+        "priority_score": {"type": "integer", "minimum": 0},
+        "reasons": {"type": "array", "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "assertions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["declared", "passed", "failed", "failures"],
+      "properties": {
+        "declared": {"type": "integer", "minimum": 0},
+        "passed": {"type": "integer", "minimum": 0},
+        "failed": {"type": "integer", "minimum": 0},
+        "failures": {"type": "array", "items": {"type": "object"}}
+      }
+    },
+    "evaluationOrNotApplicable": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["state"],
+          "properties": {"state": {"const": "not_applicable"}}
+        },
+        {"$ref": "#/$defs/evaluation"}
+      ]
+    },
+    "evaluation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "evaluated",
+        "new_escalations",
+        "covered_refusals",
+        "benign_escalations",
+        "candidate_errors",
+        "sample_new_escalation_ids",
+        "sample_covered_refusal_ids",
+        "sample_benign_escalation_ids",
+        "error_ids",
+        "attack_rows",
+        "attack_covered",
+        "attack_coverage_wilson_95",
+        "benign_rows",
+        "benign_preserved",
+        "benign_preservation_wilson_95",
+        "semantics"
+      ],
+      "properties": {
+        "state": {"enum": ["complete", "incomplete", "unavailable"]},
+        "evaluated": {"type": "integer", "minimum": 0},
+        "new_escalations": {"type": "integer", "minimum": 0},
+        "covered_refusals": {"type": "integer", "minimum": 0},
+        "benign_escalations": {"type": "integer", "minimum": 0},
+        "candidate_errors": {"type": "integer", "minimum": 0},
+        "sample_new_escalation_ids": {"$ref": "#/$defs/idList"},
+        "sample_covered_refusal_ids": {"$ref": "#/$defs/idList"},
+        "sample_benign_escalation_ids": {"$ref": "#/$defs/idList"},
+        "error_ids": {"$ref": "#/$defs/idList"},
+        "attack_rows": {"type": "integer", "minimum": 0},
+        "attack_covered": {"type": "integer", "minimum": 0},
+        "attack_coverage_wilson_95": {"$ref": "#/$defs/interval"},
+        "benign_rows": {"type": "integer", "minimum": 0},
+        "benign_preserved": {"type": "integer", "minimum": 0},
+        "benign_preservation_wilson_95": {"$ref": "#/$defs/interval"},
+        "semantics": {"const": "additive_candidate_never_relaxes_existing_levels"},
+        "missing_evidence_records": {"type": "integer", "minimum": 1},
+        "sample_missing_evidence_ids": {"$ref": "#/$defs/idList"}
+      }
+    },
+    "idList": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "maxItems": 10
+    },
+    "interval": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "array",
+          "prefixItems": [
+            {"type": "number", "minimum": 0, "maximum": 1},
+            {"type": "number", "minimum": 0, "maximum": 1}
+          ],
+          "items": false,
+          "minItems": 2,
+          "maxItems": 2
+        }
+      ]
+    }
+  }
+}

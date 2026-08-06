@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 
 from .decision_graph import DecisionGraph
 from .decision_record import DecisionRecord
@@ -47,7 +48,7 @@ class DecisionStore:
 
     # ---- read ---------------------------------------------------------
 
-    def _iter_dicts(self) -> Iterator[dict]:
+    def _iter_dicts(self) -> Iterator[dict[str, Any]]:
         if not self.path.exists():
             return
         with self.path.open("r", encoding="utf-8") as f:
@@ -58,29 +59,27 @@ class DecisionStore:
                 try:
                     yield json.loads(line)
                 except json.JSONDecodeError as e:
-                    raise ValueError(
-                        f"{self.path}:{lineno}: corrupt JSONL line"
-                    ) from e
+                    raise ValueError(f"{self.path}:{lineno}: corrupt JSONL line") from e
 
-    def load(self) -> list:
-        records: list = []
+    def load(self) -> list[DecisionRecord | ExecutionEvent]:
+        records: list[DecisionRecord | ExecutionEvent] = []
         for d in self._iter_dicts():
             record_hash = d.pop("record_hash")
             kind = d.pop("kind", "decision")
             protocol_version = d.pop("protocol_version", None)
             if kind == "execution":
-                rec = ExecutionEvent(**d)
+                record: DecisionRecord | ExecutionEvent = ExecutionEvent(**d)
             else:
                 if protocol_version is None:
                     raise ValueError(
                         "decision record missing required protocol_version"
                     )
-                rec = DecisionRecord(
+                record = DecisionRecord(
                     protocol_version=protocol_version,
                     **d,
                 )
-            rec.record_hash = record_hash
-            records.append(rec)
+            record.record_hash = record_hash
+            records.append(record)
         return records
 
     def load_graph(self) -> DecisionGraph:
@@ -88,7 +87,7 @@ class DecisionStore:
         verify every record, so a tampered file fails loudly here."""
         g = DecisionGraph()
         for rec in self.load():
-            if rec.kind == "execution":
+            if isinstance(rec, ExecutionEvent):
                 g.add_execution(rec)
             else:
                 g.add(rec)

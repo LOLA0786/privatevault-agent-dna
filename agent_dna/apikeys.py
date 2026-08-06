@@ -31,7 +31,6 @@ import json
 import os
 import secrets
 from pathlib import Path
-from typing import Dict, Optional, Union
 
 KEYS_ENV = "PV_API_KEYS_FILE"
 VALID_SCOPES = {"full", "audit"}
@@ -41,7 +40,7 @@ def _hash(key: str) -> str:
     return hashlib.sha256(key.encode()).hexdigest()
 
 
-def generate_key(name: str, scope: str = "full") -> Dict[str, str]:
+def generate_key(name: str, scope: str = "full") -> dict[str, str]:
     """scope="full": normal operator key, all endpoints.
     scope="audit": read-only, verify/export endpoints only -- the
     credential to hand a third-party auditor."""
@@ -51,7 +50,7 @@ def generate_key(name: str, scope: str = "full") -> Dict[str, str]:
     return {"key": key, "hash": _hash(key), "name": name, "scope": scope}
 
 
-def _normalize_entry(entry: Union[str, dict]) -> Dict[str, str]:
+def _normalize_entry(entry: str | dict) -> dict[str, str]:
     """A plain string entry means scope=full (backward compatible with
     every key file that predates the scope concept). A dict entry can
     declare an explicit scope."""
@@ -62,15 +61,17 @@ def _normalize_entry(entry: Union[str, dict]) -> Dict[str, str]:
     if not name:
         raise ValueError(f"key entry missing 'name': {entry}")
     if scope not in VALID_SCOPES:
-        raise ValueError(f"key entry {name!r} has invalid scope {scope!r}, "
-                         f"must be one of {VALID_SCOPES}")
+        raise ValueError(
+            f"key entry {name!r} has invalid scope {scope!r}, "
+            f"must be one of {VALID_SCOPES}"
+        )
     return {"name": name, "scope": scope}
 
 
 class ApiKeyRegistry:
-    def __init__(self, path: Optional[str] = None) -> None:
+    def __init__(self, path: str | None = None) -> None:
         self.path = path or os.getenv(KEYS_ENV)
-        self._entries: Dict[str, Dict[str, str]] = {}
+        self._entries: dict[str, dict[str, str]] = {}
         self.enabled = False
         if self.path:
             data = json.loads(Path(self.path).read_text())
@@ -79,19 +80,19 @@ class ApiKeyRegistry:
             self._entries = {h: _normalize_entry(v) for h, v in data.items()}
             self.enabled = True
 
-    def verify(self, key: Optional[str]) -> Optional[str]:
+    def verify(self, key: str | None) -> str | None:
         """Returns the key's name if valid, None otherwise. Unchanged
         behavior from before scope existed -- callers that only care
         about 'is this a valid key' are unaffected."""
         entry = self._verify_entry(key)
         return entry["name"] if entry else None
 
-    def _verify_entry(self, key: Optional[str]) -> Optional[Dict[str, str]]:
+    def _verify_entry(self, key: str | None) -> dict[str, str] | None:
         if not key:
             return None
         return self._entries.get(_hash(key))
 
-    def verify_scope(self, key: Optional[str], required_scope: str) -> Optional[str]:
+    def verify_scope(self, key: str | None, required_scope: str) -> str | None:
         """Returns the key's name if valid AND its scope satisfies the
         requirement, None otherwise. A "full" scope key satisfies any
         requirement (an operator can do everything an auditor can).

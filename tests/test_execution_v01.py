@@ -27,20 +27,13 @@ from agent_dna.execution_v01 import (
 
 ZERO_DIGEST = "sha256:" + ("0" * 64)
 ONE_DIGEST = "sha256:" + ("1" * 64)
-WIRE_BYTES = (
-    b'{"account":"4471","amount":400000,'
-    b'"currency":"INR"}'
-)
-PEER_IDENTITY_BYTES = (
-    b"tls-spki:payments.store.example:v3"
-)
+WIRE_BYTES = b'{"account":"4471","amount":400000,"currency":"INR"}'
+PEER_IDENTITY_BYTES = b"tls-spki:payments.store.example:v3"
 
 
 def _unsigned_authorization():
     action = {
-        "subject_principal": (
-            "refund-agent@store.example"
-        ),
+        "subject_principal": ("refund-agent@store.example"),
         "subject_key_id": "refund-agent-01",
         "action": "payments.refund",
         "resource": "account:4471",
@@ -62,9 +55,7 @@ def _unsigned_authorization():
         "tool_id": "payments.refund.v3",
         "tool_schema_digest": ZERO_DIGEST,
         "tool_artifact_digest": ONE_DIGEST,
-        "credential_audience": (
-            "payments.store.example"
-        ),
+        "credential_audience": ("payments.store.example"),
         "idempotency_key_digest": ZERO_DIGEST,
         "retry_policy_digest": ONE_DIGEST,
     }
@@ -72,9 +63,7 @@ def _unsigned_authorization():
     return {
         "spec": EXECUTION_AUTHORIZATION_SPEC,
         "canonicalization": CANONICALIZATION,
-        "execution_authorization_id": (
-            "execution-authorization-001"
-        ),
+        "execution_authorization_id": ("execution-authorization-001"),
         "organisation_id": "store.example",
         "request_id": "request-001",
         "issued_at": "2026-07-31T12:00:00Z",
@@ -86,15 +75,9 @@ def _unsigned_authorization():
         "approval_artifact_digest": ZERO_DIGEST,
         "action": action,
         "action_digest": sha256_digest(action),
-        "expected_wire_bytes_digest": (
-            sha256_bytes_digest(WIRE_BYTES)
-        ),
+        "expected_wire_bytes_digest": (sha256_bytes_digest(WIRE_BYTES)),
         "expected_wire_bytes_length": len(WIRE_BYTES),
-        "expected_peer_identity_digest": (
-            sha256_bytes_digest(
-                PEER_IDENTITY_BYTES
-            )
-        ),
+        "expected_peer_identity_digest": (sha256_bytes_digest(PEER_IDENTITY_BYTES)),
         "dispatch": dispatch,
         "state_snapshot_digest": ZERO_DIGEST,
         "policy_bundle_digest": ONE_DIGEST,
@@ -115,28 +98,19 @@ def _signed_authorization():
 def test_signed_execution_authorization_is_valid():
     authorization = _signed_authorization()
 
-    assert (
-        validate_execution_authorization(authorization)
-        == authorization
-    )
-    assert execution_authorization_digest(
-        authorization
-    ).startswith("sha256:")
+    assert validate_execution_authorization(authorization) == authorization
+    assert execution_authorization_digest(authorization).startswith("sha256:")
 
 
 def test_changed_action_parameters_are_rejected():
     authorization = _signed_authorization()
-    authorization["action"]["parameters"]["amount"][
-        "minor_units"
-    ] = 500000
+    authorization["action"]["parameters"]["amount"]["minor_units"] = 500000
 
     with pytest.raises(
         AuthorityFormatError,
         match="does not match action",
     ):
-        validate_execution_authorization(
-            authorization
-        )
+        validate_execution_authorization(authorization)
 
 
 def test_unexpected_top_level_field_is_rejected():
@@ -147,44 +121,33 @@ def test_unexpected_top_level_field_is_rejected():
         AuthorityFormatError,
         match="unexpected fields",
     ):
-        validate_execution_authorization(
-            authorization
-        )
+        validate_execution_authorization(authorization)
 
 
 def test_unexpected_dispatch_field_is_rejected():
     authorization = _signed_authorization()
-    authorization["dispatch"]["untrusted_target"] = (
-        "attacker.example"
-    )
+    authorization["dispatch"]["untrusted_target"] = "attacker.example"
 
     with pytest.raises(
         AuthorityFormatError,
         match="unexpected fields",
     ):
-        validate_execution_authorization(
-            authorization
-        )
+        validate_execution_authorization(authorization)
 
 
 def test_key_order_does_not_change_digest():
     authorization = _signed_authorization()
-    reordered = dict(
-        reversed(list(authorization.items()))
-    )
+    reordered = dict(reversed(list(authorization.items())))
 
-    assert (
-        execution_authorization_digest(authorization)
-        == execution_authorization_digest(reordered)
-    )
+    assert execution_authorization_digest(
+        authorization
+    ) == execution_authorization_digest(reordered)
 
 
 def test_changed_dispatch_changes_digest():
     original = _unsigned_authorization()
     changed = copy.deepcopy(original)
-    changed["dispatch"]["destination"] = (
-        "alternate-payments.store.example"
-    )
+    changed["dispatch"]["destination"] = "alternate-payments.store.example"
     key = SigningKey.generate()
 
     original = sign_execution_authorization(
@@ -196,17 +159,14 @@ def test_changed_dispatch_changes_digest():
         key,
     )
 
-    assert (
-        execution_authorization_digest(original)
-        != execution_authorization_digest(changed)
+    assert execution_authorization_digest(original) != execution_authorization_digest(
+        changed
     )
 
 
 def test_issued_at_cannot_follow_not_before():
     authorization = _unsigned_authorization()
-    authorization["issued_at"] = (
-        "2026-07-31T12:00:01Z"
-    )
+    authorization["issued_at"] = "2026-07-31T12:00:01Z"
 
     with pytest.raises(
         AuthorityFormatError,
@@ -220,9 +180,7 @@ def test_issued_at_cannot_follow_not_before():
 
 def test_expiry_must_follow_not_before():
     authorization = _unsigned_authorization()
-    authorization["expires_at"] = (
-        authorization["not_before"]
-    )
+    authorization["expires_at"] = authorization["not_before"]
 
     with pytest.raises(
         AuthorityFormatError,
@@ -272,10 +230,7 @@ def test_approval_digest_may_be_null():
         SigningKey.generate(),
     )
 
-    assert (
-        validate_execution_authorization(signed)
-        == signed
-    )
+    assert validate_execution_authorization(signed) == signed
 
 
 def test_malformed_signature_is_rejected():
@@ -286,16 +241,12 @@ def test_malformed_signature_is_rejected():
         AuthorityFormatError,
         match="malformed Ed25519 signature",
     ):
-        validate_execution_authorization(
-            authorization
-        )
+        validate_execution_authorization(authorization)
 
 
 def test_malformed_dispatch_digest_is_rejected():
     authorization = _unsigned_authorization()
-    authorization["dispatch"][
-        "tool_artifact_digest"
-    ] = "sha256:not-a-digest"
+    authorization["dispatch"]["tool_artifact_digest"] = "sha256:not-a-digest"
 
     with pytest.raises(
         AuthorityFormatError,
@@ -322,13 +273,8 @@ def test_action_parameters_must_be_object():
 
 
 def _execution_schema():
-    schema_path = Path(
-        "spec/execution-v01/"
-        "execution-authorization.schema.json"
-    )
-    schema = json.loads(
-        schema_path.read_text(encoding="utf-8")
-    )
+    schema_path = Path("spec/execution-v01/execution-authorization.schema.json")
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
     Draft202012Validator.check_schema(schema)
     return schema
 
@@ -343,15 +289,13 @@ def test_signed_authorization_matches_published_schema():
 def test_runtime_fields_match_published_schema():
     schema = _execution_schema()
 
-    assert set(schema["required"]) == set(
-        execution_module._AUTHORIZATION_FIELDS
+    assert set(schema["required"]) == set(execution_module._AUTHORIZATION_FIELDS)
+    assert set(schema["$defs"]["action"]["required"]) == set(
+        action_module.EXECUTION_ACTION_FIELDS
     )
-    assert set(
-        schema["$defs"]["action"]["required"]
-    ) == set(action_module.EXECUTION_ACTION_FIELDS)
-    assert set(
-        schema["$defs"]["dispatch"]["required"]
-    ) == set(execution_module._DISPATCH_FIELDS)
+    assert set(schema["$defs"]["dispatch"]["required"]) == set(
+        execution_module._DISPATCH_FIELDS
+    )
 
 
 def test_schema_rejects_unexpected_field():
@@ -359,13 +303,6 @@ def test_schema_rejects_unexpected_field():
     authorization = _signed_authorization()
     authorization["untrusted_claim"] = "executable"
 
-    errors = list(
-        Draft202012Validator(schema).iter_errors(
-            authorization
-        )
-    )
+    errors = list(Draft202012Validator(schema).iter_errors(authorization))
 
-    assert any(
-        error.validator == "additionalProperties"
-        for error in errors
-    )
+    assert any(error.validator == "additionalProperties" for error in errors)

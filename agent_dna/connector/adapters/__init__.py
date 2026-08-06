@@ -1,3 +1,3 @@
-from .mcp import guard_fastmcp, EnforcementBlocked
+from .mcp import EnforcementBlocked, guard_fastmcp
 
 __all__ = ["guard_fastmcp", "EnforcementBlocked"]

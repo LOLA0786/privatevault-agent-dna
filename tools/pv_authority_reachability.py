@@ -49,8 +49,7 @@ def _load_graph(
             item,
             f"mapping.protected_sinks[{index}]",
         )
-        for index, item
-        in enumerate(mapping["protected_sinks"])
+        for index, item in enumerate(mapping["protected_sinks"])
     )
 
     return MappedCompanyGraphAdapter(
@@ -105,24 +104,16 @@ def _print_report(
         print(f"Sink               {finding['sink_node_id']}")
         print(f"Severity           {finding['severity']}")
         print(f"State              {finding['state']}")
-        print(
-            "Reason             "
-            + ", ".join(finding["reason_codes"])
-        )
+        print("Reason             " + ", ".join(finding["reason_codes"]))
 
         witness = finding["witness"]
         if witness:
             print(f"Hops               {witness['hop_count']}")
-            print(
-                "Path               "
-                + " -> ".join(witness["node_ids"])
-            )
+            print("Path               " + " -> ".join(witness["node_ids"]))
             print(
                 "Evidence           "
                 + ", ".join(
-                    f"{key}={count}"
-                    for key, count
-                    in witness["evidence"].items()
+                    f"{key}={count}" for key, count in witness["evidence"].items()
                 )
             )
 
@@ -149,11 +140,7 @@ def _analyze(
         args.json,
     )
 
-    return (
-        1
-        if report["summary"]["PROHIBITED_REACHABLE"]
-        else 0
-    )
+    return 1 if report["summary"]["PROHIBITED_REACHABLE"] else 0
 
 
 def _simulate(
@@ -182,21 +169,11 @@ def _simulate(
         print("=" * 68)
         print(
             "New reachable      "
-            + (
-                ", ".join(
-                    change["newly_reachable_sinks"]
-                )
-                or "none"
-            )
+            + (", ".join(change["newly_reachable_sinks"]) or "none")
         )
         print(
             "New prohibited     "
-            + (
-                ", ".join(
-                    change["newly_prohibited_sinks"]
-                )
-                or "none"
-            )
+            + (", ".join(change["newly_prohibited_sinks"]) or "none")
         )
         print(f"Decision           {change['decision']}")
 
@@ -205,20 +182,13 @@ def _simulate(
         args.json,
     )
 
-    return (
-        1
-        if change["decision"] == "BLOCK_PROPOSED_CHANGE"
-        else 0
-    )
+    return 1 if change["decision"] == "BLOCK_PROPOSED_CHANGE" else 0
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="pv-authority-reachability",
-        description=(
-            "deterministic blast-radius analysis "
-            "over authority graphs"
-        ),
+        description=("deterministic blast-radius analysis over authority graphs"),
     )
 
     subparsers = parser.add_subparsers(
@@ -257,10 +227,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     simulate = subparsers.add_parser(
         "simulate",
-        help=(
-            "compare graph snapshots "
-            "before a proposed change"
-        ),
+        help=("compare graph snapshots before a proposed change"),
     )
     simulate.add_argument(
         "before",

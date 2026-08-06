@@ -1,4 +1,5 @@
 """Tests for the consensus invariant (Phase 2)."""
+
 from __future__ import annotations
 
 import pytest
@@ -13,16 +14,29 @@ from agent_dna.multi_agent import (
 
 
 def step(exec_id, src, dst, sr, dr, t, **kw):
-    return InteractionEvent(execution_id=exec_id, source=src, target=dst,
-                            source_role=sr, target_role=dr, timestamp=t, **kw)
+    return InteractionEvent(
+        execution_id=exec_id,
+        source=src,
+        target=dst,
+        source_role=sr,
+        target_role=dr,
+        timestamp=t,
+        **kw,
+    )
 
 
 def signoff(exec_id, role, t, approve=True, confidence=0.95):
     return InteractionEvent(
-        execution_id=exec_id, source=f"{role}_agent", target="ledger",
-        source_role=role, target_role="ledger", timestamp=t,
-        approval=approve, confidence=confidence,
-        metadata={"is_signoff": True})
+        execution_id=exec_id,
+        source=f"{role}_agent",
+        target="ledger",
+        source_role=role,
+        target_role="ledger",
+        timestamp=t,
+        approval=approve,
+        confidence=confidence,
+        metadata={"is_signoff": True},
+    )
 
 
 def good(exec_id, *, skip=None, dissent=None, early_payment=False, conf=0.95):
@@ -38,8 +52,7 @@ def good(exec_id, *, skip=None, dissent=None, early_payment=False, conf=0.95):
         if skip == role:
             t += 0.2
             continue
-        ev.append(signoff(exec_id, role, t,
-                        approve=(dissent != role), confidence=conf))
+        ev.append(signoff(exec_id, role, t, approve=(dissent != role), confidence=conf))
         t += 0.2
     if not early_payment:
         ev.append(step(exec_id, "approval", "payment", "approval", "payment", 4.0))

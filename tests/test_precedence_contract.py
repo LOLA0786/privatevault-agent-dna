@@ -7,10 +7,9 @@ the same commit. Makes 'a deterministic DENY is final' a property CI
 enforces, not just an assertion in prose.
 """
 
-import ast
-import re
 import hashlib
 import json
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -20,7 +19,16 @@ ENGINE_PATH = ROOT / "agent_dna" / "decision.py"
 # The literal trigger strings used in _decide_unsafe / decide_from,
 # in the order they must appear as return statements / string
 # literals within the function bodies.
-EXPECTED_ORDER = ["uaal_constraint", "invariant", "policy", "consensus", "authorization", "economics", "drift", "baseline"]
+EXPECTED_ORDER = [
+    "uaal_constraint",
+    "invariant",
+    "policy",
+    "consensus",
+    "authorization",
+    "economics",
+    "drift",
+    "baseline",
+]
 
 
 def _load_contract():
@@ -42,21 +50,20 @@ def test_contract_hash_is_pinned():
     silent drift."""
     content = CONTRACT_PATH.read_bytes()
     digest = hashlib.sha256(content).hexdigest()
-    PINNED = "2150d0f020bba566af62eac51b842958e85cbb0eb75a5506b580d8a87fbee8ca"
-    if PINNED == "__PINNED_HASH__":
+    pinned = "2150d0f020bba566af62eac51b842958e85cbb0eb75a5506b580d8a87fbee8ca"
+    if pinned == "__PINNED_HASH__":
         # first run: print the real hash so it can be pinned below
         print(f"\nACTUAL CONTRACT HASH: {digest}")
-        assert False, (
-            "pin this hash into PINNED above, then rerun — "
-            f"got {digest}"
+        raise AssertionError(
+            f"pin this hash into PINNED above, then rerun — got {digest}"
         )
-    assert digest == PINNED
+    assert digest == pinned
 
 
 def _extract_method_body(source: str, def_line: str) -> str:
     start = source.find(def_line)
     assert start != -1, f"{def_line!r} not found in decision.py"
-    rest = source[start + len(def_line):]
+    rest = source[start + len(def_line) :]
     next_def = rest.find("\n    def ")
     return rest if next_def == -1 else rest[:next_def]
 
@@ -68,9 +75,7 @@ def test_uaal_precedes_decide_from_call():
     UAAL check after the decide_from call, UAAL would no longer be
     able to short-circuit ahead of invariant/authorization/drift —
     the single most important ordering guarantee in the engine."""
-    body = _extract_method_body(
-        ENGINE_PATH.read_text(), "def _decide_unsafe("
-    )
+    body = _extract_method_body(ENGINE_PATH.read_text(), "def _decide_unsafe(")
     uaal_idx = body.find('"uaal_constraint"')
     delegate_idx = body.find("self.decide_from(")
     assert uaal_idx != -1, "uaal_constraint literal not found in _decide_unsafe"
@@ -128,9 +133,7 @@ def test_no_undeclared_levels_in_engine():
     a level added to code without a contract change fails the build,
     in either direction."""
     body = _extract_method_body(ENGINE_PATH.read_text(), "def decide_from(")
-    declared = set(re.findall(
-        r'return make\(\s*[^,]+,\s*\n?\s*"([a-z_]+)"', body
-    ))
+    declared = set(re.findall(r'return make\(\s*[^,]+,\s*\n?\s*"([a-z_]+)"', body))
     remaining = set(EXPECTED_ORDER) - {"uaal_constraint"}
     assert declared == remaining, (
         f"engine declares {sorted(declared)}, contract declares "

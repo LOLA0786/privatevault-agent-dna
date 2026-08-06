@@ -29,21 +29,19 @@ from __future__ import annotations
 
 import math
 import time
-from typing import Callable, Dict
+from collections.abc import Callable
 
 from .signing import verify_vote
 
 
 class TrustRegistry:
     def __init__(self) -> None:
-        self.scores: Dict[str, float] = {}
+        self.scores: dict[str, float] = {}
 
     def set_score(self, agent_id: str, score: float) -> None:
         s = float(score)
         if not (0.0 <= s <= 1.0) or math.isnan(s):
-            raise ValueError(
-                f"trust score must be in [0, 1], got {score!r}"
-            )
+            raise ValueError(f"trust score must be in [0, 1], got {score!r}")
         self.scores[agent_id] = s
 
     def get(self, agent_id: str, default: float = 0.5) -> float:
@@ -60,16 +58,15 @@ class SecureQuorum:
         t = float(threshold)
         if not math.isfinite(t) or t <= 0.0:
             raise ValueError(
-                f"threshold must be a positive finite trust mass, got "
-                f"{threshold!r}"
+                f"threshold must be a positive finite trust mass, got {threshold!r}"
             )
         self.threshold = t
         self.trust_registry = trust_registry
         self.clock = clock
         # action_id -> agent_id -> validated vote dict
-        self.votes: Dict[str, Dict[str, dict]] = {}
+        self.votes: dict[str, dict[str, dict]] = {}
         # action_id -> set of consumed nonces
-        self._nonces: Dict[str, set] = {}
+        self._nonces: dict[str, set] = {}
 
     # ------------------------------------------------------------------
 
@@ -85,9 +82,9 @@ class SecureQuorum:
         action_votes = self.votes.setdefault(action_id, {})
         used_nonces = self._nonces.setdefault(action_id, set())
 
-        if agent_id in action_votes:      # one vote per voter per action
+        if agent_id in action_votes:  # one vote per voter per action
             return False
-        if nonce in used_nonces:          # single-use nonce per action
+        if nonce in used_nonces:  # single-use nonce per action
             return False
 
         if not verify_vote(
@@ -108,22 +105,35 @@ class SecureQuorum:
         return True
 
     def submit_vote(
-        self, action_id: str, agent_id: str, vote: str,
-        signature: str, message_hash: str, nonce: str,
-        issued_at: float, expires_at: float,
+        self,
+        action_id: str,
+        agent_id: str,
+        vote: str,
+        signature: str,
+        message_hash: str,
+        nonce: str,
+        issued_at: float,
+        expires_at: float,
     ) -> bool:
         """Explicit-argument form of submit()."""
-        return self.submit(action_id, {
-            "agent_id": agent_id, "vote": vote, "signature": signature,
-            "message_hash": message_hash, "nonce": nonce,
-            "issued_at": issued_at, "expires_at": expires_at,
-        })
+        return self.submit(
+            action_id,
+            {
+                "agent_id": agent_id,
+                "vote": vote,
+                "signature": signature,
+                "message_hash": message_hash,
+                "nonce": nonce,
+                "issued_at": issued_at,
+                "expires_at": expires_at,
+            },
+        )
 
     def check_quorum(self, action_id: str) -> bool:
         now = self.clock()
         score = 0.0
         for agent_id, v in self.votes.get(action_id, {}).items():
-            if now >= float(v["expires_at"]):   # expired since submit
+            if now >= float(v["expires_at"]):  # expired since submit
                 continue
             if v["vote"] == "APPROVE":
                 score += self.trust_registry.get(agent_id)

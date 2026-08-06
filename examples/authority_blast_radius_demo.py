@@ -48,9 +48,7 @@ def _graph(name: str) -> AuthorityGraph:
 
 def _payment_finding(report):
     return next(
-        finding
-        for finding in report.findings
-        if finding.sink_node_id == PAYMENT_SINK
+        finding for finding in report.findings if finding.sink_node_id == PAYMENT_SINK
     )
 
 
@@ -90,16 +88,12 @@ def main() -> None:
         print(f"{prefix}{node_id}")
 
     evidence = "  |  ".join(
-        f"{name}: {count}"
-        for name, count in sorted(after.witness.evidence.items())
+        f"{name}: {count}" for name, count in sorted(after.witness.evidence.items())
     )
 
     print()
     print(f"Evidence            {evidence}")
-    print(
-        "Grant issuer        "
-        + ", ".join(after.witness.grant_issuers)
-    )
+    print("Grant issuer        " + ", ".join(after.witness.grant_issuers))
     print()
     print("Violations")
 
@@ -111,13 +105,8 @@ def main() -> None:
     print("-" * 72)
     print(result.to_dict()["decision"])
     print()
-    print(
-        "Reason: The proposed identity binding creates a prohibited "
-        "deterministic"
-    )
-    print(
-        "path from RefundAgent to the irreversible payment.execute action."
-    )
+    print("Reason: The proposed identity binding creates a prohibited deterministic")
+    print("path from RefundAgent to the irreversible payment.execute action.")
 
 
 if __name__ == "__main__":

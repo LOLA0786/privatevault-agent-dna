@@ -11,7 +11,7 @@ cross-organization defense patterns.
 """
 
 from .analytics import AggregateAnalytics
-from .shared_invariants import SharedInvariantLibrary
 from .profile_export import AnonymizedProfileExporter
+from .shared_invariants import SharedInvariantLibrary
 
 __all__ = ["AggregateAnalytics", "SharedInvariantLibrary", "AnonymizedProfileExporter"]

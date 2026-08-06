@@ -5,10 +5,10 @@ Produces structured results for every adversary execution.
 Links results to audit artifacts (receipt hash, merkle root, policy version).
 Compatible with CI/CD pipeline (security_validation/ci_integration.md).
 """
-from typing import List, Dict, Optional
+
 from .adversaries.base import BaseAdversary
-from .scoring import SecurityScorecard
 from .framework.discovery.loader import discover
+from .scoring import SecurityScorecard
 
 
 class AttackOrchestrator:
@@ -16,15 +16,14 @@ class AttackOrchestrator:
     Execute one or many adversaries against agent runtime.
     Collect structured evidence for benchmark reporting.
     """
-    def __init__(self, runtime_target: Optional[str] = None):
+
+    def __init__(self, runtime_target: str | None = None):
         self.runtime_target = runtime_target or "agent_dna.decision"
-        self.results: List[Dict] = []
+        self.results: list[dict] = []
 
-        self.discovered_adversaries = [
-            cls for cls in discover()
-        ]
+        self.discovered_adversaries = [cls for cls in discover()]
 
-    def run_adversary(self, adversary: BaseAdversary, target_agent: str) -> Dict:
+    def run_adversary(self, adversary: BaseAdversary, target_agent: str) -> dict:
         result_dict = adversary.run(target_agent=target_agent)
         scorecard = SecurityScorecard(
             scenario_id=adversary.attack_id,
@@ -46,7 +45,7 @@ class AttackOrchestrator:
         self.results.append(full_result)
         return full_result
 
-    def benchmark_summary(self, framework_refs: Optional[Dict] = None) -> Dict:
+    def benchmark_summary(self, framework_refs: dict | None = None) -> dict:
         scores = [r["security_score"] for r in self.results]
         return {
             "runtime_target": self.runtime_target,
@@ -56,7 +55,6 @@ class AttackOrchestrator:
             "max_score": max(scores) if scores else 0,
             "results": self.results,
         }
-
 
     def list_adversaries(self):
         """
@@ -69,7 +67,6 @@ class AttackOrchestrator:
         Execute every discovered adversary.
         """
         for adversary_cls in self.discovered_adversaries:
-
             try:
                 adversary = adversary_cls()
 

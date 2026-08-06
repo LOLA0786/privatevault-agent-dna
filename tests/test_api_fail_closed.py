@@ -12,7 +12,9 @@ def _client(tmp_path, monkeypatch):
     monkeypatch.delenv("PV_API_KEYS_FILE", raising=False)
     monkeypatch.delenv("PV_RECEIPT_SIGNING_KEY", raising=False)
     import importlib
+
     import api.server as server
+
     importlib.reload(server)
     return server
 
@@ -29,11 +31,14 @@ def test_faulting_scorer_returns_403_not_500(tmp_path, monkeypatch):
         # runtime fault in a dependency (e.g. a flaky evidence source)
         server.state["engine"].scorer = RaisingScorer()
 
-        r = c.post("/v1/decide", json={
-            "agent_id": "fault-agent",
-            "capability": "crm.read_contact",
-            "timestamp": time.time(),
-        })
+        r = c.post(
+            "/v1/decide",
+            json={
+                "agent_id": "fault-agent",
+                "capability": "crm.read_contact",
+                "timestamp": time.time(),
+            },
+        )
 
         assert r.status_code == 403, (
             f"fault propagated as {r.status_code}, not fail-closed 403"
@@ -63,12 +68,15 @@ def test_faulting_uaal_checker_returns_403(tmp_path, monkeypatch):
     with TestClient(server.app) as c:
         server.state["engine"].uaal = RaisingUAAL()
 
-        r = c.post("/v1/decide", json={
-            "agent_id": "fault-agent-2",
-            "capability": "payment.pay_invoice",
-            "timestamp": time.time(),
-            "evidence": {"enterprise_state": {}},
-        })
+        r = c.post(
+            "/v1/decide",
+            json={
+                "agent_id": "fault-agent-2",
+                "capability": "payment.pay_invoice",
+                "timestamp": time.time(),
+                "evidence": {"enterprise_state": {}},
+            },
+        )
 
         assert r.status_code == 403
         assert r.json()["triggered_by"] == "engine_fault"

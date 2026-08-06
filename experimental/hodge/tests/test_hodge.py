@@ -251,12 +251,10 @@ def test_canonical_vectors_are_reproduced_exactly():
 
     for name, expected in stored["cases"].items():
         parts = decompose(*factories[name]().build())
-        assert parts.gradient_energy == pytest.approx(
-            expected["gradient"], abs=1e-9
-        ), name
-        assert parts.curl_energy == pytest.approx(
-            expected["curl"], abs=1e-9
-        ), name
-        assert parts.harmonic_energy == pytest.approx(
-            expected["harmonic"], abs=1e-9
-        ), name
+        assert parts.gradient_energy == pytest.approx(expected["gradient"], abs=1e-9), (
+            name
+        )
+        assert parts.curl_energy == pytest.approx(expected["curl"], abs=1e-9), name
+        assert parts.harmonic_energy == pytest.approx(expected["harmonic"], abs=1e-9), (
+            name
+        )

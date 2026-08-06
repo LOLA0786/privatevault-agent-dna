@@ -19,7 +19,8 @@ def test_block_reason_is_counted_with_lowercase_verdict():
     s = m.summary()
     assert s["block_reasons"] == {"invariant: forbidden capability": 2}, (
         f"block reasons not counted; got {s['block_reasons']} -- the "
-        "verdict-casing mismatch dropped them")
+        "verdict-casing mismatch dropped them"
+    )
     assert s["verdict_distribution"] == {"block": 2, "allow": 1}
 
 

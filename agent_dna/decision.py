@@ -5,15 +5,15 @@ Unified Runtime Decision Engine.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import List, Optional, Protocol, runtime_checkable
+from enum import StrEnum
+from typing import Protocol, runtime_checkable
 
 from .advisory import AdvisorySignal, Severity
+from .evidence import EvidenceEngine, EvidenceReport
 from .trace import AgentAction
-from .evidence import EvidenceReport, EvidenceEngine
 
 
-class Decision(str, Enum):
+class Decision(StrEnum):
     ALLOW = "allow"
     REQUIRE_APPROVAL = "require_approval"
     BLOCK = "block"
@@ -21,7 +21,6 @@ class Decision(str, Enum):
 
 @dataclass
 class DecisionResult:
-
     decision: Decision
 
     triggered_by: str
@@ -38,7 +37,7 @@ class DecisionResult:
 
     invariant_message: str = ""
 
-    advisory_reasons: List[str] = field(default_factory=list)
+    advisory_reasons: list[str] = field(default_factory=list)
 
     evidence: EvidenceReport | None = None
 
@@ -47,13 +46,13 @@ class DecisionResult:
     # schema-reserved approval_ref -- the standing approval this
     # action executed under. None when no authorizer is attached or
     # authorization did not pass via a grant.
-    grant_id: Optional[str] = None
+    grant_id: str | None = None
 
     # Audit set 5 (P1-10): the customer-policy rule that fired --
     # written into DecisionRecord's schema-reserved policy_id. None
     # when no policy level is attached, no rule fired, or the backend
     # (OPA) does not expose rule identity.
-    policy_id: Optional[str] = None
+    policy_id: str | None = None
 
     def to_dict(self):
 
@@ -81,16 +80,13 @@ class DecisionResult:
                 else []
             ),
             "evidence_strength": (
-                self.evidence.overall_strength
-                if self.evidence is not None
-                else 0.0
+                self.evidence.overall_strength if self.evidence is not None else 0.0
             ),
         }
 
 
 @runtime_checkable
 class InvariantResultLike(Protocol):
-
     violated: bool
 
     message: str
@@ -98,7 +94,6 @@ class InvariantResultLike(Protocol):
 
 @runtime_checkable
 class Authorizer(Protocol):
-
     def is_authorized(
         self,
         agent_id: str,
@@ -108,26 +103,24 @@ class Authorizer(Protocol):
 
 @runtime_checkable
 class InvariantChecker(Protocol):
-
     def validate(
         self,
         capability: str,
-        previous: Optional[str],
+        previous: str | None,
     ) -> InvariantResultLike: ...
 
 
 class DecisionEngine:
-
     def __init__(
         self,
         scorer=None,
-        invariants: Optional[InvariantChecker] = None,
-        authorizer: Optional[Authorizer] = None,
+        invariants: InvariantChecker | None = None,
+        authorizer: Authorizer | None = None,
         drift_threshold: float = 0.50,
-        uaal=None,                     # optional UAALConstraintChecker (L0)
-        economics=None,                # optional CostAnomalyChecker
-        consensus=None,                # optional ConsensusChecker
-        policy=None,                   # optional PolicyChecker (customer YAML/JSON rules)
+        uaal=None,  # optional UAALConstraintChecker (L0)
+        economics=None,  # optional CostAnomalyChecker
+        consensus=None,  # optional ConsensusChecker
+        policy=None,  # optional PolicyChecker (customer YAML/JSON rules)
     ):
 
         self.scorer = scorer
@@ -145,15 +138,15 @@ class DecisionEngine:
 
         self.evidence_engine = EvidenceEngine()
 
-    def decide_from(
+    def decide_from(  # noqa: C901
         self,
         *,
         signal: AdvisorySignal,
-        invariant: Optional[InvariantResultLike] = None,
+        invariant: InvariantResultLike | None = None,
         authorized: bool = True,
-        evidence: Optional[dict] = None,
-        arguments: Optional[dict] = None,
-        grant_id: Optional[str] = None,
+        evidence: dict | None = None,
+        arguments: dict | None = None,
+        grant_id: str | None = None,
     ) -> DecisionResult:
 
         capability = signal.capability
@@ -163,7 +156,7 @@ class DecisionEngine:
             decision: Decision,
             triggered_by: str,
             reason: str,
-            policy_id: Optional[str] = None,
+            policy_id: str | None = None,
         ) -> DecisionResult:
 
             return DecisionResult(
@@ -176,19 +169,11 @@ class DecisionEngine:
                 agent_id=agent_id,
                 drift_score=signal.drift_score,
                 severity=signal.severity,
-                invariant_message=(
-                    invariant.message
-                    if invariant is not None
-                    else ""
-                ),
+                invariant_message=(invariant.message if invariant is not None else ""),
                 advisory_reasons=list(signal.reasons),
                 evidence=self.evidence_engine.build(
                     drift_score=signal.drift_score,
-                    invariant=(
-                        invariant is not None
-                        and
-                        invariant.violated
-                    ),
+                    invariant=(invariant is not None and invariant.violated),
                     authorized=authorized,
                 ),
             )
@@ -197,12 +182,7 @@ class DecisionEngine:
         # 1. Deterministic behavioral contracts always win.
         #
 
-        if (
-            invariant is not None
-            and
-            invariant.violated
-        ):
-
+        if invariant is not None and invariant.violated:
             return make(
                 Decision.BLOCK,
                 "invariant",
@@ -226,7 +206,8 @@ class DecisionEngine:
             )
             if pol.fired:
                 pol_decision = (
-                    Decision.BLOCK if pol.outcome == "block"
+                    Decision.BLOCK
+                    if pol.outcome == "block"
                     else Decision.REQUIRE_APPROVAL
                 )
                 return make(
@@ -257,14 +238,10 @@ class DecisionEngine:
         #
 
         if not authorized:
-
             return make(
                 Decision.REQUIRE_APPROVAL,
                 "authorization",
-                (
-                    f"Capability '{capability}' "
-                    "is not covered by an approved grant."
-                ),
+                (f"Capability '{capability}' is not covered by an approved grant."),
             )
 
         #
@@ -287,14 +264,10 @@ class DecisionEngine:
         #
 
         if signal.drift_score >= self.drift_threshold:
-
             return make(
                 Decision.REQUIRE_APPROVAL,
                 "drift",
-                (
-                    f"Behavioral drift "
-                    f"{signal.drift_score:.2f}"
-                ),
+                (f"Behavioral drift {signal.drift_score:.2f}"),
             )
 
         #
@@ -310,8 +283,8 @@ class DecisionEngine:
     def decide(
         self,
         action: AgentAction,
-        prev_capability: Optional[str] = None,
-        evidence: Optional[dict] = None,
+        prev_capability: str | None = None,
+        evidence: dict | None = None,
     ) -> DecisionResult:
         try:
             return self._decide_unsafe(action, prev_capability, evidence)
@@ -340,11 +313,11 @@ class DecisionEngine:
                 ),
             )
 
-    def _decide_unsafe(
+    def _decide_unsafe(  # noqa: C901
         self,
         action: AgentAction,
-        prev_capability: Optional[str] = None,
-        evidence: Optional[dict] = None,
+        prev_capability: str | None = None,
+        evidence: dict | None = None,
     ) -> DecisionResult:
 
         signal = self.scorer.score(
@@ -378,7 +351,6 @@ class DecisionEngine:
         invariant = None
 
         if self.invariants is not None:
-
             invariant = self.invariants.validate(
                 action.capability,
                 prev_capability,
@@ -410,11 +382,10 @@ class DecisionEngine:
                         None,
                     )
                 else:
-                    authorized, auth_reason, grant_id = (
-                        self.authorizer.explain(
-                            action.agent_id, action.capability,
-                            amount=amount,
-                        )
+                    authorized, auth_reason, grant_id = self.authorizer.explain(
+                        action.agent_id,
+                        action.capability,
+                        amount=amount,
                     )
             else:
                 authorized = self.authorizer.is_authorized(

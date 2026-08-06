@@ -46,13 +46,9 @@ def _valid_closure() -> dict[str, Any]:
         "organisation_id": "org-privatevault",
         "request_id": "request-001",
         "execution_authorization_id": "execution-auth-001",
-        "execution_authorization_digest": _digest(
-            "execution-authorization"
-        ),
+        "execution_authorization_digest": _digest("execution-authorization"),
         "dispatch_witness_id": "dispatch-witness-001",
-        "dispatch_witness_digest": _digest(
-            "dispatch-witness"
-        ),
+        "dispatch_witness_digest": _digest("dispatch-witness"),
         "closed_at": "2026-07-30T20:30:00Z",
         "closure_component_id": "closure-component-001",
         "dispatch_outcome": "ACKNOWLEDGED",
@@ -60,12 +56,8 @@ def _valid_closure() -> dict[str, Any]:
         "response_bytes_digest": _digest("response"),
         "response_bytes_length": 2,
         "effect_state": "CONFIRMED",
-        "effect_evidence_digest": _digest(
-            "effect-evidence"
-        ),
-        "idempotency_key_digest": _digest(
-            "idempotency-key"
-        ),
+        "effect_evidence_digest": _digest("effect-evidence"),
+        "idempotency_key_digest": _digest("idempotency-key"),
         "authorization_use_count": 1,
         "trust_bundle_digest": _digest("trust-bundle"),
         "signer_key_id": "closure-key-001",
@@ -199,7 +191,6 @@ def test_malformed_signature_is_rejected() -> None:
     record["signature"] = "not-an-ed25519-signature"
 
 
-
 # --- signing and digest -------------------------------------------------
 #
 # The two functions below are what a ledger entry or external checkpoint
@@ -213,11 +204,7 @@ def _signing_key() -> SigningKey:
 
 
 def _unsigned_closure() -> dict[str, Any]:
-    return {
-        key: value
-        for key, value in _valid_closure().items()
-        if key != "signature"
-    }
+    return {key: value for key, value in _valid_closure().items() if key != "signature"}
 
 
 def test_signed_closure_verifies_against_its_public_key() -> None:
@@ -333,9 +320,7 @@ def _closure_bundle(
                 "closure-signer",
                 "closure@example.com",
                 _key(1),
-                closure_usages
-                if closure_usages is not None
-                else ["closure_signer"],
+                closure_usages if closure_usages is not None else ["closure_signer"],
             )
         )
     return {
@@ -356,9 +341,7 @@ def _signed_closure() -> dict[str, Any]:
 
 def _verify(closure: dict[str, Any], bundle: Any, **kwargs: Any) -> Any:
     params: dict[str, Any] = {
-        "expected_authorization_digest": closure[
-            "execution_authorization_digest"
-        ],
+        "expected_authorization_digest": closure["execution_authorization_digest"],
         "expected_witness_digest": closure["dispatch_witness_digest"],
         "authorization_signer_key_id": "auth-signer",
     }
@@ -489,12 +472,8 @@ def _resign_authorization(context: dict[str, Any]) -> dict[str, Any]:
         for key, value in context["authorization"].items()
         if key != "signature"
     }
-    authorization["trust_bundle_digest"] = sha256_digest(
-        context["trust_bundle"]
-    )
-    return sign_execution_authorization(
-        authorization, context["execution_key"]
-    )
+    authorization["trust_bundle_digest"] = sha256_digest(context["trust_bundle"])
+    return sign_execution_authorization(authorization, context["execution_key"])
 
 
 def _chain_closure(
@@ -509,9 +488,7 @@ def _chain_closure(
         "closure_id": "closure-001",
         "organisation_id": authorization["organisation_id"],
         "request_id": authorization["request_id"],
-        "execution_authorization_id": authorization[
-            "execution_authorization_id"
-        ],
+        "execution_authorization_id": authorization["execution_authorization_id"],
         "execution_authorization_digest": (
             execution_authorization_digest(authorization)
         ),
@@ -525,9 +502,7 @@ def _chain_closure(
         "response_bytes_length": 8,
         "effect_state": "UNCONFIRMED",
         "effect_evidence_digest": None,
-        "idempotency_key_digest": authorization["dispatch"][
-            "idempotency_key_digest"
-        ],
+        "idempotency_key_digest": authorization["dispatch"]["idempotency_key_digest"],
         "authorization_use_count": 1,
         "trust_bundle_digest": authorization["trust_bundle_digest"],
         "signer_key_id": "closure-signer-01",
@@ -635,8 +610,6 @@ def test_closure_chain_without_trust_bundle_is_unverifiable() -> None:
     witness = _dispatch_create(context)
     closure = _chain_closure(context, witness)
 
-    report = verify_closure_chain(
-        context["authorization"], witness, closure, None
-    )
+    report = verify_closure_chain(context["authorization"], witness, closure, None)
 
     assert report.evidence_state is EvidenceState.UNVERIFIABLE

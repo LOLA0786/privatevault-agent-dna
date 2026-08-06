@@ -15,9 +15,7 @@ import importlib
 
 import pytest
 
-pv_runtime = pytest.importorskip(
-    "pv_runtime", reason="Rust wheel not installed"
-)
+pv_runtime = pytest.importorskip("pv_runtime", reason="Rust wheel not installed")
 
 from agent_dna import (  # noqa: E402
     signer_bridge,
@@ -37,9 +35,9 @@ def test_public_keys_identical_for_same_seed():
 def test_signatures_byte_identical():
     py = signer_python.ReceiptSigner(seed_hex=SEED)
     rs = signer_bridge.ReceiptSigner(seed_hex=SEED)
-    assert (
-        py.sign_hash(HASH).signature == rs.sign_hash(HASH).signature
-    ), "Ed25519 is deterministic -- differing signatures mean a broken impl"
+    assert py.sign_hash(HASH).signature == rs.sign_hash(HASH).signature, (
+        "Ed25519 is deterministic -- differing signatures mean a broken impl"
+    )
 
 
 def test_cross_verification_both_directions():

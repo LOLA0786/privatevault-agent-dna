@@ -12,10 +12,9 @@ from agent_dna import (
     FingerprintBuilder,
     SimilarityEngine,
 )
-
 from agent_dna.adapters import (
-    synthetic_normal_trace,
     synthetic_compromised_trace,
+    synthetic_normal_trace,
 )
 
 
@@ -33,22 +32,15 @@ def build_fp(traces, agent_id="sales-agent-01"):
 def main():
 
     # Trusted profile
-    trusted_training = [
-        synthetic_normal_trace(seed=i, loops=6)
-        for i in range(8)
-    ]
+    trusted_training = [synthetic_normal_trace(seed=i, loops=6) for i in range(8)]
 
     trusted = build_fp(trusted_training)
 
     # New version behaving normally
-    candidate_normal = build_fp(
-        [synthetic_normal_trace(seed=999, loops=6)]
-    )
+    candidate_normal = build_fp([synthetic_normal_trace(seed=999, loops=6)])
 
     # Compromised behavior
-    candidate_attack = build_fp(
-        [synthetic_compromised_trace()]
-    )
+    candidate_attack = build_fp([synthetic_compromised_trace()])
 
     engine = SimilarityEngine()
 

@@ -7,10 +7,8 @@ DEPRECATED as a runtime authorizer (audit set 4) -- the canonical grant model is
 from __future__ import annotations
 
 import warnings
-
 from dataclasses import asdict, dataclass
 from datetime import datetime
-from typing import Dict, Optional
 
 from .store.grants import GrantStore
 
@@ -22,18 +20,19 @@ class CapabilityGrant:
     ticket: str
     environment: str = "prod"
     version: str = "*"
-    expires_at: Optional[str] = None
+    expires_at: str | None = None
 
 
 class AuthorizationPolicy:
-
     def __init__(
         self,
-        store: Optional[GrantStore] = None,
+        store: GrantStore | None = None,
     ):
         warnings.warn(
             "AuthorizationPolicy is deprecated; use agent_dna.grants.GrantRegistry (audit set 4)",
-            DeprecationWarning, stacklevel=2)
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.store = store or GrantStore()
 
     def grant(
@@ -44,7 +43,7 @@ class AuthorizationPolicy:
         ticket: str,
         environment: str = "prod",
         version: str = "*",
-        expires_at: Optional[str] = None,
+        expires_at: str | None = None,
     ):
 
         db = self.store.load()
@@ -68,14 +67,11 @@ class AuthorizationPolicy:
         self,
         agent_id: str,
         capability: str,
-    ) -> Optional[CapabilityGrant]:
+    ) -> CapabilityGrant | None:
 
         db = self.store.load()
 
-        record = (
-            db.get(agent_id, {})
-              .get(capability)
-        )
+        record = db.get(agent_id, {}).get(capability)
 
         if record is None:
             return None
@@ -106,12 +102,10 @@ class AuthorizationPolicy:
             return False
 
         if grant.expires_at:
+            expiry = datetime.fromisoformat(grant.expires_at)
+            now = datetime.now(expiry.tzinfo) if expiry.tzinfo else datetime.now()
 
-            expiry = datetime.fromisoformat(
-                grant.expires_at
-            )
-
-            if datetime.utcnow() > expiry:
+            if now > expiry:
                 return False
 
         return True

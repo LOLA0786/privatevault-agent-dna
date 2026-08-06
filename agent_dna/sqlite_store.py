@@ -330,32 +330,32 @@ class SQLiteDecisionStore:
         cur = self._conn.execute("SELECT body FROM records ORDER BY seq")
         return [r[0] for r in cur.fetchall()]
 
-    def load(self) -> list:
-        out: list = []
+    def load(self) -> list[DecisionRecord | ExecutionEvent]:
+        out: list[DecisionRecord | ExecutionEvent] = []
         for body in self._rows():
             d = json.loads(body)
             record_hash = d.pop("record_hash")
             kind = d.pop("kind", "decision")
             protocol_version = d.pop("protocol_version", None)
             if kind == "execution":
-                rec = ExecutionEvent(**d)
+                record: DecisionRecord | ExecutionEvent = ExecutionEvent(**d)
             else:
                 if protocol_version is None:
                     raise ValueError(
                         "decision record missing required protocol_version"
                     )
-                rec = DecisionRecord(
+                record = DecisionRecord(
                     protocol_version=protocol_version,
                     **d,
                 )
-            rec.record_hash = record_hash
-            out.append(rec)
+            record.record_hash = record_hash
+            out.append(record)
         return out
 
     def load_graph(self) -> DecisionGraph:
         g = DecisionGraph()
         for rec in self.load():
-            if rec.kind == "execution":
+            if isinstance(rec, ExecutionEvent):
                 g.add_execution(rec)
             else:
                 g.add(rec)

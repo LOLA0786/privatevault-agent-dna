@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Mint a permit through the real endpoint and verify it with the real verifier."""
+
 from __future__ import annotations
 
 import os
@@ -84,7 +85,14 @@ report = verify_execution_authorization(
 print("permit id   :", authorization["execution_authorization_id"])
 print("max_uses    :", authorization["max_uses"])
 print("signer      :", authorization["signer_key_id"])
-print("verifies    :", report.ok, "|", report.evidence_state, "|", report.decision_conformance)
+print(
+    "verifies    :",
+    report.ok,
+    "|",
+    report.evidence_state,
+    "|",
+    report.decision_conformance,
+)
 
 tampered = verify_execution_authorization(
     authorization,

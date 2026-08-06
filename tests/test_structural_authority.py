@@ -22,16 +22,21 @@ def _exec_graph(*events):
 
 def _ev(source, target, approval=False, ts=1.0):
     return InteractionEvent(
-        execution_id="exec-1", source=source, target=target,
-        timestamp=ts, approval=approval,
+        execution_id="exec-1",
+        source=source,
+        target=target,
+        timestamp=ts,
+        approval=approval,
     )
 
 
 # ---------------------------------------------------- cycle detection core
 
+
 def test_acyclic_approval_chain_is_clean():
-    g = ApprovalGraph.from_pairs([("ceo", "cfo"), ("cfo", "treasury"),
-                                  ("treasury", "payments")])
+    g = ApprovalGraph.from_pairs(
+        [("ceo", "cfo"), ("cfo", "treasury"), ("treasury", "payments")]
+    )
     assert g.cycles() == []
     assert StructuralAuthorityInvariant.analyse(g) == []
 
@@ -53,9 +58,13 @@ def test_mutual_approval_detected():
 def test_three_party_collusion_cycle_detected():
     """The case individual grant checks cannot see: every single grant
     is defensible, the composition is not."""
-    g = ApprovalGraph.from_pairs([
-        ("treasury", "ops"), ("ops", "audit"), ("audit", "treasury"),
-    ])
+    g = ApprovalGraph.from_pairs(
+        [
+            ("treasury", "ops"),
+            ("ops", "audit"),
+            ("audit", "treasury"),
+        ]
+    )
     (v,) = StructuralAuthorityInvariant.analyse(g)
     assert v.kind == "approval_cycle"
     assert set(v.agents) == {"treasury", "ops", "audit"}
@@ -68,10 +77,15 @@ def test_each_cycle_reported_once_not_per_rotation():
 
 
 def test_multiple_independent_cycles_all_reported():
-    g = ApprovalGraph.from_pairs([
-        ("a", "b"), ("b", "a"),
-        ("x", "y"), ("y", "z"), ("z", "x"),
-    ])
+    g = ApprovalGraph.from_pairs(
+        [
+            ("a", "b"),
+            ("b", "a"),
+            ("x", "y"),
+            ("y", "z"),
+            ("z", "x"),
+        ]
+    )
     kinds = sorted(v.kind for v in StructuralAuthorityInvariant.analyse(g))
     assert kinds == ["approval_cycle", "mutual_approval"]
 
@@ -85,6 +99,7 @@ def test_cycle_output_is_deterministic():
 
 # ------------------------------------------------------------- reachability
 
+
 def test_reachable_from_is_transitive_closure():
     g = ApprovalGraph.from_pairs([("a", "b"), ("b", "c"), ("c", "d")])
     assert g.reachable_from("a") == {"b", "c", "d"}
@@ -97,6 +112,7 @@ def test_reachability_terminates_on_a_cycle():
 
 
 # -------------------------------------- the false-positive guard that matters
+
 
 def test_ordinary_bidirectional_traffic_is_not_a_violation():
     """A asks B, B answers A. That is normal agent traffic and must NOT
@@ -123,13 +139,19 @@ def test_approval_edges_in_execution_are_checked():
 
 # ------------------------------------------------------- Invariant contract
 
+
 def test_declared_model_is_validated_without_any_execution():
     """Design-time control: the configuration itself is checkable before
     a single agent runs."""
     inv = StructuralAuthorityInvariant(check_execution_graph=False)
-    inv.declare(ApprovalGraph.from_pairs([
-        ("treasury", "ops"), ("ops", "treasury"),
-    ]))
+    inv.declare(
+        ApprovalGraph.from_pairs(
+            [
+                ("treasury", "ops"),
+                ("ops", "treasury"),
+            ]
+        )
+    )
     result = inv.check(_exec_graph())
     assert not result.passed
     assert result.hard

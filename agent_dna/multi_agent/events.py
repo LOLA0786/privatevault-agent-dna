@@ -5,28 +5,29 @@ events sharing an ``execution_id``. Roles (a.k.a. authority / department) are
 carried on the edge because that is what the authority invariant reasons over:
 *which kind of agent is allowed to influence which kind of agent*.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 
 @dataclass(frozen=True)
 class InteractionEvent:
     execution_id: str
-    source: str                       # acting agent id
-    target: str                       # influenced agent / action sink id
-    timestamp: float                  # monotonic within an execution
+    source: str  # acting agent id
+    target: str  # influenced agent / action sink id
+    timestamp: float  # monotonic within an execution
 
-    source_role: str = "unknown"      # e.g. "finance"
-    target_role: str = "unknown"      # e.g. "payment"
+    source_role: str = "unknown"  # e.g. "finance"
+    target_role: str = "unknown"  # e.g. "payment"
 
-    trust: float = 1.0                # source trust at time of action [0,1]
-    tool: Optional[str] = None        # tool/capability invoked, if any
-    cost: float = 0.0                 # economic cost units of this step
-    intent: Optional[str] = None      # declared intent of the step
-    confidence: float = 1.0           # source confidence in the step [0,1]
-    approval: bool = False            # was this step explicitly approved
+    trust: float = 1.0  # source trust at time of action [0,1]
+    tool: str | None = None  # tool/capability invoked, if any
+    cost: float = 0.0  # economic cost units of this step
+    intent: str | None = None  # declared intent of the step
+    confidence: float = 1.0  # source confidence in the step [0,1]
+    approval: bool = False  # was this step explicitly approved
 
     metadata: dict[str, Any] = field(default_factory=dict)
 

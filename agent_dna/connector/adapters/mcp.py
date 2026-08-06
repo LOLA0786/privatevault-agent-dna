@@ -24,14 +24,14 @@ Verdict mapping:
 from __future__ import annotations
 
 import os
-from typing import Any, Optional
+from typing import Any
 
 from ..models import ToolCallRequest
 
 PV_KEY_ENV = "PV_AGENT_KEY"
 
 
-class EnforcementBlocked(Exception):
+class EnforcementBlockedError(Exception):
     def __init__(self, verdict):
         self.verdict = verdict
         prefix = (
@@ -45,7 +45,11 @@ class EnforcementBlocked(Exception):
         )
 
 
-def guard_fastmcp(server, middleware, api_key: Optional[str] = None):
+# Backward-compatible public name. New integrations should use the Error suffix.
+EnforcementBlocked = EnforcementBlockedError
+
+
+def guard_fastmcp(server, middleware, api_key: str | None = None):
     """Returns the same server instance, with enforcement installed.
 
     Identity resolution, per call:
@@ -58,13 +62,11 @@ def guard_fastmcp(server, middleware, api_key: Optional[str] = None):
     Bearer keys in headers require TLS in deployment — noted in
     WHAT-WE-DO-NOT-CLAIM.md; the connector does not terminate TLS.
     """
-    static_key = (
-        api_key if api_key is not None else os.environ.get(PV_KEY_ENV)
-    )
+    static_key = api_key if api_key is not None else os.environ.get(PV_KEY_ENV)
     tm = server._tool_manager
     original_call_tool = tm.call_tool
 
-    def _resolve_key() -> Optional[str]:
+    def _resolve_key() -> str | None:
         try:
             ctx = server._mcp_server.request_context
             req = getattr(ctx, "request", None)
@@ -73,12 +75,10 @@ def guard_fastmcp(server, middleware, api_key: Optional[str] = None):
                 if auth.lower().startswith("bearer "):
                     return auth[7:]
         except LookupError:
-            pass          # no request context bound (stdio / in-memory)
+            pass  # no request context bound (stdio / in-memory)
         return static_key
 
-    async def enforced_call_tool(
-        name: str, arguments: dict[str, Any], *args, **kwargs
-    ):
+    async def enforced_call_tool(name: str, arguments: dict[str, Any], *args, **kwargs):
         verdict = middleware.handle(
             ToolCallRequest(
                 adapter="mcp",

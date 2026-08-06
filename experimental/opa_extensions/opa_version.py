@@ -6,8 +6,8 @@ Ensures audit artifacts reference the exact policy version
 that produced each decision.
 Compatible with docs/compliance/soc2/control_mapping.md.
 """
+
 import hashlib
-from typing import Optional, Dict
 
 
 class OPAVersionTracker:
@@ -15,12 +15,13 @@ class OPAVersionTracker:
     Tracks policy bundle versions evaluated by adapter.
     Produces audit artifacts linking decision hash + policy version.
     """
-    def __init__(self):
-        self.current_version: Optional[str] = None
-        self.version_history: list = []
-        self.evaluations: Dict[str, str] = {}  # decision_ref -> policy_version
 
-    def load_version(self, bundle_path: Optional[str] = None) -> str:
+    def __init__(self):
+        self.current_version: str | None = None
+        self.version_history: list = []
+        self.evaluations: dict[str, str] = {}  # decision_ref -> policy_version
+
+    def load_version(self, bundle_path: str | None = None) -> str:
         """
         Derive version hash from bundle content or endpoint metadata.
         Returns SHA256 hash of policy bundle.
@@ -35,7 +36,9 @@ class OPAVersionTracker:
         self.version_history.append(version)
         return version
 
-    def record_evaluation(self, decision_ref: str, policy_version: Optional[str] = None) -> Dict:
+    def record_evaluation(
+        self, decision_ref: str, policy_version: str | None = None
+    ) -> dict:
         version = policy_version or self.current_version or "unknown"
         self.evaluations[decision_ref] = version
         return {

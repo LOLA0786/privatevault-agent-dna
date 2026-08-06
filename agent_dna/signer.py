@@ -53,7 +53,7 @@ if USE_RUST:
         ) from exc
     SIGNER_BACKEND = "rust"
 else:
-    from .signer_python import (
+    from .signer_python import (  # type: ignore[assignment]
         KEY_ENV,
         ReceiptSigner,
         SignatureEnvelope,

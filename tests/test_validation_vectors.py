@@ -17,12 +17,15 @@ def test_vector_hash_pinned():
     env = json.loads(VECTOR.read_text())
     assert env["report_hash"] == PINNED, (
         "canonical vector hash changed — metric math or canonical JSON "
-        "changed; regenerate the vector deliberately and update PINNED")
+        "changed; regenerate the vector deliberately and update PINNED"
+    )
 
 
 def test_stdlib_verifier_accepts_vector():
     proc = subprocess.run(
         [sys.executable, "tools/verify_validation.py", str(VECTOR)],
-        capture_output=True, text=True)
+        capture_output=True,
+        text=True,
+    )
     assert proc.returncode == 0, proc.stdout + proc.stderr
     assert "PASS" in proc.stdout

@@ -21,8 +21,9 @@ from __future__ import annotations
 
 import math
 from collections import Counter, defaultdict
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Iterable, Tuple
+from typing import Any
 
 from .trace import AgentAction, ExecutionTrace
 
@@ -30,12 +31,12 @@ from .trace import AgentAction, ExecutionTrace
 # features. Values that are int/float are treated as numeric; everything else is
 # treated as categorical (stringified). Register capability-specific extractors
 # to surface the features that matter for a given tool (recipient, amount, ...).
-FeatureExtractor = Callable[[AgentAction], Dict[str, Any]]
+FeatureExtractor = Callable[[AgentAction], dict[str, Any]]
 
 
-def default_feature_extractor(action: AgentAction) -> Dict[str, Any]:
+def default_feature_extractor(action: AgentAction) -> dict[str, Any]:
     """Generic, domain-agnostic extractor. Flattens one level of arguments."""
-    feats: Dict[str, Any] = {}
+    feats: dict[str, Any] = {}
     for key, value in action.arguments.items():
         if isinstance(value, bool):
             feats[key] = str(value)
@@ -73,8 +74,10 @@ class _NumericStat:
 @dataclass
 class _CapabilityProfile:
     count: int = 0
-    categorical: Dict[str, set] = field(default_factory=lambda: defaultdict(set))
-    numeric: Dict[str, _NumericStat] = field(default_factory=lambda: defaultdict(_NumericStat))
+    categorical: dict[str, set] = field(default_factory=lambda: defaultdict(set))
+    numeric: dict[str, _NumericStat] = field(
+        default_factory=lambda: defaultdict(_NumericStat)
+    )
 
 
 class CapabilityManifold:
@@ -83,14 +86,14 @@ class CapabilityManifold:
     def __init__(self, feature_extractor: FeatureExtractor | None = None) -> None:
         self.feature_extractor = feature_extractor or default_feature_extractor
         self.capability_counts: Counter = Counter()
-        self.profiles: Dict[str, _CapabilityProfile] = defaultdict(_CapabilityProfile)
+        self.profiles: dict[str, _CapabilityProfile] = defaultdict(_CapabilityProfile)
         self.intervals = _NumericStat()
         self.total_actions = 0
         self._fitted = False
 
     # ---- learning -------------------------------------------------------
 
-    def fit(self, traces: Iterable[ExecutionTrace]) -> "CapabilityManifold":
+    def fit(self, traces: Iterable[ExecutionTrace]) -> CapabilityManifold:
         for trace in traces:
             self._observe_trace(trace)
         self._fitted = True
@@ -162,7 +165,7 @@ class CapabilityManifold:
         self,
         capability: str,
         feature: str,
-    ) -> Tuple[float, float] | None:
+    ) -> tuple[float, float] | None:
         prof = self.profiles.get(capability)
         if not prof or feature not in prof.numeric:
             return None
@@ -170,7 +173,7 @@ class CapabilityManifold:
         stat = prof.numeric[feature]
         return (stat.min, stat.max)
 
-    def summary(self) -> Dict[str, Any]:
+    def summary(self) -> dict[str, Any]:
         return {
             "total_actions": self.total_actions,
             "capabilities": dict(self.capability_counts),

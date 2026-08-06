@@ -148,9 +148,7 @@ def test_proposed_identity_binding_exposes_prohibited_payment_path() -> None:
         "DECLARED": 3,
         "DISCOVERED": 1,
     }
-    assert finding.witness.grant_issuers == (
-        "payments-platform@example.com",
-    )
+    assert finding.witness.grant_issuers == ("payments-platform@example.com",)
 
 
 def test_missing_condition_fact_is_conditional_not_unreachable() -> None:
@@ -216,14 +214,10 @@ def test_direct_allowed_grant_is_reachable() -> None:
     source = _load("company-graph-before.json")
 
     payment_grant = next(
-        node
-        for node in source["nodes"]
-        if node["id"] == "grant:payment-execute"
+        node for node in source["nodes"] if node["id"] == "grant:payment-execute"
     )
     payment_grant["attributes"]["delegation_depth"] = 0
-    payment_grant["attributes"]["issuer_principal"] = (
-        "treasury-owner@example.com"
-    )
+    payment_grant["attributes"]["issuer_principal"] = "treasury-owner@example.com"
 
     source["edges"].append(
         {
@@ -294,9 +288,7 @@ def test_signed_report_detects_content_tampering() -> None:
         key,
         signer_key_id="pv-analysis-01",
     )
-    trusted = {
-        "pv-analysis-01": base64.b64encode(bytes(key.verify_key)).decode()
-    }
+    trusted = {"pv-analysis-01": base64.b64encode(bytes(key.verify_key)).decode()}
 
     assert verify_signed_analysis_report(
         envelope,
@@ -326,9 +318,7 @@ def test_signed_report_rejects_malformed_signature_fail_closed() -> None:
         key,
         signer_key_id="pv-analysis-01",
     )
-    trusted = {
-        "pv-analysis-01": base64.b64encode(bytes(key.verify_key)).decode()
-    }
+    trusted = {"pv-analysis-01": base64.b64encode(bytes(key.verify_key)).decode()}
 
     malformed = copy.deepcopy(envelope)
     malformed["signature"] = "ed25519:AA=="
@@ -353,9 +343,7 @@ def test_signed_report_rejects_cryptographic_signature_tampering() -> None:
         key,
         signer_key_id="pv-analysis-01",
     )
-    trusted = {
-        "pv-analysis-01": base64.b64encode(bytes(key.verify_key)).decode()
-    }
+    trusted = {"pv-analysis-01": base64.b64encode(bytes(key.verify_key)).decode()}
 
     signature = bytearray(
         base64.b64decode(
@@ -377,14 +365,10 @@ def test_signed_report_rejects_cryptographic_signature_tampering() -> None:
 def test_canonical_graph_and_report_match_published_schemas() -> None:
     specification = Path("spec/authority-reachability-v01")
     graph_schema = json.loads(
-        (specification / "authority-graph.schema.json").read_text(
-            encoding="utf-8"
-        )
+        (specification / "authority-graph.schema.json").read_text(encoding="utf-8")
     )
     report_schema = json.loads(
-        (specification / "reachability-report.schema.json").read_text(
-            encoding="utf-8"
-        )
+        (specification / "reachability-report.schema.json").read_text(encoding="utf-8")
     )
 
     graph = _adapter(_load("company-graph-after.json")).load()
@@ -424,10 +408,7 @@ def test_merge_rejects_conflicting_node_definitions() -> None:
 
 
 def test_vector_generator_and_cli_are_deterministic() -> None:
-    before = {
-        path.name: path.read_bytes()
-        for path in sorted(VECTORS.glob("*.json"))
-    }
+    before = {path.name: path.read_bytes() for path in sorted(VECTORS.glob("*.json"))}
 
     generated = subprocess.run(
         [sys.executable, "tools/generate_authority_reachability_vectors.py"],
@@ -437,10 +418,7 @@ def test_vector_generator_and_cli_are_deterministic() -> None:
     )
     assert generated.returncode == 0, generated.stdout + generated.stderr
 
-    after = {
-        path.name: path.read_bytes()
-        for path in sorted(VECTORS.glob("*.json"))
-    }
+    after = {path.name: path.read_bytes() for path in sorted(VECTORS.glob("*.json"))}
     assert after == before
 
     cli = subprocess.run(

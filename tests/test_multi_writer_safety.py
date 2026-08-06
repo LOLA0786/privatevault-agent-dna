@@ -5,8 +5,8 @@ actually serializes concurrent writes, not just that the code runs
 without error."""
 
 import threading
-import traceback
 import time
+import traceback
 
 import pytest
 
@@ -20,8 +20,11 @@ from agent_dna.trace import AgentAction
 class StubScorer:
     def score(self, action, prev_capability=None):
         return AdvisorySignal(
-            agent_id=action.agent_id, capability=action.capability,
-            drift_score=0.0, severity=Severity.INFO, reasons=[],
+            agent_id=action.agent_id,
+            capability=action.capability,
+            drift_score=0.0,
+            severity=Severity.INFO,
+            reasons=[],
         )
 
 
@@ -36,6 +39,7 @@ def test_multi_writer_safe_requires_store():
 
 def test_multi_writer_safe_requires_compatible_store():
     from agent_dna.decision_store import DecisionStore
+
     with pytest.raises(ValueError, match="get_chain_head"):
         DecisionRecorder(
             store=DecisionStore("/tmp/irrelevant.jsonl"),
@@ -53,8 +57,7 @@ def test_single_writer_multi_writer_safe_mode_still_chains_correctly(tmp_path):
     engine = _engine()
 
     for cap in ("crm.read", "email.send", "crm.update"):
-        action = AgentAction(agent_id="agent-1", capability=cap,
-                             timestamp=time.time())
+        action = AgentAction(agent_id="agent-1", capability=cap, timestamp=time.time())
         recorder.record(action, engine.decide(action))
 
     # multi-writer mode deliberately does not keep recorder.graph in
@@ -75,7 +78,7 @@ def test_concurrent_writers_same_agent_no_fork(tmp_path):
     store = SQLiteDecisionStore(db_path)
     engine = _engine()
 
-    N_THREADS = 20
+    n_threads = 20
     errors = []
 
     def writer(thread_id):
@@ -92,7 +95,7 @@ def test_concurrent_writers_same_agent_no_fork(tmp_path):
         except Exception as e:
             errors.append((thread_id, e, traceback.format_exc()))
 
-    threads = [threading.Thread(target=writer, args=(i,)) for i in range(N_THREADS)]
+    threads = [threading.Thread(target=writer, args=(i,)) for i in range(n_threads)]
     for t in threads:
         t.start()
     for t in threads:
@@ -108,8 +111,8 @@ def test_concurrent_writers_same_agent_no_fork(tmp_path):
     graph = fresh_store.load_graph()
 
     records = graph.find_by_agent("contested-agent")
-    assert len(records) == N_THREADS, (
-        f"expected {N_THREADS} records, found {len(records)} -- "
+    assert len(records) == n_threads, (
+        f"expected {n_threads} records, found {len(records)} -- "
         f"a lost write would mean write contention wasn't handled"
     )
 
@@ -136,19 +139,20 @@ def test_concurrent_writers_different_agents_all_succeed_independently(tmp_path)
     store = SQLiteDecisionStore(db_path)
     engine = _engine()
 
-    N_AGENTS = 10
+    n_agents = 10
     errors = []
 
     def writer(agent_id):
         try:
             local_recorder = DecisionRecorder(store=store, multi_writer_safe=True)
-            action = AgentAction(agent_id=agent_id, capability="crm.read",
-                                 timestamp=time.time())
+            action = AgentAction(
+                agent_id=agent_id, capability="crm.read", timestamp=time.time()
+            )
             local_recorder.record(action, engine.decide(action))
         except Exception as e:
             errors.append((agent_id, e))
 
-    agent_ids = [f"agent-{i}" for i in range(N_AGENTS)]
+    agent_ids = [f"agent-{i}" for i in range(n_agents)]
     threads = [threading.Thread(target=writer, args=(a,)) for a in agent_ids]
     for t in threads:
         t.start()
@@ -179,7 +183,9 @@ def test_append_atomic_returns_false_on_prev_hash_collision(tmp_path):
 
     # two DIFFERENT records both claiming to extend from GENESIS
     action2a = AgentAction(agent_id="a2", capability="crm.read", timestamp=time.time())
-    action2b = AgentAction(agent_id="a2", capability="email.send", timestamp=time.time())
+    action2b = AgentAction(
+        agent_id="a2", capability="email.send", timestamp=time.time()
+    )
     rec2a = build_record(action2a, engine.decide(action2a))
     rec2b = build_record(action2b, engine.decide(action2b))
     # both have prev_hash == GENESIS_HASH for agent a2 -- classic race

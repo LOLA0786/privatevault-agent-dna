@@ -28,15 +28,18 @@ def _engine(registry):
 def _act(cap="payment.pay_invoice", amount=None):
     args = {"amount": amount} if amount is not None else {}
     return AgentAction(
-        agent_id="agent-1", capability=cap,
-        timestamp=time.time(), arguments=args,
+        agent_id="agent-1",
+        capability=cap,
+        timestamp=time.time(),
+        arguments=args,
     )
 
 
 def test_valid_grant_allows():
     reg = GrantRegistry()
-    reg.grant(agent_id="agent-1", capability="payment.pay_invoice",
-              granted_by="cfo@corp")
+    reg.grant(
+        agent_id="agent-1", capability="payment.pay_invoice", granted_by="cfo@corp"
+    )
     assert _engine(reg).decide(_act()).decision == Decision.ALLOW
 
 
@@ -48,8 +51,12 @@ def test_no_grant_names_the_gap():
 
 def test_expired_grant_blocks_with_reason():
     reg = GrantRegistry()
-    reg.grant(agent_id="agent-1", capability="payment.pay_invoice",
-              granted_by="cfo@corp", expires_at=time.time() - 60)
+    reg.grant(
+        agent_id="agent-1",
+        capability="payment.pay_invoice",
+        granted_by="cfo@corp",
+        expires_at=time.time() - 60,
+    )
     result = _engine(reg).decide(_act())
     assert result.decision == Decision.REQUIRE_APPROVAL
     assert "expired" in result.reason
@@ -57,20 +64,25 @@ def test_expired_grant_blocks_with_reason():
 
 def test_revoked_grant_blocks_with_reason():
     reg = GrantRegistry()
-    g = reg.grant(agent_id="agent-1", capability="payment.pay_invoice",
-                  granted_by="cfo@corp")
+    g = reg.grant(
+        agent_id="agent-1", capability="payment.pay_invoice", granted_by="cfo@corp"
+    )
     assert _engine(reg).decide(_act()).decision == Decision.ALLOW  # before
 
     reg.revoke(g.grant_id, revoked_by="security@corp")
-    result = _engine(reg).decide(_act())                            # after
+    result = _engine(reg).decide(_act())  # after
     assert result.decision == Decision.REQUIRE_APPROVAL
     assert "revoked by security@corp" in result.reason
 
 
 def test_budget_exceeded_names_amounts():
     reg = GrantRegistry()
-    g = reg.grant(agent_id="agent-1", capability="payment.pay_invoice",
-                  granted_by="cfo@corp", budget=10000.0)
+    g = reg.grant(
+        agent_id="agent-1",
+        capability="payment.pay_invoice",
+        granted_by="cfo@corp",
+        budget=10000.0,
+    )
     ok = _engine(reg).decide(_act(amount=6000.0))
     assert ok.decision == Decision.ALLOW
     reg.record_spend(g.grant_id, 6000.0)
@@ -87,8 +99,9 @@ def test_revocation_history_reconstructable_from_records():
     from agent_dna.decision_recorder import DecisionRecorder
 
     reg = GrantRegistry()
-    g = reg.grant(agent_id="agent-1", capability="payment.pay_invoice",
-                  granted_by="cfo@corp")
+    g = reg.grant(
+        agent_id="agent-1", capability="payment.pay_invoice", granted_by="cfo@corp"
+    )
     engine = _engine(reg)
     recorder = DecisionRecorder()
 

@@ -21,6 +21,6 @@ developer discipline alone:
      until explicitly run live.
 """
 
-from .base import EvidenceAdapter, DryRunReport, SourceRow
+from .base import DryRunReport, EvidenceAdapter, SourceRow
 
 __all__ = ["EvidenceAdapter", "DryRunReport", "SourceRow"]

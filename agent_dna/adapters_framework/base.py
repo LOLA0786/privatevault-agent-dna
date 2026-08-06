@@ -18,8 +18,9 @@ The base class enforces:
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Iterable, List, Optional
+from typing import Any
 
 from agent_dna.decision import Decision, DecisionEngine
 from agent_dna.trace import AgentAction
@@ -29,12 +30,18 @@ from agent_dna.trace import AgentAction
 # any of these key names at any nesting level, it's almost certainly
 # a ground-truth leak (label, alert flag, fraud marker, etc.).
 FORBIDDEN_EVIDENCE_KEYS = {
-    "is_fraud", "isfraud", "label", "ground_truth", "alert_id",
-    "alert_type", "fraud", "is_laundering",
+    "is_fraud",
+    "isfraud",
+    "label",
+    "ground_truth",
+    "alert_id",
+    "alert_type",
+    "fraud",
+    "is_laundering",
 }
 
 
-def _scan_for_forbidden_keys(obj: Any, path: str = "") -> List[str]:
+def _scan_for_forbidden_keys(obj: Any, path: str = "") -> list[str]:
     """Recursively scan a dict/list for forbidden key names. Returns
     a list of violation paths, empty if clean."""
     violations = []
@@ -55,19 +62,20 @@ class SourceRow:
     """A single row from a source system, before adaptation. raw is
     whatever the source format is (a csv.DictReader row, a DB row,
     etc.) -- the adapter interprets it."""
-    raw: Dict[str, Any]
+
+    raw: dict[str, Any]
 
 
 @dataclass
 class DryRunReport:
     rows_processed: int
-    verdict_counts: Dict[str, int] = field(default_factory=dict)
-    trigger_counts: Dict[str, int] = field(default_factory=dict)
-    schema_violations: List[str] = field(default_factory=list)
-    forbidden_key_violations: List[str] = field(default_factory=list)
-    ground_truth_confusion: Optional[Dict[str, int]] = None  # only if
-                                                                # ground_truth()
-                                                                # is implemented
+    verdict_counts: dict[str, int] = field(default_factory=dict)
+    trigger_counts: dict[str, int] = field(default_factory=dict)
+    schema_violations: list[str] = field(default_factory=list)
+    forbidden_key_violations: list[str] = field(default_factory=list)
+    ground_truth_confusion: dict[str, int] | None = None  # only if
+    # ground_truth()
+    # is implemented
 
     def is_clean(self) -> bool:
         return not self.schema_violations and not self.forbidden_key_violations
@@ -104,7 +112,7 @@ class EvidenceAdapter:
     def to_action(self, row: SourceRow) -> AgentAction:
         raise NotImplementedError
 
-    def to_evidence(self, row: SourceRow) -> Optional[Dict[str, Any]]:
+    def to_evidence(self, row: SourceRow) -> dict[str, Any] | None:
         """Return the evidence dict for this row, or None if no
         evidence is available (which is always safer than a
         fabricated/empty dict -- see evidence-integration.md's
@@ -119,7 +127,7 @@ class EvidenceAdapter:
 
     # ---- framework-enforced behavior --------------------------------
 
-    def _validate_evidence(self, evidence: Optional[Dict[str, Any]]) -> List[str]:
+    def _validate_evidence(self, evidence: dict[str, Any] | None) -> list[str]:
         if evidence is None:
             return []
         return _scan_for_forbidden_keys(evidence)
@@ -127,7 +135,7 @@ class EvidenceAdapter:
     def dry_run(
         self,
         rows: Iterable[SourceRow],
-        limit: Optional[int] = None,
+        limit: int | None = None,
     ) -> DryRunReport:
         """The only way to run a new or changed adapter. Reports what
         WOULD happen; does not assert correctness. Read the report
@@ -186,7 +194,7 @@ class EvidenceAdapter:
         rows: Iterable[SourceRow],
         *,
         acknowledge_dry_run_reviewed: bool,
-    ) -> List[Any]:
+    ) -> list[Any]:
         """Requires explicit acknowledgement that dry_run's report was
         reviewed. This is a deliberate speed bump, not a technical
         control -- it exists so a live run is never the FIRST time
@@ -206,8 +214,7 @@ class EvidenceAdapter:
             violations = self._validate_evidence(evidence)
             if violations:
                 raise ValueError(
-                    f"Forbidden key(s) in evidence, refusing to run live: "
-                    f"{violations}"
+                    f"Forbidden key(s) in evidence, refusing to run live: {violations}"
                 )
             results.append(self.engine.decide(action, evidence=evidence))
         return results

@@ -11,16 +11,12 @@ from agent_dna import (
     CapabilityManifold,
     FingerprintBuilder,
 )
-
 from agent_dna.adapters import synthetic_normal_trace
 
 
 def main():
 
-    training = [
-        synthetic_normal_trace(seed=i, loops=6)
-        for i in range(8)
-    ]
+    training = [synthetic_normal_trace(seed=i, loops=6) for i in range(8)]
 
     manifold = CapabilityManifold().fit(training)
     dynamics = BehaviorDynamics().fit(training)

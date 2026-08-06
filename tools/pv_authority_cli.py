@@ -41,26 +41,18 @@ EXIT_USAGE = 2
 
 def _read_json(path: str) -> Any:
     try:
-        return strict_json_loads(
-            Path(path).read_bytes()
-        )
+        return strict_json_loads(Path(path).read_bytes())
     except OSError as exc:
-        raise AuthorityFormatError(
-            f"cannot read {path}: {exc}"
-        ) from exc
+        raise AuthorityFormatError(f"cannot read {path}: {exc}") from exc
 
 
 def _read_jsonl(path: str) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
 
     try:
-        lines = Path(path).read_text(
-            encoding="utf-8"
-        ).splitlines()
+        lines = Path(path).read_text(encoding="utf-8").splitlines()
     except OSError as exc:
-        raise AuthorityFormatError(
-            f"cannot read {path}: {exc}"
-        ) from exc
+        raise AuthorityFormatError(f"cannot read {path}: {exc}") from exc
 
     for line_number, line in enumerate(lines, 1):
         if not line.strip():
@@ -70,8 +62,7 @@ def _read_jsonl(path: str) -> list[dict[str, Any]]:
 
         if not isinstance(value, dict):
             raise AuthorityFormatError(
-                f"{path} line {line_number}: "
-                "expected a JSON object"
+                f"{path} line {line_number}: expected a JSON object"
             )
 
         records.append(value)
@@ -84,52 +75,28 @@ def _print_verification(
     *,
     index: int | None = None,
 ) -> None:
-    prefix = (
-        f"receipt {index}: "
-        if index is not None
-        else ""
-    )
+    prefix = f"receipt {index}: " if index is not None else ""
 
-    print(
-        f"{prefix}evidence_state       "
-        f"{report.evidence_state.value}"
-    )
+    print(f"{prefix}evidence_state       {report.evidence_state.value}")
 
-    print(
-        f"{prefix}decision_conformance "
-        f"{report.decision_conformance.value}"
-    )
+    print(f"{prefix}decision_conformance {report.decision_conformance.value}")
 
     if report.accountable_principal:
-        print(
-            f"{prefix}accountable_principal "
-            f"{report.accountable_principal}"
-        )
+        print(f"{prefix}accountable_principal {report.accountable_principal}")
 
     if report.reason_code:
-        print(
-            f"{prefix}reason_code          "
-            f"{report.reason_code}"
-        )
+        print(f"{prefix}reason_code          {report.reason_code}")
 
     for failure in report.failures:
-        print(
-            f"{prefix}failure              "
-            f"{failure}"
-        )
+        print(f"{prefix}failure              {failure}")
 
 
 def cmd_verify(args: argparse.Namespace) -> int:
     receipt = _read_json(args.receipt)
     bundle = _read_json(args.trust_bundle)
 
-    if (
-        not isinstance(receipt, dict)
-        or not isinstance(bundle, dict)
-    ):
-        raise AuthorityFormatError(
-            "receipt and trust bundle must be JSON objects"
-        )
+    if not isinstance(receipt, dict) or not isinstance(bundle, dict):
+        raise AuthorityFormatError("receipt and trust bundle must be JSON objects")
 
     report = verify_receipt(
         receipt,
@@ -148,11 +115,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
             encoding="utf-8",
         )
 
-    return (
-        EXIT_OK
-        if report.ok
-        else EXIT_FAIL
-    )
+    return EXIT_OK if report.ok else EXIT_FAIL
 
 
 def cmd_verify_sequence(args: argparse.Namespace) -> int:
@@ -160,9 +123,7 @@ def cmd_verify_sequence(args: argparse.Namespace) -> int:
     bundle = _read_json(args.trust_bundle)
 
     if not isinstance(bundle, dict):
-        raise AuthorityFormatError(
-            "trust bundle must be a JSON object"
-        )
+        raise AuthorityFormatError("trust bundle must be a JSON object")
 
     reports = verify_receipt_sequence(
         receipts,
@@ -178,39 +139,23 @@ def cmd_verify_sequence(args: argparse.Namespace) -> int:
     if args.json:
         Path(args.json).write_text(
             json.dumps(
-                [
-                    report.to_dict()
-                    for report in reports
-                ],
+                [report.to_dict() for report in reports],
                 indent=2,
             )
             + "\n",
             encoding="utf-8",
         )
 
-    return (
-        EXIT_OK
-        if reports and all(
-            report.ok
-            for report in reports
-        )
-        else EXIT_FAIL
-    )
+    return EXIT_OK if reports and all(report.ok for report in reports) else EXIT_FAIL
 
 
 def _print_scan(report: dict[str, Any]) -> None:
     evidence = report["evidence_state"]
 
-    print(
-        "\npv authority scan - "
-        "AUTHORISATION READINESS ASSESSMENT"
-    )
+    print("\npv authority scan - AUTHORISATION READINESS ASSESSMENT")
     print("=" * 64)
 
-    print(
-        f"Actions analysed   "
-        f"{report['actions_analysed']}"
-    )
+    print(f"Actions analysed   {report['actions_analysed']}")
 
     print(
         "Evidence           "
@@ -222,10 +167,7 @@ def _print_scan(report: dict[str, Any]) -> None:
 
     if evidence["ABSENT"]:
         print("\nFINDING")
-        print(
-            "Your agent infrastructure does not currently "
-            "emit authority evidence."
-        )
+        print("Your agent infrastructure does not currently emit authority evidence.")
         print(
             "This is the industry norm. Consequently these "
             "actions cannot be shown to derive from an "
@@ -242,31 +184,19 @@ def _print_scan(report: dict[str, Any]) -> None:
         print("\nCRITICAL FINDINGS")
 
         for finding in report["critical_findings"]:
-            print(
-                f"  row {finding['row']}: "
-                "VERIFIED evidence, NON_CONFORMANT ALLOW"
-            )
+            print(f"  row {finding['row']}: VERIFIED evidence, NON_CONFORMANT ALLOW")
 
             if finding["accountable_principal"]:
-                print(
-                    "    accountable principal: "
-                    f"{finding['accountable_principal']}"
-                )
+                print(f"    accountable principal: {finding['accountable_principal']}")
 
 
 def cmd_scan(args: argparse.Namespace) -> int:
     records = _read_jsonl(args.input)
 
-    bundle = (
-        _read_json(args.trust_bundle)
-        if args.trust_bundle
-        else None
-    )
+    bundle = _read_json(args.trust_bundle) if args.trust_bundle else None
 
     if bundle is not None and not isinstance(bundle, dict):
-        raise AuthorityFormatError(
-            "trust bundle must be a JSON object"
-        )
+        raise AuthorityFormatError("trust bundle must be a JSON object")
 
     report = scan_authority_records(
         records,
@@ -286,10 +216,7 @@ def cmd_scan(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description=(
-            "Authority Provenance v0.1-experimental "
-            "offline tooling"
-        )
+        description=("Authority Provenance v0.1-experimental offline tooling")
     )
 
     sub = parser.add_subparsers(
@@ -331,10 +258,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     scan.add_argument(
         "--trust-bundle",
-        help=(
-            "out-of-band trust bundle; absence "
-            "produces UNVERIFIABLE evidence"
-        ),
+        help=("out-of-band trust bundle; absence produces UNVERIFIABLE evidence"),
     )
     scan.add_argument(
         "--json",

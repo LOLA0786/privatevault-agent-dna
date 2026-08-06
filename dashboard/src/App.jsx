@@ -1,121 +1,201 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import './App.css'
 
+const defaultEndpoint = import.meta.env.VITE_PV_API_URL ?? ''
+
+function StatusPill({ state }) {
+  return <span className={`status status--${state}`}>{state}</span>
+}
+
+function Metric({ label, value, hint }) {
+  return (
+    <article className="metric">
+      <p>{label}</p>
+      <strong>{value}</strong>
+      <span>{hint}</span>
+    </article>
+  )
+}
+
 function App() {
-  const [count, setCount] = useState(0)
+  const [endpoint, setEndpoint] = useState(defaultEndpoint)
+  const [apiKey, setApiKey] = useState('')
+  const [snapshot, setSnapshot] = useState(null)
+  const [state, setState] = useState('checking')
+  const [error, setError] = useState('')
+
+  const request = useCallback(
+    async (path, optional = false) => {
+      const response = await fetch(`${endpoint.replace(/\/$/, '')}${path}`, {
+        headers: apiKey ? { 'X-API-Key': apiKey } : {},
+      })
+      if (!response.ok) {
+        if (optional && [401, 403].includes(response.status)) return null
+        throw new Error(`${path} returned HTTP ${response.status}`)
+      }
+      return response.json()
+    },
+    [apiKey, endpoint],
+  )
+
+  const refresh = useCallback(async () => {
+    setState('checking')
+    setError('')
+    try {
+      const health = await request('/health')
+      const [runtime, blocked, divergent, verification] = await Promise.all([
+        request('/v1/runtime', true),
+        request('/v1/blocked', true),
+        request('/v1/divergent', true),
+        request('/v1/verify', true),
+      ])
+      setSnapshot({ health, runtime, blocked, divergent, verification })
+      setState('healthy')
+    } catch (cause) {
+      setSnapshot(null)
+      setState('offline')
+      setError(cause instanceof Error ? cause.message : 'Connection failed')
+    }
+  }, [request])
+
+  useEffect(() => {
+    refresh()
+  }, [refresh])
+
+  const composition = useMemo(
+    () => Object.entries(snapshot?.runtime?.composition ?? {}),
+    [snapshot],
+  )
+  const attached = composition.filter(([, item]) => item.status === 'attached').length
+  const blocked = snapshot?.blocked?.length ?? snapshot?.blocked?.records?.length ?? '—'
+  const divergent =
+    snapshot?.divergent?.length ?? snapshot?.divergent?.records?.length ?? '—'
+  const chainState = snapshot?.verification
+    ? snapshot.verification.valid === false
+      ? 'attention'
+      : 'verified'
+    : 'locked'
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
+    <main>
+      <header className="topbar">
+        <a className="brand" href="#overview" aria-label="PrivateVault home">
+          <span className="brand__mark">PV</span>
+          <span>
+            <b>PrivateVault</b>
+            <small>Agent Security Console</small>
+          </span>
+        </a>
+        <div className="topbar__status">
+          <StatusPill state={state} />
+          <button type="button" onClick={refresh}>Refresh</button>
         </div>
+      </header>
+
+      <section className="hero" id="overview">
         <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
+          <p className="eyebrow">Decision security runtime · v0.4.0</p>
+          <h1>Control the action.<br />Prove the decision.</h1>
+          <p className="lede">
+            Fail-closed authority checks, evidence-driven control discovery,
+            and independently verifiable execution evidence.
           </p>
         </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
+        <div className="connection" aria-label="Runtime connection">
+          <label>
+            Runtime URL
+            <input
+              value={endpoint}
+              onChange={(event) => setEndpoint(event.target.value)}
+              placeholder="Same origin"
+            />
+          </label>
+          <label>
+            API key <span>kept in memory only</span>
+            <input
+              type="password"
+              value={apiKey}
+              onChange={(event) => setApiKey(event.target.value)}
+              placeholder="Required for operator data"
+              autoComplete="off"
+            />
+          </label>
+          {error && <p className="connection__error">{error}</p>}
         </div>
       </section>
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+      <section className="metrics" aria-label="Runtime summary">
+        <Metric label="Runtime" value={state} hint="Health boundary" />
+        <Metric label="Controls attached" value={composition.length ? `${attached}/${composition.length}` : '—'} hint="Live composition" />
+        <Metric label="Blocked actions" value={blocked} hint="Credential scope" />
+        <Metric label="Divergence" value={divergent} hint="Blocked but executed" />
+        <Metric label="Audit chain" value={chainState} hint="Independent evidence" />
+      </section>
+
+      <section className="panel-grid">
+        <article className="panel panel--wide">
+          <div className="panel__heading">
+            <div>
+              <p className="eyebrow">Enforcement plane</p>
+              <h2>Runtime composition</h2>
+            </div>
+            <span>{apiKey ? 'operator scope requested' : 'add a key to inspect'}</span>
+          </div>
+          {composition.length ? (
+            <div className="control-list">
+              {composition.map(([name, item]) => (
+                <div className="control" key={name}>
+                  <span className={`control__dot control__dot--${item.status}`} />
+                  <b>{name.replaceAll('_', ' ')}</b>
+                  <span className="control__state">{item.status}</span>
+                  <p>{item.detail}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="empty">
+              Runtime health is public; composition requires a full-scope API key.
+            </div>
+          )}
+        </article>
+
+        <article className="panel panel--loop">
+          <p className="eyebrow">Offline experimentation</p>
+          <h2>Discovery Loop</h2>
+          <p>
+            Sealed decisions become replayed, evidence-linked policy proposals.
+            The enforcement plane stays unchanged.
+          </p>
+          <ol>
+            <li><span>01</span>Mine sealed evidence <b>PROPOSE</b></li>
+            <li><span>02</span>Replay history + attacks <b>RUN</b></li>
+            <li><span>03</span>Gate + structural probes <b>EVALUATE</b></li>
+            <li><span>04</span>Human-reviewed policy PR <b>ITERATE</b></li>
+          </ol>
+          <code>pv discover run --history-db decisions.db</code>
+        </article>
+
+        <article className="panel panel--principles">
+          <p className="eyebrow">Boundary guarantees</p>
+          <h2>What cannot authorize execution</h2>
+          <ul>
+            <li>Model output or framework callbacks</li>
+            <li>Missing or unverifiable evidence</li>
+            <li>Reused or expired authorization</li>
+            <li>A REVIEW or BLOCK verdict</li>
+          </ul>
+          <p className="fineprint">
+            Complete mediation still depends on routing every external effect
+            through the runtime. Read the repository non-claims before deployment.
+          </p>
+        </article>
+      </section>
+
+      <footer>
+        <span>PrivateVault Agent DNA</span>
+        <span>Fail closed · Verify independently · Minimize authority</span>
+      </footer>
+    </main>
   )
 }
 

@@ -13,7 +13,6 @@ from agent_dna import (
     ProfileStore,
     SimilarityEngine,
 )
-
 from agent_dna.adapters import (
     synthetic_compromised_trace,
     synthetic_normal_trace,
@@ -35,18 +34,9 @@ def main():
 
     store = ProfileStore()
 
-    trusted = build_fp(
-        [
-            synthetic_normal_trace(seed=i, loops=6)
-            for i in range(8)
-        ]
-    )
+    trusted = build_fp([synthetic_normal_trace(seed=i, loops=6) for i in range(8)])
 
-    candidate = build_fp(
-        [
-            synthetic_compromised_trace()
-        ]
-    )
+    candidate = build_fp([synthetic_compromised_trace()])
 
     store.save(trusted, "v1")
     store.save(candidate, "v2")

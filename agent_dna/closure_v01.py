@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NoReturn
 
 if TYPE_CHECKING:
     from nacl.signing import SigningKey
@@ -35,9 +35,7 @@ from agent_dna.execution_v01 import (
     validate_execution_authorization,
 )
 
-CLOSURE_RECORD_SPEC = (
-    "pv-execution-closure/0.1-experimental"
-)
+CLOSURE_RECORD_SPEC = "pv-execution-closure/0.1-experimental"
 
 DISPATCH_OUTCOMES = frozenset(
     {
@@ -101,9 +99,7 @@ def _require_object(
     path: str,
 ) -> Mapping[str, Any]:
     if not isinstance(value, Mapping):
-        raise AuthorityFormatError(
-            f"{path}: expected object"
-        )
+        raise AuthorityFormatError(f"{path}: expected object")
     return value
 
 
@@ -117,15 +113,10 @@ def _require_exact_fields(
     unexpected = actual - expected
 
     if missing:
-        raise AuthorityFormatError(
-            f"{path}: missing fields {sorted(missing)}"
-        )
+        raise AuthorityFormatError(f"{path}: missing fields {sorted(missing)}")
 
     if unexpected:
-        raise AuthorityFormatError(
-            f"{path}: unexpected fields "
-            f"{sorted(unexpected)}"
-        )
+        raise AuthorityFormatError(f"{path}: unexpected fields {sorted(unexpected)}")
 
 
 def _require_string(
@@ -133,9 +124,7 @@ def _require_string(
     path: str,
 ) -> str:
     if not isinstance(value, str) or not value:
-        raise AuthorityFormatError(
-            f"{path}: expected non-empty string"
-        )
+        raise AuthorityFormatError(f"{path}: expected non-empty string")
     return value
 
 
@@ -152,13 +141,8 @@ def _require_digest(
     value: Any,
     path: str,
 ) -> str:
-    if (
-        not isinstance(value, str)
-        or not SHA256_RE.fullmatch(value)
-    ):
-        raise AuthorityFormatError(
-            f"{path}: malformed SHA-256 digest"
-        )
+    if not isinstance(value, str) or not SHA256_RE.fullmatch(value):
+        raise AuthorityFormatError(f"{path}: malformed SHA-256 digest")
     return value
 
 
@@ -178,14 +162,8 @@ def _require_optional_length(
     if value is None:
         return None
 
-    if (
-        isinstance(value, bool)
-        or not isinstance(value, int)
-        or value < 0
-    ):
-        raise AuthorityFormatError(
-            f"{path}: expected integer >= 0 or null"
-        )
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise AuthorityFormatError(f"{path}: expected integer >= 0 or null")
 
     return value
 
@@ -194,22 +172,13 @@ def _parse_timestamp(
     value: Any,
     path: str,
 ) -> datetime:
-    if (
-        not isinstance(value, str)
-        or not RFC3339_UTC_RE.fullmatch(value)
-    ):
-        raise AuthorityFormatError(
-            f"{path}: expected RFC3339 UTC timestamp"
-        )
+    if not isinstance(value, str) or not RFC3339_UTC_RE.fullmatch(value):
+        raise AuthorityFormatError(f"{path}: expected RFC3339 UTC timestamp")
 
     try:
-        return datetime.fromisoformat(
-            value.removesuffix("Z") + "+00:00"
-        )
+        return datetime.fromisoformat(value.removesuffix("Z") + "+00:00")
     except ValueError as exc:
-        raise AuthorityFormatError(
-            f"{path}: invalid timestamp"
-        ) from exc
+        raise AuthorityFormatError(f"{path}: invalid timestamp") from exc
 
 
 def validate_closure_record(  # noqa: C901
@@ -226,14 +195,10 @@ def validate_closure_record(  # noqa: C901
     )
 
     if value["spec"] != CLOSURE_RECORD_SPEC:
-        raise AuthorityFormatError(
-            f"{path}.spec: unsupported spec"
-        )
+        raise AuthorityFormatError(f"{path}.spec: unsupported spec")
 
     if value["canonicalization"] != CANONICALIZATION:
-        raise AuthorityFormatError(
-            f"{path}.canonicalization: unsupported"
-        )
+        raise AuthorityFormatError(f"{path}.canonicalization: unsupported")
 
     for field in (
         "closure_id",
@@ -267,15 +232,11 @@ def validate_closure_record(  # noqa: C901
 
     outcome = value["dispatch_outcome"]
     if outcome not in DISPATCH_OUTCOMES:
-        raise AuthorityFormatError(
-            f"{path}.dispatch_outcome: unsupported outcome"
-        )
+        raise AuthorityFormatError(f"{path}.dispatch_outcome: unsupported outcome")
 
     effect_state = value["effect_state"]
     if effect_state not in EFFECT_STATES:
-        raise AuthorityFormatError(
-            f"{path}.effect_state: unsupported state"
-        )
+        raise AuthorityFormatError(f"{path}.effect_state: unsupported state")
 
     response_status = _require_optional_string(
         value["response_status"],
@@ -295,9 +256,7 @@ def validate_closure_record(  # noqa: C901
         response_digest is not None,
         response_length is not None,
     )
-    if any(response_presence) and not all(
-        response_presence
-    ):
+    if any(response_presence) and not all(response_presence):
         raise AuthorityFormatError(
             f"{path}: response status, digest, and length "
             "must be all present or all null"
@@ -305,52 +264,34 @@ def validate_closure_record(  # noqa: C901
 
     has_response = all(response_presence)
 
-    if outcome in {"ACKNOWLEDGED", "REJECTED"} and (
-        not has_response
-    ):
-        raise AuthorityFormatError(
-            f"{path}: {outcome} requires response evidence"
-        )
+    if outcome in {"ACKNOWLEDGED", "REJECTED"} and (not has_response):
+        raise AuthorityFormatError(f"{path}: {outcome} requires response evidence")
 
     if outcome == "TRANSPORT_ERROR" and has_response:
         raise AuthorityFormatError(
-            f"{path}: TRANSPORT_ERROR cannot include "
-            "response evidence"
+            f"{path}: TRANSPORT_ERROR cannot include response evidence"
         )
 
     effect_digest = _require_optional_digest(
         value["effect_evidence_digest"],
         f"{path}.effect_evidence_digest",
     )
-    if (
-        effect_state == "CONFIRMED"
-        and effect_digest is None
-    ):
-        raise AuthorityFormatError(
-            f"{path}: CONFIRMED effect requires evidence"
-        )
+    if effect_state == "CONFIRMED" and effect_digest is None:
+        raise AuthorityFormatError(f"{path}: CONFIRMED effect requires evidence")
 
-    authorization_use_count = value[
-        "authorization_use_count"
-    ]
+    authorization_use_count = value["authorization_use_count"]
     if (
         isinstance(authorization_use_count, bool)
         or not isinstance(authorization_use_count, int)
         or authorization_use_count != 1
     ):
         raise AuthorityFormatError(
-            f"{path}.authorization_use_count: "
-            "expected integer 1"
+            f"{path}.authorization_use_count: expected integer 1"
         )
 
     signature = value["signature"]
-    if (
-        not isinstance(signature, str)
-        or not SIGNATURE_RE.fullmatch(signature)
-    ):
-        raise AuthorityFormatError(
-            f"{path}.signature: malformed Ed25519 signature"
-        )
+    if not isinstance(signature, str) or not SIGNATURE_RE.fullmatch(signature):
+        raise AuthorityFormatError(f"{path}.signature: malformed Ed25519 signature")
 
     canonicalize(value)
     return value
@@ -399,7 +340,7 @@ class _ClosureEvidenceError(Exception):
         super().__init__(detail)
 
 
-def _closure_fail(reason_code: str, detail: str) -> None:
+def _closure_fail(reason_code: str, detail: str) -> NoReturn:
     raise _ClosureEvidenceError(reason_code, detail)
 
 
@@ -447,8 +388,7 @@ def _verify_closure_signer(
     ):
         _closure_fail(
             "CLOSURE_NOT_INDEPENDENT_OF_AUTHORIZATION",
-            "execution authorization and closure must use distinct "
-            "keys and principals",
+            "execution authorization and closure must use distinct keys and principals",
         )
 
     # Observing the dispatch and recording the outcome are often the same
@@ -462,8 +402,7 @@ def _verify_closure_signer(
         ):
             _closure_fail(
                 "CLOSURE_NOT_INDEPENDENT_OF_WITNESS",
-                "dispatch witness and closure must use distinct "
-                "keys and principals",
+                "dispatch witness and closure must use distinct keys and principals",
             )
 
     try:
@@ -535,17 +474,11 @@ def verify_closure_record(
 
     failures: list[str] = []
 
-    if validated["execution_authorization_digest"] != (
-        expected_authorization_digest
-    ):
-        failures.append(
-            "closure is bound to a different execution authorization"
-        )
+    if validated["execution_authorization_digest"] != (expected_authorization_digest):
+        failures.append("closure is bound to a different execution authorization")
 
     if validated["dispatch_witness_digest"] != expected_witness_digest:
-        failures.append(
-            "closure is bound to a different dispatch witness"
-        )
+        failures.append("closure is bound to a different dispatch witness")
 
     return VerificationReport(
         EvidenceState.VERIFIED,
@@ -575,26 +508,19 @@ def _chain_linkage_failures(
 
     measured_authorization = execution_authorization_digest(authorization)
     if closure["execution_authorization_digest"] != measured_authorization:
-        failures.append(
-            "closure does not bind the supplied execution authorization"
-        )
+        failures.append("closure does not bind the supplied execution authorization")
 
     measured_witness = dispatch_witness_digest(witness)
     if closure["dispatch_witness_digest"] != measured_witness:
-        failures.append(
-            "closure does not bind the supplied dispatch witness"
-        )
+        failures.append("closure does not bind the supplied dispatch witness")
 
     if witness["execution_authorization_digest"] != measured_authorization:
         failures.append(
-            "dispatch witness does not bind the supplied execution "
-            "authorization"
+            "dispatch witness does not bind the supplied execution authorization"
         )
 
     for field in ("organisation_id", "request_id"):
-        if not (
-            authorization[field] == witness[field] == closure[field]
-        ):
+        if not (authorization[field] == witness[field] == closure[field]):
             failures.append(
                 f"{field} differs across authorization, witness and closure"
             )
@@ -605,19 +531,15 @@ def _chain_linkage_failures(
             != authorization["execution_authorization_id"]
         ):
             failures.append(
-                f"{label} execution_authorization_id does not match "
-                "the authorization"
+                f"{label} execution_authorization_id does not match the authorization"
             )
 
     if closure["dispatch_witness_id"] != witness["dispatch_witness_id"]:
-        failures.append(
-            "closure dispatch_witness_id does not match the witness"
-        )
+        failures.append("closure dispatch_witness_id does not match the witness")
 
     if closure["trust_bundle_digest"] != authorization["trust_bundle_digest"]:
         failures.append(
-            "closure was evaluated against different trust roots than "
-            "the authorization"
+            "closure was evaluated against different trust roots than the authorization"
         )
 
     return failures
@@ -652,9 +574,7 @@ def verify_closure_chain(
         )
 
     try:
-        validated_authorization = validate_execution_authorization(
-            authorization
-        )
+        validated_authorization = validate_execution_authorization(authorization)
         validated_witness = validate_dispatch_witness(witness)
         validated_closure = validate_closure_record(closure)
         keys = validate_trust_bundle(trust_bundle)

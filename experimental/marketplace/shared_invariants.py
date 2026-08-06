@@ -9,14 +9,13 @@ that other deployments can import. Example patterns:
 
 These are policy rules, not execution traces.
 """
-from typing import List, Dict
 
 
 class SharedInvariantLibrary:
     def __init__(self):
-        self.invariants: List[Dict] = []
+        self.invariants: list[dict] = []
 
-    def publish(self, invariant: Dict) -> None:
+    def publish(self, invariant: dict) -> None:
         """
         Publish an anonymized invariant pattern.
         invariant must contain: name, domain, rule_type (topology/temporal/authority/etc.)
@@ -26,8 +25,12 @@ class SharedInvariantLibrary:
         if not required.issubset(invariant.keys()):
             raise ValueError(f"invariant must contain {required}")
         # Strip any accidental identity leakage before storage
-        safe = {k: v for k, v in invariant.items() if k not in ("agent_id", "execution_trace")}
+        safe = {
+            k: v
+            for k, v in invariant.items()
+            if k not in ("agent_id", "execution_trace")
+        }
         self.invariants.append(safe)
 
-    def import_for_agent(self, agent_domain: str) -> List[Dict]:
+    def import_for_agent(self, agent_domain: str) -> list[dict]:
         return [inv for inv in self.invariants if inv.get("domain") == agent_domain]

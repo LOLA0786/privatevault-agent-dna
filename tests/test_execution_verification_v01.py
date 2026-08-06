@@ -24,13 +24,8 @@ from agent_dna.execution_v01 import (
 
 ZERO_DIGEST = "sha256:" + ("0" * 64)
 ONE_DIGEST = "sha256:" + ("1" * 64)
-WIRE_BYTES = (
-    b'{"account":"4471","amount":400000,'
-    b'"currency":"INR"}'
-)
-PEER_IDENTITY_BYTES = (
-    b"tls-spki:payments.store.example:v3"
-)
+WIRE_BYTES = b'{"account":"4471","amount":400000,"currency":"INR"}'
+PEER_IDENTITY_BYTES = b"tls-spki:payments.store.example:v3"
 _USE_CONTEXT = object()
 
 
@@ -46,24 +41,16 @@ def _context():
         "keys": [
             {
                 "key_id": "execution-signer-01",
-                "principal": (
-                    "execution-runtime@store.example"
-                ),
+                "principal": ("execution-runtime@store.example"),
                 "algorithm": "ed25519",
-                "public_key": encode_public_key(
-                    signer_key
-                ),
-                "usages": [
-                    "execution_authorization_signer"
-                ],
+                "public_key": encode_public_key(signer_key),
+                "usages": ["execution_authorization_signer"],
             }
         ],
     }
 
     action = {
-        "subject_principal": (
-            "refund-agent@store.example"
-        ),
+        "subject_principal": ("refund-agent@store.example"),
         "subject_key_id": "refund-agent-01",
         "action": "payments.refund",
         "resource": "account:4471",
@@ -85,9 +72,7 @@ def _context():
         "tool_id": "payments.refund.v3",
         "tool_schema_digest": ZERO_DIGEST,
         "tool_artifact_digest": ONE_DIGEST,
-        "credential_audience": (
-            "payments.store.example"
-        ),
+        "credential_audience": ("payments.store.example"),
         "idempotency_key_digest": ZERO_DIGEST,
         "retry_policy_digest": ONE_DIGEST,
     }
@@ -95,9 +80,7 @@ def _context():
     unsigned = {
         "spec": EXECUTION_AUTHORIZATION_SPEC,
         "canonicalization": CANONICALIZATION,
-        "execution_authorization_id": (
-            "execution-authorization-001"
-        ),
+        "execution_authorization_id": ("execution-authorization-001"),
         "organisation_id": "store.example",
         "request_id": "request-001",
         "issued_at": "2026-07-31T12:00:00Z",
@@ -109,21 +92,13 @@ def _context():
         "approval_artifact_digest": ZERO_DIGEST,
         "action": action,
         "action_digest": sha256_digest(action),
-        "expected_wire_bytes_digest": (
-            sha256_bytes_digest(WIRE_BYTES)
-        ),
+        "expected_wire_bytes_digest": (sha256_bytes_digest(WIRE_BYTES)),
         "expected_wire_bytes_length": len(WIRE_BYTES),
-        "expected_peer_identity_digest": (
-            sha256_bytes_digest(
-                PEER_IDENTITY_BYTES
-            )
-        ),
+        "expected_peer_identity_digest": (sha256_bytes_digest(PEER_IDENTITY_BYTES)),
         "dispatch": dispatch,
         "state_snapshot_digest": ZERO_DIGEST,
         "policy_bundle_digest": ONE_DIGEST,
-        "trust_bundle_digest": sha256_digest(
-            trust_bundle
-        ),
+        "trust_bundle_digest": sha256_digest(trust_bundle),
         "obligations_digest": ONE_DIGEST,
         "max_uses": 1,
         "signer_key_id": "execution-signer-01",
@@ -149,41 +124,21 @@ def _verify(
     trust_bundle=_USE_CONTEXT,
     **overrides,
 ):
-    artifact = (
-        context["authorization"]
-        if authorization is None
-        else authorization
-    )
-    bundle = (
-        context["trust_bundle"]
-        if trust_bundle is _USE_CONTEXT
-        else trust_bundle
-    )
+    artifact = context["authorization"] if authorization is None else authorization
+    bundle = context["trust_bundle"] if trust_bundle is _USE_CONTEXT else trust_bundle
 
     arguments = {
         "expected_request_id": "request-001",
         "expected_action": context["action"],
         "expected_dispatch": context["dispatch"],
-        "expected_decision_receipt_digest": (
-            ZERO_DIGEST
-        ),
-        "expected_authority_receipt_digest": (
-            ONE_DIGEST
-        ),
-        "expected_approval_artifact_digest": (
-            ZERO_DIGEST
-        ),
-        "expected_state_snapshot_digest": (
-            ZERO_DIGEST
-        ),
-        "expected_policy_bundle_digest": (
-            ONE_DIGEST
-        ),
+        "expected_decision_receipt_digest": (ZERO_DIGEST),
+        "expected_authority_receipt_digest": (ONE_DIGEST),
+        "expected_approval_artifact_digest": (ZERO_DIGEST),
+        "expected_state_snapshot_digest": (ZERO_DIGEST),
+        "expected_policy_bundle_digest": (ONE_DIGEST),
         "expected_obligations_digest": ONE_DIGEST,
         "expected_wire_bytes": WIRE_BYTES,
-        "expected_peer_identity_bytes": (
-            PEER_IDENTITY_BYTES
-        ),
+        "expected_peer_identity_bytes": (PEER_IDENTITY_BYTES),
         "at_time": "2026-07-31T12:00:30Z",
         "already_consumed": False,
     }
@@ -203,13 +158,8 @@ def test_valid_authorization_is_executable():
 
     assert report.ok
     assert report.evidence_state is EvidenceState.VERIFIED
-    assert (
-        report.decision_conformance
-        is DecisionConformance.CONFORMANT
-    )
-    assert report.accountable_principal == (
-        "execution-runtime@store.example"
-    )
+    assert report.decision_conformance is DecisionConformance.CONFORMANT
+    assert report.accountable_principal == ("execution-runtime@store.example")
 
 
 def test_missing_trust_bundle_is_unverifiable():
@@ -220,10 +170,7 @@ def test_missing_trust_bundle_is_unverifiable():
         trust_bundle=None,
     )
 
-    assert (
-        report.evidence_state
-        is EvidenceState.UNVERIFIABLE
-    )
+    assert report.evidence_state is EvidenceState.UNVERIFIABLE
     assert report.reason_code == "TRUST_BUNDLE_UNAVAILABLE"
 
 
@@ -240,19 +187,13 @@ def test_forged_signature_is_invalid():
     )
 
     assert report.evidence_state is EvidenceState.INVALID
-    assert report.reason_code == (
-        "EXECUTION_AUTHORIZATION_SIGNATURE_INVALID"
-    )
+    assert report.reason_code == ("EXECUTION_AUTHORIZATION_SIGNATURE_INVALID")
 
 
 def test_wrong_key_usage_is_invalid():
     context = _context()
-    trust_bundle = copy.deepcopy(
-        context["trust_bundle"]
-    )
-    trust_bundle["keys"][0]["usages"] = [
-        "receipt_signer"
-    ]
+    trust_bundle = copy.deepcopy(context["trust_bundle"])
+    trust_bundle["keys"][0]["usages"] = ["receipt_signer"]
 
     report = _verify(
         context,
@@ -266,9 +207,7 @@ def test_wrong_key_usage_is_invalid():
 def test_observed_action_mismatch_is_non_conformant():
     context = _context()
     observed = copy.deepcopy(context["action"])
-    observed["parameters"]["amount"][
-        "minor_units"
-    ] = 500000
+    observed["parameters"]["amount"]["minor_units"] = 500000
 
     report = _verify(
         context,
@@ -276,19 +215,14 @@ def test_observed_action_mismatch_is_non_conformant():
     )
 
     assert report.evidence_state is EvidenceState.VERIFIED
-    assert (
-        report.decision_conformance
-        is DecisionConformance.NON_CONFORMANT
-    )
+    assert report.decision_conformance is DecisionConformance.NON_CONFORMANT
     assert not report.ok
 
 
 def test_observed_dispatch_mismatch_is_non_conformant():
     context = _context()
     observed = copy.deepcopy(context["dispatch"])
-    observed["destination"] = (
-        "attacker.example"
-    )
+    observed["destination"] = "attacker.example"
 
     report = _verify(
         context,
@@ -296,14 +230,9 @@ def test_observed_dispatch_mismatch_is_non_conformant():
     )
 
     assert report.evidence_state is EvidenceState.VERIFIED
-    assert (
-        report.decision_conformance
-        is DecisionConformance.NON_CONFORMANT
-    )
+    assert report.decision_conformance is DecisionConformance.NON_CONFORMANT
     assert any(
-        "dispatch does not exactly match"
-        in failure
-        for failure in report.failures
+        "dispatch does not exactly match" in failure for failure in report.failures
     )
 
 
@@ -348,10 +277,7 @@ def test_verified_context_digest_mismatch_blocks(
     )
 
     assert report.evidence_state is EvidenceState.VERIFIED
-    assert (
-        report.decision_conformance
-        is DecisionConformance.NON_CONFORMANT
-    )
+    assert report.decision_conformance is DecisionConformance.NON_CONFORMANT
     assert not report.ok
 
 
@@ -365,11 +291,7 @@ def test_request_id_mismatch_is_non_conformant():
 
     assert report.evidence_state is EvidenceState.VERIFIED
     assert not report.ok
-    assert any(
-        "request_id does not match"
-        in failure
-        for failure in report.failures
-    )
+    assert any("request_id does not match" in failure for failure in report.failures)
 
 
 @pytest.mark.parametrize(
@@ -389,11 +311,7 @@ def test_outside_validity_window_blocks(at_time):
 
     assert report.evidence_state is EvidenceState.VERIFIED
     assert not report.ok
-    assert any(
-        "not valid at dispatch time"
-        in failure
-        for failure in report.failures
-    )
+    assert any("not valid at dispatch time" in failure for failure in report.failures)
 
 
 def test_consumed_authorization_blocks_replay():
@@ -406,11 +324,7 @@ def test_consumed_authorization_blocks_replay():
 
     assert report.evidence_state is EvidenceState.VERIFIED
     assert not report.ok
-    assert any(
-        "already been consumed"
-        in failure
-        for failure in report.failures
-    )
+    assert any("already been consumed" in failure for failure in report.failures)
 
 
 def test_non_boolean_consumption_state_is_invalid():
@@ -427,9 +341,7 @@ def test_non_boolean_consumption_state_is_invalid():
 
 def test_different_trust_bundle_digest_is_invalid():
     context = _context()
-    trust_bundle = copy.deepcopy(
-        context["trust_bundle"]
-    )
+    trust_bundle = copy.deepcopy(context["trust_bundle"])
     trust_bundle["bundle_version"] = 2
 
     report = _verify(
@@ -438,19 +350,13 @@ def test_different_trust_bundle_digest_is_invalid():
     )
 
     assert report.evidence_state is EvidenceState.INVALID
-    assert report.reason_code == (
-        "TRUST_BUNDLE_DIGEST_MISMATCH"
-    )
+    assert report.reason_code == ("TRUST_BUNDLE_DIGEST_MISMATCH")
 
 
 def test_unknown_execution_signer_is_invalid():
     context = _context()
-    trust_bundle = copy.deepcopy(
-        context["trust_bundle"]
-    )
-    trust_bundle["keys"][0]["key_id"] = (
-        "different-execution-signer"
-    )
+    trust_bundle = copy.deepcopy(context["trust_bundle"])
+    trust_bundle["keys"][0]["key_id"] = "different-execution-signer"
 
     report = _verify(
         context,
@@ -463,12 +369,8 @@ def test_unknown_execution_signer_is_invalid():
 
 def test_organisation_mismatch_is_invalid():
     context = _context()
-    trust_bundle = copy.deepcopy(
-        context["trust_bundle"]
-    )
-    trust_bundle["organisation_id"] = (
-        "attacker.example"
-    )
+    trust_bundle = copy.deepcopy(context["trust_bundle"])
+    trust_bundle["organisation_id"] = "attacker.example"
 
     report = _verify(
         context,
@@ -492,8 +394,7 @@ def test_intended_wire_bytes_mismatch_blocks():
     assert report.evidence_state is EvidenceState.VERIFIED
     assert not report.ok
     assert any(
-        "does not bind the intended outbound bytes"
-        in failure
+        "does not bind the intended outbound bytes" in failure
         for failure in report.failures
     )
 
@@ -503,16 +404,13 @@ def test_intended_peer_identity_mismatch_blocks():
 
     report = _verify(
         context,
-        expected_peer_identity_bytes=(
-            b"tls-spki:attacker.example:v1"
-        ),
+        expected_peer_identity_bytes=(b"tls-spki:attacker.example:v1"),
     )
 
     assert report.evidence_state is EvidenceState.VERIFIED
     assert not report.ok
     assert any(
-        "does not bind the intended peer identity"
-        in failure
+        "does not bind the intended peer identity" in failure
         for failure in report.failures
     )
 

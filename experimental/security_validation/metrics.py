@@ -6,7 +6,6 @@ from .results import AttackResult
 
 
 class Metrics:
-
     @staticmethod
     def prevention_rate(results: list[AttackResult]) -> float:
         if not results:

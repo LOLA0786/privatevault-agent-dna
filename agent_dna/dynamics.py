@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import math
 from collections import defaultdict
-from typing import Dict, Iterable, List
+from collections.abc import Iterable
 
 from .trace import ExecutionTrace
 
@@ -27,17 +27,17 @@ _START = "<START>"
 class BehaviorDynamics:
     def __init__(self, smoothing: float = 1.0) -> None:
         self.smoothing = smoothing
-        self.transition_counts: Dict[str, Dict[str, int]] = defaultdict(
+        self.transition_counts: dict[str, dict[str, int]] = defaultdict(
             lambda: defaultdict(int)
         )
-        self.prefix_totals: Dict[str, int] = defaultdict(int)
+        self.prefix_totals: dict[str, int] = defaultdict(int)
         self.vocab: set = set()
 
         # Highest transition-surprise actually observed in training.
         self.ceil_surprise: float = 1.0
         self._fitted = False
 
-    def fit(self, traces: Iterable[ExecutionTrace]) -> "BehaviorDynamics":
+    def fit(self, traces: Iterable[ExecutionTrace]) -> BehaviorDynamics:
         traces = list(traces)
 
         for trace in traces:
@@ -52,7 +52,7 @@ class BehaviorDynamics:
         self.ceil_surprise = self._compute_ceiling(traces)
         return self
 
-    def _compute_ceiling(self, traces: List[ExecutionTrace]) -> float:
+    def _compute_ceiling(self, traces: list[ExecutionTrace]) -> float:
         ceil = 0.0
 
         for trace in traces:
@@ -66,15 +66,9 @@ class BehaviorDynamics:
     def transition_probability(self, prev: str, curr: str) -> float:
         vocab_size = max(len(self.vocab), 1)
 
-        numerator = (
-            self.transition_counts[prev].get(curr, 0)
-            + self.smoothing
-        )
+        numerator = self.transition_counts[prev].get(curr, 0) + self.smoothing
 
-        denominator = (
-            self.prefix_totals.get(prev, 0)
-            + self.smoothing * vocab_size
-        )
+        denominator = self.prefix_totals.get(prev, 0) + self.smoothing * vocab_size
 
         return numerator / denominator
 

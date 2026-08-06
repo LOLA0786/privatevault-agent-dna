@@ -8,7 +8,9 @@ tool parameters, or multi-turn conversation context.
 
 Maps to: MITRE ATLAS AML.T0051, OWASP LLM01, NIST AI RMF Govern
 """
+
 from agent_dna import AgentAction
+
 from .base import BaseAdversary
 
 
@@ -17,7 +19,7 @@ class JailbreakAgent(BaseAdversary):
     attack_name = "Prompt Jailbreak"
     severity = "Critical"
 
-    framework_mappings = {'owasp': ['LLM01'], 'atlas': ['Prompt Injection']}
+    framework_mappings = {"owasp": ["LLM01"], "atlas": ["Prompt Injection"]}
 
     def __init__(self, target_agent_id: str = "code-agent-01"):
         self.target = target_agent_id
@@ -43,7 +45,6 @@ class JailbreakAgent(BaseAdversary):
 
     def run(self, target_agent: str):
         result = {
-
             "attack_id": self.attack_id,
             "attack_name": self.attack_name,
             "target_agent": target_agent,

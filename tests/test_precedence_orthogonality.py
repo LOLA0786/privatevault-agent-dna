@@ -20,10 +20,13 @@ from agent_dna.uaal_layer import UAALConstraintChecker
 class HighDriftScorer:
     """Always reports high drift — so L4 WOULD fire if nothing above
     it short-circuited first."""
+
     def score(self, action, prev_capability=None):
         return AdvisorySignal(
-            agent_id=action.agent_id, capability=action.capability,
-            drift_score=0.95, severity=Severity.CRITICAL,
+            agent_id=action.agent_id,
+            capability=action.capability,
+            drift_score=0.95,
+            severity=Severity.CRITICAL,
             reasons=["always novel for this test"],
         )
 
@@ -32,6 +35,7 @@ class Invariants:
     def validate(self, capability, previous):
         class R:
             pass
+
         r = R()
         r.violated = capability == "storage.bulk_export"
         r.message = "invariant: bulk export forbidden" if r.violated else ""
@@ -43,8 +47,10 @@ HONEST_EVIDENCE = {
     "planner": {"canonical_target": "INV-1001"},
     "approvals": {"required": False},
     "enterprise_state": {
-        "invoice_amount": 5000.0, "invoice_open": True,
-        "target_verified": True, "duplicate": False,
+        "invoice_amount": 5000.0,
+        "invoice_open": True,
+        "target_verified": True,
+        "duplicate": False,
     },
 }
 
@@ -55,15 +61,19 @@ def _full_engine():
     return DecisionEngine(
         scorer=HighDriftScorer(),
         invariants=Invariants(),
-        authorizer=GrantRegistry(),   # empty — nothing granted
+        authorizer=GrantRegistry(),  # empty — nothing granted
         uaal=UAALConstraintChecker(),
         economics=CostAnomalyChecker(),
     )
 
 
 def _act(cap, args=None):
-    return AgentAction(agent_id="orth-agent", capability=cap,
-                       timestamp=time.time(), arguments=args or {})
+    return AgentAction(
+        agent_id="orth-agent",
+        capability=cap,
+        timestamp=time.time(),
+        arguments=args or {},
+    )
 
 
 def test_l0_wins_over_l3_l4_when_all_three_would_fire():
@@ -94,9 +104,15 @@ def test_l2_wins_over_l3_l4_when_no_l0_l1_violation():
     win as the earliest REQUIRE_APPROVAL-class level."""
     engine = _full_engine()
     action = _act("crm.read_contact")
-    result = engine.decide(action, evidence={"economics": {
-        "estimated_cost_usd": 500.0, "historical_avg_cost_usd": 0.01,
-    }})
+    result = engine.decide(
+        action,
+        evidence={
+            "economics": {
+                "estimated_cost_usd": 500.0,
+                "historical_avg_cost_usd": 0.01,
+            }
+        },
+    )
     assert result.decision == Decision.REQUIRE_APPROVAL
     assert result.triggered_by == "authorization"
 
@@ -105,17 +121,24 @@ def test_l3_wins_over_l4_when_granted_but_cost_anomalous():
     """Grant exists (L2 clears) + cost anomaly (L3 fires) + high
     drift (L4 would also fire). L3 must win over L4."""
     reg = GrantRegistry()
-    reg.grant(agent_id="orth-agent", capability="crm.read_contact",
-              granted_by="test")
+    reg.grant(agent_id="orth-agent", capability="crm.read_contact", granted_by="test")
     engine = DecisionEngine(
-        scorer=HighDriftScorer(), invariants=Invariants(),
-        authorizer=reg, uaal=UAALConstraintChecker(),
+        scorer=HighDriftScorer(),
+        invariants=Invariants(),
+        authorizer=reg,
+        uaal=UAALConstraintChecker(),
         economics=CostAnomalyChecker(),
     )
     action = _act("crm.read_contact")
-    result = engine.decide(action, evidence={"economics": {
-        "estimated_cost_usd": 500.0, "historical_avg_cost_usd": 0.01,
-    }})
+    result = engine.decide(
+        action,
+        evidence={
+            "economics": {
+                "estimated_cost_usd": 500.0,
+                "historical_avg_cost_usd": 0.01,
+            }
+        },
+    )
     assert result.decision == Decision.REQUIRE_APPROVAL
     assert result.triggered_by == "economics"
 
@@ -126,11 +149,12 @@ def test_l4_only_wins_when_nothing_above_it_fires():
     actually reaches the last probabilistic level rather than always
     stopping early by accident."""
     reg = GrantRegistry()
-    reg.grant(agent_id="orth-agent", capability="crm.read_contact",
-              granted_by="test")
+    reg.grant(agent_id="orth-agent", capability="crm.read_contact", granted_by="test")
     engine = DecisionEngine(
-        scorer=HighDriftScorer(), invariants=Invariants(),
-        authorizer=reg, uaal=UAALConstraintChecker(),
+        scorer=HighDriftScorer(),
+        invariants=Invariants(),
+        authorizer=reg,
+        uaal=UAALConstraintChecker(),
     )  # no economics checker attached at all
     action = _act("crm.read_contact")
     result = engine.decide(action, evidence=None)
@@ -150,19 +174,26 @@ def test_consensus_wins_over_authorization_economics_drift():
     votes = [cast_vote("a", "x", "REJECT", "hh")]
 
     engine = DecisionEngine(
-        scorer=HighDriftScorer(), invariants=Invariants(),
+        scorer=HighDriftScorer(),
+        invariants=Invariants(),
         authorizer=GrantRegistry(),  # empty
         uaal=UAALConstraintChecker(),
         economics=CostAnomalyChecker(),
         consensus=ConsensusChecker(),
     )
     action = _act("crm.read_contact")
-    result = engine.decide(action, evidence={
-        "consensus": {"action_id": "x", "threshold": 0.9,
-                      "votes": votes, "trust_scores": {"a": 1.0}},
-        "economics": {"estimated_cost_usd": 500.0,
-                      "historical_avg_cost_usd": 0.01},
-    })
+    result = engine.decide(
+        action,
+        evidence={
+            "consensus": {
+                "action_id": "x",
+                "threshold": 0.9,
+                "votes": votes,
+                "trust_scores": {"a": 1.0},
+            },
+            "economics": {"estimated_cost_usd": 500.0, "historical_avg_cost_usd": 0.01},
+        },
+    )
     assert result.decision == Decision.REQUIRE_APPROVAL
     assert result.triggered_by == "consensus"
 
@@ -177,15 +208,23 @@ def test_l1_invariant_still_wins_over_consensus():
     votes = [cast_vote("a", "y", "REJECT", "hh2")]
 
     engine = DecisionEngine(
-        scorer=HighDriftScorer(), invariants=Invariants(),
+        scorer=HighDriftScorer(),
+        invariants=Invariants(),
         authorizer=GrantRegistry(),
         uaal=UAALConstraintChecker(),
         consensus=ConsensusChecker(),
     )
     action = _act("storage.bulk_export")
-    result = engine.decide(action, evidence={
-        "consensus": {"action_id": "y", "threshold": 0.9,
-                      "votes": votes, "trust_scores": {"a": 1.0}},
-    })
+    result = engine.decide(
+        action,
+        evidence={
+            "consensus": {
+                "action_id": "y",
+                "threshold": 0.9,
+                "votes": votes,
+                "trust_scores": {"a": 1.0},
+            },
+        },
+    )
     assert result.decision == Decision.BLOCK
     assert result.triggered_by == "invariant"

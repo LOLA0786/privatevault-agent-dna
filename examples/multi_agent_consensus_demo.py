@@ -15,12 +15,10 @@ wiring it in as an additional precedence check — that integration
 does not exist yet.
 """
 
-import time
+from runtime_demo import banner
 
 from agent_dna.consensus.secure_quorum import SecureQuorum, TrustRegistry
 from agent_dna.consensus.signing import cast_vote, register_key
-
-from runtime_demo import banner
 
 
 def main():
@@ -47,12 +45,13 @@ def main():
         ("fraud-agent", "APPROVE"),
         ("maker-agent", "APPROVE"),
     ]:
-        quorum.submit(action_id,
-                      cast_vote(agent_id, action_id, vote, message_hash))
-        print(f"  {agent_id:<16} votes {vote:<8} (signed, trust={trust.get(agent_id):.1f})")
+        quorum.submit(action_id, cast_vote(agent_id, action_id, vote, message_hash))
+        print(
+            f"  {agent_id:<16} votes {vote:<8} (signed, trust={trust.get(agent_id):.1f})"
+        )
 
     approved = quorum.check_quorum(action_id)
-    print(f"\n  quorum threshold : 0.67")
+    print("\n  quorum threshold : 0.67")
     print(f"  quorum result    : {'APPROVED' if approved else 'REJECTED'}")
 
     banner("SCENARIO 2 — an unsigned/forged vote is silently ignored")
@@ -61,22 +60,25 @@ def main():
     quorum2 = SecureQuorum(threshold=0.67, trust_registry=trust)
 
     # one honest vote — not enough alone to clear 0.67
-    quorum2.submit(action_id_2, cast_vote(
-        "maker-agent", action_id_2, "APPROVE", message_hash_2))
-    print(f"  maker-agent      votes APPROVE (signed, trust=0.6)")
+    quorum2.submit(
+        action_id_2, cast_vote("maker-agent", action_id_2, "APPROVE", message_hash_2)
+    )
+    print("  maker-agent      votes APPROVE (signed, trust=0.6)")
 
     # attacker tries to inject a vote AS checker-agent without
     # knowing checker-agent's key
     forged = cast_vote("attacker", action_id_2, "APPROVE", message_hash_2)
-    forged["agent_id"] = "checker-agent"   # impersonation without the key
+    forged["agent_id"] = "checker-agent"  # impersonation without the key
     quorum2.submit(action_id_2, forged)
-    print(f"  checker-agent    votes APPROVE (FORGED — attacker doesn't have this key)")
+    print("  checker-agent    votes APPROVE (FORGED — attacker doesn't have this key)")
 
     approved_2 = quorum2.check_quorum(action_id_2)
-    print(f"\n  maker-agent alone contributes trust=0.6, below 0.67 threshold")
-    print(f"  forged checker-agent vote does NOT verify -> contributes 0.0")
-    print(f"  quorum result    : {'APPROVED' if approved_2 else 'REJECTED'}"
-          f"  (correctly rejected — forged vote could not inflate the score)")
+    print("\n  maker-agent alone contributes trust=0.6, below 0.67 threshold")
+    print("  forged checker-agent vote does NOT verify -> contributes 0.0")
+    print(
+        f"  quorum result    : {'APPROVED' if approved_2 else 'REJECTED'}"
+        f"  (correctly rejected — forged vote could not inflate the score)"
+    )
 
     banner("SCENARIO 3 — genuine two-of-three still clears without the third")
     action_id_3 = "settlement-INV-1105"
@@ -84,12 +86,15 @@ def main():
     quorum3 = SecureQuorum(threshold=0.67, trust_registry=trust)
 
     for agent_id in ("checker-agent", "fraud-agent"):  # maker-agent abstains
-        quorum3.submit(action_id_3, cast_vote(
-            agent_id, action_id_3, "APPROVE", message_hash_3))
-        print(f"  {agent_id:<16} votes APPROVE (signed, trust={trust.get(agent_id):.1f})")
+        quorum3.submit(
+            action_id_3, cast_vote(agent_id, action_id_3, "APPROVE", message_hash_3)
+        )
+        print(
+            f"  {agent_id:<16} votes APPROVE (signed, trust={trust.get(agent_id):.1f})"
+        )
 
     approved_3 = quorum3.check_quorum(action_id_3)
-    print(f"\n  checker(0.9) + fraud(0.9) = 1.8 combined trust weight, clears 0.67")
+    print("\n  checker(0.9) + fraud(0.9) = 1.8 combined trust weight, clears 0.67")
     print(f"  quorum result    : {'APPROVED' if approved_3 else 'REJECTED'}")
 
     banner("STATUS")

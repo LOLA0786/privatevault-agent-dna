@@ -6,19 +6,17 @@ Canonical report model for benchmark execution.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, asdict
-from datetime import datetime, timezone
-from typing import Any, Dict, List
 import uuid
+from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
+from typing import Any
 
 
 @dataclass
 class BenchmarkInfo:
     schema_version: str = "1.1"
     benchmark_run_id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    timestamp: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     runtime_target: str = ""
     scenario_id: str = ""
 
@@ -28,13 +26,13 @@ class AttackInfo:
     id: str
     name: str
     severity: str
-    frameworks: Dict[str, List[str]] = field(default_factory=dict)
+    frameworks: dict[str, list[str]] = field(default_factory=dict)
 
 
 @dataclass
 class Actor:
     agent: str
-    agents: List[str] = field(default_factory=list)
+    agents: list[str] = field(default_factory=list)
     role: str = "agent"
     tenant: str = ""
 
@@ -54,9 +52,9 @@ class BenchmarkReport:
     target: Actor
     decision: Decision
 
-    evidence: List[Any] = field(default_factory=list)
-    metrics: Dict[str, Any] = field(default_factory=dict)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    evidence: list[Any] = field(default_factory=list)
+    metrics: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)

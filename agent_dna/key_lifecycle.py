@@ -79,9 +79,7 @@ def rotate_and_record(
     try:
         rotation = rotate_key(old_seed_hex, new_seed_hex)
     except Exception as exc:
-        recorder.report_outcome(
-            record.decision_id, "error", f"rotation failed: {exc}"
-        )
+        recorder.report_outcome(record.decision_id, "error", f"rotation failed: {exc}")
         raise
 
     recorder.report_outcome(

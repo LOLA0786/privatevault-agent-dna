@@ -27,6 +27,7 @@ For each learned gate present in an execution:
     as silent (we only count sign-offs strictly before the gate)
 Any of these is a HARD breach.
 """
+
 from __future__ import annotations
 
 from collections import defaultdict
@@ -38,9 +39,12 @@ from .interaction_graph import InteractionGraph
 class ConsensusInvariant(Invariant):
     name = "consensus"
 
-    def __init__(self, support_threshold: float = 0.95,
-                min_confidence: float = 0.0,
-                min_gate_support: int = 5) -> None:
+    def __init__(
+        self,
+        support_threshold: float = 0.95,
+        min_confidence: float = 0.0,
+        min_gate_support: int = 5,
+    ) -> None:
         self.support_threshold = support_threshold
         self.min_confidence = min_confidence
         self.min_gate_support = min_gate_support
@@ -96,8 +100,7 @@ class ConsensusInvariant(Invariant):
                 if gate_role == "unknown":
                     continue
                 approving = {
-                    r for r, ts in approvals.items()
-                    if ts < gate_t and r != gate_role
+                    r for r, ts in approvals.items() if ts < gate_t and r != gate_role
                 }
                 if not approving:
                     continue
@@ -110,7 +113,8 @@ class ConsensusInvariant(Invariant):
             if n < self.min_gate_support:
                 continue
             req = {
-                r for (g_role, r), c in approver_count.items()
+                r
+                for (g_role, r), c in approver_count.items()
                 if g_role == gate_role and c / n >= self.support_threshold
             }
             if req:

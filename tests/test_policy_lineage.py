@@ -11,17 +11,20 @@ from agent_dna.policy.schema import parse_policy_dict
 from agent_dna.trace import AgentAction
 from tests.test_p0_audit import StubScorer
 
-DOC = {"policies": [{
-    "id": "no-bulk-export",
-    "capability": "storage.bulk_export",
-    "outcome": "block",
-    "reason": "bulk export contractually forbidden",
-}]}
+DOC = {
+    "policies": [
+        {
+            "id": "no-bulk-export",
+            "capability": "storage.bulk_export",
+            "outcome": "block",
+            "reason": "bulk export contractually forbidden",
+        }
+    ]
+}
 
 
 def _act(cap):
-    return AgentAction(agent_id="pol-agent", capability=cap,
-                       timestamp=time.time())
+    return AgentAction(agent_id="pol-agent", capability=cap, timestamp=time.time())
 
 
 def _engine():

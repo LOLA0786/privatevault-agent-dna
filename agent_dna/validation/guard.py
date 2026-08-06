@@ -30,8 +30,8 @@ import time
 from dataclasses import dataclass, field
 
 ENV_VAR = "PV_VALIDATION_REPORT"
-AUC_FLOOR = 0.60          # below this, ranking quality is too weak to trust
-TIGHTEN_FACTOR = 0.80     # threshold *= factor when degraded (tighten-only)
+AUC_FLOOR = 0.60  # below this, ranking quality is too weak to trust
+TIGHTEN_FACTOR = 0.80  # threshold *= factor when degraded (tighten-only)
 ECE_WARN = 0.10
 
 
@@ -46,35 +46,42 @@ class ValidationGuard:
         if not path:
             self._warnings.append(
                 "no validation report configured (PV_VALIDATION_REPORT unset); "
-                "drift threshold unchanged")
+                "drift threshold unchanged"
+            )
             return
         try:
             envelope = json.loads(open(path, encoding="utf-8").read())
             body = envelope["body"]
             claimed = envelope["report_hash"]
             actual = hashlib.sha256(
-                json.dumps(body, sort_keys=True, separators=(",", ":"),
-                           ensure_ascii=True).encode()).hexdigest()
+                json.dumps(
+                    body, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+                ).encode()
+            ).hexdigest()
             if actual != claimed:
                 self._warnings.append(
                     f"validation report REJECTED: hash mismatch ({path}); "
-                    "drift threshold unchanged")
+                    "drift threshold unchanged"
+                )
                 return
             if body.get("format") != "pv-validation/1":
                 self._warnings.append(
                     "validation report REJECTED: unknown format; "
-                    "drift threshold unchanged")
+                    "drift threshold unchanged"
+                )
                 return
             if body.get("expires_at", 0) < time.time():
                 self._warnings.append(
-                    "validation report EXPIRED; drift threshold unchanged")
+                    "validation report EXPIRED; drift threshold unchanged"
+                )
                 return
             self._body = body
             self._collect_calibration_warnings(body)
         except Exception as e:  # malformed file, unreadable, missing keys
             self._warnings.append(
                 f"validation report unusable ({type(e).__name__}: {e}); "
-                "drift threshold unchanged")
+                "drift threshold unchanged"
+            )
 
     # ---------------------------------------------------------- runtime effect
 
@@ -110,17 +117,20 @@ class ValidationGuard:
             # defense in depth; verifier also rejects this
             self._warnings.append(
                 "report anomaly: calibration metrics present on a ranking "
-                "score -- treat calibration numbers as void")
+                "score -- treat calibration numbers as void"
+            )
             return
         if cal:
             if cal.get("ece", 0) > ECE_WARN:
                 self._warnings.append(
                     f"calibration warning (report-only): ECE={cal['ece']:.3f} "
                     f"> {ECE_WARN}; probability outputs should not be "
-                    "presented as calibrated until recalibrated")
+                    "presented as calibrated until recalibrated"
+                )
         drift = body.get("drift")
         if drift and drift.get("verdict") == "concept_drift":
             self._warnings.append(
                 "validation drift verdict: concept_drift -- advisory scorer "
                 "no longer matches its validation window; "
-                "investigate/retrain (report-only notice)")
+                "investigate/retrain (report-only notice)"
+            )

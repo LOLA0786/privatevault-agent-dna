@@ -22,6 +22,7 @@ def test_seal_matches_canonical_sha256():
 def test_pinned_artifact_hashes_exist():
     assert prove.sha256_file(prove.CONTRACT) is not None
     assert prove.sha256_file(prove.VECTOR) is not None
+    assert prove.sha256_file(prove.DISCOVERY_VECTOR) is not None
     assert prove.sha256_file(Path("does/not/exist")) is None
 
 
@@ -32,7 +33,8 @@ def test_git_state_shape():
 
 
 def test_cli_help_runs():
-    proc = subprocess.run([sys.executable, "tools/prove.py", "--help"],
-                          capture_output=True, text=True)
+    proc = subprocess.run(
+        [sys.executable, "tools/prove.py", "--help"], capture_output=True, text=True
+    )
     assert proc.returncode == 0
     assert "proof-of-run" in proc.stdout.lower()
