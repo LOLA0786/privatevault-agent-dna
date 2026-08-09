@@ -58,9 +58,7 @@ def test_unresolved_target_role_escalates_but_does_not_block():
     hard-block, or every new agent joining a swarm halts the system."""
     inv = AuthorityInvariant()
     inv.learn(_known_good())
-    bad = InteractionGraph("b").add_event(
-        ev("b", "r", "ghost", "risk", "unknown", 1.0)
-    )
+    bad = InteractionGraph("b").add_event(ev("b", "r", "ghost", "risk", "unknown", 1.0))
     res = inv.check(bad)
     assert not res.passed
     assert not res.hard
@@ -111,7 +109,13 @@ def test_untrained_authority_invariant_abstains():
     Enforcing an authority model that was never trained blocks every
     execution regardless of behaviour."""
     inv = AuthorityInvariant()
-    inv.learn([InteractionGraph("g1").add_event(ev("g1", "a", "b", "unknown", "unknown", 1.0))])
+    inv.learn(
+        [
+            InteractionGraph("g1").add_event(
+                ev("g1", "a", "b", "unknown", "unknown", 1.0)
+            )
+        ]
+    )
     assert not inv.trained
     res = inv.check(
         InteractionGraph("b").add_event(ev("b", "x", "y", "unknown", "unknown", 1.0))
@@ -127,7 +131,9 @@ def test_trained_invariant_does_not_abstain_on_unresolved_actor():
     inv.learn(_known_good())
     assert inv.trained
     res = inv.check(
-        InteractionGraph("b").add_event(ev("b", "ghost", "pay", "unknown", "payment", 1.0))
+        InteractionGraph("b").add_event(
+            ev("b", "ghost", "pay", "unknown", "payment", 1.0)
+        )
     )
     assert not res.passed
     assert res.hard
