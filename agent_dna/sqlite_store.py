@@ -65,6 +65,14 @@ CREATE TABLE IF NOT EXISTS envelopes (
     agent_id    TEXT NOT NULL,
     envelope    TEXT NOT NULL
 );
+-- Durable single-use ledger for execution authorizations. UNIQUE on
+-- execution_authorization_id makes a second consume claim fail atomically
+-- under concurrent writers (BEGIN IMMEDIATE + INSERT).
+CREATE TABLE IF NOT EXISTS execution_authorization_consume (
+    execution_authorization_id TEXT PRIMARY KEY NOT NULL,
+    organisation_id            TEXT NOT NULL,
+    consumed_at                TEXT NOT NULL
+);
 """
 
 
@@ -215,6 +223,59 @@ class SQLiteDecisionStore:
             (decision_id,),
         ).fetchone()
         return json.loads(row[0]) if row else None
+
+    def get_decision_by_record_hash(self, record_hash: str) -> dict | None:
+        """Load a sealed decision by record_hash (bare hex or sha256:)."""
+        bare = record_hash[7:] if record_hash.startswith("sha256:") else record_hash
+        row = self._conn.execute(
+            "SELECT body FROM records WHERE record_hash = ? AND kind = 'decision'",
+            (bare,),
+        ).fetchone()
+        return json.loads(row[0]) if row else None
+
+    def try_consume_execution_authorization(
+        self,
+        execution_authorization_id: str,
+        *,
+        organisation_id: str,
+        consumed_at: str,
+    ) -> bool:
+        """Atomically claim a single-use execution authorization.
+
+        Returns True if this call recorded consumption, False if the id
+        was already consumed. Uses BEGIN IMMEDIATE + UNIQUE insert so
+        concurrent verifiers of the same id cannot both succeed.
+        """
+        if not execution_authorization_id:
+            raise ValueError("execution_authorization_id is required")
+        conn = self._conn
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            conn.execute(
+                "INSERT INTO execution_authorization_consume "
+                "(execution_authorization_id, organisation_id, consumed_at) "
+                "VALUES (?, ?, ?)",
+                (execution_authorization_id, organisation_id, consumed_at),
+            )
+            conn.commit()
+            return True
+        except sqlite3.IntegrityError:
+            conn.rollback()
+            return False
+        except Exception:
+            conn.rollback()
+            raise
+
+    def is_execution_authorization_consumed(
+        self,
+        execution_authorization_id: str,
+    ) -> bool:
+        row = self._conn.execute(
+            "SELECT 1 FROM execution_authorization_consume "
+            "WHERE execution_authorization_id = ?",
+            (execution_authorization_id,),
+        ).fetchone()
+        return row is not None
 
     def append_atomic(self, record, envelope: dict | None = None) -> bool:
         """Multi-writer-safe append for decision records only. Returns

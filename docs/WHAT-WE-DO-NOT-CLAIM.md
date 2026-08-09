@@ -178,6 +178,35 @@ record is evidence that a specific decision was made, when, under
 what conditions, and why. It is not a substitute for your own
 regulatory or legal analysis, and we will not represent it as one.
 
+## Execution authorization binding residuals
+
+**`POST /v1/authorize` now refuses to mint without a sealed ALLOW**
+referenced by `decision_id` and/or `record_hash`, with distinct reason
+codes for missing reference, absent decision, non-ALLOW, agent
+mismatch, and digest/action mismatches
+(`tests/test_authorize_binding.py`). **Single-use consumption is
+recorded in a durable SQLite ledger** keyed by
+`execution_authorization_id`, claimed atomically on successful verify
+(`tests/test_consume_ledger.py`).
+
+Residual gaps we still do not claim closed:
+
+- **Organisation is not a DecisionRecord field (drp/0.1 / 0.2).** Mint
+  checks `organisation_id` against the pinned trust bundle and
+  `agent_id` against the sealed record + authenticated caller. There is
+  no sealed organisation binding inside the decide record itself.
+- **Wire and peer digests are not sealed at decide time.** They are
+  bound into the signed execution authorization and rechecked at
+  dispatch verify; a caller who holds a valid ALLOW can still choose
+  which outbound digests to bind when minting.
+- **Library verify without a `consume_ledger` remains caller-attested**
+  for consumption. Adapters that omit the ledger can still pass
+  `already_consumed=False` forever. The HTTP mint path shares the
+  process store; adapters must pass that store (or an equivalent
+  durable ledger) into `verify_execution_authorization`.
+- **One ALLOW may mint multiple permits** until each permit's id is
+  consumed. We do not claim one-mint-per-decision accounting yet.
+
 ## Latency and benchmark figures
 
 **We do not publish precise latency or throughput figures without a

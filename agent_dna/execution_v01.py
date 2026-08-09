@@ -31,6 +31,7 @@ from agent_dna.authority_v01 import (
     validate_trust_bundle,
     verify_document_signature,
 )
+from agent_dna.authorize_binding import EXECUTION_AUTHORIZATION_CONSUMED
 
 EXECUTION_AUTHORIZATION_SPEC = "pv-execution-authorization/0.1-experimental"
 
@@ -360,8 +361,15 @@ def verify_execution_authorization(  # noqa: C901
     expected_peer_identity_bytes: Any,
     at_time: Any,
     already_consumed: Any,
+    consume_ledger: Any | None = None,
 ) -> VerificationReport:
-    """Verify an authorization against the exact dispatch context."""
+    """Verify an authorization against the exact dispatch context.
+
+    ``already_consumed`` may only tighten refusal. When ``consume_ledger``
+    is supplied, successful verification atomically claims the id in that
+    durable ledger; a second claim fails with
+    ``EXECUTION_AUTHORIZATION_CONSUMED``.
+    """
 
     if trust_bundle is None:
         return VerificationReport(
@@ -554,17 +562,51 @@ def verify_execution_authorization(  # noqa: C901
     if not not_before <= execution_time < expires_at:
         failures.append("execution authorization is not valid at dispatch time")
 
+    # Caller attestation may only tighten: True means refuse even if the
+    # durable ledger has not yet recorded consumption.
     if already_consumed:
-        failures.append("execution authorization has already been consumed")
+        return VerificationReport(
+            EvidenceState.VERIFIED,
+            DecisionConformance.NON_CONFORMANT,
+            EXECUTION_AUTHORIZATION_CONSUMED,
+            ("execution authorization has already been consumed",),
+            key["principal"],
+        )
+
+    if failures:
+        return VerificationReport(
+            EvidenceState.VERIFIED,
+            DecisionConformance.NON_CONFORMANT,
+            "EXECUTION_AUTHORIZATION_NON_CONFORMANT",
+            tuple(failures),
+            key["principal"],
+        )
+
+    if consume_ledger is not None:
+        try:
+            claimed = consume_ledger.try_consume_execution_authorization(
+                validated["execution_authorization_id"],
+                organisation_id=organisation_id,
+                consumed_at=str(at_time),
+            )
+        except Exception as exc:
+            return _execution_invalid(
+                "CONSUME_LEDGER_UNAVAILABLE",
+                f"consume ledger refused the claim: {type(exc).__name__}",
+            )
+        if not claimed:
+            return VerificationReport(
+                EvidenceState.VERIFIED,
+                DecisionConformance.NON_CONFORMANT,
+                EXECUTION_AUTHORIZATION_CONSUMED,
+                ("execution authorization has already been consumed",),
+                key["principal"],
+            )
 
     return VerificationReport(
         EvidenceState.VERIFIED,
-        (
-            DecisionConformance.NON_CONFORMANT
-            if failures
-            else DecisionConformance.CONFORMANT
-        ),
-        ("EXECUTION_AUTHORIZATION_NON_CONFORMANT" if failures else None),
-        tuple(failures),
+        DecisionConformance.CONFORMANT,
+        None,
+        (),
         key["principal"],
     )

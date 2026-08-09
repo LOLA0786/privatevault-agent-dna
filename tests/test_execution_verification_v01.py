@@ -324,6 +324,7 @@ def test_consumed_authorization_blocks_replay():
 
     assert report.evidence_state is EvidenceState.VERIFIED
     assert not report.ok
+    assert report.reason_code == "EXECUTION_AUTHORIZATION_CONSUMED"
     assert any("already been consumed" in failure for failure in report.failures)
 
 

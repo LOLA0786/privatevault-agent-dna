@@ -28,7 +28,7 @@ from datetime import UTC
 from datetime import datetime as _datetime
 from datetime import timedelta as _timedelta
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, NoReturn
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Response
 from fastapi.responses import FileResponse, JSONResponse
@@ -39,6 +39,11 @@ from starlette.background import BackgroundTask
 from agent_dna.apikeys import ApiKeyRegistry
 from agent_dna.authority_v01 import CANONICALIZATION as _PV_CANON
 from agent_dna.authority_v01 import sha256_digest as _pv_sha256_digest
+from agent_dna.authorize_binding import (
+    AUTHORIZE_DECISION_NOT_FOUND,
+    AUTHORIZE_DECISION_REQUIRED,
+    bind_authorize_to_sealed_allow,
+)
 from agent_dna.connector.cross_agent import escalate_with_cross_agent
 from agent_dna.decision import Decision
 from agent_dna.execution_v01 import EXECUTION_AUTHORIZATION_SPEC as _PV_EA_SPEC
@@ -630,6 +635,11 @@ class AuthorizeRequest(BaseModel):
     agent_id: str = Field(min_length=1)
     organisation_id: str = Field(min_length=1)
 
+    # Required reference to a sealed decision — at least one must be set.
+    # There is no flag that disables this binding.
+    decision_id: str | None = Field(default=None, min_length=1)
+    record_hash: str | None = Field(default=None, min_length=1)
+
     action: dict[str, Any]
     dispatch: dict[str, Any]
 
@@ -679,11 +689,90 @@ def _pv_rfc3339(moment: _datetime) -> str:
     return moment.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _authorize_refusal(status_code: int, reason_code: str, detail: str) -> NoReturn:
+    raise HTTPException(
+        status_code=status_code,
+        detail={"reason_code": reason_code, "detail": detail},
+    )
+
+
+def _require_sealed_allow_for_authorize(req: AuthorizeRequest) -> dict[str, Any]:
+    """Load and bind a sealed ALLOW; refuse with distinct reason codes."""
+    if not req.decision_id and not req.record_hash:
+        _authorize_refusal(
+            422,
+            AUTHORIZE_DECISION_REQUIRED,
+            "decision_id and/or record_hash is required to mint",
+        )
+
+    store = state.get("store")
+    if store is None or not hasattr(store, "get_decision"):
+        raise HTTPException(
+            status_code=503,
+            detail="decision store is not available for authorize binding",
+        )
+
+    record: dict[str, Any] | None = None
+    if req.decision_id:
+        record = store.get_decision(req.decision_id)
+    elif req.record_hash:
+        record = store.get_decision_by_record_hash(req.record_hash)
+
+    if record is None:
+        _authorize_refusal(
+            404,
+            AUTHORIZE_DECISION_NOT_FOUND,
+            "no sealed decision matches the supplied reference",
+        )
+
+    bind_reason = bind_authorize_to_sealed_allow(
+        record,
+        agent_id=req.agent_id,
+        decision_receipt_digest=req.decision_receipt_digest,
+        action=req.action,
+        record_hash=req.record_hash,
+    )
+    if bind_reason is not None:
+        status = 404 if bind_reason == AUTHORIZE_DECISION_NOT_FOUND else 403
+        _authorize_refusal(
+            status,
+            bind_reason,
+            "authorize mint refused: sealed ALLOW binding failed",
+        )
+    return record
+
+
+def _authorize_loop_gate(
+    security_events: list[dict[str, Any]],
+) -> dict[str, Any]:
+    try:
+        report = discover_loops(security_events)
+    except LoopFormatError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=f"security_events rejected: {exc}",
+        ) from exc
+    loop_report = report.to_dict()
+    if report.decision is not LoopDecision.ALLOW:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "triggered_by": "loop_discovery",
+                "decision": report.decision.value,
+                "report_id": report.report_id,
+                "input_digest": report.input_digest,
+                "findings": loop_report.get("findings", []),
+            },
+        )
+    return loop_report
+
+
 @app.post("/v1/authorize")
 def authorize(req: AuthorizeRequest, principal: FullPrincipal):
-    """Issue execution authority bound to exact bytes and a specific peer."""
+    """Issue execution authority bound to a sealed ALLOW and exact bytes."""
 
     _enforce_identity(principal, req.agent_id)
+    _require_sealed_allow_for_authorize(req)
 
     signer = _pv_load_signer()
     trust_bundle = signer["trust_bundle"]
@@ -696,25 +785,7 @@ def authorize(req: AuthorizeRequest, principal: FullPrincipal):
 
     loop_report: dict[str, Any] | None = None
     if req.security_events is not None:
-        try:
-            report = discover_loops(req.security_events)
-        except LoopFormatError as exc:
-            raise HTTPException(
-                status_code=422,
-                detail=f"security_events rejected: {exc}",
-            ) from exc
-        loop_report = report.to_dict()
-        if report.decision is not LoopDecision.ALLOW:
-            raise HTTPException(
-                status_code=403,
-                detail={
-                    "triggered_by": "loop_discovery",
-                    "decision": report.decision.value,
-                    "report_id": report.report_id,
-                    "input_digest": report.input_digest,
-                    "findings": loop_report.get("findings", []),
-                },
-            )
+        loop_report = _authorize_loop_gate(req.security_events)
 
     ttl = int(os.environ.get("PV_AUTHORIZATION_TTL_SECONDS", "60"))
     now = _datetime.now(UTC)
