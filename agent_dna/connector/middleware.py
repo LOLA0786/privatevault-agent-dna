@@ -26,8 +26,6 @@ import threading
 import time
 
 from ..apikeys import ApiKeyRegistry
-from ..decision import Decision, DecisionResult, Severity
-from ..multi_agent import Verdict as CabiVerdict
 from ..runtime import RuntimeMonitor
 from ..trace import AgentAction
 from .models import ToolCallRequest, ToolCallVerdict
@@ -132,43 +130,17 @@ class ConnectorMiddleware:
 
     # -- cross-agent invariants: escalation-only ------------------------
 
-    _ESCALATION_RANK = {"allow": 0, "require_approval": 1, "block": 2}
-
     def _cross_agent_escalate(self, request, agent_id, result):
         """CABI can only escalate a verdict, never relax one. Calls
         without a declared execution_id are not evaluated (documented
         scope: cross-agent invariants require declared correlation).
         Attempted-but-blocked calls still enter the window."""
-        if self.cross_agent is None:
-            return result
-        execution_id = (request.context or {}).get("execution_id")
-        if not execution_id:
-            return result
-        engine_verdict = self.cross_agent.observe(execution_id, agent_id, request.tool)
-        if engine_verdict.verdict is CabiVerdict.ALLOW:
-            return result
-        target = (
-            Decision.BLOCK
-            if engine_verdict.verdict is CabiVerdict.BLOCK
-            else Decision.REQUIRE_APPROVAL
-        )
-        if (
-            self._ESCALATION_RANK[target.value]
-            <= self._ESCALATION_RANK[result.decision.value]
-        ):
-            return result  # never relax
-        return DecisionResult(
-            decision=target,
-            triggered_by="cross_agent_invariant",
-            reason="; ".join(engine_verdict.reasons)
-            or f"cross-agent invariant verdict "
-            f"{engine_verdict.verdict.value} "
-            f"(score={engine_verdict.score:.3f})",
-            capability=request.tool,
+        from .cross_agent import escalate_with_cross_agent
+
+        return escalate_with_cross_agent(
+            self.cross_agent,
+            execution_id=(request.context or {}).get("execution_id"),
             agent_id=agent_id,
-            drift_score=result.drift_score,
-            severity=(
-                Severity.CRITICAL if target is Decision.BLOCK else result.severity
-            ),
-            advisory_reasons=list(result.advisory_reasons),
+            capability=request.tool,
+            result=result,
         )

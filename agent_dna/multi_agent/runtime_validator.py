@@ -7,20 +7,40 @@ from collections.abc import Iterable
 from .authority import AuthorityInvariant
 from .base import Verdict
 from .consensus import ConsensusInvariant
+from .dual_control import DualControlInvariant
 from .events import InteractionEvent
 from .graph_builder import GraphBuilder
 from .intent import IntentInvariant
 from .interaction_graph import InteractionGraph
 from .invariant_engine import EngineVerdict, InvariantEngine
+from .structure import StructuralAuthorityInvariant
 from .temporal import TemporalInvariant
 from .topology import TopologyInvariant
 from .trust import TrustInvariant
 from .world_state import WorldStateInvariant
 
 
+def definitional_engine() -> InvariantEngine:
+    """No-corpus engine: dual-control + structural approval contradictions.
+
+    Safe to attach on day one. Learned topology/trust families stay out so
+    an empty baseline cannot soft-block ordinary traffic.
+    """
+    engine = InvariantEngine(
+        invariants=[
+            DualControlInvariant(),
+            StructuralAuthorityInvariant(),
+        ]
+    )
+    engine.learn([])
+    return engine
+
+
 def default_engine() -> InvariantEngine:
     return InvariantEngine(
         invariants=[
+            DualControlInvariant(),
+            StructuralAuthorityInvariant(),
             TopologyInvariant(),
             TemporalInvariant(),
             AuthorityInvariant(),

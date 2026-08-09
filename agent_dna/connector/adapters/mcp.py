@@ -79,16 +79,25 @@ def guard_fastmcp(server, middleware, api_key: str | None = None):
         return static_key
 
     async def enforced_call_tool(name: str, arguments: dict[str, Any], *args, **kwargs):
+        raw = dict(arguments or {})
+        # Reserved correlation key: consumed by CABI, not forwarded as tool input.
+        execution_id = raw.pop("_pv_execution_id", None)
+        context: dict[str, Any] = {}
+        if execution_id:
+            context["execution_id"] = str(execution_id)
         verdict = middleware.handle(
             ToolCallRequest(
                 adapter="mcp",
                 tool=name,
                 api_key=_resolve_key(),
-                arguments=dict(arguments or {}),
+                arguments=raw,
+                context=context,
             )
         )
         if verdict.decision == "allow":
-            return await original_call_tool(name, arguments, *args, **kwargs)
+            return await original_call_tool(
+                name, raw if execution_id else arguments, *args, **kwargs
+            )
         raise EnforcementBlocked(verdict)
 
     tm.call_tool = enforced_call_tool

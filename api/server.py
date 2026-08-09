@@ -20,6 +20,7 @@ import json as _pv_json
 import os
 import sys
 import tempfile
+import time as _time
 import uuid as _uuid
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -38,12 +39,26 @@ from starlette.background import BackgroundTask
 from agent_dna.apikeys import ApiKeyRegistry
 from agent_dna.authority_v01 import CANONICALIZATION as _PV_CANON
 from agent_dna.authority_v01 import sha256_digest as _pv_sha256_digest
+from agent_dna.connector.cross_agent import escalate_with_cross_agent
 from agent_dna.decision import Decision
 from agent_dna.execution_v01 import EXECUTION_AUTHORIZATION_SPEC as _PV_EA_SPEC
 from agent_dna.execution_v01 import sign_execution_authorization as _pv_sign_ea
+from agent_dna.observability.logger import get_logger
+from agent_dna.observability.metrics import MetricsExporter
+from agent_dna.observability.prometheus_bridge import (
+    generate_latest as _prom_generate_latest,
+)
+from agent_dna.observability.prometheus_bridge import observe_decide_latency, set_ready
 from agent_dna.runtime import RuntimeMonitor
+from agent_dna.security.loop_discovery import (
+    LoopDecision,
+    LoopFormatError,
+    discover_loops,
+)
 from agent_dna.signer import verify_trusted_envelope
 from agent_dna.trace import AgentAction
+
+_log = get_logger("pv.api")
 
 DB_PATH = os.environ.get("PV_DB_PATH", "data/privatevault.db")
 
@@ -169,8 +184,21 @@ async def lifespan(app: FastAPI):
     state["recorder"] = runtime.recorder
     state["engine"] = runtime.engine
     state["signer"] = runtime.signer
+    state["cross_agent"] = runtime.cross_agent
     state["monitors"] = {}
+    state["started_at"] = _datetime.now(UTC).isoformat()
+    try:
+        runtime.store.ping()
+        set_ready(True)
+    except Exception as exc:
+        set_ready(False)
+        raise RuntimeError(f"store not ready at startup: {exc}") from exc
+    _log.info(
+        f"runtime_ready auth_enabled={runtime.apikeys.enabled} "
+        f"db={getattr(runtime.store, 'path', '')}",
+    )
     yield
+    set_ready(False)
     state["store"].close()
     state.clear()
 
@@ -183,9 +211,14 @@ app = FastAPI(
 
 
 def _monitor_for(agent_id: str) -> RuntimeMonitor:
+    """Per-agent monitor without an attached recorder.
+
+    Recording happens after CABI escalate so the sealed DecisionRecord
+    matches the final verdict (same convention as ConnectorMiddleware).
+    """
     monitors = state["monitors"]
     if agent_id not in monitors:
-        monitors[agent_id] = RuntimeMonitor(state["engine"], recorder=state["recorder"])
+        monitors[agent_id] = RuntimeMonitor(state["engine"], recorder=None)
     return monitors[agent_id]
 
 
@@ -200,6 +233,8 @@ class DecideRequest(BaseModel):
     context: dict[str, Any] = Field(default_factory=dict)
     evidence: dict[str, Any] = Field(default_factory=dict)
     request_id: str | None = None
+    # Convenience alias; also accepted via context.execution_id
+    execution_id: str | None = None
 
 
 class OutcomeRequest(BaseModel):
@@ -236,17 +271,30 @@ def _owned_decision(principal: Principal, decision_id: str):
 @app.post("/v1/decide")
 def decide(req: DecideRequest, principal: FullPrincipal):
     _enforce_identity(principal, req.agent_id)
+    context = dict(req.context or {})
+    execution_id = req.execution_id or context.get("execution_id")
+    if execution_id:
+        context["execution_id"] = execution_id
     action = AgentAction(
         agent_id=req.agent_id,
         capability=req.capability,
         timestamp=req.timestamp,
         arguments=req.arguments,
-        context=req.context,
+        context=context,
         request_id=req.request_id,
     )
     monitor = _monitor_for(req.agent_id)
+    started = _time.perf_counter()
     result = monitor.process(action, evidence=req.evidence or None)
-    record = list(state["recorder"].graph.find_by_agent(req.agent_id))[-1]
+    result = escalate_with_cross_agent(
+        state.get("cross_agent"),
+        execution_id=execution_id,
+        agent_id=req.agent_id,
+        capability=req.capability,
+        result=result,
+    )
+    observe_decide_latency(_time.perf_counter() - started)
+    record = state["recorder"].record(action, result)
 
     return JSONResponse(
         status_code=STATUS_MAP[result.decision],
@@ -254,6 +302,7 @@ def decide(req: DecideRequest, principal: FullPrincipal):
             "decision": result.decision.value,
             "triggered_by": result.triggered_by,
             "reason": result.reason,
+            "execution_id": execution_id,
             "record": record.to_dict(),
         },
     )
@@ -443,60 +492,124 @@ def audit_envelope_export():
 def root():
     return {
         "product": "PrivateVault Agent DNA",
-        "category": "Decision Security Runtime",
+        "category": "Decision Security Platform",
+        "deployment": "single-tenant self-hosted",
         "enforcement": "POST /v1/decide (200 allow / 202 approval / 403 block)",
+        "ops": {
+            "health": "GET /health",
+            "ready": "GET /ready",
+            "metrics": "GET /metrics",
+            "summary": "GET /v1/ops/summary",
+            "console": "operator dashboard (compose profile: platform)",
+        },
         "calibration": "synthetic behavioral profile — pilot trace pending",
+        "certification": "none — see docs/WHAT-WE-DO-NOT-CLAIM.md",
         "signing": (
             {"algorithm": "Ed25519", "public_key": state["signer"].public_key}
             if state.get("signer")
             else "disabled"
         ),
         "status": "running",
+        "started_at": state.get("started_at"),
     }
 
 
 @app.get("/health")
 def health():
+    """Liveness: process is up. Prefer /ready for orchestration gates."""
     return {"status": "healthy"}
+
+
+@app.get("/ready")
+def ready():
+    """Readiness: store accepts queries and auth posture is known."""
+    store = state.get("store")
+    if store is None:
+        set_ready(False)
+        return JSONResponse(
+            status_code=503,
+            content={"status": "not_ready", "reason": "store_uninitialized"},
+        )
+    try:
+        store.ping()
+    except Exception as exc:
+        set_ready(False)
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "not_ready",
+                "reason": "store_unavailable",
+                "detail": str(exc),
+            },
+        )
+    set_ready(True)
+    reg = state.get("apikeys")
+    auth_enabled = isinstance(reg, ApiKeyRegistry) and reg.enabled
+    return {
+        "status": "ready",
+        "auth_enabled": auth_enabled,
+        "signing_enabled": state.get("signer") is not None,
+        "db_path": str(getattr(store, "path", "")),
+        "started_at": state.get("started_at"),
+    }
+
+
+def _aggregate_monitor_metrics() -> dict[str, Any]:
+    merged = MetricsExporter()
+    for monitor in state.get("monitors", {}).values():
+        metrics = getattr(monitor, "metrics", None)
+        if isinstance(metrics, MetricsExporter):
+            merged.merge(metrics)
+    return merged.summary()
+
+
+@app.get("/v1/ops/summary", dependencies=[Depends(require_audit_or_full_key)])
+def ops_summary():
+    """Operator-facing JSON metrics (audit or full scope)."""
+    summary = _aggregate_monitor_metrics()
+    return {
+        "product": "PrivateVault Agent DNA",
+        "ready": True,
+        "auth_enabled": isinstance(state.get("apikeys"), ApiKeyRegistry)
+        and state["apikeys"].enabled,
+        "agents_monitored": len(state.get("monitors", {})),
+        "metrics": summary,
+        "started_at": state.get("started_at"),
+    }
 
 
 @app.get("/metrics")
 def prometheus_metrics():
     """Prometheus scrape endpoint.
 
-    Uses prometheus_client when installed; otherwise falls back to a
-    minimal text-format exposition built from the decision store so the
-    endpoint never 500s (fail-open here is safe: metrics are
-    observability, not enforcement).
+    Prefer prometheus_client counters wired from RuntimeMonitor; fall back to
+    in-process monitor aggregates so the endpoint never 500s. Metrics never
+    authorize.
     """
-    try:
-        from prometheus_client import (
-            CONTENT_TYPE_LATEST,
-            generate_latest,
-        )
+    generated = _prom_generate_latest()
+    if generated is not None:
+        body, content_type = generated
+        return Response(content=body, media_type=content_type)
 
-        body = generate_latest()
-        content_type = CONTENT_TYPE_LATEST
-    except ImportError:
-        counts: dict[str, int] = {}
-        graph = state.get("graph")
-        if graph is not None:
-            for rec in getattr(graph, "records", lambda: [])():
-                d = getattr(rec, "decision", None)
-                key = getattr(d, "value", str(d))
-                counts[key] = counts.get(key, 0) + 1
-        lines = [
-            "# HELP pv_decisions_total Decisions recorded by verdict.",
-            "# TYPE pv_decisions_total counter",
+    summary = _aggregate_monitor_metrics()
+    lines = [
+        "# HELP pv_decisions_total Decisions recorded by verdict.",
+        "# TYPE pv_decisions_total counter",
+    ]
+    for verdict, n in sorted(summary.get("verdict_distribution", {}).items()):
+        safe = str(verdict).replace('"', "")
+        lines.append(f'pv_decisions_total{{verdict="{safe}"}} {int(n)}')
+    lines.extend(
+        [
+            "# HELP pv_ready 1 when the process reports ready.",
+            "# TYPE pv_ready gauge",
+            f"pv_ready {1 if state.get('store') is not None else 0}",
         ]
-        for verdict, n in sorted(counts.items()):
-            lines.append(f'pv_decisions_total{{verdict="{verdict}"}} {n}')
-        body = ("\n".join(lines) + "\n").encode()
-        content_type = "text/plain; version=0.0.4; charset=utf-8"
-
+    )
+    body = ("\n".join(lines) + "\n").encode()
     return Response(
         content=body,
-        media_type=content_type,
+        media_type="text/plain; version=0.0.4; charset=utf-8",
     )
 
 
@@ -530,6 +643,8 @@ class AuthorizeRequest(BaseModel):
     state_snapshot_digest: str = Field(pattern=_PV_DIGEST)
     policy_bundle_digest: str = Field(pattern=_PV_DIGEST)
     obligations_digest: str = Field(pattern=_PV_DIGEST)
+    # Multi-agent authority boundary: when supplied, discover_loops must ALLOW
+    security_events: list[dict[str, Any]] | None = None
 
 
 def _pv_load_signer() -> dict[str, Any]:
@@ -579,6 +694,28 @@ def authorize(req: AuthorizeRequest, principal: FullPrincipal):
             detail="organisation does not match the pinned trust bundle",
         )
 
+    loop_report: dict[str, Any] | None = None
+    if req.security_events is not None:
+        try:
+            report = discover_loops(req.security_events)
+        except LoopFormatError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail=f"security_events rejected: {exc}",
+            ) from exc
+        loop_report = report.to_dict()
+        if report.decision is not LoopDecision.ALLOW:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "triggered_by": "loop_discovery",
+                    "decision": report.decision.value,
+                    "report_id": report.report_id,
+                    "input_digest": report.input_digest,
+                    "findings": loop_report.get("findings", []),
+                },
+            )
+
     ttl = int(os.environ.get("PV_AUTHORIZATION_TTL_SECONDS", "60"))
     now = _datetime.now(UTC)
 
@@ -618,8 +755,16 @@ def authorize(req: AuthorizeRequest, principal: FullPrincipal):
             detail=f"execution authorization rejected: {type(exc).__name__}",
         ) from exc
 
-    return {
+    body: dict[str, Any] = {
         "authorization": authorization,
         "trust_bundle": trust_bundle,
         "at_time": _pv_rfc3339(now),
     }
+    if loop_report is not None:
+        # Report retained beside the mint; adapters must persist both.
+        body["loop_discovery"] = {
+            "decision": loop_report["decision"],
+            "report_id": loop_report["report_id"],
+            "input_digest": loop_report["input_digest"],
+        }
+    return body

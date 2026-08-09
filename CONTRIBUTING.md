@@ -5,8 +5,12 @@ failure behavior, evidence semantics, and operator-facing claim are tested.
 
 ## Development setup
 
+Use the repository toolchain only. Do not put other checkouts on a global
+`PYTHONPATH` — that can shadow this repo's `tests` package and break
+collection.
+
 ```bash
-uv sync --locked --extra dev
+uv sync --locked --extra dev   # respects .python-version (CPython 3.12)
 uv run pytest -q
 ```
 

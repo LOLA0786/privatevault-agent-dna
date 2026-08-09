@@ -56,7 +56,7 @@ points at the test file that proves it.
 | Secrets management (key rotation, vaulting) | **NOT STARTED** | Signing key and API keys are environment/file-based today. No rotation mechanism, no integration with a secrets manager (Vault, AWS Secrets Manager, etc.). Estimated: real design work, not a quick add — depends on deployment target. |
 | Third-party security certification (SOC 2, ISO 27001) | **NOT STARTED** | See `docs/WHAT-WE-DO-NOT-CLAIM.md` — pre-seed, no funded timeline yet. |
 | Penetration testing | **NOT STARTED** | No formal external pentest has been performed. Internal adversarial corpus (`spec/adversarial/`) is not a substitute and is not claimed as one. |
-| Vulnerability disclosure process | **NOT STARTED** | No `security.txt`, no formal disclosure channel yet. Low effort, should be done regardless of pilot timing. |
+| Vulnerability disclosure process | **SHIPPED** | `.well-known/security.txt`; contact in `SECURITY.md`. |
 
 ## Connector (agent-harness enforcement)
 
@@ -91,8 +91,10 @@ points at the test file that proves it.
 | Capability | Status | Notes |
 |---|---|---|
 | Structured audit trail | **SHIPPED** | The decision record chain itself — every decision is a structured, queryable event |
-| Application logging (errors, requests) | **NOT STARTED** | No structured logging framework wired in; relies on default framework/stdout logging today. |
-| Metrics/monitoring (latency, error rate, throughput) | **NOT STARTED** | No Prometheus/equivalent instrumentation. For a pilot, `tools/benchmark.py` and manual log inspection substitute; not sufficient for ongoing production monitoring. |
+| Application logging (errors, requests) | **PARTIALLY SHIPPED** | JSON logger wired at API startup (`agent_dna/observability/logger.py`); request-level access logs still framework default. |
+| Metrics/monitoring (latency, error rate, throughput) | **SHIPPED** | Prometheus counters/histogram on the decide path (`pv_decisions_total`, `pv_blocks_total`, `pv_decide_latency_seconds`, `pv_ready`); `GET /metrics`, `GET /ready`, `GET /v1/ops/summary`. Evidence: `tests/test_platform_ops.py`, `tests/test_metrics_endpoint.py`. Compose profile: `docker-compose.platform.yml`. |
+| Readiness probe | **SHIPPED** | `GET /ready` pings SQLite store; Docker/compose healthchecks use it. `tests/test_platform_ops.py`. |
+| Vulnerability disclosure packaging | **SHIPPED** | `.well-known/security.txt` + `SECURITY.md` contact. |
 | Alerting | **NOT STARTED** | No alerting pipeline. |
 | Distributed tracing | **NOT STARTED** | Not relevant at current single-process scale; would matter once horizontally scaled. |
 
