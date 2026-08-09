@@ -34,6 +34,8 @@ proof-of-run.json
 .env
 .env.*
 !.env.example
+deploy/platform/keys.json
+deploy/platform/keys.secrets.txt
 
 # Archives
 *.tar.gz

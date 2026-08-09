@@ -139,6 +139,7 @@ class ProductionRuntime:
     apikeys: ApiKeyRegistry
     breaker: CircuitBreaker
     replay: Any = None
+    cross_agent: Any = None
     trusted_public_keys: frozenset[str] = field(default_factory=frozenset)
     composition: dict[str, dict[str, str]] = field(default_factory=dict)
 
@@ -151,14 +152,14 @@ class ProductionRuntime:
     def middleware(self, cross_agent=None, shadow=None):
         """The canonical ConnectorMiddleware over this runtime.
         Requires an enabled key registry -- the middleware refuses to
-        run open, by design."""
+        run open, by design. Defaults to this runtime's CABI enforcer."""
         from .connector import ConnectorMiddleware
 
         return ConnectorMiddleware(
             engine=self.engine,
             recorder=self.recorder,
             keys=self.apikeys,
-            cross_agent=cross_agent,
+            cross_agent=self.cross_agent if cross_agent is None else cross_agent,
             shadow=shadow,
         )
 
@@ -389,6 +390,34 @@ def build_production_runtime(
             "no rule-input retention",
         }
 
+    # ---- multi-agent: definitional CABI + authorize-time loop discovery ----
+    cross_agent = None
+    cabi_disabled = os.getenv("PV_CROSS_AGENT", "1").lower() in ("0", "false", "no")
+    if cabi_disabled:
+        comp["cross_agent"] = {
+            "status": "disabled",
+            "detail": "PV_CROSS_AGENT=0; dual-control CABI not attached",
+        }
+    else:
+        from .connector.cross_agent import production_cross_agent
+
+        cross_agent = production_cross_agent()
+        comp["cross_agent"] = {
+            "status": "attached",
+            "detail": (
+                "definitional dual-control + structural approval invariants; "
+                "escalation-only; requires context.execution_id; "
+                "attached on HTTP /v1/decide and connector middleware"
+            ),
+        }
+    comp["loop_discovery"] = {
+        "status": "authorize_gated",
+        "detail": (
+            "discover_loops at POST /v1/authorize when security_events "
+            "are supplied; BLOCK/REVIEW refuse mint (fail-closed)"
+        ),
+    }
+
     return ProductionRuntime(
         engine=engine,
         recorder=recorder,
@@ -397,6 +426,7 @@ def build_production_runtime(
         apikeys=apikeys,
         breaker=breaker,
         replay=replay_store,
+        cross_agent=cross_agent,
         trusted_public_keys=cfg.trusted_public_keys,
         composition=comp,
     )

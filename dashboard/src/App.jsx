@@ -19,7 +19,7 @@ function Metric({ label, value, hint }) {
 
 function App() {
   const [endpoint, setEndpoint] = useState(defaultEndpoint)
-  const [apiKey, setApiKey] = useState('')
+  const [apiKey, setApiKey] = useState(import.meta.env.VITE_PV_DEMO_API_KEY ?? '')
   const [snapshot, setSnapshot] = useState(null)
   const [state, setState] = useState('checking')
   const [error, setError] = useState('')
@@ -42,15 +42,19 @@ function App() {
     setState('checking')
     setError('')
     try {
-      const health = await request('/health')
-      const [runtime, blocked, divergent, verification] = await Promise.all([
+      const [health, ready] = await Promise.all([
+        request('/health'),
+        request('/ready', true),
+      ])
+      const [runtime, blocked, divergent, verification, ops] = await Promise.all([
         request('/v1/runtime', true),
         request('/v1/blocked', true),
         request('/v1/divergent', true),
         request('/v1/verify', true),
+        request('/v1/ops/summary', true),
       ])
-      setSnapshot({ health, runtime, blocked, divergent, verification })
-      setState('healthy')
+      setSnapshot({ health, ready, runtime, blocked, divergent, verification, ops })
+      setState(ready?.status === 'ready' ? 'ready' : 'healthy')
     } catch (cause) {
       setSnapshot(null)
       setState('offline')
@@ -94,11 +98,12 @@ function App() {
 
       <section className="hero" id="overview">
         <div>
-          <p className="eyebrow">Decision security runtime · v0.4.0</p>
+          <p className="eyebrow">Decision security platform · v0.4.0</p>
           <h1>Control the action.<br />Prove the decision.</h1>
           <p className="lede">
-            Fail-closed authority checks, evidence-driven control discovery,
-            and independently verifiable execution evidence.
+            Multi-agent dual-control on every decide with a shared execution id,
+            loop discovery at authorize, readiness and Prometheus metrics, and
+            independently verifiable audit export. Single-tenant self-hosted.
           </p>
         </div>
         <div className="connection" aria-label="Runtime connection">
@@ -125,8 +130,13 @@ function App() {
       </section>
 
       <section className="metrics" aria-label="Runtime summary">
-        <Metric label="Runtime" value={state} hint="Health boundary" />
+        <Metric label="Runtime" value={state} hint={snapshot?.ready?.auth_enabled ? 'Auth on' : 'Readiness boundary'} />
         <Metric label="Controls attached" value={composition.length ? `${attached}/${composition.length}` : '—'} hint="Live composition" />
+        <Metric
+          label="Decisions"
+          value={snapshot?.ops?.metrics?.total_decisions ?? '—'}
+          hint="Ops summary"
+        />
         <Metric label="Blocked actions" value={blocked} hint="Credential scope" />
         <Metric label="Divergence" value={divergent} hint="Blocked but executed" />
         <Metric label="Audit chain" value={chainState} hint="Independent evidence" />

@@ -6,8 +6,8 @@ from typing import Any
 import pytest
 from nacl.exceptions import BadSignatureError
 from nacl.signing import SigningKey
-from test_dispatch_v01 import _context as _dispatch_context
-from test_dispatch_v01 import _create as _dispatch_create
+from tests.test_dispatch_v01 import _context as _dispatch_context
+from tests.test_dispatch_v01 import _create as _dispatch_create
 
 from agent_dna.authority_v01 import (
     CANONICALIZATION,

@@ -55,13 +55,23 @@ pv discover run --history-db decisions.db \
 python tools/verify_discovery.py /tmp/discovery-report.json
 ```
 
-As a service:
+As a service (dev, auth off):
 
 ```bash
 PV_ALLOW_NO_AUTH=1 docker compose up --wait  # local development only
 curl -i -X POST localhost:8000/v1/decide \
   -H 'Content-Type: application/json' \
   -d '{"agent_id":"a1","capability":"crm.read_contact","timestamp":0}'
+```
+
+Self-hosted platform profile (auth on, console, Prometheus):
+
+```bash
+uv run python tools/init_platform_keys.py
+export PV_API_KEYS_FILE=$PWD/deploy/platform/keys.json
+docker compose -f docker-compose.platform.yml up --build --wait
+# console http://localhost:8080  ·  metrics http://localhost:9090  ·  API :8000
+uv run python tools/platform_demo.py   # in-process proof without Docker
 ```
 
 The HTTP status code is the verdict: `200` allow, `202`
@@ -82,10 +92,21 @@ independent standard-library verifier. Learned validation remains advisory and
 the online L0-L7 path is unchanged. See `docs/DISCOVERY-LOOP.md` and
 `spec/discovery-loop-v1/`.
 
+## Multi-agent enforcement (live path)
+
+Cross-agent behavioral invariants (CABI) attach by default in production
+composition. On `POST /v1/decide` and the connector, a declared
+`execution_id` (or MCP `_pv_execution_id`) opens a correlation window.
+Definitional dual-control blocks the same agent initiating and approving
+in that window; structural approval cycles are hard blocks. Verdicts only
+escalate — never relax. Disable with `PV_CROSS_AGENT=0`.
+
 ## Agent security loop detector
 
 `agent_dna.security.loop_discovery` performs bounded, deterministic graph
-analysis before consequential multi-agent dispatch. It distinguishes circular
+analysis before consequential multi-agent dispatch. On
+`POST /v1/authorize`, supply `security_events` to refuse `BLOCK`/`REVIEW`
+before a single-use permit is minted. It distinguishes circular
 authority from ordinary request/response traffic:
 
 | Evidence | Outcome |

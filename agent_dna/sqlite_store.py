@@ -388,6 +388,11 @@ class SQLiteDecisionStore:
         )
         return path
 
+    def ping(self) -> bool:
+        """Return True when the WAL store accepts a trivial query."""
+        self._conn.execute("SELECT 1").fetchone()
+        return True
+
     def close(self) -> None:
         conn = getattr(self._local, "conn", None)
         if conn is not None:

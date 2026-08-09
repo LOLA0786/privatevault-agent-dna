@@ -1,0 +1,5 @@
+Contact: mailto:chandan.galani@privatevault.ai
+Preferred-Languages: en
+Canonical: https://github.com/LOLA0786/privatevault-agent-dna/blob/master/.well-known/security.txt
+Policy: https://github.com/LOLA0786/privatevault-agent-dna/blob/master/SECURITY.md
+Expires: 2027-08-09T00:00:00.000Z

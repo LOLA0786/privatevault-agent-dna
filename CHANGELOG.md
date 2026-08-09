@@ -6,6 +6,19 @@ and a named test that runs in CI.
 ## Unreleased
 
 ### Added
+- **Multi-agent on the live decide path**: definitional dual-control +
+  structural approval CABI attached by default (`PV_CROSS_AGENT=1`),
+  escalation-only on HTTP `POST /v1/decide` and connector middleware when
+  `execution_id` is declared; MCP forwards `_pv_execution_id`;
+  `discover_loops` gates `POST /v1/authorize` when `security_events` are
+  supplied (`tests/test_api_cross_agent.py`, `tests/test_dual_control.py`).
+- **Self-hosted platform ops profile**: `GET /ready` store readiness,
+  Prometheus decide-path metrics (`pv_decisions_total`, `pv_blocks_total`,
+  `pv_decide_latency_seconds`, `pv_ready`), `GET /v1/ops/summary`,
+  `docker-compose.platform.yml` (API + operator console + Prometheus),
+  `tools/platform_demo.py`, `tools/init_platform_keys.py`, and
+  `.well-known/security.txt`. Single-tenant self-hosted — does not claim
+  SOC 2 / ISO / multi-tenant SaaS (`tests/test_platform_ops.py`).
 - **PrivateVault Discovery Loop v1**: verified sealed history -> evidence-linked
   policy mining -> additive history and adversarial replay -> deterministic
   evaluation and structural probes -> ranked, human-reviewed PR proposals.

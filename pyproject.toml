@@ -26,6 +26,7 @@ dependencies = [
     "pynacl>=1.5",
     "PyYAML>=6.0",
     "mcp>=1.28,<2",
+    "prometheus-client>=0.20",
 ]
 
 [project.optional-dependencies]
@@ -58,9 +59,26 @@ include = ["agent_dna*", "api*"]
 exclude = ["tests*", "examples*", "docs*"]
 
 [tool.pytest.ini_options]
+minversion = "8.0"
 testpaths = ["tests"]
 pythonpath = ["."]
-addopts = "-v --tb=short --strict-markers"
+addopts = [
+    "-ra",
+    "--tb=short",
+    "--strict-markers",
+    "--strict-config",
+    "--import-mode=importlib",
+]
+xfail_strict = true
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+filterwarnings = [
+    # Keep the suite green while still surfacing unexpected warnings in -ra.
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated:DeprecationWarning",
+    "ignore:GitBundleAdapter is EXPERIMENTAL:DeprecationWarning",
+    "ignore:GrantAuthorizationPolicy is deprecated:DeprecationWarning",
+    "ignore:This process .* is multi-threaded, use of fork\\(\\):DeprecationWarning",
+]
 
 [tool.ruff]
 line-length = 88

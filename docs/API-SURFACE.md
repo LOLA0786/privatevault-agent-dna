@@ -14,6 +14,18 @@ Companion documents:
 
 ---
 
+## Platform ops
+
+| Endpoint | Auth | Purpose |
+|---|---|---|
+| `GET /health` | open | Liveness |
+| `GET /ready` | open | Store readiness (orchestration gate) |
+| `GET /metrics` | open | Prometheus text exposition |
+| `GET /v1/ops/summary` | audit or full | JSON verdict counters for the operator console |
+
+Self-hosted compose profile: `docker-compose.platform.yml`. In-process
+proof: `python tools/platform_demo.py`.
+
 ## Authentication
 
 All endpoints require an API key in the `X-API-Key` header.

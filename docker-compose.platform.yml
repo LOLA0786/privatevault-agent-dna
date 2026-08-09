@@ -1,0 +1,56 @@
+# Self-hosted PrivateVault platform stack (single-tenant).
+# Auth is ON. Does not claim SOC 2 / ISO / multi-tenant SaaS.
+#
+#   python tools/init_platform_keys.py --out deploy/platform/keys.json
+#   export PV_API_KEYS_FILE=$PWD/deploy/platform/keys.json
+#   docker compose -f docker-compose.platform.yml up --build --wait
+#   python tools/platform_demo.py   # in-process proof without Docker
+
+services:
+  privatevault:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - pv_platform_data:/data
+      - ${PV_API_KEYS_FILE}:/run/secrets/pv_api_keys.json:ro
+    environment:
+      PV_ALLOW_NO_AUTH: "0"
+      PV_API_KEYS_FILE: /run/secrets/pv_api_keys.json
+      PV_DB_PATH: /data/privatevault.db
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready')",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 8s
+
+  console:
+    build:
+      context: .
+      dockerfile: deploy/platform/Dockerfile.dashboard
+    ports:
+      - "8080:80"
+    depends_on:
+      privatevault:
+        condition: service_healthy
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    volumes:
+      - ./deploy/platform/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      privatevault:
+        condition: service_healthy
+
+volumes:
+  pv_platform_data:

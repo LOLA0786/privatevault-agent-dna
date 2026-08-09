@@ -26,8 +26,11 @@ def test_default_runtime_attaches_evidence_gated_stack(tmp_path):
         "circuit_breaker",
         "drift",
         "persistence",
+        "cross_agent",
     ):
         assert comp[level]["status"] == "attached", level
+    assert comp["loop_discovery"]["status"] == "authorize_gated"
+    assert rt.cross_agent is not None
     # config-gated levels are honestly not_configured, never silently on
     assert comp["policy"]["status"] == "not_configured"
     assert comp["authorization"]["status"] == "not_configured"
