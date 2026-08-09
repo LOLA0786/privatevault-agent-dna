@@ -31,6 +31,7 @@ from ..decision import Decision, DecisionResult
 from ..multi_agent import InteractionEvent
 from ..multi_agent.base import Verdict as CabiVerdict
 from ..multi_agent.dual_control import is_approve_intent, is_initiate_intent
+from ..multi_agent.invariant_engine import EngineVerdict
 from ..multi_agent.runtime_validator import RuntimeValidator, definitional_engine
 
 
@@ -93,7 +94,7 @@ class CrossAgentEnforcer:
 
     def observe(
         self, execution_id: str, agent_id: str, capability: str
-    ) -> object | None:
+    ) -> EngineVerdict | None:
         """Append this call's interaction event to its execution
         window and validate the window. Returns the EngineVerdict
         (never raises into the caller's decision path — the

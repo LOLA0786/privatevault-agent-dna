@@ -11,7 +11,7 @@ from .base import Invariant, InvariantResult
 from .interaction_graph import InteractionGraph
 
 
-def is_initiate_intent(intent: str) -> bool:
+def is_initiate_intent(intent: str | None) -> bool:
     text = (intent or "").lower()
     return (
         ".initiate" in text
@@ -21,7 +21,7 @@ def is_initiate_intent(intent: str) -> bool:
     )
 
 
-def is_approve_intent(intent: str, *, approval_flag: bool = False) -> bool:
+def is_approve_intent(intent: str | None, *, approval_flag: bool = False) -> bool:
     if approval_flag:
         return True
     text = (intent or "").lower()
