@@ -5,6 +5,19 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Security
+- **F-01 authorize binding**: `POST /v1/authorize` requires
+  `decision_id` and/or `record_hash`, loads the sealed decision, refuses
+  unless ALLOW, and recomputes action/arguments/receipt digests against
+  the record. Distinct reason codes; no disable flag
+  (`tests/test_authorize_binding.py`).
+- **F-02 consume ledger**: durable SQLite
+  `execution_authorization_consume` table; successful
+  `verify_execution_authorization(..., consume_ledger=...)` claims the
+  id atomically (`BEGIN IMMEDIATE` + UNIQUE). Caller
+  `already_consumed` may only tighten. Restart-safe
+  (`tests/test_consume_ledger.py`).
+
 ### Added
 - **Multi-agent on the live decide path**: definitional dual-control +
   structural approval CABI attached by default (`PV_CROSS_AGENT=1`),
