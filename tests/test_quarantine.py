@@ -25,6 +25,11 @@ QUARANTINED = [
     # agent_dna/connector/adapters/mcp.py over ConnectorMiddleware.
     "agent_dna.mcp_server",
     "agent_dna.mcp_gateway",
+    # experimental/ structural probes: deterministic and tested, but not
+    # gating and without an independent verifier. discovery.py declares them
+    # QUARANTINED in report text; this pins it in code.
+    "agent_dna.hodge",
+    "agent_dna.authority_reachability_v01",
 ]
 
 
