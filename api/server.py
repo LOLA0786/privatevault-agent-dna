@@ -45,6 +45,11 @@ from agent_dna.authorize_binding import (
     bind_authorize_to_sealed_allow,
 )
 from agent_dna.connector.cross_agent import escalate_with_cross_agent
+from agent_dna.control_posture import (
+    AUTHORIZE_LOOP_EVENTS_REQUIRED,
+    attach_control_posture,
+    authorization_mode_of,
+)
 from agent_dna.decision import Decision
 from agent_dna.execution_v01 import EXECUTION_AUTHORIZATION_SPEC as _PV_EA_SPEC
 from agent_dna.execution_v01 import sign_execution_authorization as _pv_sign_ea
@@ -299,6 +304,26 @@ def decide(req: DecideRequest, principal: FullPrincipal):
         result=result,
     )
     observe_decide_latency(_time.perf_counter() - started)
+
+    enforcer = state.get("cross_agent")
+    require_eid = bool(
+        enforcer is not None and getattr(enforcer, "require_execution_id", False)
+    )
+    engine = state.get("engine")
+    authorizer = getattr(engine, "authorizer", None)
+    runtime = state.get("runtime")
+    attach_control_posture(
+        result,
+        {
+            "authorization_mode": authorization_mode_of(authorizer),
+            "cross_agent_attached": enforcer is not None,
+            "cross_agent_require_execution_id": require_eid,
+            "cross_agent_correlated": bool(execution_id) and enforcer is not None,
+            "loop_events_required": bool(
+                getattr(runtime, "loop_events_required", False)
+            ),
+        },
+    )
     record = state["recorder"].record(action, result)
 
     return JSONResponse(
@@ -783,9 +808,24 @@ def authorize(req: AuthorizeRequest, principal: FullPrincipal):
             detail="organisation does not match the pinned trust bundle",
         )
 
+    runtime = state.get("runtime")
+    loop_required = bool(getattr(runtime, "loop_events_required", False))
     loop_report: dict[str, Any] | None = None
+    loop_ran = False
     if req.security_events is not None:
         loop_report = _authorize_loop_gate(req.security_events)
+        loop_ran = True
+    elif loop_required:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "reason_code": AUTHORIZE_LOOP_EVENTS_REQUIRED,
+                "detail": (
+                    "security_events required when PV_LOOP_EVENTS_REQUIRED "
+                    "is enabled; omit is not a skip"
+                ),
+            },
+        )
 
     ttl = int(os.environ.get("PV_AUTHORIZATION_TTL_SECONDS", "60"))
     now = _datetime.now(UTC)
@@ -830,12 +870,19 @@ def authorize(req: AuthorizeRequest, principal: FullPrincipal):
         "authorization": authorization,
         "trust_bundle": trust_bundle,
         "at_time": _pv_rfc3339(now),
+        # Operator posture: whether loop discovery ran (EA schema is closed;
+        # this sits beside the permit for adapter retention).
+        "loop_discovery": {
+            "required": loop_required,
+            "ran": loop_ran,
+        },
     }
     if loop_report is not None:
-        # Report retained beside the mint; adapters must persist both.
-        body["loop_discovery"] = {
-            "decision": loop_report["decision"],
-            "report_id": loop_report["report_id"],
-            "input_digest": loop_report["input_digest"],
-        }
+        body["loop_discovery"].update(
+            {
+                "decision": loop_report["decision"],
+                "report_id": loop_report["report_id"],
+                "input_digest": loop_report["input_digest"],
+            }
+        )
     return body

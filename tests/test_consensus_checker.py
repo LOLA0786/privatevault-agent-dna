@@ -7,6 +7,7 @@ from agent_dna.advisory import AdvisorySignal, Severity
 from agent_dna.consensus import ConsensusChecker
 from agent_dna.consensus.signing import register_key, sign_message
 from agent_dna.decision import Decision, DecisionEngine
+from agent_dna.open_authorizer import OpenAuthorizer
 from agent_dna.trace import AgentAction
 
 
@@ -22,7 +23,11 @@ class StubScorer:
 
 
 def _engine():
-    return DecisionEngine(scorer=StubScorer(), consensus=ConsensusChecker())
+    return DecisionEngine(
+        scorer=StubScorer(),
+        consensus=ConsensusChecker(),
+        authorizer=OpenAuthorizer(),
+    )
 
 
 def _act():
@@ -119,7 +124,10 @@ def test_forged_vote_does_not_inflate_quorum():
 
 
 def test_no_checker_attached_means_no_consensus_level():
-    engine = DecisionEngine(scorer=StubScorer())  # consensus=None
+    engine = DecisionEngine(
+        scorer=StubScorer(),
+        authorizer=OpenAuthorizer(),
+    )  # consensus=None
     result = engine.decide(
         _act(),
         evidence={

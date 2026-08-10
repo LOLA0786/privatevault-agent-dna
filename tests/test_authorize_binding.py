@@ -80,10 +80,35 @@ def authorize_env(tmp_path, monkeypatch):
     bundle_path.write_text(json.dumps(bundle), encoding="utf-8")
     db_path = tmp_path / "pv.db"
 
+    grants_path = tmp_path / "grants.json"
+    grants_path.write_text(
+        json.dumps(
+            [
+                {
+                    "agent_id": AGENT,
+                    "capability": "crm.read_contact",
+                    "granted_by": "test",
+                },
+                {
+                    "agent_id": AGENT,
+                    "capability": "crm.update_contact",
+                    "granted_by": "test",
+                },
+                {
+                    "agent_id": AGENT,
+                    "capability": "payments.drain_account",
+                    "granted_by": "test",
+                },
+            ]
+        ),
+        encoding="utf-8",
+    )
+
     monkeypatch.setenv("PV_DB_PATH", str(db_path))
     monkeypatch.setenv("PV_API_KEYS_FILE", str(keys_path))
     monkeypatch.setenv("PV_EXECUTION_SIGNER_KEY", str(key_path))
     monkeypatch.setenv("PV_TRUST_BUNDLE", str(bundle_path))
+    monkeypatch.setenv("PV_GRANTS_FILE", str(grants_path))
     monkeypatch.delenv("PV_ALLOW_NO_AUTH", raising=False)
 
     import api.server as server

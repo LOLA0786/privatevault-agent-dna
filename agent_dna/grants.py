@@ -40,8 +40,12 @@ class GrantRegistry:
     as the allowlist authorizer (drop-in), plus an explain() that names
     the failing condition and the grant involved."""
 
+    # Overwritten to "grants_file" when loaded from PV_GRANTS_FILE.
+    authorization_mode: str = "deny_all"
+
     def __init__(self) -> None:
         self._grants: dict[str, CapabilityGrant] = {}
+        self.authorization_mode = "deny_all"
 
     # ---- lifecycle -----------------------------------------------------
 
@@ -63,6 +67,10 @@ class GrantRegistry:
             budget=budget,
         )
         self._grants[g.grant_id] = g
+        if self.authorization_mode == "deny_all" and self._grants:
+            # Populated registries used in tests/demos are grant-backed,
+            # not the production empty deny-all default.
+            self.authorization_mode = "grants"
         return g
 
     def revoke(self, grant_id: str, *, revoked_by: str) -> CapabilityGrant:

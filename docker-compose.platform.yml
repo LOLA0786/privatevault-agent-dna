@@ -18,6 +18,10 @@ services:
       PV_ALLOW_NO_AUTH: "0"
       PV_API_KEYS_FILE: /run/secrets/pv_api_keys.json
       PV_DB_PATH: /data/privatevault.db
+      # Operator-on fail-closed defaults for the platform profile.
+      # Callers cannot disable these via request fields.
+      PV_CROSS_AGENT_REQUIRE_EXECUTION_ID: "1"
+      PV_LOOP_EVENTS_REQUIRED: "1"
     restart: unless-stopped
     healthcheck:
       test:

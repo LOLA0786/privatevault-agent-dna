@@ -27,8 +27,22 @@ def auth_client(tmp_path, monkeypatch):
         ),
         encoding="utf-8",
     )
+    grants_path = tmp_path / "grants.json"
+    grants_path.write_text(
+        json.dumps(
+            [
+                {
+                    "agent_id": "payments-agent",
+                    "capability": "crm.read_contact",
+                    "granted_by": "test",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
     monkeypatch.setenv("PV_DB_PATH", str(tmp_path / "pv.db"))
     monkeypatch.setenv("PV_API_KEYS_FILE", str(keys_path))
+    monkeypatch.setenv("PV_GRANTS_FILE", str(grants_path))
     monkeypatch.delenv("PV_ALLOW_NO_AUTH", raising=False)
     import api.server as server
 

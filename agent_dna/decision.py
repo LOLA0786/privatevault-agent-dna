@@ -356,41 +356,50 @@ class DecisionEngine:
                 prev_capability,
             )
 
-        authorized = True
+        authorized = False
         auth_reason = None
         grant_id = None
 
-        if self.authorizer is not None:
-            if hasattr(self.authorizer, "explain"):
-                raw_amount = (action.arguments or {}).get("amount")
-                amount = None
-                malformed = False
-                if raw_amount is not None:
-                    try:
-                        amount = float(raw_amount)
-                    except (TypeError, ValueError):
-                        # Audit set 4: a garbage amount used to coerce
-                        # to None, silently SKIPPING the budget check
-                        # on a budgeted grant -- malformed input must
-                        # never widen authorization.
-                        malformed = True
-                if malformed:
-                    authorized, auth_reason, grant_id = (
-                        False,
-                        f"malformed amount {raw_amount!r}: budget cannot "
-                        "be evaluated (fail-closed)",
-                        None,
-                    )
-                else:
-                    authorized, auth_reason, grant_id = self.authorizer.explain(
-                        action.agent_id,
-                        action.capability,
-                        amount=amount,
-                    )
-            else:
-                authorized = self.authorizer.is_authorized(
-                    action.agent_id, action.capability
+        if self.authorizer is None:
+            # Absence is a configuration error, never an implicit allow.
+            from agent_dna.control_posture import AUTHORIZATION_NOT_CONFIGURED
+
+            authorized = False
+            auth_reason = (
+                f"{AUTHORIZATION_NOT_CONFIGURED}: authorization layer "
+                "not configured (fail-closed); attach GrantRegistry or "
+                "OpenAuthorizer"
+            )
+        elif hasattr(self.authorizer, "explain"):
+            raw_amount = (action.arguments or {}).get("amount")
+            amount = None
+            malformed = False
+            if raw_amount is not None:
+                try:
+                    amount = float(raw_amount)
+                except (TypeError, ValueError):
+                    # Audit set 4: a garbage amount used to coerce
+                    # to None, silently SKIPPING the budget check
+                    # on a budgeted grant -- malformed input must
+                    # never widen authorization.
+                    malformed = True
+            if malformed:
+                authorized, auth_reason, grant_id = (
+                    False,
+                    f"malformed amount {raw_amount!r}: budget cannot "
+                    "be evaluated (fail-closed)",
+                    None,
                 )
+            else:
+                authorized, auth_reason, grant_id = self.authorizer.explain(
+                    action.agent_id,
+                    action.capability,
+                    amount=amount,
+                )
+        else:
+            authorized = self.authorizer.is_authorized(
+                action.agent_id, action.capability
+            )
 
         merged_evidence = dict(action.evidence or {})
         if evidence is not None:

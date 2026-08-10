@@ -155,7 +155,13 @@ def test_a_composed_engine_reports_its_levels_as_active(tmp_path) -> None:
         def check(self, *_a, **_k):
             return None
 
-    engine = DecisionEngine(scorer=None, invariants=_Invariants())
+    from agent_dna.open_authorizer import OpenAuthorizer
+
+    engine = DecisionEngine(
+        scorer=None,
+        invariants=_Invariants(),
+        authorizer=OpenAuthorizer(),
+    )
     report = replay(ingest(_log(tmp_path, _routine("a1", 40))), engine=engine)
 
     assert "behavioral invariant" in report.levels_active

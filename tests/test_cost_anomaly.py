@@ -7,6 +7,7 @@ import time
 from agent_dna.advisory import AdvisorySignal, Severity
 from agent_dna.decision import Decision, DecisionEngine
 from agent_dna.economics import CostAnomalyChecker
+from agent_dna.open_authorizer import OpenAuthorizer
 from agent_dna.trace import AgentAction
 
 
@@ -22,7 +23,11 @@ class StubScorer:
 
 
 def _engine():
-    return DecisionEngine(scorer=StubScorer(), economics=CostAnomalyChecker())
+    return DecisionEngine(
+        scorer=StubScorer(),
+        economics=CostAnomalyChecker(),
+        authorizer=OpenAuthorizer(),
+    )
 
 
 def _act():
@@ -115,7 +120,10 @@ def test_engine_falls_through_to_baseline_without_economics_evidence():
 
 
 def test_no_economics_checker_means_no_economics_level():
-    engine = DecisionEngine(scorer=StubScorer())  # economics=None
+    engine = DecisionEngine(
+        scorer=StubScorer(),
+        authorizer=OpenAuthorizer(),
+    )  # economics=None
     result = engine.decide(
         _act(),
         evidence={

@@ -59,7 +59,9 @@ class LeakyAdapter(EvidenceAdapter):
 
 
 def _engine():
-    return DecisionEngine(scorer=StubScorer())
+    from agent_dna.open_authorizer import OpenAuthorizer
+
+    return DecisionEngine(scorer=StubScorer(), authorizer=OpenAuthorizer())
 
 
 def _rows(n=5):

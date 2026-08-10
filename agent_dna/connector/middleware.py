@@ -112,6 +112,28 @@ class ConnectorMiddleware:
         with lock:
             result = monitor.process(action, evidence=request.evidence)
             result = self._cross_agent_escalate(request, agent_id, result)
+            from ..control_posture import (
+                attach_control_posture,
+                authorization_mode_of,
+            )
+
+            execution_id = (request.context or {}).get("execution_id")
+            enforcer = self.cross_agent
+            attach_control_posture(
+                result,
+                {
+                    "authorization_mode": authorization_mode_of(
+                        getattr(self.engine, "authorizer", None)
+                    ),
+                    "cross_agent_attached": enforcer is not None,
+                    "cross_agent_require_execution_id": bool(
+                        enforcer is not None
+                        and getattr(enforcer, "require_execution_id", False)
+                    ),
+                    "cross_agent_correlated": bool(execution_id)
+                    and enforcer is not None,
+                },
+            )
             rec = self.recorder.record(action, result)
             if self.shadow is not None:
                 try:
