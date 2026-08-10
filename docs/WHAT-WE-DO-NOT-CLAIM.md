@@ -351,3 +351,44 @@ codebase.
 
 **Learned layer.** The drift scorer remains trained on synthetic traces. It is
 advisory and never blocking until real execution traces are available.
+
+## Revocation is not in the offline evidence
+
+Revocation is enforced at runtime (`agent_dna/grants.py`): a revoked grant
+blocks with a named reason, and revocation history reconstructs from decision
+records. It is **not** represented in `pv-authority-receipt/0.1`. An offline
+verifier can confirm signatures, chain linkage, delegation depth, capability
+containment and validity windows at decision time; it cannot confirm that no
+grant in the chain had been revoked. Revocation status is therefore attested
+by the runtime, not independently verifiable from the receipt. Planned for
+receipt v0.2 as a decision-time-pinned status digest.
+
+## Signing defends against alteration, not against a compromised signer
+
+Signed records detect post-signing alteration and independent tampering. They
+do **not** defend against privileged manipulation performed by the operator at
+signing time. An operator who signs a false record produces a record that
+verifies correctly. Defending against this requires HSM- or TEE-backed signing
+with attestation, which is roadmap, not shipped. "Verifiable without trusting
+the operator" is therefore too strong: the correct claim is "verifiable
+without trusting the operator's later handling of the evidence."
+
+## Role-based influence control is not on the /v1/decide path
+
+`definitional_engine()` — the CABI engine attached to `/v1/decide` — runs
+dual-control and structural approval contradictions only. `AuthorityInvariant`
+(role-level influence allowlisting) is a learned family and is not attached
+there, because an untrained allowlist would block ordinary traffic. It is
+enforced on the library path via `default_engine()`, where an unresolved
+source role is a hard breach, an unresolved target role escalates for review,
+and an untrained role model abstains. Deployments requiring role-based
+influence control on the HTTP decide path must configure it explicitly.
+
+## One ALLOW can mint more than one execution permit
+
+`/v1/authorize` binds mint to a sealed ALLOW decision and refuses without one.
+Consumption is enforced per `execution_authorization_id` via a durable ledger,
+so no permit verifies twice. There is currently no per-decision mint limit: a
+single ALLOW can produce multiple distinct single-use permits. Deployments that
+require one decision to authorize exactly one execution must enforce that
+above this layer.
