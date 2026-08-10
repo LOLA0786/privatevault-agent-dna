@@ -9,7 +9,7 @@ updates:
       # 2.x moves mcp.server.fastmcp, breaking agent_dna/mcp_public_verifier.py
       # and the MCP adapter. Unpin when ported. See issue #45.
       - dependency-name: "mcp"
-        versions: ["2.x"]
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: npm
     directory: /dashboard
     schedule:
@@ -25,7 +25,7 @@ updates:
       # satisfies its CryptoRng bound at src/signer.rs:69 (E0277). Unpin when
       # key generation moves to dalek's re-exported RNG. 2.2.0 has no advisory.
       - dependency-name: "ed25519-dalek"
-        versions: ["3.x"]
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
