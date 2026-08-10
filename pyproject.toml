@@ -25,7 +25,7 @@ dependencies = [
     "jsonschema>=4.21",
     "pynacl>=1.5",
     "PyYAML>=6.0",
-    "mcp>=1.28,<3",
+    "mcp>=1.28,<2",
     "prometheus-client>=0.20",
 ]
 
