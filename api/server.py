@@ -245,10 +245,12 @@ class DecideRequest(BaseModel):
     request_id: str | None = None
     # Convenience alias; also accepted via context.execution_id
     execution_id: str | None = None
-    # Required for mintable DRP 0.2 records. Digests are derived server-side;
-    # callers must not supply action_digest / dispatch_context_digest.
-    execution_action: dict[str, Any]
-    dispatch_context: dict[str, Any]
+    # Supply both for a mintable DRP 0.2 record. Omit both for an
+    # audit-only DRP 0.1 record, which cannot mint a permit. Digests are
+    # derived server-side; callers must not supply action_digest or
+    # dispatch_context_digest.
+    execution_action: dict[str, Any] | None = None
+    dispatch_context: dict[str, Any] | None = None
 
 
 class OutcomeRequest(BaseModel):
@@ -284,16 +286,35 @@ def _owned_decision(principal: Principal, decision_id: str):
 
 def _validate_decide_binding(
     req: DecideRequest,
-) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Derive-only binding inputs for DRP 0.2. Refuse caller digests."""
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    """Derive-only binding inputs for DRP 0.2. Refuse caller digests.
+
+    Both absent -> DRP 0.1: the decision is recorded and sealed, but the
+    record is audit-only and cannot mint a permit. Exactly one present ->
+    422: partial binding is refused, matching DecisionRecorder.record.
+    """
     from agent_dna.action_v01 import validate_execution_action
     from agent_dna.authority_v01 import AuthorityFormatError
     from agent_dna.dispatch_context_v01 import validate_dispatch_context
 
-    if (
-        "action_digest" in req.execution_action
-        or "dispatch_context_digest" in req.dispatch_context
-    ):
+    has_action = req.execution_action is not None
+    has_dispatch = req.dispatch_context is not None
+    if not has_action and not has_dispatch:
+        # Audit-only decision. Unbound records are non-mintable by
+        # construction; authorize refuses drp/0.1.
+        return None, None
+    if has_action ^ has_dispatch:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "execution_action and dispatch_context must both be provided "
+                "for a mintable decision, or both omitted for audit-only"
+            ),
+        )
+
+    raw_action = req.execution_action or {}
+    raw_dispatch = req.dispatch_context or {}
+    if "action_digest" in raw_action or "dispatch_context_digest" in raw_dispatch:
         raise HTTPException(
             status_code=422,
             detail=(
@@ -302,8 +323,8 @@ def _validate_decide_binding(
             ),
         )
     try:
-        execution_action = dict(validate_execution_action(req.execution_action))
-        dispatch_context = validate_dispatch_context(req.dispatch_context)
+        execution_action = dict(validate_execution_action(raw_action))
+        dispatch_context = validate_dispatch_context(raw_dispatch)
     except (AuthorityFormatError, TypeError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -373,7 +394,7 @@ def decide(req: DecideRequest, principal: FullPrincipal):
             ),
         },
     )
-    
+
     record = state["recorder"].record(
         action,
         result,

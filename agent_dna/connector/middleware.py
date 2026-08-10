@@ -179,7 +179,7 @@ class ConnectorMiddleware:
                     and enforcer is not None,
                 },
             )
-            
+
             rec = self.recorder.record(
                 action,
                 result,

@@ -246,6 +246,23 @@ def test_f04_authorize_without_events_refused_when_required(production_api):
             "timestamp": time.time(),
             "arguments": {"note": "loop"},
             "execution_id": "exec-loop-1",
+            # Mintable DRP 0.2 binding: without it authorize refuses on
+            # protocol version before the loop gate is reached, and this
+            # test is about the loop gate.
+            "execution_action": {
+                "subject_principal": "maker-1@org-demo",
+                "subject_key_id": "maker-1",
+                "action": "crm.read_contact",
+                "resource": "crm:contact",
+                "parameters": {"note": "loop"},
+            },
+            "dispatch_context": {
+                "adapter": "https",
+                "transport": "https",
+                "operation": "GET /v1/contacts",
+                "destination": "crm.example",
+                "wire_content_type": "application/json",
+            },
         },
     )
     # crm.read_contact with grant may still be allow/approval from drift

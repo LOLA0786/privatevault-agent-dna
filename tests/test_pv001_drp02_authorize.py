@@ -81,6 +81,15 @@ def env(tmp_path, monkeypatch):
     importlib.reload(server)
     server._pv_signer_cache.clear()
     with TestClient(server.app) as client:
+        # Authorization defaults to deny-all (F-05). These tests exercise
+        # the DRP 0.2 binding, not the grant layer, so grant the capability
+        # explicitly rather than relying on an unconfigured authorizer.
+        from agent_dna.grants import GrantRegistry
+
+        reg = GrantRegistry()
+        reg.authorization_mode = "grants_file"
+        reg.grant(agent_id=AGENT, capability=CAP, granted_by="test-fixture")
+        server.state["engine"].authorizer = reg
         yield {"client": client, "key": op["key"], "server": server}
 
 
@@ -319,7 +328,15 @@ def test_drp01_record_cannot_mint(env):
         timestamp=time.time(),
         arguments=dict(ARGS),
     )
-    result = DecisionEngine(scorer=_S()).decide(action)
+    # An unconfigured authorizer fails closed (F-05), so supply one
+    # explicitly. This test is about protocol version refusal at mint,
+    # not the grant layer.
+    from agent_dna.grants import GrantRegistry
+
+    reg = GrantRegistry()
+    reg.authorization_mode = "grants_file"
+    reg.grant(agent_id=AGENT, capability=CAP, granted_by="test-fixture")
+    result = DecisionEngine(scorer=_S(), authorizer=reg).decide(action)
     assert result.decision == Decision.ALLOW
     rec = build_record(action, result)
     assert rec.protocol_version == DRP_V01
