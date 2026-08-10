@@ -245,6 +245,12 @@ class DecideRequest(BaseModel):
     request_id: str | None = None
     # Convenience alias; also accepted via context.execution_id
     execution_id: str | None = None
+    # Supply both for a mintable DRP 0.2 record. Omit both for an
+    # audit-only DRP 0.1 record, which cannot mint a permit. Digests are
+    # derived server-side; callers must not supply action_digest or
+    # dispatch_context_digest.
+    execution_action: dict[str, Any] | None = None
+    dispatch_context: dict[str, Any] | None = None
 
 
 class OutcomeRequest(BaseModel):
@@ -278,9 +284,73 @@ def _owned_decision(principal: Principal, decision_id: str):
     return record
 
 
+def _validate_decide_binding(
+    req: DecideRequest,
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    """Derive-only binding inputs for DRP 0.2. Refuse caller digests.
+
+    Both absent -> DRP 0.1: the decision is recorded and sealed, but the
+    record is audit-only and cannot mint a permit. Exactly one present ->
+    422: partial binding is refused, matching DecisionRecorder.record.
+    """
+    from agent_dna.action_v01 import validate_execution_action
+    from agent_dna.authority_v01 import AuthorityFormatError
+    from agent_dna.dispatch_context_v01 import validate_dispatch_context
+
+    has_action = req.execution_action is not None
+    has_dispatch = req.dispatch_context is not None
+    if not has_action and not has_dispatch:
+        # Audit-only decision. Unbound records are non-mintable by
+        # construction; authorize refuses drp/0.1.
+        return None, None
+    if has_action ^ has_dispatch:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "execution_action and dispatch_context must both be provided "
+                "for a mintable decision, or both omitted for audit-only"
+            ),
+        )
+
+    raw_action = req.execution_action or {}
+    raw_dispatch = req.dispatch_context or {}
+    if "action_digest" in raw_action or "dispatch_context_digest" in raw_dispatch:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "caller-authored digests are refused; provide execution_action "
+                "and dispatch_context fields only"
+            ),
+        )
+    try:
+        execution_action = dict(validate_execution_action(raw_action))
+        dispatch_context = validate_dispatch_context(raw_dispatch)
+    except (AuthorityFormatError, TypeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    if execution_action["action"] != req.capability:
+        raise HTTPException(
+            status_code=422,
+            detail="execution_action.action must match capability",
+        )
+    if execution_action["subject_key_id"] != req.agent_id:
+        raise HTTPException(
+            status_code=422,
+            detail="execution_action.subject_key_id must match agent_id",
+        )
+    # Parameters / arguments must agree so arguments_digest matches EA action.
+    if dict(execution_action["parameters"]) != dict(req.arguments or {}):
+        raise HTTPException(
+            status_code=422,
+            detail="execution_action.parameters must match arguments",
+        )
+    return execution_action, dispatch_context
+
+
 @app.post("/v1/decide")
 def decide(req: DecideRequest, principal: FullPrincipal):
     _enforce_identity(principal, req.agent_id)
+    execution_action, dispatch_context = _validate_decide_binding(req)
     context = dict(req.context or {})
     execution_id = req.execution_id or context.get("execution_id")
     if execution_id:
@@ -324,7 +394,13 @@ def decide(req: DecideRequest, principal: FullPrincipal):
             ),
         },
     )
-    record = state["recorder"].record(action, result)
+
+    record = state["recorder"].record(
+        action,
+        result,
+        execution_action=execution_action,
+        dispatch_context=dispatch_context,
+    )
 
     return JSONResponse(
         status_code=STATUS_MAP[result.decision],
@@ -755,6 +831,7 @@ def _require_sealed_allow_for_authorize(req: AuthorizeRequest) -> dict[str, Any]
         agent_id=req.agent_id,
         decision_receipt_digest=req.decision_receipt_digest,
         action=req.action,
+        dispatch=req.dispatch,
         record_hash=req.record_hash,
     )
     if bind_reason is not None:

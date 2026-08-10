@@ -3,11 +3,12 @@ persists; audit export passes the independent verifier."""
 
 import subprocess
 import sys
-import time
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+
+from tests.decide_binding import decide_json
 
 VERIFIER = Path(__file__).resolve().parent.parent / "tools" / "verify_records.py"
 
@@ -28,12 +29,7 @@ def client(tmp_path, monkeypatch):
 def _decide(client, capability, agent="api-agent-01"):
     return client.post(
         "/v1/decide",
-        json={
-            "agent_id": agent,
-            "capability": capability,
-            "timestamp": time.time(),
-            "arguments": {"note": "test"},
-        },
+        json=decide_json(agent, capability, arguments={"note": "test"}),
     )
 
 

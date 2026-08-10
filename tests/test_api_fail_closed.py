@@ -2,9 +2,9 @@
 through the real HTTP path, must return 403 with an auditable fault
 record — never a 500, never a silent 200."""
 
-import time
-
 from fastapi.testclient import TestClient
+
+from tests.decide_binding import decide_json
 
 
 def _client(tmp_path, monkeypatch):
@@ -33,11 +33,7 @@ def test_faulting_scorer_returns_403_not_500(tmp_path, monkeypatch):
 
         r = c.post(
             "/v1/decide",
-            json={
-                "agent_id": "fault-agent",
-                "capability": "crm.read_contact",
-                "timestamp": time.time(),
-            },
+            json=decide_json("fault-agent", "crm.read_contact"),
         )
 
         assert r.status_code == 403, (
@@ -70,12 +66,11 @@ def test_faulting_uaal_checker_returns_403(tmp_path, monkeypatch):
 
         r = c.post(
             "/v1/decide",
-            json={
-                "agent_id": "fault-agent-2",
-                "capability": "payment.pay_invoice",
-                "timestamp": time.time(),
-                "evidence": {"enterprise_state": {}},
-            },
+            json=decide_json(
+                "fault-agent-2",
+                "payment.pay_invoice",
+                evidence={"enterprise_state": {}},
+            ),
         )
 
         assert r.status_code == 403

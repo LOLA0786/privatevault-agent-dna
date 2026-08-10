@@ -56,7 +56,7 @@ import sys
 GENESIS_HASH = "0" * 64
 HEX64 = re.compile(r"[0-9a-f]{64}\Z")
 
-DECISION_FIELDS = frozenset(
+DECISION_FIELDS_COMMON = frozenset(
     {
         "kind",
         "protocol_version",
@@ -85,6 +85,16 @@ DECISION_FIELDS = frozenset(
         "record_hash",
     }
 )
+# drp/0.1: audit-only; digests must be absent.
+DECISION_FIELDS_V01 = DECISION_FIELDS_COMMON
+# drp/0.2: mintable; both digests required (derive-only at seal time).
+DECISION_FIELDS_V02 = DECISION_FIELDS_COMMON | {
+    "action_digest",
+    "dispatch_context_digest",
+}
+# Back-compat alias for importers/tests that still name DECISION_FIELDS.
+DECISION_FIELDS = DECISION_FIELDS_V01
+SHA256_DIGEST = re.compile(r"sha256:[0-9a-f]{64}\Z")
 EXECUTION_FIELDS = frozenset(
     {
         "kind",
@@ -325,19 +335,26 @@ def verify(  # noqa: C901 - mirrors the protocol check order
                 continue
 
             pv = rec.get("protocol_version")
-            if pv != "drp/0.1":
-                failures.append(
-                    f"line {lineno}: protocol_version {pv!r} is not drp/0.1"
-                )
-
             kind = rec.get("kind", "decision")
-            expected_fields = (
-                DECISION_FIELDS
-                if kind == "decision"
-                else EXECUTION_FIELDS
-                if kind == "execution"
-                else None
-            )
+            if kind == "decision":
+                if pv == "drp/0.1":
+                    expected_fields = DECISION_FIELDS_V01
+                elif pv == "drp/0.2":
+                    expected_fields = DECISION_FIELDS_V02
+                else:
+                    failures.append(
+                        f"line {lineno}: protocol_version {pv!r} is not "
+                        "drp/0.1 or drp/0.2"
+                    )
+                    expected_fields = DECISION_FIELDS_V01
+            elif kind == "execution":
+                expected_fields = EXECUTION_FIELDS
+                if pv != "drp/0.1":
+                    failures.append(
+                        f"line {lineno}: protocol_version {pv!r} is not drp/0.1"
+                    )
+            else:
+                expected_fields = None
             if expected_fields is None:
                 failures.append(f"line {lineno}: unknown kind {kind!r}")
                 continue
@@ -349,6 +366,14 @@ def verify(  # noqa: C901 - mirrors the protocol check order
             if missing:
                 failures.append(f"line {lineno}: missing field(s) {sorted(missing)}")
                 continue
+
+            if kind == "decision" and pv == "drp/0.2":
+                for label in ("action_digest", "dispatch_context_digest"):
+                    digest = rec.get(label)
+                    if not isinstance(digest, str) or not SHA256_DIGEST.match(digest):
+                        failures.append(
+                            f"line {lineno}: {label} must be sha256:<64 hex>"
+                        )
 
             stored = rec.get("record_hash", "")
             prev = rec.get("prev_hash", "")

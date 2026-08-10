@@ -2,11 +2,11 @@
 auth-disabled mode explicit."""
 
 import json
-import time
 
 from fastapi.testclient import TestClient
 
 from agent_dna.apikeys import generate_key
+from tests.decide_binding import decide_json
 
 
 def _client(tmp_path, monkeypatch, with_keys=True):
@@ -32,11 +32,7 @@ def _decide(client, headers=None):
     return client.post(
         "/v1/decide",
         headers=headers or {},
-        json={
-            "agent_id": "auth-agent",
-            "capability": "crm.read_contact",
-            "timestamp": time.time(),
-        },
+        json=decide_json("auth-agent", "crm.read_contact"),
     )
 
 

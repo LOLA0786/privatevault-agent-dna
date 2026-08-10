@@ -138,12 +138,23 @@ def _ea_action(capability: str = "crm.read_contact", parameters: dict | None = N
     }
 
 
-def _dispatch():
+def _dispatch_context():
     return {
+        "adapter": "https",
         "transport": "https",
-        "destination": "crm.store.example",
         "operation": "GET /v1/contacts",
+        "destination": "crm.store.example",
         "wire_content_type": "application/json",
+    }
+
+
+def _dispatch():
+    ctx = _dispatch_context()
+    return {
+        "transport": ctx["transport"],
+        "destination": ctx["destination"],
+        "operation": ctx["operation"],
+        "wire_content_type": ctx["wire_content_type"],
         "wire_content_encoding": "identity",
         "tool_id": "crm.read_contact.v1",
         "tool_schema_digest": Z,
@@ -194,6 +205,8 @@ def _decide_allow(client, key: str, capability: str = "crm.read_contact"):
             "capability": capability,
             "timestamp": time.time(),
             "arguments": dict(ARGS),
+            "execution_action": _ea_action(capability),
+            "dispatch_context": _dispatch_context(),
         },
     )
     assert r.status_code == 200, r.text

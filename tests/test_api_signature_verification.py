@@ -1,11 +1,11 @@
 """The API verifier separates chain integrity from trusted signatures."""
 
 import json
-import time
 
 from fastapi.testclient import TestClient
 
 from agent_dna.signer import ReceiptSigner, generate_keypair
+from tests.decide_binding import decide_json
 
 RUNTIME_KEYS = generate_keypair()
 
@@ -39,11 +39,7 @@ def _client(tmp_path, monkeypatch, *, signed: bool):
 def _create_record(client: TestClient) -> str:
     response = client.post(
         "/v1/decide",
-        json={
-            "agent_id": "verify-agent",
-            "capability": "crm.read_contact",
-            "timestamp": time.time(),
-        },
+        json=decide_json("verify-agent", "crm.read_contact"),
     )
     assert response.status_code in {200, 202, 403}
     return response.json()["record"]["record_hash"]

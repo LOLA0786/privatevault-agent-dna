@@ -3,13 +3,13 @@
 import json
 import os
 import stat
-import time
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 from agent_dna.signer import generate_keypair
+from tests.decide_binding import decide_json
 
 
 def _client(tmp_path, monkeypatch):
@@ -32,11 +32,7 @@ def _client(tmp_path, monkeypatch):
 def _create_record(client):
     response = client.post(
         "/v1/decide",
-        json={
-            "agent_id": "audit-export-agent",
-            "capability": "storage.read",
-            "timestamp": time.time(),
-        },
+        json=decide_json("audit-export-agent", "storage.read"),
     )
     assert response.status_code in {200, 202, 403}
 

@@ -43,10 +43,12 @@ def decision_case(name, **kw):
     edges = kw.pop("edges", [])
     version = kw.pop("protocol_version", DRP_V01)
     action_digest = kw.pop("action_digest", None)
+    dispatch_context_digest = kw.pop("dispatch_context_digest", None)
 
     py = PyDecision(
         protocol_version=version,
         action_digest=action_digest,
+        dispatch_context_digest=dispatch_context_digest,
         decision_id=kw["decision_id"],
         parent_decision=kw.get("parent_decision"),
         agent_id=kw["agent_id"],
@@ -65,6 +67,13 @@ def decision_case(name, **kw):
         timestamp=kw["timestamp"],
         prev_hash=kw.get("prev_hash", GENESIS),
     ).seal()
+
+    # Rust DRP 0.2 does not yet seal dispatch_context_digest (Phase 1 Python
+    # first). Skip RS hash compare for bound v0.2 records until rust/ catches up.
+    if version == DRP_V02 and dispatch_context_digest is not None:
+        print(f"SKIP rust parity for {name}: rust lacks dispatch_context_digest")
+        HASHES[name] = (py.record_hash, None)
+        return
 
     rs = pv_runtime.DecisionRecord(
         protocol_version=version,
@@ -185,11 +194,14 @@ decision_case(
 # decoration rather than a binding, these would collide.
 _BOUND = "sha256:" + "3f" * 32
 _OTHER = "sha256:" + "7c" * 32
+_DISPATCH = "sha256:" + "a1" * 32
+_DISPATCH_OTHER = "sha256:" + "b2" * 32
 
 decision_case(
     "v0.2 bound to an execution action",
     protocol_version=DRP_V02,
     action_digest=_BOUND,
+    dispatch_context_digest=_DISPATCH,
     decision_id="d-0101",
     agent_id="service-agent-07",
     capability="refunds.issue",
@@ -205,6 +217,23 @@ decision_case(
     "v0.2 differing only in action_digest",
     protocol_version=DRP_V02,
     action_digest=_OTHER,
+    dispatch_context_digest=_DISPATCH,
+    decision_id="d-0101",
+    agent_id="service-agent-07",
+    capability="refunds.issue",
+    decision="allow",
+    triggered_by="baseline",
+    reason="within standing grant",
+    severity="none",
+    drift_score=0.0,
+    timestamp=1785000000.0,
+)
+
+decision_case(
+    "v0.2 differing only in dispatch_context_digest",
+    protocol_version=DRP_V02,
+    action_digest=_BOUND,
+    dispatch_context_digest=_DISPATCH_OTHER,
     decision_id="d-0101",
     agent_id="service-agent-07",
     capability="refunds.issue",

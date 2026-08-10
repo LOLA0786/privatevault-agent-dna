@@ -242,12 +242,12 @@ def main():  # noqa: C901 - linear executable acceptance scenario
         call(
             key,
             "payments.pay_invoice",
-            arguments={"amount": 49000.0, "target": "INV-7734"},
+            arguments={"amount": 49000, "target": "INV-7734"},
             evidence={
                 "user_request": {"canonical_target": "INV-7734"},
                 "planner": {"canonical_target": "INV-7734"},
                 "enterprise_state": {
-                    "invoice_amount": 5000.0,
+                    "invoice_amount": 5000,
                     "invoice_open": True,
                     "target_verified": True,
                     "duplicate": False,
@@ -292,7 +292,7 @@ def main():  # noqa: C901 - linear executable acceptance scenario
     breaker_api_key = breaker_key["key"]  # dedicated treasury agent, clean window
     expect(
         "wire 30,000 (novel capability -> drift escalates first)",
-        call(breaker_api_key, "payments.transfer", arguments={"amount": 30000.0}),
+        call(breaker_api_key, "payments.transfer", arguments={"amount": 30000}),
         "require_approval",
         "drift",
         "the learned layer escalates an unfamiliar payment for "
@@ -301,7 +301,7 @@ def main():  # noqa: C901 - linear executable acceptance scenario
     )
     expect(
         "wire 30,000 more (projects 60,000 > 50,000 cap)",
-        call(breaker_api_key, "payments.transfer", arguments={"amount": 30000.0}),
+        call(breaker_api_key, "payments.transfer", arguments={"amount": 30000}),
         "block",
         "circuit_breaker",
         "pre-execution cap: projected counters gate the crossing "

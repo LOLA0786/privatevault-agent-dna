@@ -9,7 +9,7 @@ update BOTH repos in lockstep and re-pin here in the same commit."""
 import hashlib
 from pathlib import Path
 
-PINNED = "632972c0cb015457e9309f3c31ed65c13cb288c752409d9025f85d2d9882903b"
+PINNED = "40ac50c468da43a43d2b1193c834bced6265b30973c4f6353e0e54d6eef1c430"
 
 
 def test_verifier_matches_drp_spec_copy():

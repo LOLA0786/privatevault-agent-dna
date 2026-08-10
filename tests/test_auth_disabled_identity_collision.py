@@ -2,11 +2,11 @@
 
 import importlib
 import json
-import time
 
 from fastapi.testclient import TestClient
 
 from agent_dna.apikeys import generate_key
+from tests.decide_binding import decide_json
 
 
 def test_key_named_auth_disabled_cannot_impersonate_agent(tmp_path, monkeypatch):
@@ -26,11 +26,7 @@ def test_key_named_auth_disabled_cannot_impersonate_agent(tmp_path, monkeypatch)
         response = client.post(
             "/v1/decide",
             headers={"X-API-Key": entry["key"]},
-            json={
-                "agent_id": "treasury-payments-agent",
-                "capability": "crm.read_contact",
-                "timestamp": time.time(),
-            },
+            json=decide_json("treasury-payments-agent", "crm.read_contact"),
         )
 
     assert response.status_code == 403
