@@ -15,6 +15,12 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    ignore:
+      # 3.0 vendors its own rand_core; standalone rand_core::OsRng no longer
+      # satisfies its CryptoRng bound at src/signer.rs:69 (E0277). Unpin when
+      # key generation moves to dalek's re-exported RNG. 2.2.0 has no advisory.
+      - dependency-name: "ed25519-dalek"
+        versions: ["3.x"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
