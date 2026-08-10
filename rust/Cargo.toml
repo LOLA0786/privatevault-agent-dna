@@ -23,7 +23,7 @@ hex = "0.4"
 thiserror = "2.0"
 zeroize = "1.8"
 
-ed25519-dalek = { version = "2.2", features = ["rand_core", "zeroize"] }
+ed25519-dalek = { version = "3.0", features = ["rand_core", "zeroize"] }
 rand_core = { version = "0.6", features = ["getrandom"] }
 
 uuid = { version = "1", features = ["v4"] }
