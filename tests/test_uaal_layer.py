@@ -6,6 +6,7 @@ import time
 from agent_dna.advisory import AdvisorySignal, Severity
 from agent_dna.decision import Decision, DecisionEngine
 from agent_dna.intent_adapter import intent_to_action
+from agent_dna.open_authorizer import OpenAuthorizer
 from agent_dna.uaal_layer import UAALConstraintChecker
 
 
@@ -39,6 +40,7 @@ def _engine(drift=0.0):
         scorer=StubScorer(drift),
         invariants=StubInvariants(),
         uaal=UAALConstraintChecker(),
+        authorizer=OpenAuthorizer(),
     )
 
 
@@ -115,6 +117,10 @@ def test_missing_evidence_skips_not_fails():
 
 
 def test_no_uaal_slot_means_no_l0():
-    engine = DecisionEngine(scorer=StubScorer(), invariants=StubInvariants())
+    engine = DecisionEngine(
+        scorer=StubScorer(),
+        invariants=StubInvariants(),
+        authorizer=OpenAuthorizer(),
+    )
     result = engine.decide(_pay(49000.0), evidence=EVIDENCE)
     assert result.decision == Decision.ALLOW  # nothing checks amounts

@@ -27,6 +27,7 @@ from collections import OrderedDict
 from dataclasses import dataclass, field
 
 from ..advisory import Severity
+from ..control_posture import CROSS_AGENT_EXECUTION_ID_REQUIRED
 from ..decision import Decision, DecisionResult
 from ..multi_agent import InteractionEvent
 from ..multi_agent.base import Verdict as CabiVerdict
@@ -54,6 +55,8 @@ _DEFAULT_TOOL_TARGETS: dict[str, tuple[str, str]] = {
 
 def production_cross_agent(
     config: CrossAgentConfig | None = None,
+    *,
+    require_execution_id: bool = False,
 ) -> CrossAgentEnforcer:
     """Definitional CABI attached by default in production composition."""
     cfg = config or CrossAgentConfig(tool_targets=dict(_DEFAULT_TOOL_TARGETS))
@@ -67,6 +70,7 @@ def production_cross_agent(
     return CrossAgentEnforcer(
         RuntimeValidator(definitional_engine()),
         config=cfg,
+        require_execution_id=require_execution_id,
     )
 
 
@@ -75,13 +79,27 @@ class CrossAgentEnforcer:
         self,
         validator: RuntimeValidator,
         config: CrossAgentConfig | None = None,
+        *,
+        require_execution_id: bool = False,
     ) -> None:
         self.validator = validator
         self.config = config or CrossAgentConfig()
+        self.require_execution_id = require_execution_id
         self._windows: OrderedDict[str, list[InteractionEvent]] = OrderedDict()
         self._lock = threading.Lock()  # executions span agents; the
         # per-agent middleware locks
         # cannot protect a shared window
+
+    def requires_execution_id_for(self, capability: str) -> bool:
+        """True when operator require-mode is on and capability is in
+        declared tool_targets (exact or configured prefix key)."""
+        if not self.require_execution_id:
+            return False
+        tt = self.config.tool_targets
+        if capability in tt:
+            return True
+        prefix = capability.split(".", 1)[0]
+        return prefix in tt
 
     def _target_for(self, capability: str) -> tuple[str, str]:
         tt = self.config.tool_targets
@@ -153,7 +171,31 @@ def escalate_with_cross_agent(
     capability: str,
     result: DecisionResult,
 ) -> DecisionResult:
-    """Shared CABI escalate for HTTP and connector. Never relaxes."""
+    """Shared CABI escalate for HTTP and connector. Never relaxes.
+
+    When the operator enables require-execution-id mode, a missing
+    execution_id for a declared tool-target capability fails closed.
+    Callers cannot disable that mode.
+    """
+    if enforcer is not None and enforcer.requires_execution_id_for(capability):
+        if not execution_id:
+            return DecisionResult(
+                decision=Decision.BLOCK,
+                triggered_by="cross_agent_correlation",
+                reason=(
+                    f"{CROSS_AGENT_EXECUTION_ID_REQUIRED}: capability "
+                    f"{capability!r} requires a declared execution_id "
+                    f"(PV_CROSS_AGENT_REQUIRE_EXECUTION_ID)"
+                ),
+                capability=capability,
+                agent_id=agent_id,
+                drift_score=result.drift_score,
+                severity=Severity.CRITICAL,
+                advisory_reasons=list(result.advisory_reasons),
+                evidence=result.evidence,
+                grant_id=result.grant_id,
+            )
+
     if enforcer is None or not execution_id:
         return result
     engine_verdict = enforcer.observe(execution_id, agent_id, capability)
@@ -179,4 +221,6 @@ def escalate_with_cross_agent(
         drift_score=result.drift_score,
         severity=(Severity.CRITICAL if target is Decision.BLOCK else result.severity),
         advisory_reasons=list(result.advisory_reasons),
+        evidence=result.evidence,
+        grant_id=result.grant_id,
     )

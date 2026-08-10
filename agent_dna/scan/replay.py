@@ -31,6 +31,7 @@ from typing import Any
 from ..decision import Decision, DecisionEngine
 from ..dynamics import BehaviorDynamics
 from ..manifold import CapabilityManifold
+from ..open_authorizer import OpenAuthorizer
 from ..scorer import DriftScorer
 from ..trace import AgentAction, ExecutionTrace
 from .ingest import IngestResult
@@ -265,7 +266,14 @@ def _describe_levels(engine: DecisionEngine) -> tuple[list[str], list[str]]:
     active: list[str] = []
     inert: list[str] = []
     for attr, label in LEVELS:
-        (active if getattr(engine, attr, None) is not None else inert).append(label)
+        component = getattr(engine, attr, None)
+        # OpenAuthorizer is a diagnostic stand-in, not a grant layer.
+        if attr == "authorizer" and isinstance(component, OpenAuthorizer):
+            inert.append(label)
+        elif component is not None:
+            active.append(label)
+        else:
+            inert.append(label)
     return active, inert
 
 
@@ -319,9 +327,13 @@ def replay(
     evaluate.sort(key=lambda a: a.timestamp)
 
     if engine is None:
+        # Diagnostic default: open authorization so the scan measures
+        # drift/invariants against the log. Production enforcement uses
+        # deny-all / grants via build_production_runtime — never this path.
         engine = DecisionEngine(
             scorer=_fit_baseline(baseline) if baseline else None,
             drift_threshold=drift_threshold,
+            authorizer=OpenAuthorizer(),
         )
     report.levels_active, report.levels_inert = _describe_levels(engine)
     report.drift_threshold = getattr(engine, "drift_threshold", drift_threshold)

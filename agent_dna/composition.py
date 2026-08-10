@@ -47,6 +47,7 @@ from .dynamics import BehaviorDynamics
 from .economics import CostAnomalyChecker
 from .grants import GrantRegistry
 from .manifold import CapabilityManifold
+from .open_authorizer import OpenAuthorizer
 from .runtime import RuntimeMonitor
 from .scorer import DriftScorer
 from .signer_python import (
@@ -57,6 +58,10 @@ from .signer_python import (
 )
 from .sqlite_store import SQLiteDecisionStore
 from .uaal_layer import UAALConstraintChecker
+
+
+def _env_flag(name: str, default: str = "0") -> bool:
+    return os.getenv(name, default).lower() in ("1", "true", "yes", "on")
 
 
 def _env_float(name: str) -> float | None:
@@ -142,6 +147,7 @@ class ProductionRuntime:
     cross_agent: Any = None
     trusted_public_keys: frozenset[str] = field(default_factory=frozenset)
     composition: dict[str, dict[str, str]] = field(default_factory=dict)
+    loop_events_required: bool = False
 
     def monitor(self) -> RuntimeMonitor:
         """A per-agent monitor bound to this runtime's recorder --
@@ -181,6 +187,7 @@ def _load_grants(path: str) -> GrantRegistry:
     if not isinstance(entries, list):
         raise ValueError(f"{path}: expected a JSON list of grants")
     reg = GrantRegistry()
+    reg.authorization_mode = "grants_file"
     for e in entries:
         reg.grant(
             agent_id=e["agent_id"],
@@ -189,6 +196,7 @@ def _load_grants(path: str) -> GrantRegistry:
             expires_at=e.get("expires_at"),
             budget=e.get("budget"),
         )
+    reg.authorization_mode = "grants_file"
     return reg
 
 
@@ -261,19 +269,35 @@ def build_production_runtime(
             "detail": "set PV_POLICY_FILE (YAML/JSON rules) or PV_OPA_ENDPOINT",
         }
 
-    # ---- config-gated: capability grants ----
-    authorizer = None
+    # ---- authorization: operator-configured; never caller-skippable ----
+    # Non-development: empty GrantRegistry is deny-all (default-deny).
+    # Development (PV_ALLOW_NO_AUTH): OpenAuthorizer, mode recorded in
+    # decision evidence — not the same as authorizer=None.
+    authorizer: GrantRegistry | OpenAuthorizer
     if cfg.grants_file:
         authorizer = _load_grants(cfg.grants_file)
+        authorizer.authorization_mode = "grants_file"
         comp["authorization"] = {
             "status": "attached",
             "detail": f"grants: {cfg.grants_file}",
+            "mode": "grants_file",
+        }
+    elif _env_flag("PV_ALLOW_NO_AUTH"):
+        authorizer = OpenAuthorizer()
+        comp["authorization"] = {
+            "status": "open_development",
+            "detail": "PV_ALLOW_NO_AUTH: open authorizer (development only); "
+            "mode recorded in decision evidence",
+            "mode": "open",
         }
     else:
+        authorizer = GrantRegistry()
+        authorizer.authorization_mode = "deny_all"
         comp["authorization"] = {
-            "status": "not_configured",
-            "detail": "set PV_GRANTS_FILE; attaching an empty registry "
-            "would require approval for everything",
+            "status": "attached",
+            "detail": "deny-all empty GrantRegistry (PV_GRANTS_FILE unset); "
+            "default-deny for capabilities",
+            "mode": "deny_all",
         }
 
     comp["invariant"] = {
@@ -393,29 +417,47 @@ def build_production_runtime(
     # ---- multi-agent: definitional CABI + authorize-time loop discovery ----
     cross_agent = None
     cabi_disabled = os.getenv("PV_CROSS_AGENT", "1").lower() in ("0", "false", "no")
+    require_execution_id = _env_flag("PV_CROSS_AGENT_REQUIRE_EXECUTION_ID", "0")
+    loop_events_required = _env_flag("PV_LOOP_EVENTS_REQUIRED", "0")
     if cabi_disabled:
         comp["cross_agent"] = {
             "status": "disabled",
-            "detail": "PV_CROSS_AGENT=0; dual-control CABI not attached",
+            "detail": "PV_CROSS_AGENT=0; dual-control CABI not attached "
+            "(operator-disabled; recorded in composition manifest)",
+            "require_execution_id": "false",
         }
     else:
         from .connector.cross_agent import production_cross_agent
 
-        cross_agent = production_cross_agent()
+        cross_agent = production_cross_agent(
+            require_execution_id=require_execution_id,
+        )
         comp["cross_agent"] = {
             "status": "attached",
             "detail": (
                 "definitional dual-control + structural approval invariants; "
-                "escalation-only; requires context.execution_id; "
-                "attached on HTTP /v1/decide and connector middleware"
+                "escalation-only; attached on HTTP /v1/decide and connector; "
+                + (
+                    "PV_CROSS_AGENT_REQUIRE_EXECUTION_ID=1 (fail-closed without id "
+                    "for configured capability prefixes)"
+                    if require_execution_id
+                    else "PV_CROSS_AGENT_REQUIRE_EXECUTION_ID=0 (uncorrelated "
+                    "calls skip CABI; posture recorded in decision evidence)"
+                )
             ),
+            "require_execution_id": "true" if require_execution_id else "false",
         }
     comp["loop_discovery"] = {
-        "status": "authorize_gated",
+        "status": "required" if loop_events_required else "authorize_gated",
         "detail": (
-            "discover_loops at POST /v1/authorize when security_events "
-            "are supplied; BLOCK/REVIEW refuse mint (fail-closed)"
+            "PV_LOOP_EVENTS_REQUIRED=1: /v1/authorize refuses without "
+            "security_events (fail-closed)"
+            if loop_events_required
+            else "discover_loops at POST /v1/authorize when security_events "
+            "are supplied; BLOCK/REVIEW refuse mint (fail-closed); "
+            "PV_LOOP_EVENTS_REQUIRED=0 (caller may omit; operator-configured)"
         ),
+        "events_required": "true" if loop_events_required else "false",
     }
 
     return ProductionRuntime(
@@ -429,4 +471,5 @@ def build_production_runtime(
         cross_agent=cross_agent,
         trusted_public_keys=cfg.trusted_public_keys,
         composition=comp,
+        loop_events_required=loop_events_required,
     )

@@ -31,11 +31,12 @@ def test_default_runtime_attaches_evidence_gated_stack(tmp_path):
         assert comp[level]["status"] == "attached", level
     assert comp["loop_discovery"]["status"] == "authorize_gated"
     assert rt.cross_agent is not None
-    # config-gated levels are honestly not_configured, never silently on
+    # policy remains config-gated; authorization is deny-all when unset
+    # (unless PV_ALLOW_NO_AUTH open-development mode).
     assert comp["policy"]["status"] == "not_configured"
-    assert comp["authorization"]["status"] == "not_configured"
     assert rt.engine.policy is None
-    assert rt.engine.authorizer is None
+    assert comp["authorization"]["mode"] in ("deny_all", "open")
+    assert rt.engine.authorizer is not None
 
 
 def test_default_runtime_decides_and_records(tmp_path):

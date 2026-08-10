@@ -6,6 +6,13 @@ and a named test that runs in CI.
 ## Unreleased
 
 ### Security
+- **F-03 / F-04 / F-05 caller-controlled enforcement**: production
+  composition attaches deny-all grants when `PV_GRANTS_FILE` unset;
+  `authorizer=None` is fail-closed (not allow). Operator flags
+  `PV_CROSS_AGENT_REQUIRE_EXECUTION_ID` and `PV_LOOP_EVENTS_REQUIRED`
+  (on in platform compose) refuse missing `execution_id` /
+  `security_events`. Control posture is written into decision evidence
+  (`tests/test_caller_controlled_enforcement.py`).
 - **F-01 authorize binding**: `POST /v1/authorize` requires
   `decision_id` and/or `record_hash`, loads the sealed decision, refuses
   unless ALLOW, and recomputes action/arguments/receipt digests against

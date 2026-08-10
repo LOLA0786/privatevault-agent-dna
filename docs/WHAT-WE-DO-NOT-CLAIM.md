@@ -189,23 +189,35 @@ recorded in a durable SQLite ledger** keyed by
 `execution_authorization_id`, claimed atomically on successful verify
 (`tests/test_consume_ledger.py`).
 
+## Caller-controlled enforcement residuals (F-03 / F-04 / F-05)
+
+**Production composition attaches a deny-all `GrantRegistry` when
+`PV_GRANTS_FILE` is unset** (not `authorizer=None`). Development
+(`PV_ALLOW_NO_AUTH`) uses `OpenAuthorizer` and records
+`authorization_mode=open` in decision evidence — operator opt-in, not
+a request flag (`tests/test_caller_controlled_enforcement.py`).
+
+**`PV_CROSS_AGENT_REQUIRE_EXECUTION_ID`** (default off; on in the
+platform compose profile) fails closed for declared tool-target
+capabilities without `execution_id`. **`PV_LOOP_EVENTS_REQUIRED`**
+(same) refuses `/v1/authorize` without `security_events`.
+
 Residual gaps we still do not claim closed:
 
+- **Require-execution-id and loop-events-required default OFF** outside
+  the platform profile for compatibility. An operator who leaves them
+  off still allows callers to omit correlation / loop events; the
+  decision evidence and composition manifest record that posture.
 - **Organisation is not a DecisionRecord field (drp/0.1 / 0.2).** Mint
   checks `organisation_id` against the pinned trust bundle and
-  `agent_id` against the sealed record + authenticated caller. There is
-  no sealed organisation binding inside the decide record itself.
-- **Wire and peer digests are not sealed at decide time.** They are
-  bound into the signed execution authorization and rechecked at
-  dispatch verify; a caller who holds a valid ALLOW can still choose
-  which outbound digests to bind when minting.
+  `agent_id` against the sealed record + authenticated caller.
+- **Wire and peer digests are not sealed at decide time.**
 - **Library verify without a `consume_ledger` remains caller-attested**
-  for consumption. Adapters that omit the ledger can still pass
-  `already_consumed=False` forever. The HTTP mint path shares the
-  process store; adapters must pass that store (or an equivalent
-  durable ledger) into `verify_execution_authorization`.
+  for consumption.
 - **One ALLOW may mint multiple permits** until each permit's id is
-  consumed. We do not claim one-mint-per-decision accounting yet.
+  consumed (unless a later mint ledger is merged).
+- **Complete mediation** remains unsolved: an agent that never calls
+  `/v1/decide` is not controlled by these flags.
 
 ## Latency and benchmark figures
 
