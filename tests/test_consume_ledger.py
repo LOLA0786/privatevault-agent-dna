@@ -5,7 +5,6 @@ from __future__ import annotations
 import importlib
 import json
 import threading
-import time
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
@@ -24,6 +23,7 @@ from agent_dna.execution_v01 import (
     verify_execution_authorization,
 )
 from agent_dna.sqlite_store import SQLiteDecisionStore
+from tests.decide_binding import decide_json, dispatch_context_for
 
 Z = "sha256:" + ("0" * 64)
 ONE = "sha256:" + ("1" * 64)
@@ -130,12 +130,20 @@ def _mint(client, key: str):
     decided = client.post(
         "/v1/decide",
         headers={"X-API-Key": key},
-        json={
-            "agent_id": AGENT,
-            "capability": "crm.read_contact",
-            "timestamp": time.time(),
-            "arguments": dict(ARGS),
-        },
+        json=decide_json(
+            AGENT,
+            "crm.read_contact",
+            arguments=dict(ARGS),
+            resource="crm:contact",
+            org=ORG,
+            dispatch_context=dispatch_context_for(
+                adapter="https",
+                transport="https",
+                operation="GET /v1/contacts",
+                destination="crm.store.example",
+                wire_content_type="application/json",
+            ),
+        ),
     )
     assert decided.status_code == 200, decided.text
     record = decided.json()["record"]

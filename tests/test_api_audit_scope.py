@@ -4,11 +4,11 @@ be rejected on /v1/decide and every enforcement endpoint. A full-scope
 key can do both."""
 
 import json
-import time
 
 from fastapi.testclient import TestClient
 
 from agent_dna.apikeys import generate_key
+from tests.decide_binding import decide_json
 
 
 def _client_with_scoped_keys(tmp_path, monkeypatch):
@@ -43,11 +43,7 @@ def test_full_key_can_decide(tmp_path, monkeypatch):
     with TestClient(server.app) as c:
         r = c.post(
             "/v1/decide",
-            json={
-                "agent_id": "a1",
-                "capability": "crm.read_contact",
-                "timestamp": time.time(),
-            },
+            json=decide_json("a1", "crm.read_contact"),
             headers={"X-API-Key": full_key},
         )
         assert r.status_code in (200, 202, 403)  # any real verdict, not 401
@@ -60,11 +56,7 @@ def test_audit_key_rejected_on_decide(tmp_path, monkeypatch):
     with TestClient(server.app) as c:
         r = c.post(
             "/v1/decide",
-            json={
-                "agent_id": "a1",
-                "capability": "crm.read_contact",
-                "timestamp": time.time(),
-            },
+            json=decide_json("a1", "crm.read_contact"),
             headers={"X-API-Key": audit_key},
         )
         assert r.status_code == 401
@@ -83,11 +75,7 @@ def test_audit_key_can_export(tmp_path, monkeypatch):
         # produce at least one record with the full key first
         c.post(
             "/v1/decide",
-            json={
-                "agent_id": "a1",
-                "capability": "crm.read_contact",
-                "timestamp": time.time(),
-            },
+            json=decide_json("a1", "crm.read_contact"),
             headers={"X-API-Key": full_key},
         )
 

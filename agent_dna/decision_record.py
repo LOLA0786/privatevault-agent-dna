@@ -33,6 +33,7 @@ from typing import Any
 
 from .action_v01 import execution_action_digest
 from .decision import DecisionResult
+from .dispatch_context_v01 import dispatch_context_digest
 from .trace import AgentAction
 
 GENESIS_HASH = "0" * 64
@@ -99,19 +100,30 @@ class DecisionRecord:
     # follows from the digest's presence -- that would make a missing
     # binding look like a legitimate downgrade.
     action_digest: str | None = field(default=None, kw_only=True)
+    # Separate from action_digest (D1): decide-time dispatch intent.
+    # Exact wire bytes are NOT sealed here.
+    dispatch_context_digest: str | None = field(default=None, kw_only=True)
 
     # ------------------------------------------------------------------
 
     def __post_init__(self) -> None:
-        check_version_invariant(self.protocol_version, self.action_digest)
+        check_version_invariant(
+            self.protocol_version,
+            self.action_digest,
+            self.dispatch_context_digest,
+        )
 
     def payload(self) -> dict[str, Any]:
         """Everything covered by the hash, in canonical order.
 
-        drp/0.2 adds action_digest and nothing else, so a v0.1 payload is
-        byte-identical to what it was before v0.2 existed.
+        drp/0.2 seals action_digest and dispatch_context_digest. A v0.1
+        payload remains free of both binding fields.
         """
-        check_version_invariant(self.protocol_version, self.action_digest)
+        check_version_invariant(
+            self.protocol_version,
+            self.action_digest,
+            self.dispatch_context_digest,
+        )
         body = {
             "kind": self.kind,
             "protocol_version": self.protocol_version,
@@ -139,10 +151,10 @@ class DecisionRecord:
             "prev_hash": self.prev_hash,
         }
         if self.protocol_version == DRP_V02:
-            # Guaranteed by the invariant above; restated for the type
-            # checker, which cannot see through the helper.
             assert self.action_digest is not None
+            assert self.dispatch_context_digest is not None
             body["action_digest"] = self.action_digest
+            body["dispatch_context_digest"] = self.dispatch_context_digest
         return body
 
     def compute_hash(self) -> str:
@@ -166,7 +178,11 @@ class DecisionRecord:
         """False, never an exception: a caller checking a record it did
         not build should get a verdict, not a traceback."""
         try:
-            check_version_invariant(self.protocol_version, self.action_digest)
+            check_version_invariant(
+                self.protocol_version,
+                self.action_digest,
+                self.dispatch_context_digest,
+            )
         except ValueError:
             return False
         return self.record_hash != "" and self.record_hash == self.compute_hash()
@@ -180,6 +196,7 @@ class DecisionRecord:
 def check_version_invariant(
     protocol_version: str,
     action_digest: str | None,
+    dispatch_context_digest: str | None = None,
 ) -> None:
     """The only legal version/digest combinations.
 
@@ -200,6 +217,11 @@ def check_version_invariant(
                 "drp/0.1 records carry no action_digest; a bound record "
                 "must declare drp/0.2"
             )
+        if dispatch_context_digest is not None:
+            raise ValueError(
+                "drp/0.1 records carry no dispatch_context_digest; a bound "
+                "record must declare drp/0.2"
+            )
         return
 
     # drp/0.2
@@ -211,6 +233,16 @@ def check_version_invariant(
     if not _SHA256_PREFIXED.fullmatch(action_digest):
         raise ValueError(
             f"malformed action_digest {action_digest!r}; "
+            'expected "sha256:" followed by 64 lowercase hex characters'
+        )
+    if dispatch_context_digest is None:
+        raise ValueError(
+            "drp/0.2 requires a dispatch_context_digest; a missing binding "
+            "is not a downgrade to drp/0.1"
+        )
+    if not _SHA256_PREFIXED.fullmatch(dispatch_context_digest):
+        raise ValueError(
+            f"malformed dispatch_context_digest {dispatch_context_digest!r}; "
             'expected "sha256:" followed by 64 lowercase hex characters'
         )
 
@@ -231,6 +263,7 @@ def _build_record(
     *,
     protocol_version: str,
     action_digest: str | None,
+    dispatch_context_digest: str | None,
     parent_decision: str | None,
     prev_hash: str,
     request_id: str | None,
@@ -248,6 +281,7 @@ def _build_record(
     return DecisionRecord(
         protocol_version=protocol_version,
         action_digest=action_digest,
+        dispatch_context_digest=dispatch_context_digest,
         decision_id=str(uuid.uuid4()),
         parent_decision=parent_decision,
         agent_id=action.agent_id,
@@ -299,6 +333,7 @@ def build_record(
         result,
         protocol_version=DRP_V01,
         action_digest=None,
+        dispatch_context_digest=None,
         parent_decision=parent_decision,
         prev_hash=prev_hash,
         request_id=request_id,
@@ -311,22 +346,24 @@ def build_record_v02(
     result: DecisionResult,
     *,
     execution_action: dict[str, Any],
+    dispatch_context: dict[str, Any],
     parent_decision: str | None = None,
     prev_hash: str = GENESIS_HASH,
     request_id: str | None = None,
     anchor_hash: str | None = None,
 ) -> DecisionRecord:
-    """A sealed drp/0.2 record bound to an exact canonical execution action.
+    """A sealed drp/0.2 record bound to action + dispatch-context digests.
 
-    There is deliberately no action_digest parameter. The digest is
-    computed here from the complete action, so a caller cannot present a
-    digest for one action while the permit later names another.
+    There are deliberately no caller-supplied digest parameters. Digests
+    are derived here so a caller cannot present a digest for one intent
+    while the permit later names another. Exact wire bytes are not sealed.
     """
     return _build_record(
         action,
         result,
         protocol_version=DRP_V02,
         action_digest=execution_action_digest(execution_action),
+        dispatch_context_digest=dispatch_context_digest(dispatch_context),
         parent_decision=parent_decision,
         prev_hash=prev_hash,
         request_id=request_id,

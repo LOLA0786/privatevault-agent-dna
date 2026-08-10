@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import importlib
 import json
-import time
 
 import pytest
 from fastapi.testclient import TestClient
 
 from agent_dna.apikeys import generate_key
+from tests.decide_binding import decide_json
 
 
 @pytest.fixture()
@@ -41,13 +41,12 @@ def _decide(client, key, agent_id, capability, execution_id):
     return client.post(
         "/v1/decide",
         headers={"X-API-Key": key},
-        json={
-            "agent_id": agent_id,
-            "capability": capability,
-            "timestamp": time.time(),
-            "execution_id": execution_id,
-            "arguments": {"amount": 1000},
-        },
+        json=decide_json(
+            agent_id,
+            capability,
+            arguments={"amount": 1000},
+            execution_id=execution_id,
+        ),
     )
 
 
@@ -88,11 +87,7 @@ def test_without_execution_id_skips_cabi(swarm_client):
     r = client.post(
         "/v1/decide",
         headers={"X-API-Key": maker_key},
-        json={
-            "agent_id": "maker-1",
-            "capability": "payments.initiate_wire",
-            "timestamp": time.time(),
-        },
+        json=decide_json("maker-1", "payments.initiate_wire"),
     )
     # No execution_id => CABI inert; precedence may still non-allow novel tools
     assert r.status_code in (200, 202, 403)

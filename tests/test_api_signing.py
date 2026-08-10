@@ -1,11 +1,10 @@
 """P4: signing in the serving path — env-keyed, envelopes retrievable,
 unsigned mode explicit."""
 
-import time
-
 from fastapi.testclient import TestClient
 
 from agent_dna.signer import generate_keypair, verify_envelope
+from tests.decide_binding import decide_json
 
 KEYS = generate_keypair()
 
@@ -30,11 +29,7 @@ def _client(tmp_path, monkeypatch, signed=True):
 def _decide(c):
     return c.post(
         "/v1/decide",
-        json={
-            "agent_id": "sig-agent",
-            "capability": "crm.read_contact",
-            "timestamp": time.time(),
-        },
+        json=decide_json("sig-agent", "crm.read_contact"),
     )
 
 

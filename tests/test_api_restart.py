@@ -4,10 +4,11 @@ verifiable chain."""
 
 import subprocess
 import sys
-import time
 from pathlib import Path
 
 from fastapi.testclient import TestClient
+
+from tests.decide_binding import decide_json
 
 VERIFIER = Path(__file__).resolve().parent.parent / "tools" / "verify_records.py"
 
@@ -25,11 +26,7 @@ def _client(db_path, monkeypatch):
 def _decide(client, cap):
     return client.post(
         "/v1/decide",
-        json={
-            "agent_id": "restart-agent",
-            "capability": cap,
-            "timestamp": time.time(),
-        },
+        json=decide_json("restart-agent", cap),
     )
 
 

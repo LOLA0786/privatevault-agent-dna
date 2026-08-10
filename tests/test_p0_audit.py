@@ -193,16 +193,14 @@ def _api_client(tmp_path, monkeypatch, key_names=("agent-a", "agent-b")):
 
 
 def test_key_cannot_decide_as_another_agent(tmp_path, monkeypatch):
+    from tests.decide_binding import decide_json
+
     client, keys = _api_client(tmp_path, monkeypatch)
     with client as c:
         r = c.post(
             "/v1/decide",
             headers={"X-API-Key": keys["agent-a"]},
-            json={
-                "agent_id": "agent-b",  # NOT the authenticated identity
-                "capability": "crm.read_contact",
-                "timestamp": time.time(),
-            },
+            json=decide_json("agent-b", "crm.read_contact"),
         )
         assert r.status_code in (403, 409, 422), (
             f"credential for agent-a decided as agent-b: {r.status_code}"
@@ -210,16 +208,14 @@ def test_key_cannot_decide_as_another_agent(tmp_path, monkeypatch):
 
 
 def test_key_cannot_report_outcome_for_another_agent(tmp_path, monkeypatch):
+    from tests.decide_binding import decide_json
+
     client, keys = _api_client(tmp_path, monkeypatch)
     with client as c:
         r = c.post(
             "/v1/decide",
             headers={"X-API-Key": keys["agent-a"]},
-            json={
-                "agent_id": "agent-a",
-                "capability": "crm.read_contact",
-                "timestamp": time.time(),
-            },
+            json=decide_json("agent-a", "crm.read_contact"),
         )
         assert r.status_code == 200
         decision_id = r.json()["record"]["decision_id"]

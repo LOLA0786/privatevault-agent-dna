@@ -20,7 +20,12 @@ from typing import Any
 
 from .decision import DecisionResult
 from .decision_graph import DecisionGraph
-from .decision_record import GENESIS_HASH, DecisionRecord, build_record
+from .decision_record import (
+    GENESIS_HASH,
+    DecisionRecord,
+    build_record,
+    build_record_v02,
+)
 from .execution_record import ExecutionEvent, build_execution_event
 from .trace import AgentAction
 
@@ -92,20 +97,52 @@ class DecisionRecorder:
         action: AgentAction,
         result: DecisionResult,
         anchor_hash: str | None = None,
+        *,
+        execution_action: dict[str, Any] | None = None,
+        dispatch_context: dict[str, Any] | None = None,
     ) -> DecisionRecord:
+        """Persist a sealed decision.
+
+        When both ``execution_action`` and ``dispatch_context`` are
+        supplied, emits DRP 0.2 (mintable). Otherwise emits DRP 0.1
+        (audit-only; cannot authorize). Partial binding is refused.
+        """
+        if (execution_action is None) ^ (dispatch_context is None):
+            raise ValueError(
+                "execution_action and dispatch_context must both be "
+                "provided for DRP 0.2, or both omitted for audit-only DRP 0.1"
+            )
         if self.multi_writer_safe:
-            return self._record_multi_writer_safe(action, result, anchor_hash)
+            return self._record_multi_writer_safe(
+                action,
+                result,
+                anchor_hash,
+                execution_action=execution_action,
+                dispatch_context=dispatch_context,
+            )
         is_fresh_chain = action.agent_id not in self._chains
         chain = self._chains.setdefault(action.agent_id, _ChainState())
 
-        rec = build_record(
-            action,
-            result,
-            parent_decision=chain.last_decision_id,
-            prev_hash=chain.last_hash,
-            anchor_hash=anchor_hash if is_fresh_chain else None,
-            request_id=getattr(action, "request_id", None),
-        )
+        if execution_action is not None and dispatch_context is not None:
+            rec = build_record_v02(
+                action,
+                result,
+                execution_action=execution_action,
+                dispatch_context=dispatch_context,
+                parent_decision=chain.last_decision_id,
+                prev_hash=chain.last_hash,
+                anchor_hash=anchor_hash if is_fresh_chain else None,
+                request_id=getattr(action, "request_id", None),
+            )
+        else:
+            rec = build_record(
+                action,
+                result,
+                parent_decision=chain.last_decision_id,
+                prev_hash=chain.last_hash,
+                anchor_hash=anchor_hash if is_fresh_chain else None,
+                request_id=getattr(action, "request_id", None),
+            )
         # Audit set 4 ordering: sign first (pure function of the
         # sealed record), then persist record AND envelope in ONE
         # store transaction, then update the in-memory graph/heads.
@@ -148,6 +185,9 @@ class DecisionRecorder:
         result: DecisionResult,
         anchor_hash: str | None = None,
         max_retries: int = 20,
+        *,
+        execution_action: dict[str, Any] | None = None,
+        dispatch_context: dict[str, Any] | None = None,
     ) -> DecisionRecord:
         """Chain head is read fresh from the store on every call --
         never trusts in-memory state, since another process may have
@@ -158,14 +198,26 @@ class DecisionRecorder:
         for attempt in range(max_retries):
             last_decision_id, last_hash = self.store.get_chain_head(action.agent_id)
             is_fresh_chain = last_decision_id is None
-            rec = build_record(
-                action,
-                result,
-                parent_decision=last_decision_id,
-                prev_hash=last_hash,
-                anchor_hash=anchor_hash if is_fresh_chain else None,
-                request_id=getattr(action, "request_id", None),
-            )
+            if execution_action is not None and dispatch_context is not None:
+                rec = build_record_v02(
+                    action,
+                    result,
+                    execution_action=execution_action,
+                    dispatch_context=dispatch_context,
+                    parent_decision=last_decision_id,
+                    prev_hash=last_hash,
+                    anchor_hash=anchor_hash if is_fresh_chain else None,
+                    request_id=getattr(action, "request_id", None),
+                )
+            else:
+                rec = build_record(
+                    action,
+                    result,
+                    parent_decision=last_decision_id,
+                    prev_hash=last_hash,
+                    anchor_hash=anchor_hash if is_fresh_chain else None,
+                    request_id=getattr(action, "request_id", None),
+                )
             env_dict = (
                 self.signer.sign_record(rec).to_dict()
                 if self.signer is not None

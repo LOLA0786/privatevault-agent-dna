@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import importlib
 import json
-import time
 from pathlib import Path
 
 import pytest
@@ -18,6 +17,7 @@ from agent_dna.authority_v01 import (
     encode_public_key,
 )
 from agent_dna.execution_v01 import sha256_bytes_digest
+from tests.decide_binding import decide_json, dispatch_context_for
 
 Z = "sha256:" + ("0" * 64)
 ONE = "sha256:" + ("1" * 64)
@@ -131,12 +131,20 @@ def test_circular_authority_refuses_authorize(authorize_client):
     decided = client.post(
         "/v1/decide",
         headers={"X-API-Key": key},
-        json={
-            "agent_id": AGENT,
-            "capability": "crm.read_contact",
-            "timestamp": time.time(),
-            "arguments": dict(ARGS),
-        },
+        json=decide_json(
+            AGENT,
+            "crm.read_contact",
+            arguments=dict(ARGS),
+            resource="crm:contact",
+            org=ORG,
+            dispatch_context=dispatch_context_for(
+                adapter="https",
+                transport="https",
+                operation="GET /v1/contacts",
+                destination="crm.store.example",
+                wire_content_type="application/json",
+            ),
+        ),
     )
     assert decided.status_code == 200, decided.text
     record = decided.json()["record"]

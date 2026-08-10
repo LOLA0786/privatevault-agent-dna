@@ -26,9 +26,36 @@ import threading
 import time
 
 from ..apikeys import ApiKeyRegistry
+from ..authority_v01 import AuthorityFormatError, canonicalize
 from ..runtime import RuntimeMonitor
 from ..trace import AgentAction
 from .models import ToolCallRequest, ToolCallVerdict
+
+
+def _authority_safe_parameters(arguments: dict) -> dict:
+    """Project tool arguments into authority-canonicalizable parameters.
+
+    Integer-valued floats become ints (JSON number ambiguity). Other
+    floats refuse minting — floating point is forbidden in authority
+    artifacts. Engine/UAAL still see the original ``AgentAction.arguments``.
+    """
+
+    def convert(value):
+        if isinstance(value, float):
+            if value.is_integer() and abs(value) <= 2**53:
+                return int(value)
+            raise AuthorityFormatError(
+                "parameters: floating point is forbidden in authority artifacts"
+            )
+        if isinstance(value, dict):
+            return {str(k): convert(v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [convert(v) for v in value]
+        return value
+
+    out = convert(dict(arguments))
+    canonicalize(out)
+    return out
 
 
 class ConnectorMiddleware:
@@ -100,13 +127,31 @@ class ConnectorMiddleware:
                 record_hash=None,
             )
 
+        ctx = dict(request.context or {})
         action = AgentAction(
             agent_id=agent_id,
             capability=request.tool,
             timestamp=time.time(),
             arguments=dict(request.arguments),
-            context={"adapter": request.adapter, **request.context},
+            context={"adapter": request.adapter, **ctx},
         )
+        # Mintable DRP 0.2 binding for connector decisions.
+        execution_action = {
+            "subject_principal": str(ctx.get("subject_principal") or agent_id),
+            "subject_key_id": agent_id,
+            "action": request.tool,
+            "resource": str(ctx.get("resource") or request.tool),
+            "parameters": _authority_safe_parameters(dict(request.arguments)),
+        }
+        dispatch_context = {
+            "adapter": request.adapter,
+            "transport": str(ctx.get("transport") or request.adapter),
+            "operation": request.tool,
+            "destination": str(ctx.get("destination") or "local"),
+            "wire_content_type": str(
+                ctx.get("wire_content_type") or "application/json"
+            ),
+        }
 
         monitor, lock = self._monitor_for(agent_id)
         with lock:
@@ -134,7 +179,13 @@ class ConnectorMiddleware:
                     and enforcer is not None,
                 },
             )
-            rec = self.recorder.record(action, result)
+            
+            rec = self.recorder.record(
+                action,
+                result,
+                execution_action=execution_action,
+                dispatch_context=dispatch_context,
+            )
             if self.shadow is not None:
                 try:
                     self.shadow.observe(action, result, request.evidence)

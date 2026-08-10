@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import importlib
 import json
-import time
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 from agent_dna.apikeys import generate_key
+from tests.decide_binding import decide_json
 
 
 @pytest.fixture()
@@ -67,21 +67,13 @@ def test_metrics_count_decisions(auth_client):
     allow = client.post(
         "/v1/decide",
         headers=headers,
-        json={
-            "agent_id": "payments-agent",
-            "capability": "crm.read_contact",
-            "timestamp": time.time(),
-        },
+        json=decide_json("payments-agent", "crm.read_contact"),
     )
     assert allow.status_code == 200
     client.post(
         "/v1/decide",
         headers=headers,
-        json={
-            "agent_id": "payments-agent",
-            "capability": "payments.drain_account",
-            "timestamp": time.time(),
-        },
+        json=decide_json("payments-agent", "payments.drain_account"),
     )
     metrics = client.get("/metrics")
     assert metrics.status_code == 200
@@ -96,11 +88,7 @@ def test_ops_summary_audit_scope(auth_client):
     client.post(
         "/v1/decide",
         headers={"X-API-Key": op_key},
-        json={
-            "agent_id": "payments-agent",
-            "capability": "crm.read_contact",
-            "timestamp": time.time(),
-        },
+        json=decide_json("payments-agent", "crm.read_contact"),
     )
     denied = client.get("/v1/ops/summary")
     assert denied.status_code == 401
@@ -116,11 +104,7 @@ def test_audit_key_cannot_decide(auth_client):
     r = client.post(
         "/v1/decide",
         headers={"X-API-Key": au_key},
-        json={
-            "agent_id": "auditor",
-            "capability": "crm.read_contact",
-            "timestamp": time.time(),
-        },
+        json=decide_json("auditor", "crm.read_contact"),
     )
     assert r.status_code == 401
 

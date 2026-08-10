@@ -245,6 +245,10 @@ class DecideRequest(BaseModel):
     request_id: str | None = None
     # Convenience alias; also accepted via context.execution_id
     execution_id: str | None = None
+    # Required for mintable DRP 0.2 records. Digests are derived server-side;
+    # callers must not supply action_digest / dispatch_context_digest.
+    execution_action: dict[str, Any]
+    dispatch_context: dict[str, Any]
 
 
 class OutcomeRequest(BaseModel):
@@ -278,9 +282,54 @@ def _owned_decision(principal: Principal, decision_id: str):
     return record
 
 
+def _validate_decide_binding(
+    req: DecideRequest,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Derive-only binding inputs for DRP 0.2. Refuse caller digests."""
+    from agent_dna.action_v01 import validate_execution_action
+    from agent_dna.authority_v01 import AuthorityFormatError
+    from agent_dna.dispatch_context_v01 import validate_dispatch_context
+
+    if (
+        "action_digest" in req.execution_action
+        or "dispatch_context_digest" in req.dispatch_context
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "caller-authored digests are refused; provide execution_action "
+                "and dispatch_context fields only"
+            ),
+        )
+    try:
+        execution_action = dict(validate_execution_action(req.execution_action))
+        dispatch_context = validate_dispatch_context(req.dispatch_context)
+    except (AuthorityFormatError, TypeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    if execution_action["action"] != req.capability:
+        raise HTTPException(
+            status_code=422,
+            detail="execution_action.action must match capability",
+        )
+    if execution_action["subject_key_id"] != req.agent_id:
+        raise HTTPException(
+            status_code=422,
+            detail="execution_action.subject_key_id must match agent_id",
+        )
+    # Parameters / arguments must agree so arguments_digest matches EA action.
+    if dict(execution_action["parameters"]) != dict(req.arguments or {}):
+        raise HTTPException(
+            status_code=422,
+            detail="execution_action.parameters must match arguments",
+        )
+    return execution_action, dispatch_context
+
+
 @app.post("/v1/decide")
 def decide(req: DecideRequest, principal: FullPrincipal):
     _enforce_identity(principal, req.agent_id)
+    execution_action, dispatch_context = _validate_decide_binding(req)
     context = dict(req.context or {})
     execution_id = req.execution_id or context.get("execution_id")
     if execution_id:
@@ -324,7 +373,13 @@ def decide(req: DecideRequest, principal: FullPrincipal):
             ),
         },
     )
-    record = state["recorder"].record(action, result)
+    
+    record = state["recorder"].record(
+        action,
+        result,
+        execution_action=execution_action,
+        dispatch_context=dispatch_context,
+    )
 
     return JSONResponse(
         status_code=STATUS_MAP[result.decision],
@@ -755,6 +810,7 @@ def _require_sealed_allow_for_authorize(req: AuthorizeRequest) -> dict[str, Any]
         agent_id=req.agent_id,
         decision_receipt_digest=req.decision_receipt_digest,
         action=req.action,
+        dispatch=req.dispatch,
         record_hash=req.record_hash,
     )
     if bind_reason is not None:
