@@ -266,6 +266,13 @@ tools/verify_records.py independent chain and signature verifier
 | `tools/` | Independent verifiers, benchmarks, and adversarial runners |
 | `experimental/` | Unwired sketches. Nothing here carries claims |
 
+## Verify without trusting our later handling of evidence
+
+Procurement / third-party risk one-pager:
+[`docs/VERIFY-WITHOUT-TRUSTING-US.md`](docs/VERIFY-WITHOUT-TRUSTING-US.md)
+(stdlib verifier, proof-of-run, refuse codes, `pvscan`). Cite git commit +
+`report_hash` together.
+
 ## Limitations
 
 Read `docs/WHAT-WE-DO-NOT-CLAIM.md` before depending on this in

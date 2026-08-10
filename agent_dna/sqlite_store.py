@@ -73,6 +73,21 @@ CREATE TABLE IF NOT EXISTS execution_authorization_consume (
     organisation_id            TEXT NOT NULL,
     consumed_at                TEXT NOT NULL
 );
+-- Decide-time organisation binding: written when /v1/decide seals an
+-- ALLOW (or any decision). Authorize refuses if unbound or mismatched.
+CREATE TABLE IF NOT EXISTS decision_organisation (
+    decision_id     TEXT PRIMARY KEY NOT NULL,
+    organisation_id TEXT NOT NULL,
+    record_hash     TEXT NOT NULL
+);
+-- One mint per ALLOW decision. UNIQUE(decision_id) makes a second mint
+-- fail atomically under concurrent writers.
+CREATE TABLE IF NOT EXISTS execution_authorization_mint (
+    decision_id                TEXT PRIMARY KEY NOT NULL,
+    execution_authorization_id TEXT NOT NULL UNIQUE,
+    organisation_id            TEXT NOT NULL,
+    minted_at                  TEXT NOT NULL
+);
 """
 
 
@@ -276,6 +291,110 @@ class SQLiteDecisionStore:
             (execution_authorization_id,),
         ).fetchone()
         return row is not None
+
+    def bind_decision_organisation(
+        self,
+        decision_id: str,
+        *,
+        organisation_id: str,
+        record_hash: str,
+    ) -> None:
+        """Record decide-time organisation binding for a sealed decision.
+
+        Idempotent for the same (decision_id, organisation_id, record_hash).
+        Refuses a conflicting rebind.
+        """
+        if not decision_id or not organisation_id or not record_hash:
+            raise ValueError("decision_id, organisation_id, and record_hash required")
+        bare = record_hash[7:] if record_hash.startswith("sha256:") else record_hash
+        conn = self._conn
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            existing = conn.execute(
+                "SELECT organisation_id, record_hash FROM decision_organisation "
+                "WHERE decision_id = ?",
+                (decision_id,),
+            ).fetchone()
+            if existing is not None:
+                if existing[0] != organisation_id or existing[1] != bare:
+                    conn.rollback()
+                    raise ValueError(
+                        "decision organisation binding conflicts with an "
+                        "existing sealed binding"
+                    )
+                conn.commit()
+                return
+            conn.execute(
+                "INSERT INTO decision_organisation "
+                "(decision_id, organisation_id, record_hash) VALUES (?, ?, ?)",
+                (decision_id, organisation_id, bare),
+            )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+
+    def get_decision_organisation(self, decision_id: str) -> dict[str, str] | None:
+        row = self._conn.execute(
+            "SELECT organisation_id, record_hash FROM decision_organisation "
+            "WHERE decision_id = ?",
+            (decision_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return {"organisation_id": row[0], "record_hash": row[1]}
+
+    def try_reserve_execution_authorization_mint(
+        self,
+        decision_id: str,
+        *,
+        execution_authorization_id: str,
+        organisation_id: str,
+        minted_at: str,
+    ) -> bool:
+        """Atomically claim the single mint slot for a decision.
+
+        Returns True if this call reserved the mint, False if another
+        permit was already minted for this decision_id.
+        """
+        if not decision_id or not execution_authorization_id:
+            raise ValueError("decision_id and execution_authorization_id required")
+        conn = self._conn
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            conn.execute(
+                "INSERT INTO execution_authorization_mint "
+                "(decision_id, execution_authorization_id, organisation_id, "
+                " minted_at) VALUES (?, ?, ?, ?)",
+                (
+                    decision_id,
+                    execution_authorization_id,
+                    organisation_id,
+                    minted_at,
+                ),
+            )
+            conn.commit()
+            return True
+        except sqlite3.IntegrityError:
+            conn.rollback()
+            return False
+        except Exception:
+            conn.rollback()
+            raise
+
+    def release_execution_authorization_mint(
+        self,
+        decision_id: str,
+        *,
+        execution_authorization_id: str,
+    ) -> None:
+        """Drop a mint reservation after a failed sign (same id only)."""
+        self._conn.execute(
+            "DELETE FROM execution_authorization_mint "
+            "WHERE decision_id = ? AND execution_authorization_id = ?",
+            (decision_id, execution_authorization_id),
+        )
+        self._conn.commit()
 
     def append_atomic(self, record, envelope: dict | None = None) -> bool:
         """Multi-writer-safe append for decision records only. Returns

@@ -109,6 +109,7 @@ def main() -> None:
                     "capability": "crm.read_contact",
                     "timestamp": time.time(),
                     "arguments": dict(ARGS),
+                    "organisation_id": ORG,
                 },
             )
             if decided.status_code != 200:
@@ -187,6 +188,7 @@ def main() -> None:
                     "capability": "crm.read_contact",
                     "timestamp": time.time(),
                     "arguments": dict(ARGS),
+                    "organisation_id": ORG,
                 },
             )
             record2 = decided2.json()["record"]

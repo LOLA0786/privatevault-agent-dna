@@ -17,6 +17,14 @@ and a named test that runs in CI.
   id atomically (`BEGIN IMMEDIATE` + UNIQUE). Caller
   `already_consumed` may only tighten. Restart-safe
   (`tests/test_consume_ledger.py`).
+- **One mint per ALLOW + decide-time organisation binding**: durable
+  `execution_authorization_mint` and `decision_organisation` tables;
+  second mint → `AUTHORIZE_DECISION_ALREADY_MINTED`; unbound/mismatched
+  org → refuse (`tests/test_authorize_binding.py`).
+- **Procurement verification kit**:
+  `docs/VERIFY-WITHOUT-TRUSTING-US.md` — how to verify claims with
+  stdlib verifier, prove-of-run, refuse codes, and pvscan without
+  importing the producing runtime.
 
 ### Added
 - **Multi-agent on the live decide path**: definitional dual-control +

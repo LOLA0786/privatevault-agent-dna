@@ -23,6 +23,9 @@ AUTHORIZE_RECORD_HASH_MISMATCH = "AUTHORIZE_RECORD_HASH_MISMATCH"
 AUTHORIZE_ACTION_MISMATCH = "AUTHORIZE_ACTION_MISMATCH"
 AUTHORIZE_ARGUMENTS_DIGEST_MISMATCH = "AUTHORIZE_ARGUMENTS_DIGEST_MISMATCH"
 AUTHORIZE_ACTION_DIGEST_MISMATCH = "AUTHORIZE_ACTION_DIGEST_MISMATCH"
+AUTHORIZE_ORGANISATION_UNBOUND = "AUTHORIZE_ORGANISATION_UNBOUND"
+AUTHORIZE_ORGANISATION_MISMATCH = "AUTHORIZE_ORGANISATION_MISMATCH"
+AUTHORIZE_DECISION_ALREADY_MINTED = "AUTHORIZE_DECISION_ALREADY_MINTED"
 
 EXECUTION_AUTHORIZATION_CONSUMED = "EXECUTION_AUTHORIZATION_CONSUMED"
 
@@ -111,6 +114,26 @@ def _action_binding_reason(
     return None
 
 
+def bind_organisation(
+    binding: dict[str, str] | None,
+    *,
+    organisation_id: str,
+    record_hash: str | None = None,
+) -> str | None:
+    """Return a reason_code if decide-time organisation binding refuses mint."""
+    if binding is None:
+        return AUTHORIZE_ORGANISATION_UNBOUND
+    if binding.get("organisation_id") != organisation_id:
+        return AUTHORIZE_ORGANISATION_MISMATCH
+    if record_hash is not None:
+        sealed = binding.get("record_hash")
+        if not isinstance(sealed, str) or not sealed:
+            return AUTHORIZE_ORGANISATION_UNBOUND
+        if normalize_sha256_digest(sealed) != normalize_sha256_digest(record_hash):
+            return AUTHORIZE_RECORD_HASH_MISMATCH
+    return None
+
+
 def bind_authorize_to_sealed_allow(
     record: dict[str, Any] | None,
     *,
@@ -121,10 +144,9 @@ def bind_authorize_to_sealed_allow(
 ) -> str | None:
     """Return a reason_code on refusal, or None when mint may proceed.
 
-    Organisation is not a DecisionRecord field (drp/0.1); callers must
-    continue to bind organisation_id to the trust bundle separately.
-    Wire/peer digests are not on the sealed decide record; they remain
-    bound into the EA for dispatch-time verification.
+    Organisation is bound at decide time in the durable store (see
+    ``bind_organisation``), not yet a hashed DRP payload field.
+    Wire/peer digests remain EA fields checked at dispatch verify.
     """
     if record is None:
         return AUTHORIZE_DECISION_NOT_FOUND

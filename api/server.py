@@ -40,9 +40,11 @@ from agent_dna.apikeys import ApiKeyRegistry
 from agent_dna.authority_v01 import CANONICALIZATION as _PV_CANON
 from agent_dna.authority_v01 import sha256_digest as _pv_sha256_digest
 from agent_dna.authorize_binding import (
+    AUTHORIZE_DECISION_ALREADY_MINTED,
     AUTHORIZE_DECISION_NOT_FOUND,
     AUTHORIZE_DECISION_REQUIRED,
     bind_authorize_to_sealed_allow,
+    bind_organisation,
 )
 from agent_dna.connector.cross_agent import escalate_with_cross_agent
 from agent_dna.decision import Decision
@@ -240,6 +242,9 @@ class DecideRequest(BaseModel):
     request_id: str | None = None
     # Convenience alias; also accepted via context.execution_id
     execution_id: str | None = None
+    # Decide-time organisation binding for authorize mint. Falls back to
+    # PV_ORGANISATION_ID when omitted. Authorize refuses unbound decisions.
+    organisation_id: str | None = Field(default=None, min_length=1)
 
 
 class OutcomeRequest(BaseModel):
@@ -301,15 +306,26 @@ def decide(req: DecideRequest, principal: FullPrincipal):
     observe_decide_latency(_time.perf_counter() - started)
     record = state["recorder"].record(action, result)
 
+    organisation_id = req.organisation_id or os.environ.get("PV_ORGANISATION_ID")
+    if organisation_id and hasattr(state["store"], "bind_decision_organisation"):
+        state["store"].bind_decision_organisation(
+            record.decision_id,
+            organisation_id=organisation_id,
+            record_hash=record.record_hash,
+        )
+
+    body: dict[str, Any] = {
+        "decision": result.decision.value,
+        "triggered_by": result.triggered_by,
+        "reason": result.reason,
+        "execution_id": execution_id,
+        "record": record.to_dict(),
+    }
+    if organisation_id:
+        body["organisation_id"] = organisation_id
     return JSONResponse(
         status_code=STATUS_MAP[result.decision],
-        content={
-            "decision": result.decision.value,
-            "triggered_by": result.triggered_by,
-            "reason": result.reason,
-            "execution_id": execution_id,
-            "record": record.to_dict(),
-        },
+        content=body,
     )
 
 
@@ -739,6 +755,22 @@ def _require_sealed_allow_for_authorize(req: AuthorizeRequest) -> dict[str, Any]
             bind_reason,
             "authorize mint refused: sealed ALLOW binding failed",
         )
+
+    decision_id = str(record["decision_id"])
+    org_binding = None
+    if hasattr(store, "get_decision_organisation"):
+        org_binding = store.get_decision_organisation(decision_id)
+    org_reason = bind_organisation(
+        org_binding,
+        organisation_id=req.organisation_id,
+        record_hash=record.get("record_hash"),
+    )
+    if org_reason is not None:
+        _authorize_refusal(
+            403,
+            org_reason,
+            "authorize mint refused: decide-time organisation binding failed",
+        )
     return record
 
 
@@ -772,7 +804,9 @@ def authorize(req: AuthorizeRequest, principal: FullPrincipal):
     """Issue execution authority bound to a sealed ALLOW and exact bytes."""
 
     _enforce_identity(principal, req.agent_id)
-    _require_sealed_allow_for_authorize(req)
+    record = _require_sealed_allow_for_authorize(req)
+    decision_id = str(record["decision_id"])
+    store = state["store"]
 
     signer = _pv_load_signer()
     trust_bundle = signer["trust_bundle"]
@@ -789,15 +823,31 @@ def authorize(req: AuthorizeRequest, principal: FullPrincipal):
 
     ttl = int(os.environ.get("PV_AUTHORIZATION_TTL_SECONDS", "60"))
     now = _datetime.now(UTC)
+    at_time = _pv_rfc3339(now)
+    ea_id = f"eauth-{_uuid.uuid4()}"
+
+    # Reserve the single mint slot BEFORE signing so a second concurrent
+    # mint cannot obtain a schema-valid signed permit for the same ALLOW.
+    if not store.try_reserve_execution_authorization_mint(
+        decision_id,
+        execution_authorization_id=ea_id,
+        organisation_id=req.organisation_id,
+        minted_at=at_time,
+    ):
+        _authorize_refusal(
+            403,
+            AUTHORIZE_DECISION_ALREADY_MINTED,
+            "this ALLOW has already minted an execution authorization",
+        )
 
     unsigned = {
         "spec": _PV_EA_SPEC,
         "canonicalization": _PV_CANON,
-        "execution_authorization_id": f"eauth-{_uuid.uuid4()}",
+        "execution_authorization_id": ea_id,
         "organisation_id": req.organisation_id,
         "request_id": req.request_id,
-        "issued_at": _pv_rfc3339(now),
-        "not_before": _pv_rfc3339(now),
+        "issued_at": at_time,
+        "not_before": at_time,
         "expires_at": _pv_rfc3339(now + _timedelta(seconds=ttl)),
         "nonce": _uuid.uuid4().hex,
         "decision_receipt_digest": req.decision_receipt_digest,
@@ -820,6 +870,10 @@ def authorize(req: AuthorizeRequest, principal: FullPrincipal):
     try:
         authorization = _pv_sign_ea(unsigned, signer["signing_key"])
     except Exception as exc:
+        store.release_execution_authorization_mint(
+            decision_id,
+            execution_authorization_id=ea_id,
+        )
         # A malformed permit fails here, not in front of an auditor.
         raise HTTPException(
             status_code=422,
@@ -829,7 +883,7 @@ def authorize(req: AuthorizeRequest, principal: FullPrincipal):
     body: dict[str, Any] = {
         "authorization": authorization,
         "trust_bundle": trust_bundle,
-        "at_time": _pv_rfc3339(now),
+        "at_time": at_time,
     }
     if loop_report is not None:
         # Report retained beside the mint; adapters must persist both.

@@ -21,9 +21,12 @@ from agent_dna.authority_v01 import (
 from agent_dna.authorize_binding import (
     AUTHORIZE_ACTION_MISMATCH,
     AUTHORIZE_AGENT_MISMATCH,
+    AUTHORIZE_DECISION_ALREADY_MINTED,
     AUTHORIZE_DECISION_NOT_ALLOW,
     AUTHORIZE_DECISION_NOT_FOUND,
     AUTHORIZE_DECISION_REQUIRED,
+    AUTHORIZE_ORGANISATION_MISMATCH,
+    AUTHORIZE_ORGANISATION_UNBOUND,
     AUTHORIZE_RECEIPT_DIGEST_MISMATCH,
 )
 from agent_dna.decision import Decision, DecisionResult
@@ -160,16 +163,25 @@ def _authorize_body(
     return body
 
 
-def _decide_allow(client, key: str, capability: str = "crm.read_contact"):
+def _decide_allow(
+    client,
+    key: str,
+    capability: str = "crm.read_contact",
+    *,
+    organisation_id: str | None = ORG,
+):
+    payload: dict = {
+        "agent_id": AGENT,
+        "capability": capability,
+        "timestamp": time.time(),
+        "arguments": dict(ARGS),
+    }
+    if organisation_id is not None:
+        payload["organisation_id"] = organisation_id
     r = client.post(
         "/v1/decide",
         headers={"X-API-Key": key},
-        json={
-            "agent_id": AGENT,
-            "capability": capability,
-            "timestamp": time.time(),
-            "arguments": dict(ARGS),
-        },
+        json=payload,
     )
     assert r.status_code == 200, r.text
     record = r.json()["record"]
@@ -349,3 +361,59 @@ def test_bound_allow_action_digest_matches_sha256(authorize_env):
     auth = r.json()["authorization"]
     assert auth["action_digest"] == sha256_digest(body["action"])
     assert auth["decision_receipt_digest"] == receipt
+
+
+def test_unbound_organisation_refuses_mint(authorize_env, monkeypatch):
+    monkeypatch.delenv("PV_ORGANISATION_ID", raising=False)
+    client, key = authorize_env["client"], authorize_env["key"]
+    record = _decide_allow(client, key, organisation_id=None)
+    receipt = "sha256:" + record["record_hash"]
+    r = client.post(
+        "/v1/authorize",
+        headers={"X-API-Key": key},
+        json=_authorize_body(
+            decision_id=record["decision_id"],
+            decision_receipt_digest=receipt,
+        ),
+    )
+    assert r.status_code == 403
+    assert r.json()["detail"]["reason_code"] == AUTHORIZE_ORGANISATION_UNBOUND
+
+
+def test_organisation_mismatch_refuses_mint(authorize_env):
+    client, key = authorize_env["client"], authorize_env["key"]
+    record = _decide_allow(client, key, organisation_id="other-org")
+    receipt = "sha256:" + record["record_hash"]
+    r = client.post(
+        "/v1/authorize",
+        headers={"X-API-Key": key},
+        json=_authorize_body(
+            decision_id=record["decision_id"],
+            decision_receipt_digest=receipt,
+        ),
+    )
+    assert r.status_code == 403
+    assert r.json()["detail"]["reason_code"] == AUTHORIZE_ORGANISATION_MISMATCH
+
+
+def test_second_mint_of_same_allow_refused(authorize_env):
+    client, key = authorize_env["client"], authorize_env["key"]
+    record = _decide_allow(client, key)
+    receipt = "sha256:" + record["record_hash"]
+    body = _authorize_body(
+        decision_id=record["decision_id"],
+        decision_receipt_digest=receipt,
+    )
+    first = client.post(
+        "/v1/authorize",
+        headers={"X-API-Key": key},
+        json=body,
+    )
+    assert first.status_code == 200, first.text
+    second = client.post(
+        "/v1/authorize",
+        headers={"X-API-Key": key},
+        json=body,
+    )
+    assert second.status_code == 403
+    assert second.json()["detail"]["reason_code"] == AUTHORIZE_DECISION_ALREADY_MINTED

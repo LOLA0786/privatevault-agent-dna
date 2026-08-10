@@ -189,23 +189,33 @@ recorded in a durable SQLite ledger** keyed by
 `execution_authorization_id`, claimed atomically on successful verify
 (`tests/test_consume_ledger.py`).
 
+**Decide-time organisation binding** is written when `/v1/decide`
+receives `organisation_id` (or `PV_ORGANISATION_ID`); mint refuses
+`AUTHORIZE_ORGANISATION_UNBOUND` / `AUTHORIZE_ORGANISATION_MISMATCH`.
+**One mint per ALLOW** is enforced by a durable mint ledger
+(`AUTHORIZE_DECISION_ALREADY_MINTED`).
+
+How to verify these claims without importing the producing runtime:
+[`docs/VERIFY-WITHOUT-TRUSTING-US.md`](VERIFY-WITHOUT-TRUSTING-US.md).
+
 Residual gaps we still do not claim closed:
 
-- **Organisation is not a DecisionRecord field (drp/0.1 / 0.2).** Mint
-  checks `organisation_id` against the pinned trust bundle and
-  `agent_id` against the sealed record + authenticated caller. There is
-  no sealed organisation binding inside the decide record itself.
+- **Organisation is not yet a hashed DRP payload field (drp/0.1 / 0.2).**
+  It is bound at decide in the durable store (`decision_organisation`)
+  and matched at mint; a future `drp/0.3` may put it inside the
+  record hash. Until then, audit JSONL alone does not carry org.
 - **Wire and peer digests are not sealed at decide time.** They are
   bound into the signed execution authorization and rechecked at
   dispatch verify; a caller who holds a valid ALLOW can still choose
-  which outbound digests to bind when minting.
+  which outbound digests to bind when minting (subject to one-mint).
 - **Library verify without a `consume_ledger` remains caller-attested**
   for consumption. Adapters that omit the ledger can still pass
   `already_consumed=False` forever. The HTTP mint path shares the
   process store; adapters must pass that store (or an equivalent
   durable ledger) into `verify_execution_authorization`.
-- **One ALLOW may mint multiple permits** until each permit's id is
-  consumed. We do not claim one-mint-per-decision accounting yet.
+- **Signatures do not defend a compromised signer at signing time.**
+  Independent verification detects post-hoc tampering and unknown
+  keys; pin and custody keys outside the producer.
 
 ## Latency and benchmark figures
 

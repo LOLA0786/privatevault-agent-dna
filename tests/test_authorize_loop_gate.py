@@ -122,6 +122,7 @@ def test_circular_authority_refuses_authorize(authorize_client):
             "capability": "crm.read_contact",
             "timestamp": time.time(),
             "arguments": dict(ARGS),
+            "organisation_id": ORG,
         },
     )
     assert decided.status_code == 200, decided.text
