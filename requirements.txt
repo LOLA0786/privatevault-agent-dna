@@ -8,5 +8,5 @@ typing-extensions>=4.12
 jsonschema>=4.21
 pynacl>=1.5
 PyYAML>=6.0
-mcp>=1.28,<2
+mcp>=1.28,<3
 prometheus-client>=0.20
