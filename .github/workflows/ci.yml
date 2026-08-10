@@ -45,7 +45,7 @@ jobs:
         run: uv run python tools/prove.py -o /tmp/proof-of-run.json
 
       - name: Upload sealed proof-of-run
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: proof-of-run
           path: /tmp/proof-of-run.json
