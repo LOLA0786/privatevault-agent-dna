@@ -887,7 +887,7 @@ requires-dist = [
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27" },
     { name = "jsonschema", specifier = ">=4.21" },
     { name = "kafka-python", marker = "extra == 'integrations'", specifier = ">=2.0" },
-    { name = "mcp", specifier = ">=1.28,<2" },
+    { name = "mcp", specifier = ">=1.28,<3" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.11.0" },
     { name = "opentelemetry-api", marker = "extra == 'integrations'", specifier = ">=1.30" },
     { name = "opentelemetry-sdk", marker = "extra == 'integrations'", specifier = ">=1.30" },
