@@ -281,6 +281,50 @@ enforcement at the drift level; we make no claim that it improves
 detection, only that it honestly measures the advisory signal and
 refuses to describe ranking scores as probabilities.
 
+## Inline MCP gateway (Phase 1) — mediated egress, not complete mediation
+
+**We claim mediated egress with detectable bypass for the MCP gateway
+transport (`agent_dna/gateway/`), not complete mediation.**
+
+What is shipped and tested (`tests/gateway/`):
+
+- The client connects to the gateway as if it were the MCP server; the
+  gateway holds upstream credentials and evaluates every `tools/call`
+  before any bytes are written upstream.
+- DENY / REQUIRE_APPROVAL return MCP errors and never forward.
+- Exact-byte binding on this transport: the gateway freezes the
+  Content-Length–framed JSON-RPC payload it will write, digests those
+  bytes with `sha256_bytes_digest`, and writes only that frozen buffer
+  (`tests/gateway/test_mediation_adversarial.py`).
+- Upstream timeout or client disconnect after the request was written
+  records an execution outcome with detail prefix `INDETERMINATE:`
+  (DRP execution status remains `error` — there is no first-class
+  `INDETERMINATE` execution status in DRP yet), is not auto-retried,
+  and is never sealed as `ok`.
+
+Residual gaps we explicitly do **not** claim closed:
+
+- **Bypass by reconfiguration:** an agent (or operator) that points the
+  MCP client directly at the upstream server, with the upstream
+  credential, is not mediated. Detection requires the upstream to
+  report sessions that lack the gateway session attribution; the
+  gateway exposes `upstream_unattributed_sessions` in ops metrics for
+  that signal. Without upstream cooperation, bypass is invisible.
+- **Non-MCP egress** (raw sockets, other protocols, cloud metadata)
+  remains outside this gateway.
+- **Exact-byte binding is for the MCP gateway transport only.** Other
+  transports / the decide API still do not seal wire digests at decide
+  time (see Execution authorization binding residuals above).
+- **HTTP/SSE proxy** mediates JSON-RPC POST bodies with the same decide
+  → freeze → forward rules; it does not claim TLS termination or a
+  full streaming-SSE session multiplex implementation beyond that
+  mediation core.
+- **DRP execution events** still use statuses `{ok, error, refused}`;
+  indeterminate gateway outcomes are encoded in `detail`, not a new
+  protocol status.
+- **Legacy** `experimental/legacy_mcp/` remains quarantined and is not
+  this gateway.
+
 ## Complete mediation (the window, not the door)
 
 **We do not claim PrivateVault prevents sandbox escape or mediates
@@ -293,7 +337,10 @@ library inside the agent's own process can provide. An agent that
 opens a raw socket, spawns a subprocess, reaches a cloud metadata
 endpoint, or otherwise produces an external effect without routing it
 through the decision path is not mediated, and our hash chain proves
-nothing about effects we were never asked to decide.
+nothing about effects we were never asked to decide. The inline MCP
+gateway narrows the window for MCP tool calls when the client is
+configured to use it; it does not close the window for agents that
+bypass that configuration.
 
 Stated as the property we are working toward, and do NOT yet claim:
 
