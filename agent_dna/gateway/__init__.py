@@ -13,14 +13,18 @@ from agent_dna.gateway.errors import (
     ArgumentMutationRefused,
     ArgumentMutationRefusedError,
     CredentialLeakError,
+    FramingProtocolError,
     GatewayStartupError,
 )
+from agent_dna.gateway.framing import FramingMode
 from agent_dna.gateway.runtime import GatewayConfig, McpGateway
 
 __all__ = [
     "ArgumentMutationRefused",
     "ArgumentMutationRefusedError",
     "CredentialLeakError",
+    "FramingMode",
+    "FramingProtocolError",
     "GatewayConfig",
     "GatewayStartupError",
     "McpGateway",
