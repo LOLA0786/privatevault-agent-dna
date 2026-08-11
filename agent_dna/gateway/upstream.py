@@ -12,8 +12,15 @@ from urllib import error as urlerror
 from urllib import request as urlrequest
 
 from agent_dna.gateway.credentials import UpstreamCredentials
-from agent_dna.gateway.errors import UpstreamTimeoutError
-from agent_dna.gateway.framing import frame_stdio, parse_jsonrpc
+from agent_dna.gateway.errors import FramingProtocolError, UpstreamTimeoutError
+from agent_dna.gateway.framing import (
+    DEFAULT_MAX_MESSAGE_BYTES,
+    MAX_HEADER_BYTES,
+    FrameBuffer,
+    FramingMode,
+    frame_stdio,
+    parse_jsonrpc,
+)
 
 
 class UpstreamTransport(Protocol):
@@ -65,13 +72,26 @@ class StdioUpstream:
     command: list[str]
     credentials: UpstreamCredentials
     identity: str = ""
+    max_message_bytes: int = DEFAULT_MAX_MESSAGE_BYTES
+    framing_mode: FramingMode = FramingMode.CONTENT_LENGTH
     _proc: subprocess.Popen[bytes] | None = field(default=None, init=False, repr=False)
+    _buffer: FrameBuffer | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
         if not self.command:
             raise ValueError("StdioUpstream requires a non-empty command")
         if not self.identity:
             self.identity = "stdio:" + " ".join(self.command)
+        if self.framing_mode is FramingMode.NEWLINE:
+            raise ValueError(
+                "StdioUpstream production path rejects newline framing; "
+                "use Content-Length only"
+            )
+        self._buffer = FrameBuffer(
+            mode=FramingMode.CONTENT_LENGTH,
+            max_header_bytes=MAX_HEADER_BYTES,
+            max_message_bytes=self.max_message_bytes,
+        )
 
     def start(self) -> None:
         if self._proc is not None:
@@ -87,64 +107,39 @@ class StdioUpstream:
 
     def write(self, wire_bytes: bytes) -> None:
         self.start()
-        assert self._proc is not None and self._proc.stdin is not None
+        if self._proc is None or self._proc.stdin is None:
+            raise RuntimeError("stdio upstream process stdin unavailable")
         self._proc.stdin.write(wire_bytes)
         self._proc.stdin.flush()
 
-    def _read_body(self, stdout: Any, length: int, deadline: float) -> bytes:
-        rest = b""
-        while len(rest) < length and time.monotonic() < deadline:
-            rem = max(0.0, deadline - time.monotonic())
-            ready, _, _ = select.select([stdout], [], [], rem)
-            if not ready:
-                break
-            more = stdout.read(length - len(rest))
-            if not more:
-                break
-            rest += more
-        if len(rest) < length:
-            raise UpstreamTimeoutError("incomplete MCP frame")
-        return rest
-
-    def _parse_frame(
-        self, buf: bytes, stdout: Any, deadline: float
-    ) -> dict[str, Any] | None:
-        if b"\r\n\r\n" in buf:
-            header, rest = buf.split(b"\r\n\r\n", 1)
-            length = None
-            for line in header.split(b"\r\n"):
-                if line.lower().startswith(b"content-length:"):
-                    length = int(line.split(b":", 1)[1].strip())
-                    break
-            if length is None:
-                raise ValueError("MCP frame missing Content-Length")
-            if len(rest) < length:
-                rest = rest + self._read_body(stdout, length - len(rest), deadline)
-            return parse_jsonrpc(rest[:length])
-        if b"\n" in buf and b"Content-Length" not in buf:
-            line, _ = buf.split(b"\n", 1)
-            return parse_jsonrpc(line)
-        return None
-
     def read_jsonrpc(self, *, timeout_s: float) -> dict[str, Any]:
         self.start()
-        assert self._proc is not None and self._proc.stdout is not None
+        if self._proc is None or self._proc.stdout is None:
+            raise RuntimeError("stdio upstream process stdout unavailable")
         stdout = self._proc.stdout
+        buffer = self._buffer
+        if buffer is None:
+            raise RuntimeError("stdio upstream frame buffer missing")
         deadline = time.monotonic() + timeout_s
-        buf = b""
-        while time.monotonic() < deadline:
+        while True:
+            ready = buffer.take_message()
+            if ready is not None:
+                return parse_jsonrpc(ready, max_message_bytes=self.max_message_bytes)
             remaining = max(0.0, deadline - time.monotonic())
-            ready, _, _ = select.select([stdout], [], [], remaining)
-            if not ready:
-                break
+            if remaining <= 0:
+                raise UpstreamTimeoutError("stdio upstream timeout")
+            readable, _, _ = select.select([stdout], [], [], remaining)
+            if not readable:
+                raise UpstreamTimeoutError("stdio upstream timeout")
             chunk = stdout.read(1)
             if not chunk:
-                break
-            buf += chunk
-            parsed = self._parse_frame(buf, stdout, deadline)
-            if parsed is not None:
-                return parsed
-        raise UpstreamTimeoutError("stdio upstream timeout")
+                if buffer.pending:
+                    raise UpstreamTimeoutError("incomplete MCP frame")
+                raise UpstreamTimeoutError("stdio upstream EOF")
+            try:
+                buffer.push(chunk)
+            except FramingProtocolError:
+                raise
 
     def close(self) -> None:
         if self._proc is None:
@@ -164,6 +159,7 @@ class HttpSseUpstream:
     url: str
     credentials: UpstreamCredentials
     identity: str = ""
+    max_message_bytes: int = DEFAULT_MAX_MESSAGE_BYTES
 
     def __post_init__(self) -> None:
         if not self.url:
@@ -186,10 +182,16 @@ class HttpSseUpstream:
         req = urlrequest.Request(self.url, data=payload, headers=headers, method="POST")
         try:
             with urlrequest.urlopen(req, timeout=30) as resp:
-                body = resp.read()
+                body = resp.read(self.max_message_bytes + 1)
         except urlerror.URLError as exc:
             raise ConnectionError(f"upstream HTTP error: {exc}") from exc
-        self._last_response = parse_jsonrpc(body)
+        if len(body) > self.max_message_bytes:
+            raise FramingProtocolError(
+                f"upstream HTTP body exceeds max_message_bytes {self.max_message_bytes}"
+            )
+        self._last_response = parse_jsonrpc(
+            body, max_message_bytes=self.max_message_bytes
+        )
 
     def read_jsonrpc(self, *, timeout_s: float) -> dict[str, Any]:
         del timeout_s  # request was synchronous in write()

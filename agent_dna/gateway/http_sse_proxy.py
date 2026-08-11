@@ -6,6 +6,7 @@ import json
 from collections.abc import Callable
 from typing import Any
 
+from agent_dna.gateway.errors import FramingProtocolError
 from agent_dna.gateway.framing import encode_jsonrpc_message, parse_jsonrpc
 from agent_dna.gateway.mediator import GatewayMediator
 from agent_dna.gateway.runtime import McpGateway
@@ -27,8 +28,15 @@ def handle_http_jsonrpc(
     # HTTP bodies are unframed JSON-RPC objects.
     active.framed = False
     try:
-        message = parse_jsonrpc(body)
-    except (UnicodeDecodeError, ValueError, json.JSONDecodeError) as exc:
+        message = parse_jsonrpc(
+            body, max_message_bytes=gateway.config.max_message_bytes
+        )
+    except (
+        FramingProtocolError,
+        UnicodeDecodeError,
+        ValueError,
+        json.JSONDecodeError,
+    ) as exc:
         err = {
             "jsonrpc": "2.0",
             "id": None,

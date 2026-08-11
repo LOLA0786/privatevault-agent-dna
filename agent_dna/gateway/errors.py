@@ -25,3 +25,7 @@ class UpstreamTimeoutError(TimeoutError):
 
 class ClientDisconnectedError(ConnectionError):
     """Client gone mid-call; must not seal a successful completion."""
+
+
+class FramingProtocolError(ValueError):
+    """Malformed MCP framing or JSON-RPC — never forward, never seal success."""

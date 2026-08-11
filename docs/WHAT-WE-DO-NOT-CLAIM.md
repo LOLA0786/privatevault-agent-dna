@@ -24,7 +24,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 1021+ automated tests, run in CI on every commit
+- 1057+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
@@ -296,6 +296,10 @@ What is shipped and tested (`tests/gateway/`):
   Content-Length–framed JSON-RPC payload it will write, digests those
   bytes with `sha256_bytes_digest`, and writes only that frozen buffer
   (`tests/gateway/test_mediation_adversarial.py`).
+- Frame reading is bounded and mode-explicit (`tests/gateway/test_framing.py`):
+  header ≤ 8 KiB, body ≤ configurable `max_message_bytes` (default 8 MiB),
+  Content-Length framing only in production; trailing bytes after a frame
+  are retained for pipelining; newline framing is test-only.
 - Upstream timeout or client disconnect after the request was written
   records an execution outcome with detail prefix `INDETERMINATE:`
   (DRP execution status remains `error` — there is no first-class
@@ -324,6 +328,12 @@ Residual gaps we explicitly do **not** claim closed:
   protocol status.
 - **Legacy** `experimental/legacy_mcp/` remains quarantined and is not
   this gateway.
+- **Framing residuals:** bounds stop unbounded memory on headers/bodies,
+  but a peer that dribbles valid-sized incomplete frames can still hold
+  a connection open until the read timeout; that is a liveness concern,
+  not a mediation bypass. Unicode normalization is not applied before
+  digest — visually similar strings with different code points digest
+  differently by design (tested).
 
 ## Complete mediation (the window, not the door)
 

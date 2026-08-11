@@ -19,6 +19,7 @@ from agent_dna.gateway.errors import (
     UpstreamTimeoutError,
 )
 from agent_dna.gateway.framing import (
+    DEFAULT_MAX_MESSAGE_BYTES,
     MCP_ENFORCEMENT_APPROVAL,
     MCP_ENFORCEMENT_DENIED,
     MCP_GATEWAY_FAULT,
@@ -74,6 +75,7 @@ class GatewayMediator:
         agent_api_key: str,
         upstream_timeout_s: float = 5.0,
         framed: bool = True,
+        max_message_bytes: int = DEFAULT_MAX_MESSAGE_BYTES,
     ) -> None:
         self.middleware = middleware
         self.upstream = upstream
@@ -83,6 +85,7 @@ class GatewayMediator:
         self.agent_api_key = agent_api_key
         self.upstream_timeout_s = upstream_timeout_s
         self.framed = framed
+        self.max_message_bytes = max_message_bytes
         self.metrics.note_session(session.session_id)
         self._client_connected = True
 
@@ -91,7 +94,7 @@ class GatewayMediator:
 
     def handle_raw(self, raw: bytes | str) -> bytes:
         """Handle one client JSON-RPC message; return exact response bytes."""
-        message = parse_jsonrpc(raw)
+        message = parse_jsonrpc(raw, max_message_bytes=self.max_message_bytes)
         result = self.handle_message(message)
         payload = encode_jsonrpc_message(result.client_message)
         out = frame_stdio(payload) if self.framed else payload
