@@ -297,10 +297,14 @@ What is shipped and tested (`tests/gateway/`):
   bytes with `sha256_bytes_digest`, and writes only that frozen buffer
   (`tests/gateway/test_mediation_adversarial.py`).
 - Upstream timeout or client disconnect after the request was written
-  records an execution outcome with detail prefix `INDETERMINATE:`
-  (DRP execution status remains `error` — there is no first-class
-  `INDETERMINATE` execution status in DRP yet), is not auto-retried,
-  and is never sealed as `ok`.
+  records an execution outcome with detail prefix `INDETERMINATE:`,
+  is not auto-retried, and is never sealed as `ok`. At the gateway this
+  is a distinct state: JSON-RPC error code `-32004`, an `indeterminate`
+  flag on the mediation result, and a `gateway_tools_calls_indeterminate`
+  counter an operator can alert on. In the evidence, DRP execution status
+  remains `error` — there is no first-class `INDETERMINATE` execution
+  status in DRP yet, so an offline verifier cannot separate an
+  indeterminate outcome from any other execution error.
 
 Residual gaps we explicitly do **not** claim closed:
 
