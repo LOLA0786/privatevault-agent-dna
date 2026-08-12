@@ -44,9 +44,7 @@ def _require_exact_fields(
     if set(value) != required:
         missing = sorted(required - set(value))
         unknown = sorted(set(value) - required)
-        raise ValueError(
-            f"{path} fields invalid: missing={missing}, unknown={unknown}"
-        )
+        raise ValueError(f"{path} fields invalid: missing={missing}, unknown={unknown}")
 
 
 def load_scenario(path: Path) -> Scenario:

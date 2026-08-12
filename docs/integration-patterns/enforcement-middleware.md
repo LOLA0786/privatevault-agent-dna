@@ -19,6 +19,7 @@ answer is anything other than ALLOW, don't execute yet.
 ```python
 import requests
 
+
 def enforced_tool_call(agent_id, capability, arguments, evidence=None):
     """Wrap this around your harness's existing tool-execution step.
     Everything below the 'decide' call is your harness's own logic,
@@ -74,12 +75,15 @@ instead of an HTTP request:
 
 ```python
 # pseudocode -- exact client API depends on your MCP client library
-result = await mcp_client.call_tool("pv_decide", {
-    "agent_id": agent_id,
-    "capability": capability,
-    "arguments": arguments,
-    "evidence": evidence,
-})
+result = await mcp_client.call_tool(
+    "pv_decide",
+    {
+        "agent_id": agent_id,
+        "capability": capability,
+        "arguments": arguments,
+        "evidence": evidence,
+    },
+)
 
 if result["decision"] == "block":
     raise ActionBlocked(result["reason"])
@@ -88,9 +92,13 @@ elif result["decision"] == "require_approval":
 else:
     # allow -- proceed with your harness's own execution
     outcome = your_harness_executes_the_tool_call(capability, arguments)
-    await mcp_client.call_tool("pv_report_outcome", {
-        "decision_id": result["decision_id"], "status": "ok",
-    })
+    await mcp_client.call_tool(
+        "pv_report_outcome",
+        {
+            "decision_id": result["decision_id"],
+            "status": "ok",
+        },
+    )
 ```
 
 Six tools cover the full loop: `pv_decide`, `pv_report_outcome`,

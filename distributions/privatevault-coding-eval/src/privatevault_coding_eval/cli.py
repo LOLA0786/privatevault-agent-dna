@@ -28,9 +28,7 @@ PUBLIC_KEY_SPEC = "pv-coding-eval-public-key/0.1"
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="pv-coding-eval",
-        description=(
-            "PrivateVault evaluation harness for coding agents"
-        ),
+        description=("PrivateVault evaluation harness for coding agents"),
     )
     commands = parser.add_subparsers(
         dest="command",
@@ -85,10 +83,7 @@ def _parser() -> argparse.ArgumentParser:
 
     verify = commands.add_parser(
         "verify",
-        help=(
-            "runtime-coupled verification "
-            "with an out-of-band trust key"
-        ),
+        help=("runtime-coupled verification with an out-of-band trust key"),
     )
     verify.add_argument(
         "report",
@@ -132,9 +127,7 @@ def _read_object(
     )
 
     if not isinstance(value, Mapping):
-        raise ValueError(
-            f"{path}: expected JSON object"
-        )
+        raise ValueError(f"{path}: expected JSON object")
 
     return value
 
@@ -145,9 +138,7 @@ def _key_path(
     if arguments.public_key_output is not None:
         return arguments.public_key_output
 
-    return arguments.output.with_suffix(
-        ".public-key.json"
-    )
+    return arguments.output.with_suffix(".public-key.json")
 
 
 def _run(
@@ -157,9 +148,7 @@ def _run(
         suite_name = arguments.suite
         scenarios = suites()[suite_name]
     else:
-        suite_name = (
-            f"custom:{arguments.scenario.name}"
-        )
+        suite_name = f"custom:{arguments.scenario.name}"
         scenarios = (
             load_scenario(
                 arguments.scenario,
@@ -189,24 +178,12 @@ def _run(
     print("PRIVATEVAULT CODING AGENT EVALUATION")
     print("=" * 56)
     print(f"Suite             {suite_name}")
-    print(
-        f"Scenarios run     "
-        f"{report['scenarios_run']}"
-    )
-    print(
-        f"Scenarios passed  "
-        f"{report['scenarios_passed']}"
-    )
-    print(
-        f"Scenarios failed  "
-        f"{report['scenarios_failed']}"
-    )
+    print(f"Scenarios run     {report['scenarios_run']}")
+    print(f"Scenarios passed  {report['scenarios_passed']}")
+    print(f"Scenarios failed  {report['scenarios_failed']}")
     print(f"Signed report     {arguments.output}")
     print(f"Trust key         {key_path}")
-    print(
-        f"VERDICT           "
-        f"{'PASS' if report['passed'] else 'FAIL'}"
-    )
+    print(f"VERDICT           {'PASS' if report['passed'] else 'FAIL'}")
 
     return 0 if report["passed"] else 1
 
@@ -222,9 +199,7 @@ def _trusted_key(
     }
 
     if set(document) != expected:
-        raise ValueError(
-            f"{path}: invalid trust-key fields"
-        )
+        raise ValueError(f"{path}: invalid trust-key fields")
 
     if (
         document["spec"] != PUBLIC_KEY_SPEC
@@ -234,9 +209,7 @@ def _trusted_key(
             str,
         )
     ):
-        raise ValueError(
-            f"{path}: invalid trust key"
-        )
+        raise ValueError(f"{path}: invalid trust key")
 
     return document["public_key"]
 
@@ -255,20 +228,12 @@ def _verify(
         ),
     )
 
-    print(
-        "PRIVATEVAULT CODING EVALUATION VERIFICATION"
-    )
+    print("PRIVATEVAULT CODING EVALUATION VERIFICATION")
     print("=" * 56)
     print("Verifier           runtime-coupled")
     print(f"Suite              {result['suite']}")
-    print(
-        f"Records verified   "
-        f"{result['scenarios_verified']}"
-    )
-    print(
-        "Trust mode         "
-        "OUT_OF_BAND_PUBLIC_KEY"
-    )
+    print(f"Records verified   {result['scenarios_verified']}")
+    print("Trust mode         OUT_OF_BAND_PUBLIC_KEY")
     print("VERDICT            PASS")
 
     return 0
@@ -301,10 +266,7 @@ def _list(
             print(suite_name.upper())
 
             for scenario in scenarios:
-                print(
-                    f"  {scenario['name']}: "
-                    f"{scenario['description']}"
-                )
+                print(f"  {scenario['name']}: {scenario['description']}")
 
     return 0
 
@@ -320,11 +282,7 @@ def main(
         if arguments.command == "doctor":
             report = doctor_report()
 
-            print(
-                doctor_json()
-                if arguments.json
-                else render_doctor_text(report)
-            )
+            print(doctor_json() if arguments.json else render_doctor_text(report))
 
             return 0 if report["ready"] else 1
 
@@ -337,9 +295,7 @@ def main(
         if arguments.command == "verify":
             return _verify(arguments)
 
-        raise AssertionError(
-            f"unhandled command: {arguments.command}"
-        )
+        raise AssertionError(f"unhandled command: {arguments.command}")
 
     except (
         OSError,

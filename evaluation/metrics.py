@@ -48,11 +48,7 @@ class EvaluationResult:
 
     @property
     def average_detection_latency(self) -> float:
-        return (
-            self.latency_sum / self.detections
-            if self.detections
-            else 0.0
-        )
+        return self.latency_sum / self.detections if self.detections else 0.0
 
     def report(self) -> str:
         return f"""

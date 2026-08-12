@@ -18,12 +18,12 @@ until it has a real consumer — see `docs/WHAT-WE-DO-NOT-CLAIM.md`.
 
 ```python
 evidence: dict = {
-    "user_request":     {...},  # SHIPPED — L0
-    "planner":          {...},  # SHIPPED — L0
-    "approvals":        {...},  # SHIPPED — L0
+    "user_request": {...},  # SHIPPED — L0
+    "planner": {...},  # SHIPPED — L0
+    "approvals": {...},  # SHIPPED — L0
     "enterprise_state": {...},  # SHIPPED — L0
-    "consensus":        {...},  # SHIPPED — L3 (consensus; contract v4.0)
-    "economics":        {...},  # SHIPPED — L4 (economics)
+    "consensus": {...},  # SHIPPED — L3 (consensus; contract v4.0)
+    "economics": {...},  # SHIPPED — L4 (economics)
 }
 ```
 
