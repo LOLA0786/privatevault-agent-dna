@@ -1,10 +1,17 @@
 # Self-hosted PrivateVault platform stack (single-tenant).
-# Auth is ON. Does not claim SOC 2 / ISO / multi-tenant SaaS.
+# Auth is ON. Secure profile is ON. Does not claim SOC 2 / ISO / multi-tenant SaaS.
 #
+# Prerequisites (fail closed if missing):
 #   python tools/init_platform_keys.py --out deploy/platform/keys.json
+#   PV_SIGNER_DIR=$PWD/deploy/platform python tools/init_execution_signer.py
+#   # grants JSON: [{"agent_id","capability","granted_by"}, ...]
 #   export PV_API_KEYS_FILE=$PWD/deploy/platform/keys.json
+#   export PV_GRANTS_FILE=$PWD/deploy/platform/grants.json
+#   export PV_EXECUTION_SIGNER_KEY=$PWD/deploy/platform/execution-signer.key
+#   export PV_TRUST_BUNDLE=$PWD/deploy/platform/trust-bundle.json
 #   docker compose -f docker-compose.platform.yml up --build --wait
 #   python tools/platform_demo.py   # in-process proof without Docker
+#   python tools/adversarial_egress_demo.py  # exact-byte last-meter demo
 
 services:
   privatevault:
@@ -13,13 +20,19 @@ services:
       - "8000:8000"
     volumes:
       - pv_platform_data:/data
-      - ${PV_API_KEYS_FILE}:/run/secrets/pv_api_keys.json:ro
+      - ${PV_API_KEYS_FILE:?PV_SECURE_PROFILE=1 requires PV_API_KEYS_FILE to point at a host API-keys file}:/run/secrets/pv_api_keys.json:ro
+      - ${PV_GRANTS_FILE:?PV_SECURE_PROFILE=1 requires PV_GRANTS_FILE to point at a host grants file}:/run/secrets/pv_grants.json:ro
+      - ${PV_EXECUTION_SIGNER_KEY:?PV_SECURE_PROFILE=1 requires PV_EXECUTION_SIGNER_KEY to point at a host signing key}:/run/secrets/pv_execution.key:ro
+      - ${PV_TRUST_BUNDLE:?PV_SECURE_PROFILE=1 requires PV_TRUST_BUNDLE to point at a host trust bundle}:/run/secrets/pv_trust_bundle.json:ro
     environment:
+      PV_SECURE_PROFILE: "1"
       PV_ALLOW_NO_AUTH: "0"
       PV_API_KEYS_FILE: /run/secrets/pv_api_keys.json
+      PV_GRANTS_FILE: /run/secrets/pv_grants.json
+      PV_EXECUTION_SIGNER_KEY: /run/secrets/pv_execution.key
+      PV_TRUST_BUNDLE: /run/secrets/pv_trust_bundle.json
       PV_DB_PATH: /data/privatevault.db
-      # Operator-on fail-closed defaults for the platform profile.
-      # Callers cannot disable these via request fields.
+      # Redundant with secure profile (forced on); listed for manifest clarity.
       PV_CROSS_AGENT_REQUIRE_EXECUTION_ID: "1"
       PV_LOOP_EVENTS_REQUIRED: "1"
     restart: unless-stopped

@@ -240,6 +240,10 @@ def main() -> None:
                 "\nOK - permit binds sealed ALLOW + exact bytes "
                 "and rejects substitution"
             )
+            print(
+                "For verify+witness+send (reference egress adapter), run:\n"
+                "  uv run python tools/adversarial_egress_demo.py"
+            )
 
 
 if __name__ == "__main__":

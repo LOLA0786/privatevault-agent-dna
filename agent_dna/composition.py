@@ -200,11 +200,87 @@ def _load_grants(path: str) -> GrantRegistry:
     return reg
 
 
+def _secure_profile_enabled() -> bool:
+    return _env_flag("PV_SECURE_PROFILE", "0")
+
+
+def _assert_secure_profile_preconditions(cfg: RuntimeConfig) -> None:
+    """Fail closed loudly when the operator asked for secure defaults."""
+    if not _secure_profile_enabled():
+        return
+    if _env_flag("PV_ALLOW_NO_AUTH"):
+        raise RuntimeError(
+            "PV_SECURE_PROFILE=1 refuses PV_ALLOW_NO_AUTH=1 — "
+            "secure profile and open-development auth cannot both be set"
+        )
+    if not cfg.keys_file:
+        raise RuntimeError(
+            "PV_SECURE_PROFILE=1 requires PV_API_KEYS_FILE "
+            "(real API keys; anonymous decide is refused)"
+        )
+    if not cfg.grants_file:
+        raise RuntimeError(
+            "PV_SECURE_PROFILE=1 requires PV_GRANTS_FILE "
+            "(explicit grants; deny-all empty registry is not enough)"
+        )
+
+
+def _secure_profile_manifest(secure: bool) -> dict[str, str]:
+    if secure:
+        return {
+            "status": "attached",
+            "detail": (
+                "PV_SECURE_PROFILE=1: API keys + grants required; "
+                "cross-agent execution_id and loop events required; "
+                "PV_ALLOW_NO_AUTH refused"
+            ),
+        }
+    return {
+        "status": "not_configured",
+        "detail": "set PV_SECURE_PROFILE=1 for secure-by-default operator path",
+    }
+
+
+def _compose_authorizer(
+    cfg: RuntimeConfig,
+) -> tuple[GrantRegistry | OpenAuthorizer, dict[str, str]]:
+    if cfg.grants_file:
+        authorizer = _load_grants(cfg.grants_file)
+        authorizer.authorization_mode = "grants_file"
+        return authorizer, {
+            "status": "attached",
+            "detail": f"grants: {cfg.grants_file}",
+            "mode": "grants_file",
+        }
+    if _env_flag("PV_ALLOW_NO_AUTH"):
+        return OpenAuthorizer(), {
+            "status": "open_development",
+            "detail": (
+                "UNSAFE DEVELOPMENT ONLY — PV_ALLOW_NO_AUTH: open authorizer; "
+                "capability default-deny is OFF; never use in production; "
+                "mode recorded in decision evidence"
+            ),
+            "mode": "open",
+        }
+    authorizer = GrantRegistry()
+    authorizer.authorization_mode = "deny_all"
+    return authorizer, {
+        "status": "attached",
+        "detail": "deny-all empty GrantRegistry (PV_GRANTS_FILE unset); "
+        "default-deny for capabilities",
+        "mode": "deny_all",
+    }
+
+
 def build_production_runtime(
     config: RuntimeConfig | None = None,
 ) -> ProductionRuntime:
     cfg = config or RuntimeConfig.from_env()
-    comp: dict[str, dict[str, str]] = {}
+    _assert_secure_profile_preconditions(cfg)
+    secure = _secure_profile_enabled()
+    comp: dict[str, dict[str, str]] = {
+        "secure_profile": _secure_profile_manifest(secure),
+    }
 
     # ---- always-attached, evidence-gated levels ----
     uaal = UAALConstraintChecker()
@@ -273,32 +349,7 @@ def build_production_runtime(
     # Non-development: empty GrantRegistry is deny-all (default-deny).
     # Development (PV_ALLOW_NO_AUTH): OpenAuthorizer, mode recorded in
     # decision evidence — not the same as authorizer=None.
-    authorizer: GrantRegistry | OpenAuthorizer
-    if cfg.grants_file:
-        authorizer = _load_grants(cfg.grants_file)
-        authorizer.authorization_mode = "grants_file"
-        comp["authorization"] = {
-            "status": "attached",
-            "detail": f"grants: {cfg.grants_file}",
-            "mode": "grants_file",
-        }
-    elif _env_flag("PV_ALLOW_NO_AUTH"):
-        authorizer = OpenAuthorizer()
-        comp["authorization"] = {
-            "status": "open_development",
-            "detail": "PV_ALLOW_NO_AUTH: open authorizer (development only); "
-            "mode recorded in decision evidence",
-            "mode": "open",
-        }
-    else:
-        authorizer = GrantRegistry()
-        authorizer.authorization_mode = "deny_all"
-        comp["authorization"] = {
-            "status": "attached",
-            "detail": "deny-all empty GrantRegistry (PV_GRANTS_FILE unset); "
-            "default-deny for capabilities",
-            "mode": "deny_all",
-        }
+    authorizer, comp["authorization"] = _compose_authorizer(cfg)
 
     comp["invariant"] = {
         "status": "not_configured",
@@ -381,6 +432,12 @@ def build_production_runtime(
     }
 
     apikeys = ApiKeyRegistry(cfg.keys_file)
+    if secure and not apikeys.enabled:
+        breaker.close()
+        raise RuntimeError(
+            "PV_SECURE_PROFILE=1 requires at least one API key in "
+            "PV_API_KEYS_FILE (registry empty or unreadable)"
+        )
     comp["identity"] = {
         "status": "attached" if apikeys.enabled else "not_configured",
         "detail": (
@@ -417,8 +474,12 @@ def build_production_runtime(
     # ---- multi-agent: definitional CABI + authorize-time loop discovery ----
     cross_agent = None
     cabi_disabled = os.getenv("PV_CROSS_AGENT", "1").lower() in ("0", "false", "no")
-    require_execution_id = _env_flag("PV_CROSS_AGENT_REQUIRE_EXECUTION_ID", "0")
-    loop_events_required = _env_flag("PV_LOOP_EVENTS_REQUIRED", "0")
+    # Secure profile forces these on; env alone may leave them off for
+    # compatibility. Callers cannot disable via request fields.
+    require_execution_id = secure or _env_flag(
+        "PV_CROSS_AGENT_REQUIRE_EXECUTION_ID", "0"
+    )
+    loop_events_required = secure or _env_flag("PV_LOOP_EVENTS_REQUIRED", "0")
     if cabi_disabled:
         comp["cross_agent"] = {
             "status": "disabled",
