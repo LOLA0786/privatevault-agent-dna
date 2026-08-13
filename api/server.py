@@ -165,11 +165,47 @@ def _assert_auth_configured(auth_enabled: bool) -> None:
             "identity)."
         )
     print(
-        "WARNING: PV_ALLOW_NO_AUTH set -- authentication is DISABLED. "
-        "Every request runs as its self-declared identity. Never use this "
-        "in production.",
+        "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
+        "UNSAFE: PV_ALLOW_NO_AUTH=1 — authentication is DISABLED.\n"
+        "Every request runs as its self-declared identity.\n"
+        "Never use this in production. Prefer PV_SECURE_PROFILE=1.\n"
+        "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",
         file=sys.stderr,
     )
+
+
+def _assert_secure_authorize_material() -> None:
+    """Under PV_SECURE_PROFILE, refuse to start without mint material."""
+    secure = os.getenv("PV_SECURE_PROFILE", "").lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+    if not secure:
+        return
+    key = os.getenv("PV_EXECUTION_SIGNER_KEY")
+    bundle = os.getenv("PV_TRUST_BUNDLE")
+    missing = [
+        name
+        for name, value in (
+            ("PV_EXECUTION_SIGNER_KEY", key),
+            ("PV_TRUST_BUNDLE", bundle),
+        )
+        if not value
+    ]
+    if missing:
+        raise RuntimeError(
+            "PV_SECURE_PROFILE=1 requires execution mint material: "
+            + ", ".join(missing)
+            + " (see tools/init_execution_signer.py)"
+        )
+    for label, path in (
+        ("PV_EXECUTION_SIGNER_KEY", key),
+        ("PV_TRUST_BUNDLE", bundle),
+    ):
+        if path is not None and not Path(path).is_file():
+            raise RuntimeError(f"{label} path does not exist: {path}")
 
 
 @asynccontextmanager
@@ -186,10 +222,17 @@ async def lifespan(app: FastAPI):
     for level, info in runtime.composition.items():
         if info["status"] != "attached":
             print(f"RUNTIME: {level} not attached -- {info['detail']}", file=sys.stderr)
+    if runtime.composition.get("authorization", {}).get("mode") == "open":
+        print(
+            "UNSAFE: authorization mode=open (PV_ALLOW_NO_AUTH). "
+            "Capability default-deny is OFF.",
+            file=sys.stderr,
+        )
     state["runtime"] = runtime
     state["apikeys"] = runtime.apikeys
 
     _assert_auth_configured(runtime.apikeys.enabled)
+    _assert_secure_authorize_material()
     state["store"] = runtime.store
     state["recorder"] = runtime.recorder
     state["engine"] = runtime.engine

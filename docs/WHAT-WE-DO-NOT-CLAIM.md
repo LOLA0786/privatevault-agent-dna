@@ -171,6 +171,35 @@ SDK surface change (`tests/connector/test_mcp_adapter.py`,
 `tests/connector/test_mcp_http_identity.py`). A future SDK major
 version will break tests, not enforcement.
 
+## Exact-byte egress (what the reference adapter guarantees)
+
+**`ExactByteHttpDispatcher`**
+(`agent_dna/connector/adapters/exact_byte_http.py`) is the canonical
+how-you-actually-send path after mint. When egress is routed through
+it, it guarantees (in order):
+
+- serialize / freeze the outbound buffer (`serialize_json_payload` or
+  caller-supplied `wire_bytes`);
+- `verify_execution_authorization` recomputes the wire digest against
+  those bytes (no consume yet);
+- an independent `dispatch_witness` is created over the same buffer;
+- the EA is atomically consumed via the durable ledger;
+- the transport receives that same `bytes` object (no re-serialize);
+- nothing is sent if any prior step fails
+  (`tests/connector/test_exact_byte_http.py`).
+
+**Integrators must still:**
+
+- route every consequential egress through this adapter (or another
+  that passes `tests/test_adapter_conformance.py`);
+- keep the witness signing key independent of the EA mint key;
+- terminate TLS and pin peer identity outside this library;
+- treat a transport failure after consume as a burned permit (mint
+  again — we do not auto-retry).
+
+**We still do not claim complete mediation** for effects that never
+call the adapter (see below).
+
 ## Compliance
 
 **We do not claim compliance.** A signed, tamper-evident decision

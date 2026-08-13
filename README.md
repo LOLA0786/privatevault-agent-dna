@@ -262,9 +262,35 @@ tools/verify_records.py independent chain and signature verifier
 | `agent_dna/signer.py`, `apikeys.py` | Ed25519 receipts, hashed API keys |
 | `api/server.py` | FastAPI decision service |
 | `agent_dna/mcp_server.py`, `connector/` | MCP tools and transport enforcement |
+| `agent_dna/connector/adapters/exact_byte_http.py` | Reference exact-byte egress (verify+consume → witness → send) |
 | `spec/` | Wire format: schemas, canonical vectors, precedence contract |
 | `tools/` | Independent verifiers, benchmarks, and adversarial runners |
 | `experimental/` | Unwired sketches. Nothing here carries claims |
+
+## Exact-byte egress (how you actually send)
+
+After `POST /v1/authorize`, route outbound bytes through
+`ExactByteHttpDispatcher`. It freezes the wire buffer, verifies and
+consumes the execution authorization against those exact bytes, signs an
+independent dispatch witness, then hands the **same** `bytes` object to
+the transport. Mutated payloads and replayed permits are refused; nothing
+is sent on failure.
+
+```bash
+uv run python tools/adversarial_egress_demo.py   # allow / mutate / replay / offline verify
+```
+
+Adapter conformance (MCP + exact-byte): `tests/test_adapter_conformance.py`.
+What this guarantees — and what integrators must still do — is spelled out
+in `docs/WHAT-WE-DO-NOT-CLAIM.md` under “Exact-byte egress”.
+
+## Secure-defaults profile
+
+Set `PV_SECURE_PROFILE=1` (on in `docker-compose.platform.yml`) to refuse
+startup unless API keys, grants, execution signer, and trust bundle are
+present; cross-agent `execution_id` and authorize-time loop events are
+forced on. `PV_ALLOW_NO_AUTH=1` remains for local development and prints
+an explicit UNSAFE banner — it is incompatible with the secure profile.
 
 ## Limitations
 
@@ -287,6 +313,8 @@ production. The short version:
   its report with dispatch evidence.
 - The offline Discovery Loop proposes policy changes but cannot approve, merge,
   or deploy them. Corpus Wilson intervals are not production accuracy claims.
+- Complete mediation still requires routing every consequential effect through
+  an adapter that passes the conformance suite (or an out-of-process observer).
 
 ## Security
 
