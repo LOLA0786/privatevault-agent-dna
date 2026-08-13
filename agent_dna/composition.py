@@ -84,6 +84,11 @@ def _env_int(name: str) -> int | None:
     return int(v) if v not in (None, "") else None
 
 
+def _csv_frozenset(name: str) -> frozenset[str]:
+    raw = os.getenv(name, "")
+    return frozenset(part.strip() for part in raw.split(",") if part.strip())
+
+
 @dataclass
 class RuntimeConfig:
     db_path: str = "data/privatevault.db"
@@ -109,6 +114,8 @@ class RuntimeConfig:
     breaker_max_refusals: int | None = None
     trusted_public_keys: frozenset[str] = field(default_factory=frozenset)
     execution_trust_bundle_file: str | None = None
+    egress_allowed_destinations: frozenset[str] = field(default_factory=frozenset)
+    egress_allowed_audiences: frozenset[str] = field(default_factory=frozenset)
 
     @classmethod
     def from_env(cls) -> RuntimeConfig:
@@ -144,6 +151,10 @@ class RuntimeConfig:
             breaker_max_refusals=_env_int("PV_BREAKER_MAX_REFUSALS"),
             trusted_public_keys=parse_trusted_keys(os.getenv(TRUSTED_KEYS_ENV)),
             execution_trust_bundle_file=os.getenv(EXECUTION_TRUST_BUNDLE_ENV),
+            egress_allowed_destinations=_csv_frozenset(
+                "PV_EGRESS_ALLOWED_DESTINATIONS"
+            ),
+            egress_allowed_audiences=_csv_frozenset("PV_EGRESS_ALLOWED_AUDIENCES"),
         )
 
 
@@ -615,11 +626,26 @@ def _compose_egress_sidecar(
     extra = os.getenv("PV_UPSTREAM_AUTH_HEADER", "")
     if extra:
         headers["Authorization"] = extra
+    destinations = cfg.egress_allowed_destinations or _csv_frozenset(
+        "PV_EGRESS_ALLOWED_DESTINATIONS"
+    )
+    audiences = cfg.egress_allowed_audiences or _csv_frozenset(
+        "PV_EGRESS_ALLOWED_AUDIENCES"
+    )
+    if headers and (not destinations or not audiences) and secure:
+        raise RuntimeError(
+            "PV_SECURE_PROFILE=1 refuses upstream credentials without "
+            "PV_EGRESS_ALLOWED_DESTINATIONS and PV_EGRESS_ALLOWED_AUDIENCES"
+        )
     dispatcher = ExactByteHttpDispatcher(
         consume_ledger=store,
         witness=signer,
         trust_bundle=bundle,
-        transport=TlsHttpsSidecarTransport(credentials_headers=headers),
+        transport=TlsHttpsSidecarTransport(
+            credentials_headers=headers,
+            allowed_destinations=destinations,
+            allowed_audiences=audiences,
+        ),
     )
     comp["egress_sidecar"] = {
         "status": "attached",
@@ -661,10 +687,15 @@ def _witness_signer_from_bundle(bundle: dict[str, Any], key_path: str) -> Witnes
             f"{DISPATCH_WITNESS_KEY_ENV} public key is absent from the pinned "
             "execution trust bundle as dispatch_witness_signer"
         )
+    if not closure_id:
+        raise RuntimeError(
+            f"{DISPATCH_WITNESS_KEY_ENV} public key is absent from the pinned "
+            "execution trust bundle as closure_signer"
+        )
     return WitnessSigner(
         signing_key=key,
         signer_key_id=witness_id,
         witness_component_id="pv-egress-sidecar",
-        closure_signer_key_id=closure_id or witness_id,
+        closure_signer_key_id=closure_id,
         closure_signing_key=key,
     )

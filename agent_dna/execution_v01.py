@@ -362,6 +362,7 @@ def verify_execution_authorization(  # noqa: C901
     at_time: Any,
     already_consumed: Any,
     consume_ledger: Any | None = None,
+    check_peer_identity: bool = True,
 ) -> VerificationReport:
     """Verify an authorization against the exact dispatch context.
 
@@ -427,10 +428,12 @@ def verify_execution_authorization(  # noqa: C901
             ("execution_verification.expected_wire_bytes"),
         )
         measured_wire_length = len(bytes(expected_wire_bytes))
-        measured_peer_digest = sha256_bytes_digest(
-            expected_peer_identity_bytes,
-            ("execution_verification.expected_peer_identity_bytes"),
-        )
+        measured_peer_digest = None
+        if check_peer_identity:
+            measured_peer_digest = sha256_bytes_digest(
+                expected_peer_identity_bytes,
+                ("execution_verification.expected_peer_identity_bytes"),
+            )
 
         if not isinstance(already_consumed, bool):
             raise AuthorityFormatError(
@@ -514,7 +517,10 @@ def verify_execution_authorization(  # noqa: C901
     if validated["expected_wire_bytes_length"] != measured_wire_length:
         failures.append("authorization does not bind the intended outbound byte length")
 
-    if validated["expected_peer_identity_digest"] != measured_peer_digest:
+    if (
+        check_peer_identity
+        and validated["expected_peer_identity_digest"] != measured_peer_digest
+    ):
         failures.append("authorization does not bind the intended peer identity")
 
     expected_bindings = (

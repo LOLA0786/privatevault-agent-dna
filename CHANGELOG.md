@@ -6,6 +6,17 @@ and a named test that runs in CI.
 ## Unreleased
 
 ### Security
+- **Sidecar production audit (two-stage egress):** offline execution
+  authorization verify before any socket; per-dispatch TLS sessions
+  (no shared live connection); credential attachment requires
+  allowlisted destination and audience (`PV_EGRESS_ALLOWED_*`);
+  closure records the observed HTTP status; response body/header
+  bounds; `closure_signer` required on the witness public key with no
+  fallback (`tests/connector/test_exact_byte_http.py`,
+  `tests/connector/test_sidecar_tls.py`,
+  `tests/test_secure_profile.py`). In-process is not complete
+  mediation — sole-egress plus network policy remain operator
+  requirements.
 - **MCP gateway bake-off hardening:** credential-session attribution
   plus fail-closed unattributed bypass; HTTPS-only (operator flag to
   allow `http://`); same-origin redirects re-decided; first-class DRP

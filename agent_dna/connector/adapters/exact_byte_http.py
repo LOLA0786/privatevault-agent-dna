@@ -3,13 +3,22 @@
 Order is fixed and fail-closed:
 
   1. Freeze the outbound buffer.
-  2. Sidecar TLS-handshake; peer identity is observed, never caller-supplied.
-  3. Verify the execution authorization against the *pinned* trust bundle
-     and the observed peer / exact bytes (no consume yet).
-  4. Atomically consume the EA (at-most-once). A burned permit is not retried.
-  5. Transmit the same ``bytes`` object.
-  6. Only after a completed send: sign a dispatch witness and closure over
-     the body bytes and TLS peer the sidecar independently observed.
+  2. Offline-verify the execution authorization against the *pinned*
+     trust bundle, destination, wire bytes, and non-peer fields.
+     No network connection is opened until this succeeds.
+  3. Bind credentials to the allowlisted destination / audience, then
+     open a *per-dispatch* TLS session. Peer identity is the DER of the
+     authenticated certificate.
+  4. Verify the observed TLS peer against the authorization.
+  5. Atomically consume the EA (at-most-once). A burned permit is not retried.
+  6. Transmit the same ``bytes`` object.
+  7. Stamp ``observed_at`` after body transmission. Sign the dispatch witness.
+  8. Stamp ``closed_at`` after the HTTP response is observed. Sign closure
+     with the observed status. The connection is closed on every path.
+
+This class is an in-process sidecar. It does not provide complete mediation
+until deployed as a separately isolated sole-egress service with network
+policy that denies the agent any other outbound path.
 
 Outcomes
 --------
@@ -46,12 +55,16 @@ from agent_dna.authorize_binding import EXECUTION_AUTHORIZATION_CONSUMED
 from agent_dna.closure_v01 import CLOSURE_RECORD_SPEC, sign_closure_record
 from agent_dna.connector.adapters.execution_trust import validate_execution_trust_bundle
 from agent_dna.connector.adapters.sidecar_transport import (
+    DISPATCH_CREDENTIAL_MISMATCH,
     CallbackSidecarTransport,
     RecordingSidecarTransport,
     SendFn,
+    SidecarResponseError,
     SidecarSendResult,
+    SidecarSession,
     SidecarTransport,
     TlsHttpsSidecarTransport,
+    require_credential_binding,
 )
 from agent_dna.dispatch_v01 import create_dispatch_witness, dispatch_witness_digest
 from agent_dna.execution_v01 import (
@@ -72,6 +85,7 @@ DISPATCH_CALLER_TRUST_REFUSED = "DISPATCH_CALLER_TRUST_REFUSED"
 DISPATCH_CALLER_SEND_REFUSED = "DISPATCH_CALLER_SEND_REFUSED"
 DISPATCH_CLOSURE_FAILED = "DISPATCH_CLOSURE_FAILED"
 DISPATCH_DESTINATION_MISMATCH = "DISPATCH_DESTINATION_MISMATCH"
+DISPATCH_PEER_MISMATCH = "DISPATCH_PEER_MISMATCH"
 
 OUTCOME_NOT_SENT = "NOT_SENT"
 OUTCOME_CONTROL_FAILURE = "CONTROL_FAILURE"
@@ -243,13 +257,13 @@ class ExactByteHttpDispatcher:
         frozen = self._freeze_wire(wire_bytes=wire_bytes, payload=payload)
         if isinstance(frozen, ExactByteDispatchResult):
             return frozen
+        del observed_at
         return self._dispatch_frozen(
             authorization=authorization,
             context=context,
             wire=frozen,
             attempt=attempt,
             dispatch_witness_id=dispatch_witness_id,
-            observed_at=observed_at,
         )
 
     def _dispatch_frozen(
@@ -260,32 +274,108 @@ class ExactByteHttpDispatcher:
         wire: bytes,
         attempt: int,
         dispatch_witness_id: str | None,
-        observed_at: str | None,
     ) -> ExactByteDispatchResult:
-        destination, operation, dest_fail = self._sealed_destination(
+        destination, operation, audience, dest_fail = self._sealed_destination(
             authorization, context
         )
         if dest_fail is not None:
             dest_fail.wire_bytes = wire
             return dest_fail
-        try:
-            peer = bytes(self.transport.handshake(destination))
-        except Exception as exc:
+        offline = self._verify_pinned(
+            authorization=authorization,
+            context=context,
+            wire=wire,
+            peer=b"",
+            check_peer_identity=False,
+        )
+        if not offline.ok:
             return _not_sent(
-                reason_code=DISPATCH_HANDSHAKE_FAILED,
-                detail=f"{type(exc).__name__}: {exc}",
+                reason_code=offline.reason_code
+                or "EXECUTION_AUTHORIZATION_NON_CONFORMANT",
+                detail="; ".join(offline.failures) if offline.failures else None,
+                verification=offline,
                 wire_bytes=wire,
             )
+        try:
+            require_credential_binding(
+                destination=destination,
+                credential_audience=audience,
+                allowed_destinations=frozenset(
+                    getattr(self.transport, "allowed_destinations", ()) or ()
+                ),
+                allowed_audiences=frozenset(
+                    getattr(self.transport, "allowed_audiences", ()) or ()
+                ),
+                has_credentials=bool(
+                    getattr(self.transport, "credentials_headers", {}) or {}
+                ),
+            )
+        except RuntimeError as exc:
+            return _not_sent(
+                reason_code=DISPATCH_CREDENTIAL_MISMATCH,
+                detail=str(exc),
+                verification=offline,
+                wire_bytes=wire,
+            )
+        session: SidecarSession | None = None
+        try:
+            session = self.transport.connect(destination, credential_audience=audience)
+            return self._after_handshake(
+                authorization=authorization,
+                context=context,
+                wire=wire,
+                session=session,
+                operation=operation,
+                attempt=attempt,
+                dispatch_witness_id=dispatch_witness_id,
+            )
+        except SidecarResponseError as exc:
+            return _indeterminate(
+                reason_code=DISPATCH_TRANSPORT_REFUSED,
+                detail=f"{type(exc).__name__}: {exc}",
+                verification=offline,
+                wire_bytes=wire,
+            )
+        except Exception as exc:
+            if session is None:
+                return _not_sent(
+                    reason_code=DISPATCH_HANDSHAKE_FAILED,
+                    detail=f"{type(exc).__name__}: {exc}",
+                    verification=offline,
+                    wire_bytes=wire,
+                )
+            return _indeterminate(
+                reason_code=DISPATCH_TRANSPORT_REFUSED,
+                detail=f"{type(exc).__name__}: {exc}",
+                verification=offline,
+                wire_bytes=wire,
+            )
+        finally:
+            if session is not None:
+                session.close()
+
+    def _after_handshake(
+        self,
+        *,
+        authorization: Mapping[str, Any],
+        context: ExactByteContext,
+        wire: bytes,
+        session: SidecarSession,
+        operation: str,
+        attempt: int,
+        dispatch_witness_id: str | None,
+    ) -> ExactByteDispatchResult:
+        peer = bytes(session.peer_identity_bytes)
         report = self._verify_pinned(
             authorization=authorization,
             context=context,
             wire=wire,
             peer=peer,
+            check_peer_identity=True,
         )
         if not report.ok:
             return _not_sent(
-                reason_code=report.reason_code
-                or "EXECUTION_AUTHORIZATION_NON_CONFORMANT",
+                reason_code=report.reason_code or DISPATCH_PEER_MISMATCH,
                 detail="; ".join(report.failures) if report.failures else None,
                 verification=report,
                 wire_bytes=wire,
@@ -294,8 +384,8 @@ class ExactByteHttpDispatcher:
         if isinstance(ids, ExactByteDispatchResult):
             return ids
         ea_id, organisation_id = ids
-        meta_observed_at = observed_at or _rfc3339_now()
-        consumed = self._consume(ea_id, organisation_id, meta_observed_at, report, wire)
+        consume_at = _rfc3339_now()
+        consumed = self._consume(ea_id, organisation_id, consume_at, report, wire)
         if consumed is not None:
             return consumed
         return self._transmit_and_attest(
@@ -307,18 +397,19 @@ class ExactByteHttpDispatcher:
             report=report,
             attempt=attempt,
             dispatch_witness_id=dispatch_witness_id,
-            observed_at=meta_observed_at,
+            session=session,
         )
 
     def _sealed_destination(
         self,
         authorization: Mapping[str, Any],
         context: ExactByteContext,
-    ) -> tuple[str, str, ExactByteDispatchResult | None]:
+    ) -> tuple[str, str, str, ExactByteDispatchResult | None]:
         sealed = authorization.get("dispatch")
         observed = context.observed_dispatch
         if not isinstance(sealed, Mapping) or not isinstance(observed, Mapping):
             return (
+                "",
                 "",
                 "",
                 _not_sent(
@@ -336,6 +427,7 @@ class ExactByteHttpDispatcher:
             return (
                 "",
                 "",
+                "",
                 _not_sent(
                     reason_code=DISPATCH_DESTINATION_MISMATCH,
                     detail="caller destination does not match sealed dispatch",
@@ -346,12 +438,16 @@ class ExactByteHttpDispatcher:
             return (
                 "",
                 "",
+                "",
                 _not_sent(
                     reason_code=DISPATCH_DESTINATION_MISMATCH,
                     detail="sealed dispatch operation missing",
                 ),
             )
-        return sealed_dest, operation, None
+        audience = sealed.get("credential_audience")
+        if not isinstance(audience, str):
+            audience = ""
+        return sealed_dest, operation, audience, None
 
     def _verify_pinned(
         self,
@@ -360,6 +456,7 @@ class ExactByteHttpDispatcher:
         context: ExactByteContext,
         wire: bytes,
         peer: bytes,
+        check_peer_identity: bool = True,
     ) -> VerificationReport:
         return verify_execution_authorization(
             authorization,
@@ -378,6 +475,7 @@ class ExactByteHttpDispatcher:
             at_time=context.at_time,
             already_consumed=False,
             consume_ledger=None,
+            check_peer_identity=check_peer_identity,
         )
 
     def _authorization_ids(
@@ -445,10 +543,17 @@ class ExactByteHttpDispatcher:
         report: VerificationReport,
         attempt: int,
         dispatch_witness_id: str | None,
-        observed_at: str,
+        session: SidecarSession,
     ) -> ExactByteDispatchResult:
         try:
-            sent = self.transport.write(wire, operation=operation)
+            sent = session.write(wire, operation=operation)
+        except SidecarResponseError as exc:
+            return _indeterminate(
+                reason_code=DISPATCH_TRANSPORT_REFUSED,
+                detail=f"{type(exc).__name__}: {exc}",
+                verification=report,
+                wire_bytes=wire,
+            )
         except Exception as exc:
             return _indeterminate(
                 reason_code=DISPATCH_TRANSPORT_REFUSED,
@@ -456,6 +561,7 @@ class ExactByteHttpDispatcher:
                 verification=report,
                 wire_bytes=wire,
             )
+        observed_at = _rfc3339_now()
         if not isinstance(sent, SidecarSendResult) or not sent.send_began:
             return _indeterminate(
                 reason_code=DISPATCH_TRANSPORT_REFUSED,
@@ -477,16 +583,19 @@ class ExactByteHttpDispatcher:
                 verification=report,
                 wire_bytes=wire,
             )
+        closed_at = _rfc3339_now()
+        if closed_at < observed_at:
+            closed_at = observed_at
         return self._attest_after_send(
             authorization=authorization,
             context=context,
             wire=wire,
-            peer=peer,
             sent=sent,
             report=report,
             attempt=attempt,
             dispatch_witness_id=dispatch_witness_id,
             observed_at=observed_at,
+            closed_at=closed_at,
         )
 
     def _attest_after_send(
@@ -495,12 +604,12 @@ class ExactByteHttpDispatcher:
         authorization: Mapping[str, Any],
         context: ExactByteContext,
         wire: bytes,
-        peer: bytes,
         sent: SidecarSendResult,
         report: VerificationReport,
         attempt: int,
         dispatch_witness_id: str | None,
         observed_at: str,
+        closed_at: str,
     ) -> ExactByteDispatchResult:
         meta_id = dispatch_witness_id or f"dw-{uuid.uuid4()}"
         try:
@@ -534,7 +643,7 @@ class ExactByteHttpDispatcher:
                 authorization=authorization,
                 witness=witness,
                 sent=sent,
-                observed_at=observed_at,
+                closed_at=closed_at,
             )
         except (AuthorityFormatError, TypeError, ValueError) as exc:
             return _indeterminate(
@@ -561,13 +670,28 @@ class ExactByteHttpDispatcher:
         authorization: Mapping[str, Any],
         witness: Mapping[str, Any],
         sent: SidecarSendResult,
-        observed_at: str,
+        closed_at: str,
     ) -> dict[str, Any]:
-        closure_key = self.witness.closure_signing_key or self.witness.signing_key
-        closure_key_id = (
-            self.witness.closure_signer_key_id or self.witness.signer_key_id
-        )
-        body = sent.response_body
+        closure_key = self.witness.closure_signing_key
+        closure_key_id = self.witness.closure_signer_key_id
+        if closure_key is None or not closure_key_id:
+            raise ValueError(
+                "closure_signing_key and closure_signer_key_id are required; "
+                "witness-key fallback is forbidden"
+            )
+        status = int(sent.http_status)
+        outcome = _http_dispatch_outcome(status)
+        if outcome == "TRANSPORT_ERROR":
+            response_status: str | None = None
+            response_digest: str | None = None
+            response_length: int | None = None
+            effect_state = "UNKNOWN"
+        else:
+            body = sent.response_body
+            response_status = str(status)
+            response_digest = sha256_bytes_digest(body)
+            response_length = len(body)
+            effect_state = "UNCONFIRMED"
         unsigned = {
             "spec": CLOSURE_RECORD_SPEC,
             "canonicalization": CANONICALIZATION,
@@ -580,13 +704,13 @@ class ExactByteHttpDispatcher:
             ),
             "dispatch_witness_id": witness["dispatch_witness_id"],
             "dispatch_witness_digest": dispatch_witness_digest(witness),
-            "closed_at": observed_at,
+            "closed_at": closed_at,
             "closure_component_id": self.witness.witness_component_id,
-            "dispatch_outcome": "ACKNOWLEDGED",
-            "response_status": "200",
-            "response_bytes_digest": sha256_bytes_digest(body),
-            "response_bytes_length": len(body),
-            "effect_state": "UNCONFIRMED",
+            "dispatch_outcome": outcome,
+            "response_status": response_status,
+            "response_bytes_digest": response_digest,
+            "response_bytes_length": response_length,
+            "effect_state": effect_state,
             "effect_evidence_digest": None,
             "idempotency_key_digest": authorization["dispatch"][
                 "idempotency_key_digest"
@@ -665,8 +789,17 @@ def httpx_send(
     return _send
 
 
+def _http_dispatch_outcome(status: int) -> str:
+    if 200 <= status <= 299:
+        return "ACKNOWLEDGED"
+    if 400 <= status <= 499:
+        return "REJECTED"
+    return "TRANSPORT_ERROR"
+
+
 def _rfc3339_now() -> str:
-    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    stamp = datetime.now(UTC).isoformat(timespec="microseconds")
+    return stamp.replace("+00:00", "Z")
 
 
 # Re-export transports so callers import one module.
@@ -676,7 +809,9 @@ __all__ = [
     "DISPATCH_CALLER_PEER_REFUSED",
     "DISPATCH_CALLER_SEND_REFUSED",
     "DISPATCH_CALLER_TRUST_REFUSED",
+    "DISPATCH_CREDENTIAL_MISMATCH",
     "DISPATCH_HANDSHAKE_FAILED",
+    "DISPATCH_PEER_MISMATCH",
     "ExactByteContext",
     "ExactByteDispatchResult",
     "ExactByteHttpDispatcher",

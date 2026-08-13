@@ -24,7 +24,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 1145+ automated tests, run in CI on every commit
+- 1166+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
@@ -179,24 +179,43 @@ how-you-actually-send path after mint. The deployment pins
 `PV_EXECUTION_TRUST_BUNDLE_FILE` at startup. Callers cannot select a
 trust root, a TLS peer identity, or a send callback at dispatch time.
 
+Verification is **two-stage**. Stage 1 is offline: destination, wire
+bytes, and non-peer fields are checked against the pinned bundle
+**before any network connection is opened**. Credentials are bound to
+an allowlisted destination and `credential_audience` next. Only then
+does the sidecar open a **per-dispatch** TLS session. Stage 2 checks
+the observed peer certificate DER against the authorization, consumes
+the permit, transmits the frozen `bytes` object, stamps `observed_at`
+after the body is written, signs the dispatch witness, stamps
+`closed_at` after the HTTP response is observed, and signs closure
+with that status (`tests/connector/test_exact_byte_http.py`,
+`tests/connector/test_sidecar_tls.py`).
+
 When egress is routed through the production sidecar, it guarantees
 (in order):
 
 - serialize / freeze the outbound buffer;
-- TLS handshake; peer identity is the authenticated certificate DER;
-- `verify_execution_authorization` against the **pinned** bundle and
-  those observed bytes/peer (no consume yet);
+- offline-verify the execution authorization (no socket yet);
+- bind credentials only if destination and audience are allowlisted;
+- TLS handshake on a connection owned by that dispatch; peer identity
+  is the authenticated certificate DER;
+- verify the observed TLS peer against the authorization;
 - atomic single-use consume (at-most-once: a burned permit is not
   retried);
 - transmit that same `bytes` object;
 - only after a completed send: sign a dispatch witness and closure
-  over the body and TLS peer the sidecar independently observed
-  (`tests/connector/test_exact_byte_http.py`).
+  over the body, TLS peer, and HTTP status the sidecar independently
+  observed.
 
 Outcomes: `NOT_SENT` / `CONTROL_FAILURE` (send never began);
 `EXECUTED` (verified witness + closure); `INDETERMINATE` after
 transport invocation begins (`tool_executed=None`, `retryable=False`).
 An arbitrary `SendFn` is test-only and does not prove bytes on the wire.
+
+This class is an **in-process sidecar**. In-process is not complete
+mediation. Complete mediation requires deploying it as a separately
+isolated **sole-egress** service plus network policy that denies the
+agent any other outbound path.
 
 **Integrators must still:**
 
@@ -204,7 +223,11 @@ An arbitrary `SendFn` is test-only and does not prove bytes on the wire.
   adapter that passes `tests/test_adapter_conformance.py`);
 - keep the witness signing key independent of the EA mint key;
 - treat `INDETERMINATE` as a burned permit (mint again — we do not
-  auto-retry).
+  auto-retry);
+- pin `PV_EGRESS_ALLOWED_DESTINATIONS` and
+  `PV_EGRESS_ALLOWED_AUDIENCES` before attaching upstream credentials;
+- enforce sole-egress + host network policy; this library cannot stop
+  a raw socket that never calls the dispatcher.
 
 **We still do not claim complete mediation** for effects that never
 call the sidecar (see below).

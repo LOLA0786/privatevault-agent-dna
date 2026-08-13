@@ -132,7 +132,7 @@ class ExactByteHarness:
                 "request_id": "req-conf-1",
                 "issued_at": "2026-08-10T15:00:00Z",
                 "not_before": "2026-08-10T15:00:00Z",
-                "expires_at": "2026-08-10T15:10:00Z",
+                "expires_at": "2099-01-01T00:00:00Z",
                 "nonce": uuid.uuid4().hex,
                 "decision_receipt_digest": Z,
                 "authority_receipt_digest": ONE,

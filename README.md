@@ -23,7 +23,7 @@ agent ──► POST /v1/decide ──► precedence engine ──► 200 / 202 
 
 ```bash
 pip install -e ".[dev]"
-python -m pytest -q                    # 1145+ tests
+python -m pytest -q                    # 1166+ tests
 ```
 
 Three properties worth checking before reading further:
@@ -272,12 +272,13 @@ tools/verify_records.py independent chain and signature verifier
 After `POST /v1/authorize`, route outbound bytes through the production
 sidecar (`ExactByteHttpDispatcher` + `TlsHttpsSidecarTransport`). The
 deployment pins `PV_EXECUTION_TRUST_BUNDLE_FILE` at startup. The sidecar
-freezes the wire buffer, authenticates the TLS peer, verifies and
-consumes the execution authorization against those exact bytes, transmits
-the **same** `bytes` object, then signs a dispatch witness over what it
-observed. Mutated payloads, attacker trust bundles, and replayed permits
-are refused. After send begins, failure is `INDETERMINATE` and is not
-retried.
+offline-verifies the permit, opens a per-dispatch TLS session, checks
+the observed peer, consumes at-most-once, transmits the **same** `bytes`
+object, then signs witness and closure over what it observed. Mutated
+payloads, attacker trust bundles, and replayed permits are refused
+before a connection is opened. After send begins, failure is
+`INDETERMINATE` and is not retried. In-process use is not complete
+mediation.
 
 ```bash
 uv run python tools/adversarial_egress_demo.py   # allow / mutate / replay / offline verify
