@@ -18,6 +18,9 @@ htmlcov/
 dashboard/node_modules/
 dashboard/dist/
 
+# Generated architecture map (tools/gen_architecture.py)
+architecture.html
+
 # Runtime and generated evidence
 data/*.db
 data/*.db-shm
