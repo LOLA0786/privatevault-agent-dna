@@ -110,6 +110,23 @@ def test_honest_refusal_is_not_divergent():
     assert recorder.graph.find_divergent() == []
 
 
+def test_indeterminate_is_not_ok_and_not_divergence():
+    engine, recorder = _pipeline()
+    rec, _ = _decide_and_record(engine, recorder, "crm.read")
+    digest = "sha256:" + ("ab" * 32)
+    ev = recorder.report_outcome(
+        rec.decision_id,
+        "indeterminate",
+        "timeout after write",
+        response_digest=digest,
+    )
+    assert ev.status == "indeterminate"
+    assert ev.status != "ok"
+    assert ev.response_digest == digest
+    assert recorder.graph.find_divergent() == []
+    assert recorder.graph.outcome_of(rec.decision_id) == "indeterminate"
+
+
 def test_mixed_file_roundtrip_and_verifier(tmp_path):
     path = tmp_path / "decisions.jsonl"
     engine, recorder = _pipeline(path)

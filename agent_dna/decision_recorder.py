@@ -250,6 +250,8 @@ class DecisionRecorder:
         decision_id: str,
         status: str,
         detail: str = "",
+        *,
+        response_digest: str = "",
     ) -> ExecutionEvent:
         """Executor feedback: append an ExecutionEvent anchored to the
         decision it reports on. Does NOT touch the decision chain —
@@ -267,6 +269,7 @@ class DecisionRecorder:
                 decision_hash=d["record_hash"],
                 status=status,
                 detail=detail,
+                response_digest=response_digest,
             )
             # UNIQUE(decision_ref) makes duplicate outcomes a
             # database-level ValueError across processes
@@ -279,6 +282,7 @@ class DecisionRecorder:
             decision_hash=decision.record_hash,
             status=status,
             detail=detail,
+            response_digest=response_digest,
         )
         if self.store is not None:
             self.store.append(event)  # durability + DB uniqueness first

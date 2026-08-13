@@ -169,7 +169,7 @@ def test_upstream_timeout_after_write_is_indeterminate_not_retried(
 
     outcomes = list(rt.recorder.graph._executions.values())  # noqa: SLF001
     assert outcomes
-    assert outcomes[-1].status == "error"
+    assert outcomes[-1].status == "indeterminate"
     assert outcomes[-1].detail.startswith(INDETERMINATE_PREFIX)
     assert outcomes[-1].status != "ok"
 
@@ -193,7 +193,7 @@ def test_client_disconnect_mid_call_does_not_seal_completion(
 
     outcomes = list(rt.recorder.graph._executions.values())  # noqa: SLF001
     assert outcomes
-    assert outcomes[-1].status == "error"
+    assert outcomes[-1].status == "indeterminate"
     assert "INDETERMINATE" in outcomes[-1].detail
     assert all(ev.status != "ok" for ev in outcomes)
 

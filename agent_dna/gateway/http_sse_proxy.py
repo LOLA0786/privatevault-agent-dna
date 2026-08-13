@@ -29,7 +29,9 @@ def handle_http_jsonrpc(
     active.framed = False
     try:
         message = parse_jsonrpc(
-            body, max_message_bytes=gateway.config.max_message_bytes
+            body,
+            max_message_bytes=gateway.config.max_message_bytes,
+            max_json_depth=gateway.config.max_json_depth,
         )
     except (
         FramingProtocolError,

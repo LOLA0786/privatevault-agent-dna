@@ -92,16 +92,26 @@ def credentials():
     )
 
 
-def make_gateway(runtime, key, credentials, upstream, transport="stdio"):
+def make_gateway(
+    runtime,
+    key,
+    credentials,
+    upstream,
+    transport="stdio",
+    **config_overrides,
+):
+    cfg = {
+        "agent_api_key": key,
+        "client_identity": "gateway-agent@test",
+        "transport": transport,
+        "upstream_timeout_s": 0.2,
+        "framed": True,
+        "_test_allow_inprocess": True,
+    }
+    cfg.update(config_overrides)
     return McpGateway(
         runtime,
-        config=GatewayConfig(
-            agent_api_key=key,
-            client_identity="gateway-agent@test",
-            transport=transport,
-            upstream_timeout_s=0.2,
-            framed=True,
-        ),
+        config=GatewayConfig(**cfg),
         credentials=credentials,
         upstream=upstream,
         metrics=GatewayMetrics(),

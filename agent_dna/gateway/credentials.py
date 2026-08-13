@@ -13,6 +13,9 @@ from typing import Any
 
 from agent_dna.gateway.errors import CredentialLeakError
 
+GATEWAY_SESSION_HEADER = "X-PV-Gateway-Session"
+GATEWAY_SESSION_ENV = "PV_GATEWAY_SESSION_ID"
+
 
 @dataclass(frozen=True)
 class UpstreamCredentials:
@@ -31,13 +34,23 @@ class UpstreamCredentials:
         values = set(self.env.values()) | set(self.headers.values())
         return frozenset(v for v in values if v)
 
-    def subprocess_env(self, base: Mapping[str, str] | None = None) -> dict[str, str]:
+    def subprocess_env(
+        self,
+        base: Mapping[str, str] | None = None,
+        *,
+        session_id: str = "",
+    ) -> dict[str, str]:
         out = dict(base or {})
         out.update(self.env)
+        if session_id:
+            out[GATEWAY_SESSION_ENV] = session_id
         return out
 
-    def http_headers(self) -> dict[str, str]:
-        return dict(self.headers)
+    def http_headers(self, *, session_id: str = "") -> dict[str, str]:
+        out = dict(self.headers)
+        if session_id:
+            out[GATEWAY_SESSION_HEADER] = session_id
+        return out
 
 
 def assert_text_has_no_secrets(text: str, credentials: UpstreamCredentials) -> None:

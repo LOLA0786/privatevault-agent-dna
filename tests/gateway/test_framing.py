@@ -205,6 +205,17 @@ def test_unicode_visually_identical_arguments_different_digests():
     assert d1 != d2
 
 
+def test_parse_jsonrpc_rejects_nesting_beyond_max_depth():
+    nested: object = 0
+    for _ in range(40):
+        nested = {"n": nested}
+    raw = encode_jsonrpc_message(
+        {"jsonrpc": "2.0", "id": 1, "method": "ping", "params": nested}
+    )
+    with pytest.raises(FramingProtocolError, match="max depth"):
+        parse_jsonrpc(raw)
+
+
 def test_newline_framing_rejected_without_test_flag(credentials):
     from agent_dna.gateway.runtime import McpGateway
     from agent_dna.gateway.upstream import RecordingUpstream

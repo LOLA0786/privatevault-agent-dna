@@ -29,7 +29,9 @@ Checks:
       decision), and exactly one "follows" edge must target it. A null
       parent_decision forbids "follows" edges.
   7.  Enums: decision in {allow, require_approval, block}; execution
-      status in {ok, error, refused}.
+      status in {ok, error, refused, indeterminate}.
+      Optional response_digest (sha256:<hex>) is allowed on execution
+      events and is hashed with the payload when present.
   8.  kind=="execution": prev_hash equals the referenced decision's
       record_hash; the decision must appear earlier; the execution's
       agent_id must equal the decision's; at most one execution per
@@ -111,7 +113,8 @@ EXECUTION_FIELDS = frozenset(
     }
 )
 DECISION_ENUM = {"allow", "require_approval", "block"}
-STATUS_ENUM = {"ok", "error", "refused"}
+STATUS_ENUM = {"ok", "error", "refused", "indeterminate"}
+EXECUTION_OPTIONAL_FIELDS = frozenset({"response_digest"})
 ENVELOPE_FIELDS = frozenset(
     {
         "envelope_id",
@@ -348,11 +351,30 @@ def verify(  # noqa: C901 - mirrors the protocol check order
                     )
                     expected_fields = DECISION_FIELDS_V01
             elif kind == "execution":
-                expected_fields = EXECUTION_FIELDS
+                extra = set(rec) - EXECUTION_FIELDS
+                unknown = extra - EXECUTION_OPTIONAL_FIELDS
+                missing = EXECUTION_FIELDS - set(rec)
+                expected_fields = EXECUTION_FIELDS | (extra & EXECUTION_OPTIONAL_FIELDS)
                 if pv != "drp/0.1":
                     failures.append(
                         f"line {lineno}: protocol_version {pv!r} is not drp/0.1"
                     )
+                if unknown:
+                    failures.append(
+                        f"line {lineno}: unknown field(s) {sorted(unknown)}"
+                    )
+                if missing:
+                    failures.append(
+                        f"line {lineno}: missing field(s) {sorted(missing)}"
+                    )
+                    continue
+                digest = rec.get("response_digest")
+                if digest is not None and not SHA256_DIGEST.match(str(digest)):
+                    failures.append(
+                        f"line {lineno}: response_digest is not sha256:<64 hex>"
+                    )
+                # Skip the generic field-set check below; we already applied it.
+                expected_fields = set(rec)
             else:
                 expected_fields = None
             if expected_fields is None:

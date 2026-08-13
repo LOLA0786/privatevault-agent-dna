@@ -59,10 +59,12 @@ def test_outcome_roundtrip_and_conflict(client):
         json={
             "decision_id": did,
             "status": "ok",
+            "response_digest": "sha256:" + ("ab" * 32),
         },
     )
     assert ok.status_code == 200
     assert ok.json()["event"]["decision_ref"] == did
+    assert ok.json()["event"]["response_digest"] == "sha256:" + ("ab" * 32)
 
     dup = client.post(
         "/v1/outcome",

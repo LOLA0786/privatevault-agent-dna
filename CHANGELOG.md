@@ -6,6 +6,22 @@ and a named test that runs in CI.
 ## Unreleased
 
 ### Security
+- **MCP gateway bake-off hardening:** credential-session attribution
+  plus fail-closed unattributed bypass; HTTPS-only (operator flag to
+  allow `http://`); same-origin redirects re-decided; first-class DRP
+  `indeterminate` and optional `response_digest`; `prompts/get` gated;
+  production `undeclared_tool_policy=block`; in-process upstream
+  test-only; named `https-egress` transport with freeze/decide/verify
+  (`tests/gateway/test_bakeoff_hardening.py`,
+  `tests/test_execution_feedback.py`).
+- **MCP gateway phase 2 (protocol reality):** in-flight JSON-RPC calls
+  are correlated by id (unmatched / duplicate ids fail closed);
+  `resources/read` and `resources/subscribe` are gated; `prompts/get` is
+  gated (see bake-off hardening); `sampling/createMessage` is refused; unknown
+  methods are not forwarded; upstream size/depth caps, death/restart,
+  shutdown, reconnect isolation, default-on TLS verify, cross-origin
+  redirect refusal, and SSE byte bounds
+  (`tests/gateway/test_protocol_hardening.py`).
 - **F-03 / F-04 / F-05 caller-controlled enforcement**: production
   composition attaches deny-all grants when `PV_GRANTS_FILE` unset;
   `authorizer=None` is fail-closed (not allow). Operator flags

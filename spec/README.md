@@ -23,7 +23,10 @@ separators). Raw action arguments are never stored — only
 
 **execution** — at most one per decision.
 `prev_hash` = the referenced decision's `record_hash` (anchor binding).
-`status` ∈ `ok | error | refused`.
+`status` ∈ `ok | error | refused | indeterminate`. `indeterminate`
+means the request may have reached the world but completion was not
+sealed (`ok` is never inferred). Optional `response_digest` binds the
+exact upstream response bytes when a response was witnessed.
 
 Records carry an `edges` list. Produced today: `follows`
 (decision → parent decision), `resulted_in` (execution → decision).
