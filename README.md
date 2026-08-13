@@ -23,7 +23,7 @@ agent ──► POST /v1/decide ──► precedence engine ──► 200 / 202 
 
 ```bash
 pip install -e ".[dev]"
-python -m pytest -q                    # 1099+ tests
+python -m pytest -q                    # 1145+ tests
 ```
 
 Three properties worth checking before reading further:
@@ -262,19 +262,22 @@ tools/verify_records.py independent chain and signature verifier
 | `agent_dna/signer.py`, `apikeys.py` | Ed25519 receipts, hashed API keys |
 | `api/server.py` | FastAPI decision service |
 | `agent_dna/mcp_server.py`, `connector/` | MCP tools and transport enforcement |
-| `agent_dna/connector/adapters/exact_byte_http.py` | Reference exact-byte egress (verify+consume → witness → send) |
+| `agent_dna/connector/adapters/exact_byte_http.py` | Sidecar exact-byte egress (verify+consume → send → witness) |
 | `spec/` | Wire format: schemas, canonical vectors, precedence contract |
 | `tools/` | Independent verifiers, benchmarks, and adversarial runners |
 | `experimental/` | Unwired sketches. Nothing here carries claims |
 
 ## Exact-byte egress (how you actually send)
 
-After `POST /v1/authorize`, route outbound bytes through
-`ExactByteHttpDispatcher`. It freezes the wire buffer, verifies and
-consumes the execution authorization against those exact bytes, signs an
-independent dispatch witness, then hands the **same** `bytes` object to
-the transport. Mutated payloads and replayed permits are refused; nothing
-is sent on failure.
+After `POST /v1/authorize`, route outbound bytes through the production
+sidecar (`ExactByteHttpDispatcher` + `TlsHttpsSidecarTransport`). The
+deployment pins `PV_EXECUTION_TRUST_BUNDLE_FILE` at startup. The sidecar
+freezes the wire buffer, authenticates the TLS peer, verifies and
+consumes the execution authorization against those exact bytes, transmits
+the **same** `bytes` object, then signs a dispatch witness over what it
+observed. Mutated payloads, attacker trust bundles, and replayed permits
+are refused. After send begins, failure is `INDETERMINATE` and is not
+retried.
 
 ```bash
 uv run python tools/adversarial_egress_demo.py   # allow / mutate / replay / offline verify
@@ -287,10 +290,11 @@ in `docs/WHAT-WE-DO-NOT-CLAIM.md` under “Exact-byte egress”.
 ## Secure-defaults profile
 
 Set `PV_SECURE_PROFILE=1` (on in `docker-compose.platform.yml`) to refuse
-startup unless API keys, grants, execution signer, and trust bundle are
-present; cross-agent `execution_id` and authorize-time loop events are
-forced on. `PV_ALLOW_NO_AUTH=1` remains for local development and prints
-an explicit UNSAFE banner — it is incompatible with the secure profile.
+startup unless API keys, grants, receipt signer, trust roots, and
+`PV_EXECUTION_TRUST_BUNDLE_FILE` are present; cross-agent `execution_id`
+and authorize-time loop events are forced on. `PV_ALLOW_NO_AUTH=1` remains
+for local development and prints an explicit UNSAFE banner — it is
+incompatible with the secure profile.
 
 ## Limitations
 

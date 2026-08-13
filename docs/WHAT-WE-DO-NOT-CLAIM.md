@@ -24,7 +24,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 1099+ automated tests, run in CI on every commit
+- 1145+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
@@ -171,34 +171,43 @@ SDK surface change (`tests/connector/test_mcp_adapter.py`,
 `tests/connector/test_mcp_http_identity.py`). A future SDK major
 version will break tests, not enforcement.
 
-## Exact-byte egress (what the reference adapter guarantees)
+## Exact-byte egress (what the sidecar guarantees)
 
-**`ExactByteHttpDispatcher`**
-(`agent_dna/connector/adapters/exact_byte_http.py`) is the canonical
-how-you-actually-send path after mint. When egress is routed through
-it, it guarantees (in order):
+**`ExactByteHttpDispatcher`** with a sidecar-owned transport
+(`agent_dna/connector/adapters/exact_byte_http.py`) is the production
+how-you-actually-send path after mint. The deployment pins
+`PV_EXECUTION_TRUST_BUNDLE_FILE` at startup. Callers cannot select a
+trust root, a TLS peer identity, or a send callback at dispatch time.
 
-- serialize / freeze the outbound buffer (`serialize_json_payload` or
-  caller-supplied `wire_bytes`);
-- `verify_execution_authorization` recomputes the wire digest against
-  those bytes (no consume yet);
-- an independent `dispatch_witness` is created over the same buffer;
-- the EA is atomically consumed via the durable ledger;
-- the transport receives that same `bytes` object (no re-serialize);
-- nothing is sent if any prior step fails
+When egress is routed through the production sidecar, it guarantees
+(in order):
+
+- serialize / freeze the outbound buffer;
+- TLS handshake; peer identity is the authenticated certificate DER;
+- `verify_execution_authorization` against the **pinned** bundle and
+  those observed bytes/peer (no consume yet);
+- atomic single-use consume (at-most-once: a burned permit is not
+  retried);
+- transmit that same `bytes` object;
+- only after a completed send: sign a dispatch witness and closure
+  over the body and TLS peer the sidecar independently observed
   (`tests/connector/test_exact_byte_http.py`).
+
+Outcomes: `NOT_SENT` / `CONTROL_FAILURE` (send never began);
+`EXECUTED` (verified witness + closure); `INDETERMINATE` after
+transport invocation begins (`tool_executed=None`, `retryable=False`).
+An arbitrary `SendFn` is test-only and does not prove bytes on the wire.
 
 **Integrators must still:**
 
-- route every consequential egress through this adapter (or another
-  that passes `tests/test_adapter_conformance.py`);
+- route every consequential egress through this sidecar (or another
+  adapter that passes `tests/test_adapter_conformance.py`);
 - keep the witness signing key independent of the EA mint key;
-- terminate TLS and pin peer identity outside this library;
-- treat a transport failure after consume as a burned permit (mint
-  again — we do not auto-retry).
+- treat `INDETERMINATE` as a burned permit (mint again — we do not
+  auto-retry).
 
 **We still do not claim complete mediation** for effects that never
-call the adapter (see below).
+call the sidecar (see below).
 
 ## Compliance
 

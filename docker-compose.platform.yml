@@ -9,6 +9,8 @@
 #   export PV_GRANTS_FILE=$PWD/deploy/platform/grants.json
 #   export PV_EXECUTION_SIGNER_KEY=$PWD/deploy/platform/execution-signer.key
 #   export PV_TRUST_BUNDLE=$PWD/deploy/platform/trust-bundle.json
+#   export PV_EXECUTION_TRUST_BUNDLE_FILE=$PWD/deploy/platform/execution-trust-bundle.json
+#   export PV_DISPATCH_WITNESS_KEY=$PWD/deploy/platform/dispatch-witness.key
 #   docker compose -f docker-compose.platform.yml up --build --wait
 #   python tools/platform_demo.py   # in-process proof without Docker
 #   python tools/adversarial_egress_demo.py  # exact-byte last-meter demo
@@ -24,6 +26,8 @@ services:
       - ${PV_GRANTS_FILE:?PV_SECURE_PROFILE=1 requires PV_GRANTS_FILE to point at a host grants file}:/run/secrets/pv_grants.json:ro
       - ${PV_EXECUTION_SIGNER_KEY:?PV_SECURE_PROFILE=1 requires PV_EXECUTION_SIGNER_KEY to point at a host signing key}:/run/secrets/pv_execution.key:ro
       - ${PV_TRUST_BUNDLE:?PV_SECURE_PROFILE=1 requires PV_TRUST_BUNDLE to point at a host trust bundle}:/run/secrets/pv_trust_bundle.json:ro
+      - ${PV_EXECUTION_TRUST_BUNDLE_FILE:?PV_SECURE_PROFILE=1 requires PV_EXECUTION_TRUST_BUNDLE_FILE to point at a host execution trust bundle}:/run/secrets/pv_execution_trust.json:ro
+      - ${PV_DISPATCH_WITNESS_KEY:?PV_SECURE_PROFILE=1 requires PV_DISPATCH_WITNESS_KEY to point at a host dispatch-witness key}:/run/secrets/pv_dispatch_witness.key:ro
     environment:
       PV_SECURE_PROFILE: "1"
       PV_ALLOW_NO_AUTH: "0"
@@ -31,6 +35,8 @@ services:
       PV_GRANTS_FILE: /run/secrets/pv_grants.json
       PV_EXECUTION_SIGNER_KEY: /run/secrets/pv_execution.key
       PV_TRUST_BUNDLE: /run/secrets/pv_trust_bundle.json
+      PV_EXECUTION_TRUST_BUNDLE_FILE: /run/secrets/pv_execution_trust.json
+      PV_DISPATCH_WITNESS_KEY: /run/secrets/pv_dispatch_witness.key
       PV_DB_PATH: /data/privatevault.db
       # Redundant with secure profile (forced on); listed for manifest clarity.
       PV_CROSS_AGENT_REQUIRE_EXECUTION_ID: "1"

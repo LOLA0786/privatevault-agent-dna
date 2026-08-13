@@ -11,6 +11,22 @@ Claims → tests:
     → test_missing_authorization_fails_closed
     → test_invalid_trust_bundle_fails_closed
     → test_expired_authorization_fails_closed
+  - Attacker-controlled trust bundle is rejected
+    → test_attacker_controlled_trust_bundle_never_sends
+  - Caller-supplied peer identity is refused
+    → test_caller_supplied_peer_identity_is_refused
+  - Transport writes then raises → INDETERMINATE, no retry
+    → test_transport_write_then_raise_is_indeterminate
+  - Pre-send handshake failure does not consume
+    → test_pre_send_control_failure_does_not_consume
+  - Duplicate dispatch
+    → test_duplicate_dispatch_is_consumed
+  - Destination substitution
+    → test_destination_substitution_never_sends
+  - Callback sending different bytes is not EXECUTED
+    → test_callback_sending_different_bytes_is_not_executed
+  - Verified sidecar witness and closure
+    → test_verified_sidecar_witness_and_closure_happy_path
 """
 
 from __future__ import annotations
@@ -19,6 +35,7 @@ import copy
 import uuid
 from typing import Any
 
+import pytest
 from nacl.signing import SigningKey
 
 from agent_dna.authority_v01 import (
@@ -28,12 +45,24 @@ from agent_dna.authority_v01 import (
     sha256_digest,
 )
 from agent_dna.authorize_binding import EXECUTION_AUTHORIZATION_CONSUMED
+from agent_dna.closure_v01 import verify_closure_chain
 from agent_dna.connector.adapters.exact_byte_http import (
+    DISPATCH_BYTES_MISMATCH,
+    DISPATCH_CALLER_PEER_REFUSED,
+    DISPATCH_CALLER_SEND_REFUSED,
+    DISPATCH_CALLER_TRUST_REFUSED,
+    DISPATCH_HANDSHAKE_FAILED,
+    DISPATCH_TRANSPORT_REFUSED,
+    OUTCOME_CONTROL_FAILURE,
+    OUTCOME_EXECUTED,
+    OUTCOME_INDETERMINATE,
     ExactByteContext,
     ExactByteHttpDispatcher,
+    RecordingSidecarTransport,
     WitnessSigner,
     serialize_json_payload,
 )
+from agent_dna.connector.adapters.sidecar_transport import CallbackSidecarTransport
 from agent_dna.dispatch_v01 import verify_dispatch_witness
 from agent_dna.execution_v01 import (
     EXECUTION_AUTHORIZATION_SPEC,
@@ -51,21 +80,8 @@ PEER = b"tls-spki:payments.store.example:v3"
 AT = "2026-08-10T12:00:05Z"
 
 
-class _CountingSend:
-    """Transport stub that records every invocation."""
-
-    def __init__(self) -> None:
-        self.calls: list[bytes] = []
-
-    def __call__(self, wire: bytes, _dispatch: Any) -> dict[str, Any]:
-        self.calls.append(wire)
-        return {"status": "ok", "length": len(wire)}
-
-
-def _world(tmp_path, *, expires_at: str = "2026-08-10T12:10:00Z"):
-    runtime_key = SigningKey.generate()
-    witness_key = SigningKey.generate()
-    trust_bundle = {
+def _bundle_for(runtime_key: SigningKey, witness_key: SigningKey) -> dict[str, Any]:
+    return {
         "spec": TRUST_SPEC,
         "canonicalization": CANONICALIZATION,
         "organisation_id": ORG,
@@ -84,10 +100,16 @@ def _world(tmp_path, *, expires_at: str = "2026-08-10T12:10:00Z"):
                 "principal": f"egress-witness@{ORG}",
                 "algorithm": "ed25519",
                 "public_key": encode_public_key(witness_key),
-                "usages": ["dispatch_witness_signer"],
+                "usages": ["dispatch_witness_signer", "closure_signer"],
             },
         ],
     }
+
+
+def _world(tmp_path, *, expires_at: str = "2026-08-10T12:10:00Z"):
+    runtime_key = SigningKey.generate()
+    witness_key = SigningKey.generate()
+    trust_bundle = _bundle_for(runtime_key, witness_key)
     action = {
         "subject_principal": f"treasury@{ORG}",
         "subject_key_id": "treasury",
@@ -145,16 +167,17 @@ def _world(tmp_path, *, expires_at: str = "2026-08-10T12:10:00Z"):
         "action": action,
         "dispatch": dispatch,
         "witness_key": witness_key,
+        "runtime_key": runtime_key,
         "store": store,
         "ea_id": ea_id,
     }
 
 
-def _context(w, *, at_time: str = AT) -> ExactByteContext:
+def _context(w, *, at_time: str = AT, dispatch: dict | None = None) -> ExactByteContext:
     return ExactByteContext(
         request_id="req-egress-1",
         observed_action=copy.deepcopy(w["action"]),
-        observed_dispatch=copy.deepcopy(w["dispatch"]),
+        observed_dispatch=copy.deepcopy(dispatch or w["dispatch"]),
         decision_receipt_digest=Z,
         authority_receipt_digest=ONE,
         approval_artifact_digest=Z,
@@ -165,31 +188,35 @@ def _context(w, *, at_time: str = AT) -> ExactByteContext:
     )
 
 
-def _dispatcher(w, send) -> ExactByteHttpDispatcher:
+def _dispatcher(w, transport) -> ExactByteHttpDispatcher:
     return ExactByteHttpDispatcher(
         consume_ledger=w["store"],
         witness=WitnessSigner(
             signing_key=w["witness_key"],
             signer_key_id="witness-01",
             witness_component_id="exact-byte-http-test",
+            closure_signer_key_id="witness-01",
+            closure_signing_key=w["witness_key"],
         ),
-        send=send,
+        trust_bundle=w["trust_bundle"],
+        transport=transport,
     )
 
 
 def test_happy_path_sends_and_consumes(tmp_path):
     w = _world(tmp_path)
-    send = _CountingSend()
-    result = _dispatcher(w, send).dispatch(
+    transport = RecordingSidecarTransport(peer_identity=PEER)
+    result = _dispatcher(w, transport).dispatch(
         authorization=w["authorization"],
-        trust_bundle=w["trust_bundle"],
         payload=PAYLOAD,
-        peer_identity_bytes=PEER,
         context=_context(w),
         observed_at=AT,
     )
     assert result.sent is True
-    assert send.calls == [WIRE]
+    assert result.outcome == OUTCOME_EXECUTED
+    assert result.tool_executed is True
+    assert result.retryable is False
+    assert transport.writes == [WIRE]
     assert result.wire_bytes == WIRE
     assert w["store"].is_execution_authorization_consumed(w["ea_id"])
     assert result.witness is not None
@@ -207,93 +234,296 @@ def test_happy_path_sends_and_consumes(tmp_path):
 
 def test_mutated_payload_never_calls_send(tmp_path):
     w = _world(tmp_path)
-    send = _CountingSend()
+    transport = RecordingSidecarTransport(peer_identity=PEER)
     tampered = {"account": "4471", "amount": 900000, "currency": "INR"}
-    result = _dispatcher(w, send).dispatch(
+    result = _dispatcher(w, transport).dispatch(
         authorization=w["authorization"],
-        trust_bundle=w["trust_bundle"],
         payload=tampered,
-        peer_identity_bytes=PEER,
         context=_context(w),
         observed_at=AT,
     )
     assert result.sent is False
-    assert send.calls == []
+    assert transport.writes == []
     assert result.reason_code == "EXECUTION_AUTHORIZATION_NON_CONFORMANT"
     assert not w["store"].is_execution_authorization_consumed(w["ea_id"])
 
 
 def test_second_consume_fails(tmp_path):
     w = _world(tmp_path)
-    send = _CountingSend()
-    d = _dispatcher(w, send)
+    transport = RecordingSidecarTransport(peer_identity=PEER)
+    d = _dispatcher(w, transport)
     first = d.dispatch(
         authorization=w["authorization"],
-        trust_bundle=w["trust_bundle"],
         wire_bytes=WIRE,
-        peer_identity_bytes=PEER,
         context=_context(w),
         observed_at=AT,
     )
     assert first.sent is True
-    assert len(send.calls) == 1
+    assert len(transport.writes) == 1
     second = d.dispatch(
         authorization=w["authorization"],
-        trust_bundle=w["trust_bundle"],
         wire_bytes=WIRE,
-        peer_identity_bytes=PEER,
         context=_context(w),
         observed_at=AT,
     )
     assert second.sent is False
-    assert len(send.calls) == 1
+    assert len(transport.writes) == 1
     assert second.reason_code == EXECUTION_AUTHORIZATION_CONSUMED
 
 
 def test_missing_authorization_fails_closed(tmp_path):
     w = _world(tmp_path)
-    send = _CountingSend()
-    result = _dispatcher(w, send).dispatch(
+    transport = RecordingSidecarTransport(peer_identity=PEER)
+    result = _dispatcher(w, transport).dispatch(
         authorization={},
-        trust_bundle=w["trust_bundle"],
         wire_bytes=WIRE,
-        peer_identity_bytes=PEER,
         context=_context(w),
         observed_at=AT,
     )
     assert result.sent is False
-    assert send.calls == []
+    assert transport.writes == []
     assert result.reason_code is not None
 
 
 def test_invalid_trust_bundle_fails_closed(tmp_path):
     w = _world(tmp_path)
-    send = _CountingSend()
-    result = _dispatcher(w, send).dispatch(
-        authorization=w["authorization"],
-        trust_bundle=None,
-        wire_bytes=WIRE,
-        peer_identity_bytes=PEER,
-        context=_context(w),
-        observed_at=AT,
-    )
-    assert result.sent is False
-    assert send.calls == []
-    assert result.reason_code == "TRUST_BUNDLE_UNAVAILABLE"
+    transport = RecordingSidecarTransport(peer_identity=PEER)
+    broken = copy.deepcopy(w["trust_bundle"])
+    broken["keys"] = [broken["keys"][0]]
+    with pytest.raises(RuntimeError, match="missing required key usages"):
+        ExactByteHttpDispatcher(
+            consume_ledger=w["store"],
+            witness=WitnessSigner(
+                signing_key=w["witness_key"],
+                signer_key_id="witness-01",
+                witness_component_id="exact-byte-http-test",
+            ),
+            trust_bundle=broken,
+            transport=transport,
+        )
 
 
 def test_expired_authorization_fails_closed(tmp_path):
     w = _world(tmp_path, expires_at="2026-08-10T12:00:01Z")
-    send = _CountingSend()
-    result = _dispatcher(w, send).dispatch(
+    transport = RecordingSidecarTransport(peer_identity=PEER)
+    result = _dispatcher(w, transport).dispatch(
         authorization=w["authorization"],
-        trust_bundle=w["trust_bundle"],
         wire_bytes=WIRE,
-        peer_identity_bytes=PEER,
         context=_context(w, at_time="2026-08-10T12:00:05Z"),
         observed_at=AT,
     )
     assert result.sent is False
-    assert send.calls == []
+    assert transport.writes == []
     assert result.reason_code == "EXECUTION_AUTHORIZATION_NON_CONFORMANT"
     assert not w["store"].is_execution_authorization_consumed(w["ea_id"])
+
+
+def test_attacker_controlled_trust_bundle_never_sends(tmp_path):
+    w = _world(tmp_path)
+    attacker_runtime = SigningKey.generate()
+    attacker_witness = SigningKey.generate()
+    attacker_bundle = _bundle_for(attacker_runtime, attacker_witness)
+    attacker_bundle["organisation_id"] = "attacker.example"
+    attacker_action = {
+        **w["action"],
+        "subject_principal": "treasury@attacker.example",
+    }
+    attacker_auth = sign_execution_authorization(
+        {
+            **{k: v for k, v in w["authorization"].items() if k != "signature"},
+            "organisation_id": "attacker.example",
+            "execution_authorization_id": f"eauth-attacker-{uuid.uuid4()}",
+            "nonce": uuid.uuid4().hex,
+            "signer_key_id": "ea-signer",
+            "trust_bundle_digest": sha256_digest(attacker_bundle),
+            "action": attacker_action,
+            "action_digest": sha256_digest(attacker_action),
+        },
+        attacker_runtime,
+    )
+    transport = RecordingSidecarTransport(peer_identity=PEER)
+    production = _dispatcher(w, transport)
+    stuffed = production.dispatch(
+        authorization=attacker_auth,
+        wire_bytes=WIRE,
+        context=_context(w),
+        observed_at=AT,
+        trust_bundle=attacker_bundle,
+    )
+    assert stuffed.reason_code == DISPATCH_CALLER_TRUST_REFUSED
+    assert transport.writes == []
+    result = production.dispatch(
+        authorization=attacker_auth,
+        wire_bytes=WIRE,
+        context=_context(w),
+        observed_at=AT,
+    )
+    assert result.sent is False
+    assert result.outcome == OUTCOME_CONTROL_FAILURE
+    assert transport.writes == []
+    assert not w["store"].is_execution_authorization_consumed(w["ea_id"])
+    assert not w["store"].is_execution_authorization_consumed(
+        attacker_auth["execution_authorization_id"]
+    )
+
+
+def test_caller_supplied_send_callback_is_refused(tmp_path):
+    w = _world(tmp_path)
+    transport = RecordingSidecarTransport(peer_identity=PEER)
+    result = _dispatcher(w, transport).dispatch(
+        authorization=w["authorization"],
+        wire_bytes=WIRE,
+        context=_context(w),
+        observed_at=AT,
+        send=lambda wire, _d: None,
+    )
+    assert result.reason_code == DISPATCH_CALLER_SEND_REFUSED
+    assert result.outcome == OUTCOME_CONTROL_FAILURE
+    assert transport.writes == []
+    assert not w["store"].is_execution_authorization_consumed(w["ea_id"])
+
+
+def test_caller_supplied_peer_identity_is_refused(tmp_path):
+    w = _world(tmp_path)
+    transport = RecordingSidecarTransport(peer_identity=PEER)
+    fake = b"attacker-chosen-peer"
+    result = _dispatcher(w, transport).dispatch(
+        authorization=w["authorization"],
+        wire_bytes=WIRE,
+        context=_context(w),
+        observed_at=AT,
+        peer_identity_bytes=fake,
+    )
+    assert result.reason_code == DISPATCH_CALLER_PEER_REFUSED
+    assert result.outcome == OUTCOME_CONTROL_FAILURE
+    assert transport.writes == []
+    assert not w["store"].is_execution_authorization_consumed(w["ea_id"])
+
+
+def test_transport_write_then_raise_is_indeterminate(tmp_path):
+    w = _world(tmp_path)
+    transport = RecordingSidecarTransport(
+        peer_identity=PEER,
+        write_error=TimeoutError("upstream reset"),
+    )
+    result = _dispatcher(w, transport).dispatch(
+        authorization=w["authorization"],
+        wire_bytes=WIRE,
+        context=_context(w),
+        observed_at=AT,
+    )
+    assert result.outcome == OUTCOME_INDETERMINATE
+    assert result.tool_executed is None
+    assert result.retryable is False
+    assert result.reason_code == DISPATCH_TRANSPORT_REFUSED
+    assert transport.writes == [WIRE]
+    assert w["store"].is_execution_authorization_consumed(w["ea_id"])
+
+
+def test_pre_send_control_failure_does_not_consume(tmp_path):
+    w = _world(tmp_path)
+    transport = RecordingSidecarTransport(
+        peer_identity=PEER,
+        handshake_error=ConnectionError("tls handshake refused"),
+    )
+    result = _dispatcher(w, transport).dispatch(
+        authorization=w["authorization"],
+        wire_bytes=WIRE,
+        context=_context(w),
+        observed_at=AT,
+    )
+    assert result.outcome == OUTCOME_CONTROL_FAILURE
+    assert result.tool_executed is False
+    assert result.reason_code == DISPATCH_HANDSHAKE_FAILED
+    assert transport.writes == []
+    assert not w["store"].is_execution_authorization_consumed(w["ea_id"])
+
+
+def test_duplicate_dispatch_is_consumed(tmp_path):
+    test_second_consume_fails(tmp_path)
+
+
+def test_destination_substitution_never_sends(tmp_path):
+    w = _world(tmp_path)
+    transport = RecordingSidecarTransport(peer_identity=PEER)
+    swapped = copy.deepcopy(w["dispatch"])
+    swapped["destination"] = "evil.example"
+    result = _dispatcher(w, transport).dispatch(
+        authorization=w["authorization"],
+        wire_bytes=WIRE,
+        context=_context(w, dispatch=swapped),
+        observed_at=AT,
+    )
+    assert result.sent is False
+    assert result.reason_code == "DISPATCH_DESTINATION_MISMATCH"
+    assert transport.writes == []
+    assert not w["store"].is_execution_authorization_consumed(w["ea_id"])
+
+
+def test_callback_sending_different_bytes_is_not_executed(tmp_path):
+    w = _world(tmp_path)
+    transport = RecordingSidecarTransport(
+        peer_identity=PEER,
+        substitute_bytes=b'{"amount":1}',
+    )
+    result = _dispatcher(w, transport).dispatch(
+        authorization=w["authorization"],
+        wire_bytes=WIRE,
+        context=_context(w),
+        observed_at=AT,
+    )
+    assert result.outcome == OUTCOME_INDETERMINATE
+    assert result.tool_executed is None
+    assert result.retryable is False
+    assert result.reason_code == DISPATCH_BYTES_MISMATCH
+    assert result.sent is False
+    assert result.witness is None
+
+
+def test_verified_sidecar_witness_and_closure_happy_path(tmp_path):
+    w = _world(tmp_path)
+    transport = RecordingSidecarTransport(peer_identity=PEER)
+    result = _dispatcher(w, transport).dispatch(
+        authorization=w["authorization"],
+        wire_bytes=WIRE,
+        context=_context(w),
+        observed_at=AT,
+    )
+    assert result.outcome == OUTCOME_EXECUTED
+    assert result.witness is not None
+    assert result.closure is not None
+    boundary = verify_dispatch_witness(
+        result.witness,
+        w["authorization"],
+        w["trust_bundle"],
+        observed_action=w["action"],
+        observed_dispatch=w["dispatch"],
+        wire_bytes=WIRE,
+        peer_identity_bytes=PEER,
+    )
+    assert boundary.ok
+    chain = verify_closure_chain(
+        w["authorization"],
+        result.witness,
+        result.closure,
+        w["trust_bundle"],
+    )
+    assert chain.ok
+
+
+def test_production_rejects_callback_transport_without_test_flag(tmp_path):
+    w = _world(tmp_path)
+    with pytest.raises(RuntimeError, match="callback SendFn transport is test-only"):
+        ExactByteHttpDispatcher(
+            consume_ledger=w["store"],
+            witness=WitnessSigner(
+                signing_key=w["witness_key"],
+                signer_key_id="witness-01",
+                witness_component_id="x",
+            ),
+            trust_bundle=w["trust_bundle"],
+            transport=CallbackSidecarTransport(
+                send=lambda wire, _d: None,
+                peer_identity=PEER,
+            ),
+        )

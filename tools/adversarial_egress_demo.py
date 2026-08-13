@@ -38,8 +38,8 @@ from agent_dna.authorize_binding import EXECUTION_AUTHORIZATION_CONSUMED  # noqa
 from agent_dna.connector.adapters.exact_byte_http import (  # noqa: E402
     ExactByteContext,
     ExactByteHttpDispatcher,
+    RecordingSidecarTransport,
     WitnessSigner,
-    recording_send,
 )
 from agent_dna.dispatch_v01 import verify_dispatch_witness  # noqa: E402
 from agent_dna.execution_v01 import (  # noqa: E402
@@ -86,7 +86,7 @@ def main() -> None:
                     "principal": f"egress-witness@{ORG}",
                     "algorithm": "ed25519",
                     "public_key": encode_public_key(witness_key),
-                    "usages": ["dispatch_witness_signer"],
+                    "usages": ["dispatch_witness_signer", "closure_signer"],
                 },
             ],
         }
@@ -140,15 +140,18 @@ def main() -> None:
             runtime_key,
         )
         store = SQLiteDecisionStore(str(root / "consume.db"))
-        sink: list[bytes] = []
+        transport = RecordingSidecarTransport(peer_identity=PEER)
         dispatcher = ExactByteHttpDispatcher(
             consume_ledger=store,
             witness=WitnessSigner(
                 signing_key=witness_key,
                 signer_key_id="witness-01",
                 witness_component_id="adversarial-egress-demo",
+                closure_signer_key_id="witness-01",
+                closure_signing_key=witness_key,
             ),
-            send=recording_send(sink),
+            trust_bundle=trust,
+            transport=transport,
         )
         ctx = ExactByteContext(
             request_id="req-demo-1",
@@ -166,18 +169,16 @@ def main() -> None:
         print("1) ALLOW path — exact-byte dispatch")
         ok = dispatcher.dispatch(
             authorization=authorization,
-            trust_bundle=trust,
             wire_bytes=WIRE,
-            peer_identity_bytes=PEER,
             context=ctx,
             observed_at=AT,
         )
-        if not ok.sent or sink != [WIRE] or ok.witness is None:
+        if not ok.sent or transport.writes != [WIRE] or ok.witness is None:
             _fail(f"happy path failed: sent={ok.sent} reason={ok.reason_code}")
         print("   sent exact bytes; witness created")
 
         print("2) Mutation after authorize — must refuse")
-        sink.clear()
+        transport.writes.clear()
         # Fresh EA bound to the honest WIRE; attempt send with mutated bytes.
         unsigned = {k: v for k, v in authorization.items() if k != "signature"}
         unsigned["execution_authorization_id"] = f"eauth-{uuid.uuid4()}"
@@ -186,29 +187,25 @@ def main() -> None:
         tampered = WIRE.replace(b"400000", b"900000")
         mut = dispatcher.dispatch(
             authorization=mut_auth,
-            trust_bundle=trust,
             wire_bytes=tampered,
-            peer_identity_bytes=PEER,
             context=ctx,
             observed_at=AT,
         )
-        if mut.sent or sink:
+        if mut.sent or transport.writes:
             _fail("mutation was sent")
         if mut.reason_code != "EXECUTION_AUTHORIZATION_NON_CONFORMANT":
             _fail(f"unexpected mutation reason: {mut.reason_code}")
         print("   refused; nothing sent")
 
         print("3) Replay consumed EA — must refuse")
-        sink.clear()
+        transport.writes.clear()
         replay = dispatcher.dispatch(
             authorization=authorization,
-            trust_bundle=trust,
             wire_bytes=WIRE,
-            peer_identity_bytes=PEER,
             context=ctx,
             observed_at=AT,
         )
-        if replay.sent or sink:
+        if replay.sent or transport.writes:
             _fail("replay was sent")
         if replay.reason_code != EXECUTION_AUTHORIZATION_CONSUMED:
             _fail(f"unexpected replay reason: {replay.reason_code}")

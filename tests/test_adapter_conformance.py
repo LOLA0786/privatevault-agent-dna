@@ -37,8 +37,8 @@ from agent_dna.connector.adapters.conformance import (
 from agent_dna.connector.adapters.exact_byte_http import (
     ExactByteContext,
     ExactByteHttpDispatcher,
+    RecordingSidecarTransport,
     WitnessSigner,
-    recording_send,
 )
 from agent_dna.decision_recorder import DecisionRecorder
 from agent_dna.execution_v01 import (
@@ -92,7 +92,7 @@ class ExactByteHarness:
                     "principal": f"egress@{ORG}",
                     "algorithm": "ed25519",
                     "public_key": encode_public_key(witness_key),
-                    "usages": ["dispatch_witness_signer"],
+                    "usages": ["dispatch_witness_signer", "closure_signer"],
                 },
             ],
         }
@@ -158,8 +158,11 @@ class ExactByteHarness:
                 signing_key=self._witness_key,
                 signer_key_id="witness-01",
                 witness_component_id="conformance-exact-byte",
+                closure_signer_key_id="witness-01",
+                closure_signing_key=self._witness_key,
             ),
-            send=recording_send(self._sink),
+            trust_bundle=self._trust,
+            transport=RecordingSidecarTransport(peer_identity=PEER),
         )
 
     def reset(self) -> None:
@@ -183,9 +186,7 @@ class ExactByteHarness:
         wire = WIRE if self._mode == "allow" else WIRE.replace(b"100", b"999")
         result = self._dispatcher.dispatch(
             authorization=self._authorization,
-            trust_bundle=self._trust,
             wire_bytes=wire,
-            peer_identity_bytes=PEER,
             context=ExactByteContext(
                 request_id="req-conf-1",
                 observed_action=copy.deepcopy(self._action),
@@ -203,6 +204,7 @@ class ExactByteHarness:
         if result.sent and result.wire_bytes is not None:
             self.effects.append(SideEffect(kind="http_wire", payload=result.wire_bytes))
             self._checked = result.wire_bytes
+            self._sink.append(result.wire_bytes)
             return ConformanceOutcome(refused=False)
         return ConformanceOutcome(
             refused=True,

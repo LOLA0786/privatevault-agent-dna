@@ -40,6 +40,16 @@ from typing import Any
 from .adapters import synthetic_normal_trace
 from .apikeys import ApiKeyRegistry
 from .circuit_breaker import BreakerConfig, CircuitBreaker, GuardedEngine
+from .connector.adapters.exact_byte_http import (
+    ExactByteHttpDispatcher,
+    WitnessSigner,
+)
+from .connector.adapters.execution_trust import (
+    DISPATCH_WITNESS_KEY_ENV,
+    EXECUTION_TRUST_BUNDLE_ENV,
+    load_execution_trust_bundle,
+)
+from .connector.adapters.sidecar_transport import TlsHttpsSidecarTransport
 from .consensus import ConsensusChecker
 from .decision import DecisionEngine
 from .decision_recorder import DecisionRecorder
@@ -98,6 +108,7 @@ class RuntimeConfig:
     breaker_max_amount: float | None = None
     breaker_max_refusals: int | None = None
     trusted_public_keys: frozenset[str] = field(default_factory=frozenset)
+    execution_trust_bundle_file: str | None = None
 
     @classmethod
     def from_env(cls) -> RuntimeConfig:
@@ -132,6 +143,7 @@ class RuntimeConfig:
             breaker_max_amount=_env_float("PV_BREAKER_MAX_AMOUNT"),
             breaker_max_refusals=_env_int("PV_BREAKER_MAX_REFUSALS"),
             trusted_public_keys=parse_trusted_keys(os.getenv(TRUSTED_KEYS_ENV)),
+            execution_trust_bundle_file=os.getenv(EXECUTION_TRUST_BUNDLE_ENV),
         )
 
 
@@ -148,6 +160,8 @@ class ProductionRuntime:
     trusted_public_keys: frozenset[str] = field(default_factory=frozenset)
     composition: dict[str, dict[str, str]] = field(default_factory=dict)
     loop_events_required: bool = False
+    execution_trust_bundle: dict[str, Any] | None = None
+    egress_sidecar: ExactByteHttpDispatcher | None = None
 
     def monitor(self) -> RuntimeMonitor:
         """A per-agent monitor bound to this runtime's recorder --
@@ -223,6 +237,25 @@ def _assert_secure_profile_preconditions(cfg: RuntimeConfig) -> None:
             "PV_SECURE_PROFILE=1 requires PV_GRANTS_FILE "
             "(explicit grants; deny-all empty registry is not enough)"
         )
+    if not os.getenv(KEY_ENV):
+        raise RuntimeError(
+            f"PV_SECURE_PROFILE=1 requires {KEY_ENV} "
+            "(unsigned decisions are not independently verifiable)"
+        )
+    if not cfg.trusted_public_keys:
+        raise RuntimeError(
+            f"PV_SECURE_PROFILE=1 requires {TRUSTED_KEYS_ENV} "
+            "(a self-attested signer is not a trust root)"
+        )
+    bundle_path = cfg.execution_trust_bundle_file or os.getenv(
+        EXECUTION_TRUST_BUNDLE_ENV, ""
+    )
+    if not bundle_path:
+        raise RuntimeError(
+            f"PV_SECURE_PROFILE=1 requires {EXECUTION_TRUST_BUNDLE_ENV} "
+            "(deployment-owned execution trust bundle; callers cannot "
+            "select a trust root at dispatch time)"
+        )
 
 
 def _secure_profile_manifest(secure: bool) -> dict[str, str]:
@@ -231,6 +264,8 @@ def _secure_profile_manifest(secure: bool) -> dict[str, str]:
             "status": "attached",
             "detail": (
                 "PV_SECURE_PROFILE=1: API keys + grants required; "
+                "receipt signer + trust roots required; "
+                f"{EXECUTION_TRUST_BUNDLE_ENV} required; "
                 "cross-agent execution_id and loop events required; "
                 "PV_ALLOW_NO_AUTH refused"
             ),
@@ -521,6 +556,8 @@ def build_production_runtime(
         "events_required": "true" if loop_events_required else "false",
     }
 
+    execution_bundle, sidecar = _compose_egress_sidecar(cfg, store, secure, comp)
+
     return ProductionRuntime(
         engine=engine,
         recorder=recorder,
@@ -533,4 +570,101 @@ def build_production_runtime(
         trusted_public_keys=cfg.trusted_public_keys,
         composition=comp,
         loop_events_required=loop_events_required,
+        execution_trust_bundle=execution_bundle,
+        egress_sidecar=sidecar,
+    )
+
+
+def _compose_egress_sidecar(
+    cfg: RuntimeConfig,
+    store: SQLiteDecisionStore,
+    secure: bool,
+    comp: dict[str, dict[str, str]],
+) -> tuple[dict[str, Any] | None, ExactByteHttpDispatcher | None]:
+    path = cfg.execution_trust_bundle_file or os.getenv(EXECUTION_TRUST_BUNDLE_ENV, "")
+    if not path:
+        comp["egress_sidecar"] = {
+            "status": "not_configured",
+            "detail": (
+                f"set {EXECUTION_TRUST_BUNDLE_ENV} to pin a deployment-owned "
+                "execution trust bundle; callers cannot select a trust root"
+            ),
+        }
+        return None, None
+    bundle = load_execution_trust_bundle(path)
+    key_path = os.getenv(DISPATCH_WITNESS_KEY_ENV, "")
+    if not key_path:
+        if secure:
+            raise RuntimeError(
+                f"PV_SECURE_PROFILE=1 requires {DISPATCH_WITNESS_KEY_ENV} "
+                "(sidecar-owned dispatch-witness key; not caller-supplied)"
+            )
+        comp["egress_sidecar"] = {
+            "status": "not_configured",
+            "detail": (
+                f"{EXECUTION_TRUST_BUNDLE_ENV} loaded; set "
+                f"{DISPATCH_WITNESS_KEY_ENV} to attach the production sidecar"
+            ),
+        }
+        return bundle, None
+    signer = _witness_signer_from_bundle(bundle, key_path)
+    headers: dict[str, str] = {}
+    token = os.getenv("PV_UPSTREAM_TOKEN", "")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    extra = os.getenv("PV_UPSTREAM_AUTH_HEADER", "")
+    if extra:
+        headers["Authorization"] = extra
+    dispatcher = ExactByteHttpDispatcher(
+        consume_ledger=store,
+        witness=signer,
+        trust_bundle=bundle,
+        transport=TlsHttpsSidecarTransport(credentials_headers=headers),
+    )
+    comp["egress_sidecar"] = {
+        "status": "attached",
+        "detail": (
+            "pinned execution trust bundle; sidecar-owned HTTPS/TLS transport; "
+            "witness signed after send; at-most-once consume"
+        ),
+    }
+    return bundle, dispatcher
+
+
+def _witness_signer_from_bundle(bundle: dict[str, Any], key_path: str) -> WitnessSigner:
+    from nacl.signing import SigningKey
+
+    from .authority_v01 import encode_public_key
+
+    raw = Path(key_path).read_bytes()
+    try:
+        key = SigningKey(raw)
+    except Exception as exc:
+        raise RuntimeError(
+            f"{DISPATCH_WITNESS_KEY_ENV} is not a valid Ed25519 seed: {exc}"
+        ) from exc
+    pub = encode_public_key(key)
+    witness_id = ""
+    closure_id = ""
+    for item in bundle.get("keys") or []:
+        if not isinstance(item, dict):
+            continue
+        usages = set(item.get("usages") or [])
+        if item.get("public_key") != pub:
+            continue
+        if "dispatch_witness_signer" in usages:
+            witness_id = str(item.get("key_id") or "")
+        if "closure_signer" in usages:
+            closure_id = str(item.get("key_id") or "")
+    if not witness_id:
+        raise RuntimeError(
+            f"{DISPATCH_WITNESS_KEY_ENV} public key is absent from the pinned "
+            "execution trust bundle as dispatch_witness_signer"
+        )
+    return WitnessSigner(
+        signing_key=key,
+        signer_key_id=witness_id,
+        witness_component_id="pv-egress-sidecar",
+        closure_signer_key_id=closure_id or witness_id,
+        closure_signing_key=key,
     )
