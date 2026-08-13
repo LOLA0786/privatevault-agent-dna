@@ -51,14 +51,27 @@ def validate_execution_trust_bundle(bundle: Mapping[str, Any]) -> dict[str, Any]
             f"{EXECUTION_TRUST_BUNDLE_ENV} failed validation: {exc}"
         ) from exc
     present: set[str] = set()
-    for key in keys.values():
-        usages = key.get("usages") or []
-        present.update(str(u) for u in usages)
+    holders: dict[str, set[str]] = {u: set() for u in REQUIRED_EXECUTION_USAGES}
+    for key_id, key in keys.items():
+        usages = {str(u) for u in (key.get("usages") or [])}
+        present.update(usages)
+        for required in REQUIRED_EXECUTION_USAGES:
+            if required in usages:
+                holders[required].add(str(key_id))
     missing = REQUIRED_EXECUTION_USAGES - present
     if missing:
         raise RuntimeError(
             f"{EXECUTION_TRUST_BUNDLE_ENV} missing required key usages: "
             + ", ".join(sorted(missing))
+        )
+    shared = holders["execution_authorization_signer"] & holders[
+        "dispatch_witness_signer"
+    ]
+    if shared:
+        raise RuntimeError(
+            f"{EXECUTION_TRUST_BUNDLE_ENV} key(s) {', '.join(sorted(shared))} hold "
+            "both execution_authorization_signer and dispatch_witness_signer; "
+            "the witness must be an independent observer of the mint"
         )
     # Defensive copy so a caller cannot mutate the pinned root after load.
     return json.loads(json.dumps(bundle, sort_keys=True))

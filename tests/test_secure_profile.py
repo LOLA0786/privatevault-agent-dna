@@ -15,6 +15,7 @@ from agent_dna.authority_v01 import (
 )
 from agent_dna.composition import RuntimeConfig, build_production_runtime
 from agent_dna.connector.adapters.execution_trust import (
+    validate_execution_trust_bundle,
     DISPATCH_WITNESS_KEY_ENV,
     EXECUTION_TRUST_BUNDLE_ENV,
 )
@@ -361,3 +362,30 @@ def test_secure_profile_requires_trust_roots(tmp_path, monkeypatch):
                 trusted_public_keys=frozenset(),
             )
         )
+
+
+def test_execution_bundle_refuses_mint_key_as_its_own_witness():
+    """A key cannot both mint permits and witness their dispatch."""
+    dual = SigningKey.generate()
+    bundle = {
+        "spec": TRUST_SPEC,
+        "canonicalization": CANONICALIZATION,
+        "organisation_id": "secure.example",
+        "bundle_version": 1,
+        "pinned_at": "2026-08-10T11:00:00Z",
+        "keys": [
+            {
+                "key_id": "dual-role",
+                "principal": "runtime@secure.example",
+                "algorithm": "ed25519",
+                "public_key": encode_public_key(dual),
+                "usages": [
+                    "execution_authorization_signer",
+                    "dispatch_witness_signer",
+                    "closure_signer",
+                ],
+            }
+        ],
+    }
+    with pytest.raises(RuntimeError, match="independent observer"):
+        validate_execution_trust_bundle(bundle)
