@@ -21,6 +21,7 @@ REQUIRED_EXECUTION_USAGES = frozenset(
     {
         "execution_authorization_signer",
         "dispatch_witness_signer",
+        "closure_signer",
     }
 )
 

@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import copy
 import uuid
+from datetime import datetime
 from typing import Any
 
 import pytest
@@ -51,6 +52,7 @@ from agent_dna.connector.adapters.exact_byte_http import (
     DISPATCH_CALLER_PEER_REFUSED,
     DISPATCH_CALLER_SEND_REFUSED,
     DISPATCH_CALLER_TRUST_REFUSED,
+    DISPATCH_CREDENTIAL_MISMATCH,
     DISPATCH_HANDSHAKE_FAILED,
     DISPATCH_TRANSPORT_REFUSED,
     OUTCOME_CONTROL_FAILURE,
@@ -106,7 +108,7 @@ def _bundle_for(runtime_key: SigningKey, witness_key: SigningKey) -> dict[str, A
     }
 
 
-def _world(tmp_path, *, expires_at: str = "2026-08-10T12:10:00Z"):
+def _world(tmp_path, *, expires_at: str = "2099-01-01T00:00:00Z"):
     runtime_key = SigningKey.generate()
     witness_key = SigningKey.generate()
     trust_bundle = _bundle_for(runtime_key, witness_key)
@@ -218,6 +220,11 @@ def test_happy_path_sends_and_consumes(tmp_path):
     assert result.retryable is False
     assert transport.writes == [WIRE]
     assert result.wire_bytes == WIRE
+    assert result.closure is not None
+    assert result.closure["response_status"] == str(transport.http_status)
+    assert result.closure["dispatch_outcome"] == "ACKNOWLEDGED"
+    assert transport.handshake_count == 1
+    assert transport.close_count == 1
     assert w["store"].is_execution_authorization_consumed(w["ea_id"])
     assert result.witness is not None
     boundary = verify_dispatch_witness(
@@ -244,6 +251,7 @@ def test_mutated_payload_never_calls_send(tmp_path):
     )
     assert result.sent is False
     assert transport.writes == []
+    assert transport.handshake_count == 0
     assert result.reason_code == "EXECUTION_AUTHORIZATION_NON_CONFORMANT"
     assert not w["store"].is_execution_authorization_consumed(w["ea_id"])
 
@@ -282,6 +290,7 @@ def test_missing_authorization_fails_closed(tmp_path):
     )
     assert result.sent is False
     assert transport.writes == []
+    assert transport.handshake_count == 0
     assert result.reason_code is not None
 
 
@@ -314,6 +323,7 @@ def test_expired_authorization_fails_closed(tmp_path):
     )
     assert result.sent is False
     assert transport.writes == []
+    assert transport.handshake_count == 0
     assert result.reason_code == "EXECUTION_AUTHORIZATION_NON_CONFORMANT"
     assert not w["store"].is_execution_authorization_consumed(w["ea_id"])
 
@@ -352,6 +362,7 @@ def test_attacker_controlled_trust_bundle_never_sends(tmp_path):
     )
     assert stuffed.reason_code == DISPATCH_CALLER_TRUST_REFUSED
     assert transport.writes == []
+    assert transport.handshake_count == 0
     result = production.dispatch(
         authorization=attacker_auth,
         wire_bytes=WIRE,
@@ -361,6 +372,7 @@ def test_attacker_controlled_trust_bundle_never_sends(tmp_path):
     assert result.sent is False
     assert result.outcome == OUTCOME_CONTROL_FAILURE
     assert transport.writes == []
+    assert transport.handshake_count == 0
     assert not w["store"].is_execution_authorization_consumed(w["ea_id"])
     assert not w["store"].is_execution_authorization_consumed(
         attacker_auth["execution_authorization_id"]
@@ -380,6 +392,7 @@ def test_caller_supplied_send_callback_is_refused(tmp_path):
     assert result.reason_code == DISPATCH_CALLER_SEND_REFUSED
     assert result.outcome == OUTCOME_CONTROL_FAILURE
     assert transport.writes == []
+    assert transport.handshake_count == 0
     assert not w["store"].is_execution_authorization_consumed(w["ea_id"])
 
 
@@ -397,6 +410,7 @@ def test_caller_supplied_peer_identity_is_refused(tmp_path):
     assert result.reason_code == DISPATCH_CALLER_PEER_REFUSED
     assert result.outcome == OUTCOME_CONTROL_FAILURE
     assert transport.writes == []
+    assert transport.handshake_count == 0
     assert not w["store"].is_execution_authorization_consumed(w["ea_id"])
 
 
@@ -457,6 +471,7 @@ def test_destination_substitution_never_sends(tmp_path):
     assert result.sent is False
     assert result.reason_code == "DISPATCH_DESTINATION_MISMATCH"
     assert transport.writes == []
+    assert transport.handshake_count == 0
     assert not w["store"].is_execution_authorization_consumed(w["ea_id"])
 
 
@@ -492,6 +507,8 @@ def test_verified_sidecar_witness_and_closure_happy_path(tmp_path):
     assert result.outcome == OUTCOME_EXECUTED
     assert result.witness is not None
     assert result.closure is not None
+    assert result.closure["response_status"] == str(transport.http_status)
+    assert result.closure["dispatch_outcome"] == "ACKNOWLEDGED"
     boundary = verify_dispatch_witness(
         result.witness,
         w["authorization"],
@@ -527,3 +544,103 @@ def test_production_rejects_callback_transport_without_test_flag(tmp_path):
                 peer_identity=PEER,
             ),
         )
+
+
+def test_ledger_failure_after_handshake_closes_session(tmp_path):
+    w = _world(tmp_path)
+
+    class _BoomLedger:
+        def try_consume_execution_authorization(self, *args, **kwargs):
+            raise RuntimeError("ledger unavailable")
+
+    transport = RecordingSidecarTransport(peer_identity=PEER)
+    result = ExactByteHttpDispatcher(
+        consume_ledger=_BoomLedger(),
+        witness=WitnessSigner(
+            signing_key=w["witness_key"],
+            signer_key_id="witness-01",
+            witness_component_id="exact-byte-http-test",
+            closure_signer_key_id="witness-01",
+            closure_signing_key=w["witness_key"],
+        ),
+        trust_bundle=w["trust_bundle"],
+        transport=transport,
+    ).dispatch(
+        authorization=w["authorization"],
+        wire_bytes=WIRE,
+        context=_context(w),
+        observed_at=AT,
+    )
+    assert result.sent is False
+    assert result.outcome == OUTCOME_CONTROL_FAILURE
+    assert transport.writes == []
+    assert transport.handshake_count == 1
+    assert transport.close_count == 1
+
+
+def test_closure_status_follows_transport_http_status(tmp_path):
+    w = _world(tmp_path)
+    transport = RecordingSidecarTransport(peer_identity=PEER, http_status=401)
+    result = _dispatcher(w, transport).dispatch(
+        authorization=w["authorization"],
+        wire_bytes=WIRE,
+        context=_context(w),
+        observed_at=AT,
+    )
+    assert result.outcome == OUTCOME_EXECUTED
+    assert result.closure is not None
+    assert result.closure["response_status"] == "401"
+    assert result.closure["dispatch_outcome"] == "REJECTED"
+    chain = verify_closure_chain(
+        w["authorization"],
+        result.witness,
+        result.closure,
+        w["trust_bundle"],
+    )
+    assert chain.ok
+
+
+def test_credential_audience_mismatch_never_handshakes(tmp_path):
+    w = _world(tmp_path)
+    transport = RecordingSidecarTransport(
+        peer_identity=PEER,
+        credentials_headers={"Authorization": "Bearer secret"},
+        allowed_destinations=frozenset(["payments.store.example"]),
+        allowed_audiences=frozenset(["other.example"]),
+    )
+    result = _dispatcher(w, transport).dispatch(
+        authorization=w["authorization"],
+        wire_bytes=WIRE,
+        context=_context(w),
+        observed_at=AT,
+    )
+    assert result.sent is False
+    assert result.reason_code == DISPATCH_CREDENTIAL_MISMATCH
+    assert transport.writes == []
+    assert transport.handshake_count == 0
+    assert transport.close_count == 0
+    assert not w["store"].is_execution_authorization_consumed(w["ea_id"])
+
+
+def test_witness_and_closure_timestamps_are_monotonic(tmp_path):
+    w = _world(tmp_path)
+    transport = RecordingSidecarTransport(peer_identity=PEER)
+    result = _dispatcher(w, transport).dispatch(
+        authorization=w["authorization"],
+        wire_bytes=WIRE,
+        context=_context(w),
+        observed_at=AT,
+    )
+    assert result.outcome == OUTCOME_EXECUTED
+    assert result.witness is not None
+    assert result.closure is not None
+    observed = result.witness["observed_at"]
+    closed = result.closure["closed_at"]
+    assert observed.endswith("Z")
+    assert closed.endswith("Z")
+    assert "." in observed
+    assert "." in closed
+    assert datetime.fromisoformat(
+        observed.replace("Z", "+00:00")
+    ) <= datetime.fromisoformat(closed.replace("Z", "+00:00"))
+    assert observed != AT

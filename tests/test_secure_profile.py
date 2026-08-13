@@ -232,6 +232,117 @@ def test_secure_profile_requires_signing_key(tmp_path, monkeypatch):
         )
 
 
+def test_secure_profile_rejects_bundle_missing_closure_signer(tmp_path, monkeypatch):
+    monkeypatch.setenv("PV_SECURE_PROFILE", "1")
+    monkeypatch.delenv("PV_ALLOW_NO_AUTH", raising=False)
+    seed = "11" * 32
+    monkeypatch.setenv("PV_RECEIPT_SIGNING_KEY", seed)
+    pubkey = ReceiptSigner(seed_hex=seed).public_key
+    keys = tmp_path / "keys.json"
+    op = generate_key("a", "full")
+    keys.write_text(json.dumps({op["hash"]: {"name": "a", "scope": "full"}}))
+    grants = tmp_path / "grants.json"
+    grants.write_text("[]")
+    _write_execution_trust(tmp_path, monkeypatch)
+    runtime_key = SigningKey.generate()
+    witness_key = SigningKey.generate()
+    broken = {
+        "spec": TRUST_SPEC,
+        "canonicalization": CANONICALIZATION,
+        "organisation_id": "secure.example",
+        "bundle_version": 1,
+        "pinned_at": "2026-08-10T11:00:00Z",
+        "keys": [
+            {
+                "key_id": "ea-signer",
+                "principal": "execution-runtime@secure.example",
+                "algorithm": "ed25519",
+                "public_key": encode_public_key(runtime_key),
+                "usages": ["execution_authorization_signer"],
+            },
+            {
+                "key_id": "witness-01",
+                "principal": "egress-witness@secure.example",
+                "algorithm": "ed25519",
+                "public_key": encode_public_key(witness_key),
+                "usages": ["dispatch_witness_signer"],
+            },
+        ],
+    }
+    bundle_path = tmp_path / "execution-trust.json"
+    bundle_path.write_text(json.dumps(broken))
+    key_path = tmp_path / "dispatch-witness.key"
+    key_path.write_bytes(bytes(witness_key))
+    monkeypatch.setenv(EXECUTION_TRUST_BUNDLE_ENV, str(bundle_path))
+    monkeypatch.setenv(DISPATCH_WITNESS_KEY_ENV, str(key_path))
+    with pytest.raises(RuntimeError, match="missing required key usages"):
+        build_production_runtime(
+            RuntimeConfig(
+                db_path=str(tmp_path / "closure.db"),
+                keys_file=str(keys),
+                grants_file=str(grants),
+                trusted_public_keys=frozenset({pubkey}),
+            )
+        )
+
+
+def test_secure_profile_refuses_credentials_without_allowlists(tmp_path, monkeypatch):
+    monkeypatch.setenv("PV_SECURE_PROFILE", "1")
+    monkeypatch.delenv("PV_ALLOW_NO_AUTH", raising=False)
+    monkeypatch.setenv("PV_UPSTREAM_TOKEN", "secret-token")
+    monkeypatch.delenv("PV_EGRESS_ALLOWED_DESTINATIONS", raising=False)
+    monkeypatch.delenv("PV_EGRESS_ALLOWED_AUDIENCES", raising=False)
+    seed = "11" * 32
+    monkeypatch.setenv("PV_RECEIPT_SIGNING_KEY", seed)
+    pubkey = ReceiptSigner(seed_hex=seed).public_key
+    keys = tmp_path / "keys.json"
+    op = generate_key("a", "full")
+    keys.write_text(json.dumps({op["hash"]: {"name": "a", "scope": "full"}}))
+    grants = tmp_path / "grants.json"
+    grants.write_text("[]")
+    _write_execution_trust(tmp_path, monkeypatch)
+    with pytest.raises(RuntimeError, match="PV_EGRESS_ALLOWED"):
+        build_production_runtime(
+            RuntimeConfig(
+                db_path=str(tmp_path / "cred.db"),
+                keys_file=str(keys),
+                grants_file=str(grants),
+                trusted_public_keys=frozenset({pubkey}),
+            )
+        )
+
+
+def test_secure_profile_refuses_credential_audience_mismatch_allowlist(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("PV_SECURE_PROFILE", "1")
+    monkeypatch.delenv("PV_ALLOW_NO_AUTH", raising=False)
+    monkeypatch.setenv("PV_UPSTREAM_TOKEN", "secret-token")
+    monkeypatch.setenv("PV_EGRESS_ALLOWED_DESTINATIONS", "payments.store.example")
+    monkeypatch.setenv("PV_EGRESS_ALLOWED_AUDIENCES", "other.example")
+    seed = "11" * 32
+    monkeypatch.setenv("PV_RECEIPT_SIGNING_KEY", seed)
+    pubkey = ReceiptSigner(seed_hex=seed).public_key
+    keys = tmp_path / "keys.json"
+    op = generate_key("a", "full")
+    keys.write_text(json.dumps({op["hash"]: {"name": "a", "scope": "full"}}))
+    grants = tmp_path / "grants.json"
+    grants.write_text("[]")
+    _write_execution_trust(tmp_path, monkeypatch)
+    rt = build_production_runtime(
+        RuntimeConfig(
+            db_path=str(tmp_path / "aud.db"),
+            keys_file=str(keys),
+            grants_file=str(grants),
+            trusted_public_keys=frozenset({pubkey}),
+        )
+    )
+    assert rt.egress_sidecar is not None
+    transport = rt.egress_sidecar.transport
+    assert transport.allowed_audiences == frozenset({"other.example"})
+    assert transport.credentials_headers.get("Authorization") == "Bearer secret-token"
+
+
 def test_secure_profile_requires_trust_roots(tmp_path, monkeypatch):
     monkeypatch.setenv("PV_SECURE_PROFILE", "1")
     monkeypatch.delenv("PV_ALLOW_NO_AUTH", raising=False)
