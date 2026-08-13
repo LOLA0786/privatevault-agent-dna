@@ -1,48 +1,86 @@
-"""Reference exact-byte HTTP / tool egress adapter.
+"""Exact-byte egress dispatcher — sidecar last meter after mint.
 
-Closes the library-side last meter after mint. Order is fixed:
+Order is fixed and fail-closed:
 
-  1. Serialize / freeze the exact outbound payload bytes.
-  2. Recompute the wire digest via ``verify_execution_authorization``
-     (no consume yet) — refuse on any mismatch, expiry, or bad signature.
-  3. Create a ``dispatch_witness`` over those same bytes (dispatch_v01).
-  4. Atomically consume the EA via the durable ledger.
-  5. Only then call ``send`` with that same ``bytes`` object.
+  1. Freeze the outbound buffer.
+  2. Sidecar TLS-handshake; peer identity is observed, never caller-supplied.
+  3. Verify the execution authorization against the *pinned* trust bundle
+     and the observed peer / exact bytes (no consume yet).
+  4. Atomically consume the EA (at-most-once). A burned permit is not retried.
+  5. Transmit the same ``bytes`` object.
+  6. Only after a completed send: sign a dispatch witness and closure over
+     the body bytes and TLS peer the sidecar independently observed.
 
-Nothing is sent if any step before send fails. Integrators who bypass
-this adapter are outside this guarantee (see docs/WHAT-WE-DO-NOT-CLAIM.md).
+Outcomes
+--------
+``NOT_SENT`` / ``CONTROL_FAILURE``
+    Transport was never invoked; the permit is not burned.
+``EXECUTED``
+    Verified sidecar witness and closure exist; ``tool_executed=True``.
+``INDETERMINATE``
+    Transport invocation began but completion is unverified.
+    ``tool_executed=None``, ``retryable=False``. Never auto-retried.
+
+A caller-supplied ``SendFn`` is test-only and does not prove bytes on the
+wire. Production uses ``TlsHttpsSidecarTransport``.
 """
 
 from __future__ import annotations
 
 import json
 import uuid
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
 from nacl.signing import SigningKey
 
-from agent_dna.authority_v01 import AuthorityFormatError, VerificationReport
+from agent_dna.authority_v01 import (
+    CANONICALIZATION,
+    AuthorityFormatError,
+    VerificationReport,
+    sha256_digest,
+)
 from agent_dna.authorize_binding import EXECUTION_AUTHORIZATION_CONSUMED
-from agent_dna.dispatch_v01 import create_dispatch_witness
-from agent_dna.execution_v01 import verify_execution_authorization
+from agent_dna.closure_v01 import CLOSURE_RECORD_SPEC, sign_closure_record
+from agent_dna.connector.adapters.execution_trust import validate_execution_trust_bundle
+from agent_dna.connector.adapters.sidecar_transport import (
+    CallbackSidecarTransport,
+    RecordingSidecarTransport,
+    SendFn,
+    SidecarSendResult,
+    SidecarTransport,
+    TlsHttpsSidecarTransport,
+)
+from agent_dna.dispatch_v01 import create_dispatch_witness, dispatch_witness_digest
+from agent_dna.execution_v01 import (
+    execution_authorization_digest,
+    sha256_bytes_digest,
+    verify_execution_authorization,
+)
 
 DISPATCH_WITNESS_CREATE_FAILED = "DISPATCH_WITNESS_CREATE_FAILED"
 DISPATCH_TRANSPORT_REFUSED = "DISPATCH_TRANSPORT_REFUSED"
 DISPATCH_WIRE_BYTES_INVALID = "DISPATCH_WIRE_BYTES_INVALID"
 DISPATCH_PAYLOAD_INVALID = "DISPATCH_PAYLOAD_INVALID"
 CONSUME_LEDGER_UNAVAILABLE = "CONSUME_LEDGER_UNAVAILABLE"
+DISPATCH_HANDSHAKE_FAILED = "DISPATCH_HANDSHAKE_FAILED"
+DISPATCH_BYTES_MISMATCH = "DISPATCH_BYTES_MISMATCH"
+DISPATCH_CALLER_PEER_REFUSED = "DISPATCH_CALLER_PEER_REFUSED"
+DISPATCH_CALLER_TRUST_REFUSED = "DISPATCH_CALLER_TRUST_REFUSED"
+DISPATCH_CALLER_SEND_REFUSED = "DISPATCH_CALLER_SEND_REFUSED"
+DISPATCH_CLOSURE_FAILED = "DISPATCH_CLOSURE_FAILED"
+DISPATCH_DESTINATION_MISMATCH = "DISPATCH_DESTINATION_MISMATCH"
 
-SendFn = Callable[[bytes, Mapping[str, Any]], Any]
+OUTCOME_NOT_SENT = "NOT_SENT"
+OUTCOME_CONTROL_FAILURE = "CONTROL_FAILURE"
+OUTCOME_EXECUTED = "EXECUTED"
+OUTCOME_INDETERMINATE = "INDETERMINATE"
 
 
 def serialize_json_payload(payload: Any) -> bytes:
-    """Serialize a JSON-compatible payload to the exact bytes that will be sent.
-
-    Compact separators — the EA must have been minted against these bytes.
-    """
+    """Serialize a JSON-compatible payload to the exact bytes that will be sent."""
     try:
         return json.dumps(
             payload,
@@ -72,71 +110,260 @@ class ExactByteContext:
 
 @dataclass(frozen=True)
 class WitnessSigner:
-    """Independent egress witness key material (not the EA signer)."""
+    """Sidecar-owned witness/closure key material (not the EA signer)."""
 
     signing_key: SigningKey
     signer_key_id: str
     witness_component_id: str
     wire_content_type: str = "application/json"
     wire_content_encoding: str = "identity"
+    closure_signer_key_id: str = ""
+    closure_signing_key: SigningKey | None = None
 
 
 @dataclass
 class ExactByteDispatchResult:
+    outcome: str
+    tool_executed: bool | None
+    retryable: bool
     sent: bool
     verification: VerificationReport | None = None
     witness: dict[str, Any] | None = None
+    closure: dict[str, Any] | None = None
     transport_response: Any = None
     reason_code: str | None = None
     detail: str | None = None
     wire_bytes: bytes | None = None
 
 
+def _not_sent(
+    *,
+    reason_code: str,
+    detail: str | None = None,
+    verification: VerificationReport | None = None,
+    wire_bytes: bytes | None = None,
+    outcome: str = OUTCOME_CONTROL_FAILURE,
+) -> ExactByteDispatchResult:
+    return ExactByteDispatchResult(
+        outcome=outcome,
+        tool_executed=False,
+        retryable=False,
+        sent=False,
+        verification=verification,
+        reason_code=reason_code,
+        detail=detail,
+        wire_bytes=wire_bytes,
+    )
+
+
+def _indeterminate(
+    *,
+    reason_code: str,
+    detail: str | None = None,
+    verification: VerificationReport | None = None,
+    wire_bytes: bytes | None = None,
+) -> ExactByteDispatchResult:
+    return ExactByteDispatchResult(
+        outcome=OUTCOME_INDETERMINATE,
+        tool_executed=None,
+        retryable=False,
+        sent=False,
+        verification=verification,
+        reason_code=reason_code,
+        detail=detail,
+        wire_bytes=wire_bytes,
+    )
+
+
 @dataclass
 class ExactByteHttpDispatcher:
-    """Fail-closed egress: verify → witness → consume → send exact bytes."""
+    """Fail-closed egress with a pinned trust bundle and sidecar transport.
+
+    At-most-once: ``try_consume_execution_authorization`` claims the id
+    before the body is written. If send later fails, the permit is burned
+    (INDETERMINATE). Do not retry that authorization.
+    """
 
     consume_ledger: Any
     witness: WitnessSigner
-    send: SendFn
+    trust_bundle: Mapping[str, Any]
+    transport: SidecarTransport
+    _test_allow_callback_transport: bool = False
 
-    def dispatch(  # noqa: C901 — ordered fail-closed checklist
+    def __post_init__(self) -> None:
+        self.trust_bundle = validate_execution_trust_bundle(self.trust_bundle)
+        if (
+            isinstance(self.transport, CallbackSidecarTransport)
+            and not self._test_allow_callback_transport
+        ):
+            raise RuntimeError(
+                "callback SendFn transport is test-only; production must use "
+                "a sidecar-owned transport"
+            )
+
+    def dispatch(
         self,
         *,
         authorization: Mapping[str, Any],
-        trust_bundle: Mapping[str, Any] | None,
-        peer_identity_bytes: bytes | bytearray | memoryview,
         context: ExactByteContext,
         wire_bytes: bytes | bytearray | memoryview | None = None,
         payload: Any | None = None,
         attempt: int = 1,
         dispatch_witness_id: str | None = None,
         observed_at: str | None = None,
+        trust_bundle: Any = None,
+        peer_identity_bytes: Any = None,
+        send: Any = None,
     ) -> ExactByteDispatchResult:
         """Dispatch exact bytes bound by ``authorization``.
 
-        Provide either ``wire_bytes`` (already serialized) or ``payload``
-        (JSON-serialized here). The transport receives the identical buffer.
+        ``trust_bundle``, ``peer_identity_bytes``, and ``send`` are rejected
+        if supplied: the caller does not choose the trust root, the TLS peer,
+        or the transport.
         """
+        if trust_bundle is not None:
+            return _not_sent(
+                reason_code=DISPATCH_CALLER_TRUST_REFUSED,
+                detail="callers cannot select a trust bundle at dispatch time",
+                outcome=OUTCOME_CONTROL_FAILURE,
+            )
+        if peer_identity_bytes is not None:
+            return _not_sent(
+                reason_code=DISPATCH_CALLER_PEER_REFUSED,
+                detail="callers cannot supply peer_identity_bytes; "
+                "the sidecar derives peer identity from TLS",
+                outcome=OUTCOME_CONTROL_FAILURE,
+            )
+        if send is not None:
+            return _not_sent(
+                reason_code=DISPATCH_CALLER_SEND_REFUSED,
+                detail="callers cannot supply a send callback at dispatch time",
+                outcome=OUTCOME_CONTROL_FAILURE,
+            )
         frozen = self._freeze_wire(wire_bytes=wire_bytes, payload=payload)
         if isinstance(frozen, ExactByteDispatchResult):
             return frozen
-        wire = frozen
+        return self._dispatch_frozen(
+            authorization=authorization,
+            context=context,
+            wire=frozen,
+            attempt=attempt,
+            dispatch_witness_id=dispatch_witness_id,
+            observed_at=observed_at,
+        )
 
+    def _dispatch_frozen(
+        self,
+        *,
+        authorization: Mapping[str, Any],
+        context: ExactByteContext,
+        wire: bytes,
+        attempt: int,
+        dispatch_witness_id: str | None,
+        observed_at: str | None,
+    ) -> ExactByteDispatchResult:
+        destination, operation, dest_fail = self._sealed_destination(
+            authorization, context
+        )
+        if dest_fail is not None:
+            dest_fail.wire_bytes = wire
+            return dest_fail
         try:
-            peer = bytes(peer_identity_bytes)
-        except (TypeError, ValueError) as exc:
-            return ExactByteDispatchResult(
-                sent=False,
-                reason_code=DISPATCH_WIRE_BYTES_INVALID,
-                detail=str(exc),
+            peer = bytes(self.transport.handshake(destination))
+        except Exception as exc:
+            return _not_sent(
+                reason_code=DISPATCH_HANDSHAKE_FAILED,
+                detail=f"{type(exc).__name__}: {exc}",
                 wire_bytes=wire,
             )
+        report = self._verify_pinned(
+            authorization=authorization,
+            context=context,
+            wire=wire,
+            peer=peer,
+        )
+        if not report.ok:
+            return _not_sent(
+                reason_code=report.reason_code
+                or "EXECUTION_AUTHORIZATION_NON_CONFORMANT",
+                detail="; ".join(report.failures) if report.failures else None,
+                verification=report,
+                wire_bytes=wire,
+            )
+        ids = self._authorization_ids(authorization, report, wire)
+        if isinstance(ids, ExactByteDispatchResult):
+            return ids
+        ea_id, organisation_id = ids
+        meta_observed_at = observed_at or _rfc3339_now()
+        consumed = self._consume(ea_id, organisation_id, meta_observed_at, report, wire)
+        if consumed is not None:
+            return consumed
+        return self._transmit_and_attest(
+            authorization=authorization,
+            context=context,
+            wire=wire,
+            peer=peer,
+            operation=operation,
+            report=report,
+            attempt=attempt,
+            dispatch_witness_id=dispatch_witness_id,
+            observed_at=meta_observed_at,
+        )
 
-        # 2. Recompute digests / check signature / expiry — do not consume yet.
-        report = verify_execution_authorization(
+    def _sealed_destination(
+        self,
+        authorization: Mapping[str, Any],
+        context: ExactByteContext,
+    ) -> tuple[str, str, ExactByteDispatchResult | None]:
+        sealed = authorization.get("dispatch")
+        observed = context.observed_dispatch
+        if not isinstance(sealed, Mapping) or not isinstance(observed, Mapping):
+            return (
+                "",
+                "",
+                _not_sent(
+                    reason_code=DISPATCH_DESTINATION_MISMATCH,
+                    detail="dispatch destination missing from authorization or context",
+                ),
+            )
+        sealed_dest = sealed.get("destination")
+        observed_dest = observed.get("destination")
+        if (
+            not isinstance(sealed_dest, str)
+            or not sealed_dest
+            or sealed_dest != observed_dest
+        ):
+            return (
+                "",
+                "",
+                _not_sent(
+                    reason_code=DISPATCH_DESTINATION_MISMATCH,
+                    detail="caller destination does not match sealed dispatch",
+                ),
+            )
+        operation = sealed.get("operation")
+        if not isinstance(operation, str) or not operation:
+            return (
+                "",
+                "",
+                _not_sent(
+                    reason_code=DISPATCH_DESTINATION_MISMATCH,
+                    detail="sealed dispatch operation missing",
+                ),
+            )
+        return sealed_dest, operation, None
+
+    def _verify_pinned(
+        self,
+        *,
+        authorization: Mapping[str, Any],
+        context: ExactByteContext,
+        wire: bytes,
+        peer: bytes,
+    ) -> VerificationReport:
+        return verify_execution_authorization(
             authorization,
-            trust_bundle,
+            self.trust_bundle,
             expected_request_id=context.request_id,
             expected_action=dict(context.observed_action),
             expected_dispatch=dict(context.observed_dispatch),
@@ -152,50 +379,135 @@ class ExactByteHttpDispatcher:
             already_consumed=False,
             consume_ledger=None,
         )
-        if not report.ok:
-            return ExactByteDispatchResult(
-                sent=False,
-                verification=report,
-                reason_code=report.reason_code,
-                detail="; ".join(report.failures) if report.failures else None,
-                wire_bytes=wire,
-            )
-        if trust_bundle is None:
-            return ExactByteDispatchResult(
-                sent=False,
-                verification=report,
-                reason_code="TRUST_BUNDLE_UNAVAILABLE",
-                detail="no out-of-band trust bundle was supplied",
-                wire_bytes=wire,
-            )
 
+    def _authorization_ids(
+        self,
+        authorization: Mapping[str, Any],
+        report: VerificationReport,
+        wire: bytes,
+    ) -> tuple[str, str] | ExactByteDispatchResult:
         ea_id = authorization.get("execution_authorization_id")
         organisation_id = authorization.get("organisation_id")
         if not isinstance(ea_id, str) or not ea_id:
-            return ExactByteDispatchResult(
-                sent=False,
-                verification=report,
+            return _not_sent(
                 reason_code="SCHEMA_INVALID",
                 detail="execution_authorization_id missing after verify",
+                verification=report,
                 wire_bytes=wire,
             )
         if not isinstance(organisation_id, str) or not organisation_id:
-            return ExactByteDispatchResult(
-                sent=False,
-                verification=report,
+            return _not_sent(
                 reason_code="SCHEMA_INVALID",
                 detail="organisation_id missing after verify",
+                verification=report,
                 wire_bytes=wire,
             )
+        return ea_id, organisation_id
 
-        # 3. Witness over the frozen buffer (independent signer).
-        meta_observed_at = observed_at or _rfc3339_now()
+    def _consume(
+        self,
+        ea_id: str,
+        organisation_id: str,
+        consumed_at: str,
+        report: VerificationReport,
+        wire: bytes,
+    ) -> ExactByteDispatchResult | None:
+        try:
+            claimed = self.consume_ledger.try_consume_execution_authorization(
+                ea_id,
+                organisation_id=organisation_id,
+                consumed_at=consumed_at,
+            )
+        except Exception as exc:
+            return _not_sent(
+                reason_code=CONSUME_LEDGER_UNAVAILABLE,
+                detail=f"{type(exc).__name__}: {exc}",
+                verification=report,
+                wire_bytes=wire,
+            )
+        if not claimed:
+            return _not_sent(
+                reason_code=EXECUTION_AUTHORIZATION_CONSUMED,
+                detail="execution authorization has already been consumed",
+                verification=report,
+                wire_bytes=wire,
+            )
+        return None
+
+    def _transmit_and_attest(
+        self,
+        *,
+        authorization: Mapping[str, Any],
+        context: ExactByteContext,
+        wire: bytes,
+        peer: bytes,
+        operation: str,
+        report: VerificationReport,
+        attempt: int,
+        dispatch_witness_id: str | None,
+        observed_at: str,
+    ) -> ExactByteDispatchResult:
+        try:
+            sent = self.transport.write(wire, operation=operation)
+        except Exception as exc:
+            return _indeterminate(
+                reason_code=DISPATCH_TRANSPORT_REFUSED,
+                detail=f"{type(exc).__name__}: {exc}",
+                verification=report,
+                wire_bytes=wire,
+            )
+        if not isinstance(sent, SidecarSendResult) or not sent.send_began:
+            return _indeterminate(
+                reason_code=DISPATCH_TRANSPORT_REFUSED,
+                detail="sidecar did not confirm send began",
+                verification=report,
+                wire_bytes=wire,
+            )
+        if sent.bytes_committed != wire:
+            return _indeterminate(
+                reason_code=DISPATCH_BYTES_MISMATCH,
+                detail="sidecar committed different bytes than the frozen buffer",
+                verification=report,
+                wire_bytes=wire,
+            )
+        if sent.peer_identity_bytes != peer:
+            return _indeterminate(
+                reason_code=DISPATCH_BYTES_MISMATCH,
+                detail="TLS peer identity changed between handshake and write",
+                verification=report,
+                wire_bytes=wire,
+            )
+        return self._attest_after_send(
+            authorization=authorization,
+            context=context,
+            wire=wire,
+            peer=peer,
+            sent=sent,
+            report=report,
+            attempt=attempt,
+            dispatch_witness_id=dispatch_witness_id,
+            observed_at=observed_at,
+        )
+
+    def _attest_after_send(
+        self,
+        *,
+        authorization: Mapping[str, Any],
+        context: ExactByteContext,
+        wire: bytes,
+        peer: bytes,
+        sent: SidecarSendResult,
+        report: VerificationReport,
+        attempt: int,
+        dispatch_witness_id: str | None,
+        observed_at: str,
+    ) -> ExactByteDispatchResult:
         meta_id = dispatch_witness_id or f"dw-{uuid.uuid4()}"
         try:
             witness = create_dispatch_witness(
                 {
                     "dispatch_witness_id": meta_id,
-                    "observed_at": meta_observed_at,
+                    "observed_at": observed_at,
                     "attempt": attempt,
                     "witness_component_id": self.witness.witness_component_id,
                     "wire_content_type": self.witness.wire_content_type,
@@ -203,68 +515,87 @@ class ExactByteHttpDispatcher:
                     "signer_key_id": self.witness.signer_key_id,
                 },
                 authorization=authorization,
-                trust_bundle=trust_bundle,
+                trust_bundle=self.trust_bundle,
                 observed_action=dict(context.observed_action),
                 observed_dispatch=dict(context.observed_dispatch),
-                wire_bytes=wire,
-                peer_identity_bytes=peer,
+                wire_bytes=sent.bytes_committed,
+                peer_identity_bytes=sent.peer_identity_bytes,
                 signing_key=self.witness.signing_key,
             )
         except (AuthorityFormatError, TypeError, ValueError) as exc:
-            return ExactByteDispatchResult(
-                sent=False,
-                verification=report,
+            return _indeterminate(
                 reason_code=DISPATCH_WITNESS_CREATE_FAILED,
                 detail=str(exc),
+                verification=report,
                 wire_bytes=wire,
             )
-
-        # 4. Atomic single-use consume — never send if already claimed.
         try:
-            claimed = self.consume_ledger.try_consume_execution_authorization(
-                ea_id,
-                organisation_id=organisation_id,
-                consumed_at=meta_observed_at,
-            )
-        except Exception as exc:
-            return ExactByteDispatchResult(
-                sent=False,
-                verification=report,
+            closure = self._sign_closure(
+                authorization=authorization,
                 witness=witness,
-                reason_code=CONSUME_LEDGER_UNAVAILABLE,
-                detail=f"{type(exc).__name__}: {exc}",
+                sent=sent,
+                observed_at=observed_at,
+            )
+        except (AuthorityFormatError, TypeError, ValueError) as exc:
+            return _indeterminate(
+                reason_code=DISPATCH_CLOSURE_FAILED,
+                detail=str(exc),
+                verification=report,
                 wire_bytes=wire,
             )
-        if not claimed:
-            return ExactByteDispatchResult(
-                sent=False,
-                verification=report,
-                witness=witness,
-                reason_code=EXECUTION_AUTHORIZATION_CONSUMED,
-                detail="execution authorization has already been consumed",
-                wire_bytes=wire,
-            )
-
-        # 5. Send the identical buffer — never a re-serialize.
-        try:
-            response = self.send(wire, context.observed_dispatch)
-        except Exception as exc:
-            return ExactByteDispatchResult(
-                sent=False,
-                verification=report,
-                witness=witness,
-                reason_code=DISPATCH_TRANSPORT_REFUSED,
-                detail=f"{type(exc).__name__}: {exc}",
-                wire_bytes=wire,
-            )
-
         return ExactByteDispatchResult(
+            outcome=OUTCOME_EXECUTED,
+            tool_executed=True,
+            retryable=False,
             sent=True,
             verification=report,
             witness=witness,
-            transport_response=response,
+            closure=closure,
+            transport_response=sent.response_body,
             wire_bytes=wire,
         )
+
+    def _sign_closure(
+        self,
+        *,
+        authorization: Mapping[str, Any],
+        witness: Mapping[str, Any],
+        sent: SidecarSendResult,
+        observed_at: str,
+    ) -> dict[str, Any]:
+        closure_key = self.witness.closure_signing_key or self.witness.signing_key
+        closure_key_id = (
+            self.witness.closure_signer_key_id or self.witness.signer_key_id
+        )
+        body = sent.response_body
+        unsigned = {
+            "spec": CLOSURE_RECORD_SPEC,
+            "canonicalization": CANONICALIZATION,
+            "closure_id": f"cl-{uuid.uuid4()}",
+            "organisation_id": authorization["organisation_id"],
+            "request_id": authorization["request_id"],
+            "execution_authorization_id": authorization["execution_authorization_id"],
+            "execution_authorization_digest": execution_authorization_digest(
+                authorization
+            ),
+            "dispatch_witness_id": witness["dispatch_witness_id"],
+            "dispatch_witness_digest": dispatch_witness_digest(witness),
+            "closed_at": observed_at,
+            "closure_component_id": self.witness.witness_component_id,
+            "dispatch_outcome": "ACKNOWLEDGED",
+            "response_status": "200",
+            "response_bytes_digest": sha256_bytes_digest(body),
+            "response_bytes_length": len(body),
+            "effect_state": "UNCONFIRMED",
+            "effect_evidence_digest": None,
+            "idempotency_key_digest": authorization["dispatch"][
+                "idempotency_key_digest"
+            ],
+            "authorization_use_count": 1,
+            "trust_bundle_digest": sha256_digest(self.trust_bundle),
+            "signer_key_id": closure_key_id,
+        }
+        return sign_closure_record(unsigned, closure_key)
 
     def _freeze_wire(
         self,
@@ -273,8 +604,7 @@ class ExactByteHttpDispatcher:
         payload: Any | None,
     ) -> bytes | ExactByteDispatchResult:
         if wire_bytes is not None and payload is not None:
-            return ExactByteDispatchResult(
-                sent=False,
+            return _not_sent(
                 reason_code=DISPATCH_PAYLOAD_INVALID,
                 detail="provide wire_bytes or payload, not both",
             )
@@ -282,8 +612,7 @@ class ExactByteHttpDispatcher:
             try:
                 return bytes(wire_bytes)
             except (TypeError, ValueError) as exc:
-                return ExactByteDispatchResult(
-                    sent=False,
+                return _not_sent(
                     reason_code=DISPATCH_WIRE_BYTES_INVALID,
                     detail=str(exc),
                 )
@@ -291,20 +620,18 @@ class ExactByteHttpDispatcher:
             try:
                 return serialize_json_payload(payload)
             except ValueError as exc:
-                return ExactByteDispatchResult(
-                    sent=False,
+                return _not_sent(
                     reason_code=DISPATCH_PAYLOAD_INVALID,
                     detail=str(exc),
                 )
-        return ExactByteDispatchResult(
-            sent=False,
+        return _not_sent(
             reason_code=DISPATCH_PAYLOAD_INVALID,
             detail="wire_bytes or payload is required",
         )
 
 
 def recording_send(sink: list[bytes]) -> SendFn:
-    """Test/demo transport that records the exact buffer and does not network."""
+    """Test-only callback. Does not prove bytes reached a peer."""
 
     def _send(wire: bytes, _dispatch: Mapping[str, Any]) -> dict[str, Any]:
         sink.append(wire)
@@ -320,7 +647,7 @@ def httpx_send(
     headers: Mapping[str, str] | None = None,
     timeout: float = 10.0,
 ) -> SendFn:
-    """Optional real HTTP transport: POSTs the frozen wire bytes as the body."""
+    """Test-only HTTP callback. Production must use TlsHttpsSidecarTransport."""
 
     def _send(wire: bytes, _dispatch: Mapping[str, Any]) -> Any:
         import httpx
@@ -340,3 +667,27 @@ def httpx_send(
 
 def _rfc3339_now() -> str:
     return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+# Re-export transports so callers import one module.
+__all__ = [
+    "CallbackSidecarTransport",
+    "DISPATCH_BYTES_MISMATCH",
+    "DISPATCH_CALLER_PEER_REFUSED",
+    "DISPATCH_CALLER_SEND_REFUSED",
+    "DISPATCH_CALLER_TRUST_REFUSED",
+    "DISPATCH_HANDSHAKE_FAILED",
+    "ExactByteContext",
+    "ExactByteDispatchResult",
+    "ExactByteHttpDispatcher",
+    "OUTCOME_CONTROL_FAILURE",
+    "OUTCOME_EXECUTED",
+    "OUTCOME_INDETERMINATE",
+    "OUTCOME_NOT_SENT",
+    "RecordingSidecarTransport",
+    "TlsHttpsSidecarTransport",
+    "WitnessSigner",
+    "httpx_send",
+    "recording_send",
+    "serialize_json_payload",
+]

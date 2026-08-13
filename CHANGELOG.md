@@ -22,15 +22,22 @@ and a named test that runs in CI.
   shutdown, reconnect isolation, default-on TLS verify, cross-origin
   redirect refusal, and SSE byte bounds
   (`tests/gateway/test_protocol_hardening.py`).
-- **Exact-byte egress adapter**: `ExactByteHttpDispatcher` verifies and
-  consumes an EA against frozen wire bytes, creates an independent
-  dispatch witness, then sends that same buffer — never on verify
-  failure (`tests/connector/test_exact_byte_http.py`,
-  `tools/adversarial_egress_demo.py`). Adapter conformance contract
-  covers MCP + exact-byte (`tests/test_adapter_conformance.py`).
+- **Exact-byte egress adapter**: `ExactByteHttpDispatcher` pins
+  `PV_EXECUTION_TRUST_BUNDLE_FILE` at construction (callers cannot
+  select a trust root). Production uses a sidecar-owned HTTPS/TLS
+  transport; peer identity is observed from the handshake; the
+  dispatch witness is signed only after send. Outcomes are
+  `NOT_SENT`/`CONTROL_FAILURE`, `EXECUTED`, and `INDETERMINATE`
+  (`tests/connector/test_exact_byte_http.py`,
+  `tools/adversarial_egress_demo.py`). Adapter conformance covers
+  MCP + exact-byte (`tests/test_adapter_conformance.py`).
+  Note: #52's changelog claimed the secure profile required signer
+  and trust bundle before that was fully true; receipt signer/roots
+  and the execution trust bundle are this change.
 - **Secure-defaults profile**: `PV_SECURE_PROFILE=1` requires API keys,
-  grants, execution signer, and trust bundle; forces cross-agent
-  execution_id and loop-events required; refuses `PV_ALLOW_NO_AUTH`
+  grants, receipt signer, trust roots, and
+  `PV_EXECUTION_TRUST_BUNDLE_FILE`; forces cross-agent execution_id
+  and loop-events required; refuses `PV_ALLOW_NO_AUTH`
   (`tests/test_secure_profile.py`). Platform compose enables it.
 - **F-03 / F-04 / F-05 caller-controlled enforcement**: production
   composition attaches deny-all grants when `PV_GRANTS_FILE` unset;
