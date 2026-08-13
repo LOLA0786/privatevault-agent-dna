@@ -17,6 +17,9 @@ class GatewaySession:
     started_at: float = field(default_factory=time.time)
     # Non-mintable audit of passthrough methods (initialize, tools/list, …).
     passthrough_log: list[dict[str, Any]] = field(default_factory=list)
+    initialize_capabilities: dict[str, Any] | None = None
+    declared_tool_names: frozenset[str] | None = None
+    findings: list[dict[str, Any]] = field(default_factory=list)
 
     def record_passthrough(self, method: str, request_id: Any) -> None:
         self.passthrough_log.append(
@@ -26,6 +29,9 @@ class GatewaySession:
                 "at": time.time(),
             }
         )
+
+    def record_finding(self, kind: str, detail: str) -> None:
+        self.findings.append({"kind": kind, "detail": detail, "at": time.time()})
 
 
 def new_session_id() -> str:

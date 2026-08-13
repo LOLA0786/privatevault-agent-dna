@@ -29,3 +29,35 @@ class ClientDisconnectedError(ConnectionError):
 
 class FramingProtocolError(ValueError):
     """Malformed MCP framing or JSON-RPC — never forward, never seal success."""
+
+
+class UpstreamDeadError(ConnectionError):
+    """Upstream process died or closed; in-flight calls are indeterminate."""
+
+
+class CrossOriginRedirectError(ConnectionError):
+    """HTTP redirect changed origin after the dispatch destination was sealed."""
+
+
+class UnmatchedResponseError(ValueError):
+    """Upstream response id was never sent by this session."""
+
+
+class DuplicateRequestIdError(ValueError):
+    """JSON-RPC id is already in flight; refusing cross-bind."""
+
+
+class UpstreamPrincipalChangedError(ConnectionError):
+    """Upstream restarted; the new process is a different principal."""
+
+
+class SameOriginRedirectError(ConnectionError):
+    """Same-origin redirect: do not follow until a new decision is minted."""
+
+    def __init__(self, location: str) -> None:
+        self.location = location
+        super().__init__(f"same-origin redirect requires re-decision: {location}")
+
+
+class BypassDetectedError(RuntimeError):
+    """Upstream reported sessions that lacked gateway attribution."""

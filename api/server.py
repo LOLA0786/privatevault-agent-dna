@@ -255,8 +255,9 @@ class DecideRequest(BaseModel):
 
 class OutcomeRequest(BaseModel):
     decision_id: str = Field(min_length=1)
-    status: str = Field(pattern="^(ok|error|refused)$")
+    status: str = Field(pattern="^(ok|error|refused|indeterminate)$")
     detail: str = ""
+    response_digest: str = Field(default="", pattern=r"^$|^sha256:[0-9a-f]{64}$")
 
 
 # ---------- enforcement surface ---------------------------------------------
@@ -419,7 +420,10 @@ def outcome(req: OutcomeRequest, principal: FullPrincipal):
     _owned_decision(principal, req.decision_id)
     try:
         event = state["recorder"].report_outcome(
-            req.decision_id, req.status, req.detail
+            req.decision_id,
+            req.status,
+            req.detail,
+            response_digest=req.response_digest,
         )
     except (KeyError, ValueError) as e:
         raise HTTPException(status_code=409, detail=str(e)) from e

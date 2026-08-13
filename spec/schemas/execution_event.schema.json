@@ -42,11 +42,17 @@
       "enum": [
         "ok",
         "error",
-        "refused"
+        "refused",
+        "indeterminate"
       ]
     },
     "detail": {
       "type": "string"
+    },
+    "response_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "Optional SHA-256 of the exact upstream response bytes bound to this execution. Omitted when no response was witnessed."
     },
     "edges": {
       "type": "array",

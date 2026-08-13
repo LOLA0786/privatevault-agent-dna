@@ -24,7 +24,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 1057+ automated tests, run in CI on every commit
+- 1099+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
@@ -281,7 +281,7 @@ enforcement at the drift level; we make no claim that it improves
 detection, only that it honestly measures the advisory signal and
 refuses to describe ranking scores as probabilities.
 
-## Inline MCP gateway (Phase 1) — mediated egress, not complete mediation
+## Inline MCP gateway (Phase 2) — mediated egress, not complete mediation
 
 **We claim mediated egress with detectable bypass for the MCP gateway
 transport (`agent_dna/gateway/`), not complete mediation.**
@@ -289,55 +289,104 @@ transport (`agent_dna/gateway/`), not complete mediation.**
 What is shipped and tested (`tests/gateway/`):
 
 - The client connects to the gateway as if it were the MCP server; the
-  gateway holds upstream credentials and evaluates every `tools/call`
-  before any bytes are written upstream.
+  gateway holds upstream credentials and evaluates every `tools/call`,
+  `resources/read`, and `resources/subscribe` before any bytes are written
+  upstream. `resources/*` that read or subscribe are treated as
+  consequential and gated through the same decide path
+  (`tests/gateway/test_protocol_hardening.py`).
 - DENY / REQUIRE_APPROVAL return MCP errors and never forward.
 - Exact-byte binding on this transport: the gateway freezes the
   Content-Length–framed JSON-RPC payload it will write, digests those
   bytes with `sha256_bytes_digest`, and writes only that frozen buffer
   (`tests/gateway/test_mediation_adversarial.py`).
+- In-flight `tools/call` requests are correlated by JSON-RPC id, not by
+  arrival order. A response binds to the decision for *that* id. An id
+  never sent is rejected and matches nothing. A duplicate client id
+  while a call is in flight is refused. Duplicate ids from a malicious
+  upstream do not cross-bind two decisions. Server-initiated requests
+  and notifications arriving mid-call are not treated as responses
+  (`tests/gateway/test_protocol_hardening.py`).
+- `sampling/createMessage` is refused (never forwarded), including when
+  the untrusted upstream initiates it. That method is a path from the
+  server into the client's model.
+- Methods not in the enumerated gated / passthrough / refused sets fail
+  closed: they are not forwarded and the exact method name is recorded.
 - Frame reading is bounded and mode-explicit (`tests/gateway/test_framing.py`):
   header ≤ 8 KiB, body ≤ configurable `max_message_bytes` (default 8 MiB),
-  Content-Length framing only in production; trailing bytes after a frame
-  are retained for pipelining; newline framing is test-only.
+  JSON nesting ≤ `max_json_depth` (default 32), Content-Length framing
+  only in production; trailing bytes after a frame are retained for
+  pipelining; newline framing is test-only. The same size and depth
+  caps apply to upstream bodies, not only client frames.
+- TLS certificate verification is on by default for HTTP/SSE; starting
+  with verification disabled requires the operator flag
+  `allow_insecure_tls`. Cross-origin HTTP redirects are refused (they
+  would substitute the sealed dispatch destination). An SSE/HTTP body
+  that never ends hits the byte bound.
+- Upstream process death, restart (new principal / identity), and
+  graceful shutdown with calls in flight leave in-flight work
+  indeterminate — never sealed `ok`. A client reconnect mints a new
+  session and cannot complete another session's ids.
 - Upstream timeout or client disconnect after the request was written
-  records an execution outcome with detail prefix `INDETERMINATE:`,
-  is not auto-retried, and is never sealed as `ok`. At the gateway this
-  is a distinct state: JSON-RPC error code `-32004`, an `indeterminate`
-  flag on the mediation result, and a `gateway_tools_calls_indeterminate`
-  counter an operator can alert on. In the evidence, DRP execution status
-  remains `error` — there is no first-class `INDETERMINATE` execution
-  status in DRP yet, so an offline verifier cannot separate an
-  indeterminate outcome from any other execution error.
+  records an execution outcome with DRP status `indeterminate` (detail
+  still carries the `INDETERMINATE:` prefix for operators). It is not
+  auto-retried and is never sealed as `ok`. An offline verifier can
+  distinguish this from `error`. Allowed completions also bind
+  `response_digest` (sha256 of the exact bytes returned to the client)
+  on that same execution event when a response was witnessed.
 
 Residual gaps we explicitly do **not** claim closed:
 
-- **Bypass by reconfiguration:** an agent (or operator) that points the
-  MCP client directly at the upstream server, with the upstream
-  credential, is not mediated. Detection requires the upstream to
-  report sessions that lack the gateway session attribution; the
-  gateway exposes `upstream_unattributed_sessions` in ops metrics for
-  that signal. Without upstream cooperation, bypass is invisible.
-- **Non-MCP egress** (raw sockets, other protocols, cloud metadata)
-  remains outside this gateway.
-- **Exact-byte binding is for the MCP gateway transport only.** Other
-  transports / the decide API still do not seal wire digests at decide
-  time (see Execution authorization binding residuals above).
-- **HTTP/SSE proxy** mediates JSON-RPC POST bodies with the same decide
-  → freeze → forward rules; it does not claim TLS termination or a
-  full streaming-SSE session multiplex implementation beyond that
-  mediation core.
-- **DRP execution events** still use statuses `{ok, error, refused}`;
-  indeterminate gateway outcomes are encoded in `detail`, not a new
-  protocol status.
-- **Legacy** `experimental/legacy_mcp/` remains quarantined and is not
-  this gateway.
-- **Framing residuals:** bounds stop unbounded memory on headers/bodies,
-  but a peer that dribbles valid-sized incomplete frames can still hold
-  a connection open until the read timeout; that is a liveness concern,
-  not a mediation bypass. Unicode normalization is not applied before
-  digest — visually similar strings with different code points digest
-  differently by design (tested).
+- **Bypass by reconfiguration:** an agent that already holds the
+  upstream credential and points the MCP client at the real server is
+  still unmediated. What is now fail-closed: the gateway always
+  attributes its own session (`X-PV-Gateway-Session` /
+  `PV_GATEWAY_SESSION_ID`); if the operator/upstream reports
+  unattributed sessions, new sessions and in-flight forwarding stop
+  (`MCP_BYPASS_DETECTED`). Without that report, bypass remains
+  invisible. Complete mediation of the host is not claimed.
+- **Non-MCP egress** other than the named `https-egress` transport
+  (raw sockets, other protocols, cloud metadata) remains outside this
+  gateway. `https-egress` covers one operator-named HTTPS URL with the
+  same freeze/decide/verify story; it is not a generic HTTP forward
+  proxy. Production entry is
+  `python -m agent_dna.gateway --https-egress URL --capability CAP`
+  serving `POST /egress` (not MCP JSON-RPC). Callers cannot retarget
+  the named URL. Same-origin redirects are re-decided once; hop budget
+  exhaustion is first-class `indeterminate`.
+- **Exact-byte binding** is for the MCP gateway transport and the
+  named HTTPS egress transport. The decide API still does not seal
+  arbitrary wire digests at decide time for other callers.
+- **HTTP/SSE residuals:** `http://` requires the operator flag
+  `allow_insecure_http` (HTTPS-only by default). Same-origin redirects
+  are re-decided (not followed silently) with a hop budget of 1;
+  cross-origin redirects are refused. HTTP upstream restart at the
+  same URL is still not observed as a new principal. SSE is still a
+  byte bound, not a multiplexed session. Server-initiated
+  notifications (progress, logging, elicitation, `roots/list`) are
+  recorded and refused rather than delivered to the client.
+- **Passthrough without a mintable decision** is limited to
+  `initialize`, `notifications/initialized`, `notifications/cancelled`,
+  `ping`, `tools/list`, `prompts/list`, `resources/list`,
+  `resources/templates/list`, `logging/setLevel`. `prompts/get` is now
+  gated. Production constructors set `undeclared_tool_policy=block`
+  (no catalog or undeclared name → not forwarded). In-process tests
+  default to `finding` unless the hardened flag is set.
+- **`sampling/createMessage` is refused, not gated.**
+- **Correlation residuals:** unmatched/malformed frame floods can
+  delay pairing until timeout. `resources/subscribe` freezes only
+  `params.uri`.
+- **DRP `indeterminate`** is a first-class execution status; `ok` is
+  never inferred. Optional `response_digest` is hashed with the
+  execution payload when present. The independent verifier pin in
+  this repo must stay in lockstep with drp-spec (update both).
+- **Out-of-process production:** `from_stdio_command`, `from_http_url`,
+  and `from_https_egress` are the production constructors; in-process
+  mocks require `_test_allow_inprocess`. Running `python -m
+  agent_dna.gateway` still shares a machine with the operator — it is
+  a separate process, not a hardware enclave.
+- **Legacy** `experimental/legacy_mcp/` remains quarantined.
+- **Framing residuals:** dribble-liveness until read timeout; no
+  Unicode normalization before digest.
 
 ## Complete mediation (the window, not the door)
 

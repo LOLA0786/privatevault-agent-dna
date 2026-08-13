@@ -14,6 +14,7 @@ from typing import Any
 from agent_dna.authority_v01 import AuthorityFormatError, strict_json_loads
 from agent_dna.execution_v01 import sha256_bytes_digest
 from agent_dna.gateway.errors import FramingProtocolError
+from agent_dna.gateway.protocol import json_depth
 
 JSONRPC = "2.0"
 
@@ -25,6 +26,10 @@ MAX_HEADER_BYTES = 8 * 1024
 # Default body/message cap (8 MiB). Configurable on GatewayConfig;
 # oversized Content-Length is rejected before any body read.
 DEFAULT_MAX_MESSAGE_BYTES = 8 * 1024 * 1024
+
+# Nesting cap for decoded JSON (client and upstream). Prevents parser
+# blowup from adversarial depth without changing digest computation.
+MAX_JSON_DEPTH = 32
 
 
 class FramingMode(StrEnum):
@@ -89,6 +94,17 @@ def freeze_tools_call_bytes(
     return wire, sha256_bytes_digest(wire)
 
 
+def freeze_jsonrpc_bytes(
+    message: dict[str, Any],
+    *,
+    framed: bool = True,
+) -> tuple[bytes, str]:
+    """Exact-byte freeze of an already-built JSON-RPC object."""
+    payload = encode_jsonrpc_message(message)
+    wire = frame_stdio(payload) if framed else payload
+    return wire, sha256_bytes_digest(wire)
+
+
 def parse_content_length(
     header: bytes,
     *,
@@ -117,6 +133,7 @@ def parse_jsonrpc(
     data: bytes | str,
     *,
     max_message_bytes: int = DEFAULT_MAX_MESSAGE_BYTES,
+    max_json_depth: int = MAX_JSON_DEPTH,
 ) -> dict[str, Any]:
     """Strict JSON-RPC 2.0 object parse. Size-checked before decode."""
     if isinstance(data, str):
@@ -138,6 +155,7 @@ def parse_jsonrpc(
         raise FramingProtocolError(
             f"jsonrpc field must be {JSONRPC!r}, got {obj.get('jsonrpc')!r}"
         )
+    json_depth(obj, limit=max_json_depth)
     return obj
 
 
@@ -251,3 +269,38 @@ MCP_ENFORCEMENT_DENIED = -32001
 MCP_ENFORCEMENT_APPROVAL = -32002
 MCP_GATEWAY_FAULT = -32003
 MCP_INDETERMINATE = -32004
+MCP_UNKNOWN_METHOD = -32005
+MCP_SAMPLING_REFUSED = -32006
+MCP_UNMATCHED_ID = -32007
+MCP_DUPLICATE_ID = -32008
+MCP_REDIRECT_REFUSED = -32009
+MCP_UPSTREAM_DEAD = -32010
+MCP_BYPASS_DETECTED = -32011
+MCP_UNDECLARED_TOOL = -32012
+
+
+def build_resource_message(
+    *,
+    method: str,
+    request_id: Any,
+    uri: str,
+) -> dict[str, Any]:
+    return {
+        "jsonrpc": JSONRPC,
+        "id": request_id,
+        "method": method,
+        "params": {"uri": uri},
+    }
+
+
+def build_prompts_get_message(
+    *,
+    request_id: Any,
+    name: str,
+) -> dict[str, Any]:
+    return {
+        "jsonrpc": JSONRPC,
+        "id": request_id,
+        "method": "prompts/get",
+        "params": {"name": name},
+    }

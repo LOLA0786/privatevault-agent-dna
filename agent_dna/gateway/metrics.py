@@ -14,6 +14,9 @@ class GatewayMetrics:
     tools_calls_require_approval: int = 0
     tools_calls_indeterminate: int = 0
     passthrough_recorded: int = 0
+    unknown_methods_refused: int = 0
+    unmatched_responses: int = 0
+    bypass_tripped: int = 0
     # Operator-supplied: sessions the upstream observed that did not
     # present a gateway session token / attribution header.
     upstream_unattributed_sessions: int = 0
@@ -28,6 +31,7 @@ class GatewayMetrics:
         if count < 0:
             raise ValueError("count must be non-negative")
         self.upstream_unattributed_sessions += count
+        self.bypass_tripped = 1
 
     def ops_fields(self) -> dict[str, int]:
         """Safe ops summary — integers only, no credential material."""
@@ -39,5 +43,8 @@ class GatewayMetrics:
             "gateway_tools_calls_require_approval": self.tools_calls_require_approval,
             "gateway_tools_calls_indeterminate": self.tools_calls_indeterminate,
             "gateway_passthrough_recorded": self.passthrough_recorded,
+            "gateway_unknown_methods_refused": self.unknown_methods_refused,
+            "gateway_unmatched_responses": self.unmatched_responses,
+            "gateway_bypass_tripped": self.bypass_tripped,
             "upstream_unattributed_sessions": self.upstream_unattributed_sessions,
         }

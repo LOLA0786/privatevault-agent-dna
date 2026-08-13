@@ -125,11 +125,14 @@ enforcement divergence detectable.
 {
   "decision_id": "d-4f13d3c0",
   "status": "ok",
-  "detail": ""
+  "detail": "",
+  "response_digest": "sha256:ab..."
 }
 ```
 
-`status` is one of `ok`, `error`, `refused`. The resulting execution
+`status` is one of `ok`, `error`, `refused`, `indeterminate`. Optional
+`response_digest` (`sha256:` + 64 lowercase hex) binds the exact
+response bytes to that same execution event. The resulting execution
 event is hash-anchored to the decision it references.
 
 If a decision was `block` and its outcome reports `ok`, verification
