@@ -223,6 +223,16 @@ def _assert_secure_profile_preconditions(cfg: RuntimeConfig) -> None:
             "PV_SECURE_PROFILE=1 requires PV_GRANTS_FILE "
             "(explicit grants; deny-all empty registry is not enough)"
         )
+    if not os.getenv(KEY_ENV):
+        raise RuntimeError(
+            f"PV_SECURE_PROFILE=1 requires {KEY_ENV} "
+            "(unsigned decisions are not independently verifiable)"
+        )
+    if not cfg.trusted_public_keys:
+        raise RuntimeError(
+            f"PV_SECURE_PROFILE=1 requires {TRUSTED_KEYS_ENV} "
+            "(a self-attested signer is not a trust root)"
+        )
 
 
 def _secure_profile_manifest(secure: bool) -> dict[str, str]:
