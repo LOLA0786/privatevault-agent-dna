@@ -8,7 +8,6 @@ false positives, false negatives and detection latency.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List
 
 from agent_dna.adapters import (
     synthetic_compromised_trace,
@@ -25,7 +24,7 @@ class LabelledTrace:
 
 def normal_dataset(
     count: int = 100,
-) -> List[LabelledTrace]:
+) -> list[LabelledTrace]:
     return [
         LabelledTrace(
             trace=synthetic_normal_trace(
@@ -40,7 +39,7 @@ def normal_dataset(
 
 def attack_dataset(
     count: int = 100,
-) -> List[LabelledTrace]:
+) -> list[LabelledTrace]:
     return [
         LabelledTrace(
             trace=synthetic_compromised_trace(
@@ -55,16 +54,14 @@ def attack_dataset(
 def benchmark_dataset(
     normal: int = 100,
     attacks: int = 100,
-) -> List[LabelledTrace]:
-    return (
-        normal_dataset(normal)
-        + attack_dataset(attacks)
-    )
+) -> list[LabelledTrace]:
+    return normal_dataset(normal) + attack_dataset(attacks)
 
-from evaluation.adversarial import (
-    prompt_injection_trace,
-    financial_fraud_trace,
+
+from evaluation.adversarial import (  # noqa: E402
     data_exfiltration_trace,
+    financial_fraud_trace,
+    prompt_injection_trace,
 )
 
 

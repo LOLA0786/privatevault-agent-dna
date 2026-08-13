@@ -160,8 +160,6 @@ def run_suite(
 
     report_hash = canonical_hash(report)
     report["report_hash"] = report_hash
-    report["report_signature"] = signer.sign_hash(
-        report_hash
-    ).to_dict()
+    report["report_signature"] = signer.sign_hash(report_hash).to_dict()
 
     return report, signer.public_key

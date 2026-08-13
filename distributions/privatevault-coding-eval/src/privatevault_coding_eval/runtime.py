@@ -38,9 +38,7 @@ def trusted_training_traces() -> tuple[ExecutionTrace, ...]:
     traces: list[ExecutionTrace] = []
 
     for run in range(20):
-        trace = ExecutionTrace(
-            agent_id="code-agent-01"
-        )
+        trace = ExecutionTrace(agent_id="code-agent-01")
         timestamp = 1_700_000_000.0 + run * 100
 
         for index, capability in enumerate(capabilities):
@@ -87,24 +85,14 @@ def actual_grant_registry(
             expires_in,
             (int, float),
         ):
-            raise ValueError(
-                "grant.expires_in must be numeric"
-            )
+            raise ValueError("grant.expires_in must be numeric")
 
         grant = registry.grant(
             agent_id=str(item["agent_id"]),
             capability=str(item["capability"]),
             granted_by=str(item["granted_by"]),
-            expires_at=(
-                now + float(expires_in)
-                if expires_in is not None
-                else None
-            ),
-            budget=(
-                float(item["budget"])
-                if item.get("budget") is not None
-                else None
-            ),
+            expires_at=(now + float(expires_in) if expires_in is not None else None),
+            budget=(float(item["budget"]) if item.get("budget") is not None else None),
         )
 
         if item.get("revoked"):
@@ -124,12 +112,8 @@ def actual_decision_engine(
 ) -> DecisionEngine:
     """Construct the actual production decision-engine composition."""
 
-    policy_document = parse_policy_dict(
-        dict(policy)
-    )
-    policy_checker = PolicyChecker(
-        policy_document
-    )
+    policy_document = parse_policy_dict(dict(policy))
+    policy_checker = PolicyChecker(policy_document)
 
     invariants = SequenceInvariantEngine(
         {
@@ -144,11 +128,7 @@ def actual_decision_engine(
         }
     )
 
-    consensus = (
-        ConsensusChecker()
-        if consensus_enabled
-        else None
-    )
+    consensus = ConsensusChecker() if consensus_enabled else None
 
     return DecisionEngine(
         scorer=actual_drift_scorer(),

@@ -76,9 +76,7 @@ def digest_json(value: Any) -> str:
         allow_nan=False,
     ).encode()
 
-    return "sha256:" + hashlib.sha256(
-        encoded
-    ).hexdigest()
+    return "sha256:" + hashlib.sha256(encoded).hexdigest()
 
 
 def pseudonymous_id(
@@ -87,9 +85,7 @@ def pseudonymous_id(
 ) -> str:
     """Produce a stable non-reversible local identifier."""
 
-    digest = hashlib.sha256(
-        value.encode()
-    ).hexdigest()[:24]
+    digest = hashlib.sha256(value.encode()).hexdigest()[:24]
 
     return f"{prefix}:{digest}"
 
@@ -120,17 +116,13 @@ def _segments(
             "|",
         }:
             if current:
-                segments.append(
-                    tuple(current)
-                )
+                segments.append(tuple(current))
                 current = []
         else:
             current.append(token)
 
     if current:
-        segments.append(
-            tuple(current)
-        )
+        segments.append(tuple(current))
 
     return tuple(segments)
 
@@ -180,11 +172,7 @@ def _unwrap(
 def _git(
     tokens: Sequence[str],
 ) -> Classification | None:
-    if (
-        not tokens
-        or tokens[0] != "git"
-        or "push" not in tokens
-    ):
+    if not tokens or tokens[0] != "git" or "push" not in tokens:
         return None
 
     push_index = tokens.index("push")
@@ -194,9 +182,7 @@ def _git(
         token == "-f"
         or token == "--force"
         or token.startswith("--force=")
-        or token.startswith(
-            "--force-with-lease"
-        )
+        or token.startswith("--force-with-lease")
         for token in options
     )
 
@@ -254,20 +240,13 @@ def _package_publish(
         ),
     )
 
-    matched = any(
-        tuple(tokens[: len(prefix)]) == prefix
-        for prefix in starts
-    )
+    matched = any(tuple(tokens[: len(prefix)]) == prefix for prefix in starts)
 
-    python_twine = (
-        len(tokens) >= 4
-        and tuple(tokens[:4])
-        == (
-            "python",
-            "-m",
-            "twine",
-            "upload",
-        )
+    python_twine = len(tokens) >= 4 and tuple(tokens[:4]) == (
+        "python",
+        "-m",
+        "twine",
+        "upload",
     )
 
     if matched or python_twine:
@@ -286,33 +265,22 @@ def _sensitive(
     if not tokens:
         return None
 
-    if (
-        tokens[0] == "terraform"
-        and "destroy" in tokens
-    ):
+    if tokens[0] == "terraform" and "destroy" in tokens:
         return Classification(
             "infrastructure.destroy",
             "sink:infrastructure-destroy",
             "bash.terraform-destroy",
         )
 
-    if (
-        tokens[0] == "kubectl"
-        and "delete" in tokens
-    ):
+    if tokens[0] == "kubectl" and "delete" in tokens:
         return Classification(
             "infrastructure.delete",
             "sink:infrastructure-delete",
             "bash.kubectl-delete",
         )
 
-    recursive_remove = (
-        tokens[0] == "rm"
-        and any(
-            token.startswith("-")
-            and "r" in token
-            for token in tokens[1:]
-        )
+    recursive_remove = tokens[0] == "rm" and any(
+        token.startswith("-") and "r" in token for token in tokens[1:]
     )
 
     if recursive_remove:
@@ -344,15 +312,11 @@ def _sensitive(
             "gh",
             "secret",
         ),
-        (
-            "printenv",
-        ),
+        ("printenv",),
     )
 
     secret_access = any(
-        tuple(tokens[: len(prefix)])
-        == prefix
-        for prefix in secret_prefixes
+        tuple(tokens[: len(prefix)]) == prefix for prefix in secret_prefixes
     )
 
     if secret_access:
@@ -395,12 +359,12 @@ def _routine(
     }
 
     if (
-        tokens[0] in {
+        tokens[0]
+        in {
             "pytest",
             "tox",
         }
-        or tuple(tokens[:2])
-        in test_prefixes
+        or tuple(tokens[:2]) in test_prefixes
     ):
         return Classification(
             "test.run",
@@ -488,9 +452,7 @@ def classify_tool(
     """Classify one tool request into normalized capabilities."""
 
     if tool_name == "Bash":
-        return classify_bash(
-            tool_input.get("command")
-        )
+        return classify_bash(tool_input.get("command"))
 
     known = _TOOL_RULES.get(tool_name)
 

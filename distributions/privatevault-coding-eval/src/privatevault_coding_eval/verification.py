@@ -24,9 +24,7 @@ def _mapping(
     path: str,
 ) -> Mapping[str, Any]:
     if not isinstance(value, Mapping):
-        raise VerificationError(
-            f"{path}: expected object"
-        )
+        raise VerificationError(f"{path}: expected object")
     return value
 
 
@@ -38,9 +36,7 @@ def _sequence(
         value,
         (str, bytes),
     ):
-        raise VerificationError(
-            f"{path}: expected array"
-        )
+        raise VerificationError(f"{path}: expected array")
     return value
 
 
@@ -50,9 +46,7 @@ def _exact(
     path: str,
 ) -> None:
     if set(value) != expected:
-        raise VerificationError(
-            f"{path}: invalid fields"
-        )
+        raise VerificationError(f"{path}: invalid fields")
 
 
 def _decision_record(
@@ -67,26 +61,15 @@ def _decision_record(
         path,
     )
 
-    if (
-        value["kind"] != "decision"
-        or value["protocol_version"] != "drp/0.1"
-    ):
-        raise VerificationError(
-            f"{path}: unsupported record contract"
-        )
+    if value["kind"] != "decision" or value["protocol_version"] != "drp/0.1":
+        raise VerificationError(f"{path}: unsupported record contract")
 
-    kwargs = {
-        item.name: value[item.name]
-        for item in record_fields
-        if item.init
-    }
+    kwargs = {item.name: value[item.name] for item in record_fields if item.init}
 
     try:
         return DecisionRecord(**kwargs)
     except (TypeError, ValueError) as exc:
-        raise VerificationError(
-            f"{path}: malformed record"
-        ) from exc
+        raise VerificationError(f"{path}: malformed record") from exc
 
 
 def _verify_report_seal(
@@ -96,7 +79,8 @@ def _verify_report_seal(
     unsigned = {
         key: value
         for key, value in report.items()
-        if key not in {
+        if key
+        not in {
             "report_hash",
             "report_signature",
         }
@@ -104,13 +88,8 @@ def _verify_report_seal(
 
     report_hash = report["report_hash"]
 
-    if (
-        not isinstance(report_hash, str)
-        or canonical_hash(unsigned) != report_hash
-    ):
-        raise VerificationError(
-            "report: hash mismatch"
-        )
+    if not isinstance(report_hash, str) or canonical_hash(unsigned) != report_hash:
+        raise VerificationError("report: hash mismatch")
 
     signature = _mapping(
         report["report_signature"],
@@ -122,9 +101,7 @@ def _verify_report_seal(
         report_hash,
         trusted_keys={trusted_public_key},
     ):
-        raise VerificationError(
-            "report: untrusted or invalid signature"
-        )
+        raise VerificationError("report: untrusted or invalid signature")
 
 
 def _verify_link(
@@ -133,21 +110,13 @@ def _verify_link(
     path: str,
 ) -> None:
     if previous is None:
-        if (
-            record.prev_hash != GENESIS_HASH
-            or record.parent_decision is not None
-        ):
-            raise VerificationError(
-                f"{path}: invalid genesis linkage"
-            )
+        if record.prev_hash != GENESIS_HASH or record.parent_decision is not None:
+            raise VerificationError(f"{path}: invalid genesis linkage")
     elif (
         record.prev_hash != previous.record_hash
-        or record.parent_decision
-        != previous.decision_id
+        or record.parent_decision != previous.decision_id
     ):
-        raise VerificationError(
-            f"{path}: chain linkage mismatch"
-        )
+        raise VerificationError(f"{path}: chain linkage mismatch")
 
 
 def _verify_result(
@@ -182,9 +151,7 @@ def _verify_result(
     )
 
     if not record.verify():
-        raise VerificationError(
-            f"{path}: record hash mismatch"
-        )
+        raise VerificationError(f"{path}: record hash mismatch")
 
     _verify_link(record, previous, path)
 
@@ -195,12 +162,9 @@ def _verify_result(
 
     if (
         decision.get("decision") != record.decision
-        or decision.get("triggered_by")
-        != record.triggered_by
+        or decision.get("triggered_by") != record.triggered_by
     ):
-        raise VerificationError(
-            f"{path}: decision/record mismatch"
-        )
+        raise VerificationError(f"{path}: decision/record mismatch")
 
     signature = _mapping(
         item["signature"],
@@ -212,14 +176,10 @@ def _verify_result(
         record.record_hash,
         trusted_keys={trusted_public_key},
     ):
-        raise VerificationError(
-            f"{path}: untrusted or invalid signature"
-        )
+        raise VerificationError(f"{path}: untrusted or invalid signature")
 
     if item["signature_valid"] is not True:
-        raise VerificationError(
-            f"{path}: stored signature verdict is false"
-        )
+        raise VerificationError(f"{path}: stored signature verdict is false")
 
     return record, item["passed"] is True
 
@@ -235,12 +195,9 @@ def _verify_summary(
         report["scenarios_run"] != scenarios_run
         or report["scenarios_passed"] != passed_count
         or report["scenarios_failed"] != failed_count
-        or report["passed"]
-        is not (failed_count == 0)
+        or report["passed"] is not (failed_count == 0)
     ):
-        raise VerificationError(
-            "report: summary mismatch"
-        )
+        raise VerificationError("report: summary mismatch")
 
 
 def verify_report(
@@ -267,18 +224,13 @@ def verify_report(
     _exact(report, expected, "report")
 
     if report["spec"] != REPORT_SPEC:
-        raise VerificationError(
-            "report: unsupported specification"
-        )
+        raise VerificationError("report: unsupported specification")
 
     if (
-        report["runtime_package"]
-        != "privatevault-agent-dna"
+        report["runtime_package"] != "privatevault-agent-dna"
         or report["runtime_version"] != "0.3.0"
     ):
-        raise VerificationError(
-            "report: unexpected runtime"
-        )
+        raise VerificationError("report: unexpected runtime")
 
     _verify_report_seal(
         report,

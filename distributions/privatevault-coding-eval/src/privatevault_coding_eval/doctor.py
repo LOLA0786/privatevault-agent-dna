@@ -59,9 +59,7 @@ def doctor_report() -> dict[str, Any]:
         "runtime_package": "privatevault-agent-dna",
         "expected_runtime_version": EXPECTED_RUNTIME_VERSION,
         "runtime_version": runtime_version,
-        "runtime_location": str(
-            Path(agent_dna.__file__).resolve().parent
-        ),
+        "runtime_location": str(Path(agent_dna.__file__).resolve().parent),
         "signer_backend": SIGNER_BACKEND,
         "runtime_components": components,
         "ready": runtime_version == EXPECTED_RUNTIME_VERSION,
