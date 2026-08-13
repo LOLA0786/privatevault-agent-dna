@@ -39,3 +39,4 @@ deploy/platform/keys.secrets.txt
 
 # Archives
 *.tar.gz
+test-index.html
