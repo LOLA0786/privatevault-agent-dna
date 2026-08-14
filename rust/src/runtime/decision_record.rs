@@ -59,11 +59,9 @@ fn check_version_invariant(
                     .into());
             }
             if dispatch_context_digest.is_some() {
-                return Err(
-                    "drp/0.1 records carry no dispatch_context_digest; a bound \
+                return Err("drp/0.1 records carry no dispatch_context_digest; a bound \
                      record must declare drp/0.2"
-                        .into(),
-                );
+                    .into());
             }
             Ok(())
         }
