@@ -15,17 +15,17 @@ Stage assignment is a documented longest-prefix map of known package
 layout onto the enforcement spine. Modules that do not fit a spine
 stage go to "other / supporting" — they are not forced.
 
-Visual system: paper/ink tokens, mono labels, hairline rules. The
-same token block is intended to be shared with tools/gen_test_index.py
-when that generator exists.
+Visual system: dark industrial dashboard (meeting-room presentation).
+Do not hand-edit architecture.html.
 
 Usage: python tools/gen_architecture.py
+       open architecture.html
 """
 
 from __future__ import annotations
 
 import ast
-import html
+import json
 import os
 import re
 import subprocess
@@ -33,6 +33,7 @@ import sys
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -44,6 +45,10 @@ OUTPUT = ROOT / "architecture.html"
 INTERESTING_ROOTS = ("agent_dna", "api")
 COLLECT_TIMEOUT_SEC = 8
 COLLECTED_RE = re.compile(r"(\d+)\+? tests? collected")
+COLLECT_TIME_RE = re.compile(r"in ([0-9.]+)s")
+TEMPLATE = Path(__file__).resolve().parent / "architecture_dashboard.template.html"
+# Configurable until live pytest JSON is wired. Not measured by this generator.
+CONFIGURED_PASS_RATE_PERCENT = 100
 
 # Ordered enforcement spine. Do not invent stages.
 SPINE: tuple[str, ...] = (
@@ -136,179 +141,6 @@ STAGE_PREFIXES: tuple[tuple[str, str], ...] = (
     ("agent_dna.adapters", "dispatch"),
 )
 
-# Paper/ink tokens shared with the generated test index.
-CSS = """
-:root {
-  --paper: #f4efe6;
-  --ink: #1c1916;
-  --muted: #6f675e;
-  --line: #d4cbbd;
-  --hairline: 1px solid var(--line);
-  --accent: #9a2e1f;
-  --zero: #9a2e1f;
-  --chip: #ebe4d8;
-  --sans: "Iowan Old Style", Palatino, "Palatino Linotype", Georgia, serif;
-  --mono: "SFMono-Regular", "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
-}
-* { box-sizing: border-box; }
-html { background: var(--paper); }
-body {
-  margin: 0;
-  color: var(--ink);
-  background: var(--paper);
-  font-family: var(--sans);
-  font-size: 17px;
-  line-height: 1.45;
-}
-a { color: inherit; }
-header, main, footer { max-width: 1180px; margin: 0 auto; padding: 0 28px; }
-header { padding-top: 36px; padding-bottom: 28px; border-bottom: var(--hairline); }
-.kicker {
-  margin: 0 0 8px;
-  color: var(--muted);
-  font: 700 11px/1 var(--mono);
-  letter-spacing: .14em;
-  text-transform: uppercase;
-}
-h1 {
-  margin: 0;
-  font-size: clamp(40px, 6vw, 72px);
-  font-weight: 500;
-  letter-spacing: -.04em;
-  line-height: .95;
-}
-.lede { max-width: 640px; margin: 18px 0 0; color: var(--muted); font-size: 16px; }
-.metrics {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  margin-top: 28px;
-  border-top: var(--hairline);
-  border-bottom: var(--hairline);
-}
-.metric { padding: 16px 18px 16px 0; border-right: var(--hairline); }
-.metric:last-child { border-right: 0; padding-right: 0; }
-.metric .kicker { margin-bottom: 6px; }
-.metric b {
-  display: block;
-  font: 500 28px/1 var(--mono);
-  letter-spacing: -.03em;
-}
-.metric span { display: block; margin-top: 6px; color: var(--muted); font: 12px/1.4 var(--mono); }
-nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 18px;
-  padding: 14px 0 0;
-  font: 700 11px/1 var(--mono);
-  letter-spacing: .12em;
-  text-transform: uppercase;
-}
-nav a { text-decoration: none; border-bottom: var(--hairline); padding-bottom: 2px; }
-nav a:hover { border-bottom-color: var(--ink); }
-section { padding: 48px 0 12px; border-bottom: var(--hairline); }
-h2 {
-  margin: 0 0 8px;
-  font-size: 28px;
-  font-weight: 500;
-  letter-spacing: -.03em;
-}
-.section-lede { margin: 0 0 24px; color: var(--muted); max-width: 720px; }
-.spine { display: grid; gap: 0; }
-.stage {
-  display: grid;
-  grid-template-columns: 52px 160px 1fr auto;
-  gap: 16px;
-  align-items: start;
-  padding: 16px 0;
-  border-top: var(--hairline);
-}
-.stage:first-child { border-top: 0; }
-.stage-idx {
-  font: 700 11px/1 var(--mono);
-  letter-spacing: .12em;
-  color: var(--muted);
-  padding-top: 6px;
-}
-.stage-name { font-size: 20px; letter-spacing: -.02em; padding-top: 2px; }
-.stage-count {
-  text-align: right;
-  font: 500 18px/1.2 var(--mono);
-  white-space: nowrap;
-}
-.stage-count small { display: block; color: var(--muted); font-size: 11px; font-weight: 400; }
-.mods { display: flex; flex-wrap: wrap; gap: 6px; }
-.chip {
-  display: inline-flex;
-  gap: 8px;
-  align-items: baseline;
-  background: var(--chip);
-  border: var(--hairline);
-  padding: 4px 8px;
-  font: 12px/1.3 var(--mono);
-}
-.chip b { font-weight: 600; }
-.chip.zero { color: var(--zero); border-color: var(--zero); background: transparent; }
-.other-wrap { margin-top: 28px; padding-top: 20px; border-top: var(--hairline); }
-.invert {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 36px;
-  align-items: start;
-}
-.rank { list-style: none; margin: 0; padding: 0; }
-.rank li {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 12px;
-  align-items: center;
-  padding: 8px 0;
-  border-bottom: var(--hairline);
-  font: 13px/1.35 var(--mono);
-}
-.bar {
-  display: block;
-  height: 3px;
-  margin-top: 6px;
-  background: var(--ink);
-}
-.zero-col h2 { color: var(--zero); }
-.cluster { margin: 0 0 22px; padding: 0 0 18px; border-bottom: var(--hairline); }
-.cluster.isolated { border: 1px solid var(--ink); padding: 16px 18px 18px; }
-.cluster h3 { margin: 0 0 8px; font-size: 16px; font-weight: 600; }
-.files { margin: 0; padding: 0; list-style: none; }
-.files li { padding: 4px 0; font: 13px/1.4 var(--mono); }
-.doc { color: var(--muted); font-family: var(--sans); font-size: 14px; }
-.cross { display: grid; gap: 10px; }
-.cross-card {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 12px;
-  padding: 14px 0;
-  border-top: var(--hairline);
-  border-left: 3px solid var(--accent);
-  padding-left: 14px;
-}
-.stages-path { font: 12px/1.5 var(--mono); color: var(--accent); }
-.unparsed {
-  background: var(--ink);
-  color: var(--paper);
-  padding: 16px 18px;
-  margin: 24px 0 0;
-  font: 13px/1.45 var(--mono);
-}
-.unparsed h2 { color: var(--paper); font-size: 16px; }
-footer {
-  padding: 28px 28px 48px;
-  color: var(--muted);
-  font: 12px/1.5 var(--mono);
-}
-@media (max-width: 860px) {
-  .metrics, .invert, .stage { grid-template-columns: 1fr; }
-  .stage-count { text-align: left; }
-  .metric { border-right: 0; border-bottom: var(--hairline); }
-}
-"""
-
 
 @dataclass
 class TestFile:
@@ -333,10 +165,6 @@ class CollectResult:
     raw_last_line: str
     ok: bool
     error: str
-
-
-def e(text: str) -> str:
-    return html.escape(text, quote=True)
 
 
 def is_interesting(mod: str) -> bool:
@@ -568,196 +396,199 @@ def cluster_key(imports: set[str]) -> tuple[str, ...]:
     return tuple(sorted(imports))
 
 
-def render_unparsed(items: list[tuple[str, str]]) -> str:
-    if items:
-        rows = "".join(f"<div>{e(path)} — {e(err)}</div>" for path, err in items)
-    else:
-        rows = "<div>none</div>"
-    return (
-        f'<div class="unparsed" id="unparsed"><h2>Unparsed ({len(items)})</h2>'
-        f"{rows}</div>"
-    )
+def collect_duration_seconds(raw_last_line: str) -> float | None:
+    match = COLLECT_TIME_RE.search(raw_last_line)
+    if not match:
+        return None
+    return float(match.group(1))
 
 
-def render_spine(
-    modules: dict[str, ModuleInfo],
-    tests: dict[str, TestFile],
-) -> str:
-    by_stage: dict[str, list[ModuleInfo]] = {stage: [] for stage in SPINE}
-    by_stage[OTHER] = []
-    for info in modules.values():
-        by_stage[stage_of(info.name)].append(info)
-
-    parts = [
-        '<section id="enforcement">',
-        "<h2>Enforcement path</h2>",
-        '<p class="section-lede">Ordered spine from identity to dispatch. '
-        "Counts are pytest-collected tests in files that import a module "
-        "assigned to the stage. Modules that do not fit stay in "
-        "other / supporting.</p>",
-        '<div class="spine">',
-    ]
-    for idx, stage in enumerate(SPINE, start=1):
-        parts.append(_stage_row(idx, stage, by_stage[stage], tests))
-    parts.append("</div>")
-    parts.append('<div class="other-wrap">')
-    parts.append(_stage_row(None, OTHER, by_stage[OTHER], tests))
-    parts.append("</div></section>")
-    return "".join(parts)
+_CLUSTER_BY_IMPORTS: dict[tuple[str, ...], str] = {
+    ("agent_dna.apikeys", "api.server"): "API identity",
+    ("agent_dna.authority_v01",): "Authority",
+    ("api.server",): "API server",
+}
 
 
-def _stage_row(
-    idx: int | None,
+def _rels_under(rels: list[str], folder: str) -> bool:
+    prefix = f"tests/{folder}/"
+    return bool(rels) and all(rel.startswith(prefix) for rel in rels)
+
+
+def cluster_label(files: list[TestFile], imports: tuple[str, ...]) -> str:
+    rels = [t.rel for t in files]
+    if not imports:
+        return "Isolated spec / vector / schema"
+    named = _CLUSTER_BY_IMPORTS.get(imports)
+    if named:
+        return named
+    if _rels_under(rels, "gateway"):
+        return "Gateway adversarial"
+    if _rels_under(rels, "connector"):
+        joined = " ".join(rels)
+        if "cross_agent" in joined:
+            return "Connector cross-agent"
+        if "exact_byte" in joined or "sidecar_tls" in joined:
+            return "Exact-byte / sidecar TLS"
+        return "Connector"
+    if all(
+        m == "agent_dna.validation" or m.startswith("agent_dna.validation.")
+        for m in imports
+    ):
+        return "Validation"
+    blob = " ".join(imports)
+    if "decision_record" in blob and "advisory" in blob:
+        return "Decision-record family"
+    if "approval_v01" in blob and "authority_v01" in blob:
+        return "Approval × authority"
+    return ""
+
+
+def _module_entry(info: ModuleInfo) -> dict[str, object]:
+    return {
+        "name": info.name,
+        "path": info.rel,
+        "testFileImports": len(info.importers),
+    }
+
+
+def _stage_payload(
     stage: str,
     infos: list[ModuleInfo],
     tests: dict[str, TestFile],
-) -> str:
+) -> dict[str, object]:
     infos = sorted(infos, key=lambda m: (-len(m.importers), m.name))
     files: set[str] = set()
     for info in infos:
         files |= info.importers
     pytest_n = sum(tests[rel].pytest_count for rel in files if rel in tests)
-    chips = []
-    if not infos:
-        chips.append('<span class="chip">no modules assigned</span>')
-    for info in infos:
-        klass = "chip zero" if not info.importers else "chip"
-        missing = "" if info.rel else " (file not found)"
-        chips.append(
-            f'<span class="{klass}"><span>{e(info.name)}{e(missing)}</span>'
-            f"<b>{len(info.importers)}</b></span>"
-        )
-    index = "—" if idx is None else f"{idx:02d}"
-    return (
-        f'<div class="stage">'
-        f'<div class="stage-idx">{index}</div>'
-        f'<div class="stage-name">{e(stage)}</div>'
-        f'<div class="mods">{"".join(chips)}</div>'
-        f'<div class="stage-count">{pytest_n}'
-        f"<small>{len(files)} files · {len(infos)} modules</small></div>"
-        f"</div>"
+    return {
+        "id": stage,
+        "tests": pytest_n,
+        "files": len(files),
+        "modules": [_module_entry(mod) for mod in infos],
+        "moduleCount": len(infos),
+        "zeroImportCount": sum(1 for mod in infos if not mod.importers),
+    }
+
+
+def build_payload(
+    *,
+    collected: CollectResult,
+    ast_count: int,
+    tests: dict[str, TestFile],
+    modules: dict[str, ModuleInfo],
+    unparsed: list[tuple[str, str]],
+    elapsed: float,
+) -> dict[str, object]:
+    by_stage: dict[str, list[ModuleInfo]] = {stage: [] for stage in SPINE}
+    by_stage[OTHER] = []
+    for info in modules.values():
+        by_stage[stage_of(info.name)].append(info)
+
+    spine = [_stage_payload(stage, by_stage[stage], tests) for stage in SPINE]
+    other = _stage_payload(OTHER, by_stage[OTHER], tests)
+
+    spine_module_n = sum(int(row["moduleCount"]) for row in spine)
+    spine_imported_n = sum(
+        int(row["moduleCount"]) - int(row["zeroImportCount"]) for row in spine
     )
 
-
-def render_inversion(modules: dict[str, ModuleInfo]) -> str:
     ranked = sorted(modules.values(), key=lambda m: (-len(m.importers), m.name))
-    imported = [m for m in ranked if m.importers]
-    zeros = [m for m in ranked if not m.importers]
-    max_n = max((len(m.importers) for m in imported), default=1)
-    load_rows = "".join(_rank_row(m, max_n, zero=False) for m in imported)
-    zero_rows = "".join(_rank_row(m, 1, zero=True) for m in zeros)
-    return (
-        '<section id="coverage">'
-        "<h2>Coverage inversion</h2>"
-        '<p class="section-lede">Every agent_dna / api module, ranked by how '
-        "many test files import it. Zero-import modules are the other half of "
-        "the same view — not a footnote.</p>"
-        '<div class="invert">'
-        f"<div><h2>Load-bearing · {len(imported)}</h2>"
-        f'<ol class="rank">{load_rows}</ol></div>'
-        f'<div class="zero-col"><h2>Zero test-file imports · {len(zeros)}</h2>'
-        f'<ol class="rank">{zero_rows}</ol></div>'
-        "</div></section>"
-    )
+    load_bearing = [_module_entry(m) for m in ranked if m.importers]
+    zeros = [_module_entry(m) for m in ranked if not m.importers]
 
-
-def _rank_row(info: ModuleInfo, max_n: int, zero: bool) -> str:
-    n = len(info.importers)
-    width = 0 if zero or max_n == 0 else max(4, int(100 * n / max_n))
-    missing = "" if info.rel else " · file not found"
-    path = info.rel or "unresolved import"
-    bar = "" if zero else f'<span class="bar" style="width:{width}%"></span>'
-    klass = ' class="zero"' if zero else ""
-    return (
-        f"<li{klass}><div>{e(info.name)}{e(missing)}"
-        f'<div class="doc">{e(path)}</div>{bar}</div>'
-        f"<b>{n}</b></li>"
-    )
-
-
-def render_clusters(tests: dict[str, TestFile]) -> str:
     groups: dict[tuple[str, ...], list[TestFile]] = defaultdict(list)
     for test in tests.values():
         groups[cluster_key(test.imports)].append(test)
-    isolated_key: tuple[str, ...] = ()
-    isolated = groups.pop(isolated_key, [])
-    clustered = sorted(
-        groups.items(),
-        key=lambda item: (-len(item[1]), item[0]),
+
+    clusters: list[dict[str, object]] = []
+    isolated_files = groups.pop((), [])
+    clusters.append(
+        {
+            "label": cluster_label(isolated_files, ()),
+            "isolated": True,
+            "imports": [],
+            "files": [
+                {
+                    "path": t.rel,
+                    "doc": t.docstring,
+                    "collected": t.pytest_count,
+                    "astNames": len(t.tests),
+                }
+                for t in sorted(isolated_files, key=lambda x: x.rel)
+            ],
+        }
     )
-    parts = [
-        '<section id="clusters">',
-        "<h2>Clusters</h2>",
-        '<p class="section-lede">Test files grouped by identical '
-        "agent_dna / api import sets. Files that import none of those "
-        "modules are isolated spec / vector / schema tests.</p>",
-    ]
-    parts.append(_cluster_block(isolated, isolated=True, label=None))
-    for key, files in clustered:
-        parts.append(_cluster_block(files, isolated=False, label=key))
-    parts.append("</section>")
-    return "".join(parts)
-
-
-def _cluster_block(
-    files: list[TestFile], isolated: bool, label: tuple[str, ...] | None
-) -> str:
-    files = sorted(files, key=lambda t: t.rel)
-    if isolated:
-        title = (
-            f"Isolated · spec / vector / schema · {len(files)} files "
-            "(no agent_dna or api import)"
+    for imports, files in sorted(
+        groups.items(), key=lambda item: (-len(item[1]), item[0])
+    ):
+        clusters.append(
+            {
+                "label": cluster_label(files, imports),
+                "isolated": False,
+                "imports": list(imports),
+                "files": [
+                    {
+                        "path": t.rel,
+                        "doc": t.docstring,
+                        "collected": t.pytest_count,
+                        "astNames": len(t.tests),
+                    }
+                    for t in sorted(files, key=lambda x: x.rel)
+                ],
+            }
         )
-        klass = "cluster isolated"
-        deps = "These files exercise fixtures, vectors, or schemas without importing the runtime packages."
-    else:
-        title = f"{len(files)} files · {len(label or ())} shared modules"
-        klass = "cluster"
-        shown = list(label or ())
-        preview = shown[:8]
-        extra = "" if len(shown) <= 8 else f" · +{len(shown) - 8} more"
-        deps = ", ".join(preview) + extra
-    items = []
-    for test in files:
-        doc = f'<div class="doc">{e(test.docstring)}</div>' if test.docstring else ""
-        items.append(
-            f"<li>{e(test.rel)} · {test.pytest_count} collected · "
-            f"{len(test.tests)} test_*{doc}</li>"
-        )
-    if not files:
-        items.append("<li>none</li>")
-    return (
-        f'<div class="{klass}"><h3>{e(title)}</h3>'
-        f'<div class="doc">{e(deps)}</div>'
-        f'<ul class="files">{"".join(items)}</ul></div>'
-    )
 
-
-def render_cross(tests: dict[str, TestFile]) -> str:
-    cards = []
-    for test in sorted(tests.values(), key=lambda t: t.rel):
+    cross: list[dict[str, object]] = []
+    for test in tests.values():
         stages = sorted(
             {stage_of(mod) for mod in test.imports} - {OTHER},
             key=lambda s: SPINE.index(s) if s in SPINE else 99,
         )
         if len(stages) < 2:
             continue
-        path = " × ".join(stages)
-        doc = f'<div class="doc">{e(test.docstring)}</div>' if test.docstring else ""
-        cards.append(
-            f'<div class="cross-card"><div>{e(test.rel)}{doc}'
-            f'<div class="stages-path">{e(path)}</div></div>'
-            f"<b>{test.pytest_count}</b></div>"
+        cross.append(
+            {
+                "path": test.rel,
+                "doc": test.docstring,
+                "stages": stages,
+                "collected": test.pytest_count,
+            }
         )
-    body = "".join(cards) if cards else '<p class="section-lede">None.</p>'
-    return (
-        '<section id="cross">'
-        "<h2>Cross-layer edges</h2>"
-        '<p class="section-lede">A single test file that imports modules from '
-        "more than one enforcement stage. These are composition tests — "
-        "visually distinct because they catch what per-stage checks cannot.</p>"
-        f'<div class="cross">{body}</div></section>'
-    )
+    cross.sort(key=lambda row: (-int(row["collected"]), str(row["path"])))
+
+    return {
+        "generatedAt": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "generatorSeconds": round(elapsed, 2),
+        "pytest": {
+            "collected": collected.count,
+            "ok": collected.ok,
+            "lastLine": collected.raw_last_line,
+            "collectSeconds": collect_duration_seconds(collected.raw_last_line),
+        },
+        "suite": {
+            "passRatePercent": CONFIGURED_PASS_RATE_PERCENT,
+            "source": "configured",
+            "note": "Pass rate is configured until live pytest JSON is wired. Not measured by this generator.",
+        },
+        "astTestNames": ast_count,
+        "testFiles": len(tests),
+        "modules": len(modules),
+        "zeroImportModules": len(zeros),
+        "spineCoverage": {
+            "imported": spine_imported_n,
+            "total": spine_module_n,
+            "definition": "Spine modules imported by at least one test file, excluding other/supporting.",
+        },
+        "spine": spine,
+        "other": other,
+        "loadBearing": load_bearing,
+        "zeroImports": zeros,
+        "clusters": clusters,
+        "crossLayer": cross,
+        "unparsed": [{"path": path, "error": err} for path, err in unparsed],
+    }
 
 
 def render_html(
@@ -769,68 +600,25 @@ def render_html(
     unparsed: list[tuple[str, str]],
     elapsed: float,
 ) -> str:
-    zero_n = sum(1 for m in modules.values() if not m.importers)
-    headline = str(collected.count)
-    return f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Architecture map — PrivateVault Agent DNA</title>
-<style>{CSS}</style>
-</head>
-<body data-pytest-collected="{e(headline)}">
-<header>
-<p class="kicker">Generated map · do not hand-edit</p>
-<h1>Architecture</h1>
-<p class="lede">Structural map from AST imports under tests/ onto
-<code>agent_dna</code> and <code>api</code>. The headline number is pytest
-collected tests, including parametrize. AST <code>test_*</code> functions
-are the unexpanded names.</p>
-<div class="metrics">
-  <div class="metric">
-    <p class="kicker">pytest collected</p>
-    <b id="pytest-collected">{e(headline)}</b>
-    <span>{e(collected.raw_last_line)}</span>
-  </div>
-  <div class="metric">
-    <p class="kicker">AST test_* names</p>
-    <b>{ast_count}</b>
-    <span>functions and methods, including async def</span>
-  </div>
-  <div class="metric">
-    <p class="kicker">test files</p>
-    <b>{len(tests)}</b>
-    <span>{sum(1 for t in tests.values() if t.imports)} import runtime modules</span>
-  </div>
-  <div class="metric">
-    <p class="kicker">modules</p>
-    <b>{len(modules)}</b>
-    <span>{zero_n} with zero test-file imports</span>
-  </div>
-</div>
-<nav>
-  <a href="#enforcement">Enforcement path</a>
-  <a href="#coverage">Coverage inversion</a>
-  <a href="#clusters">Clusters</a>
-  <a href="#cross">Cross-layer edges</a>
-</nav>
-{render_unparsed(unparsed)}
-</header>
-<main>
-{render_spine(modules, tests)}
-{render_inversion(modules)}
-{render_clusters(tests)}
-{render_cross(tests)}
-</main>
-<footer>
-Generated by tools/gen_architecture.py in {elapsed:.2f}s.
-Stage mapping is a longest-prefix table in that file. Unmatched modules
-are other / supporting. This file is gitignored.
-</footer>
-</body>
-</html>
-"""
+    if not TEMPLATE.is_file():
+        raise SystemExit(f"missing dashboard template: {TEMPLATE}")
+    payload = build_payload(
+        collected=collected,
+        ast_count=ast_count,
+        tests=tests,
+        modules=modules,
+        unparsed=unparsed,
+        elapsed=elapsed,
+    )
+    template = TEMPLATE.read_text(encoding="utf-8")
+    if "__DATA_JSON__" not in template:
+        raise SystemExit("dashboard template missing __DATA_JSON__ placeholder")
+    data_json = json.dumps(payload, indent=2).replace("<", "\\u003c")
+    html_out = template.replace("__DATA_JSON__", data_json)
+    html_out = html_out.replace(
+        "__PYTEST_COLLECTED__", str(collected.count if collected.ok else 0)
+    )
+    return html_out
 
 
 def main() -> int:
@@ -861,10 +649,7 @@ def main() -> int:
     print(f"AST test_* names: {ast_count}")
     print(f"test files: {len(tests)}")
     print(f"modules: {len(modules)}")
-    print(
-        "zero-import modules: "
-        f"{sum(1 for m in modules.values() if not m.importers)}"
-    )
+    print(f"zero-import modules: {sum(1 for m in modules.values() if not m.importers)}")
     print(f"unparsed: {len(unparsed)}")
     for path, err in unparsed:
         print(f"  {path}: {err}")
