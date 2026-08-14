@@ -48,36 +48,47 @@ class ShapeError(RuntimeError):
     """API JSON did not match the keys this seed requires."""
 
 
-def _format_business_date(value: Any) -> str:
-    """Jackson LocalDate on 1.11.0 is [year, month, day]."""
-    if not (isinstance(value, list) and len(value) >= 3):
-        raise ShapeError(
-            f"GET /businessdate date is not [year, month, day]: {value!r}. "
-            "If a deposit is rejected as future-dated, the organisation "
-            "business date (GET /v1/businessdate) is the likely cause."
-        )
-    try:
-        return date(int(value[0]), int(value[1]), int(value[2])).strftime("%d %B %Y")
-    except (TypeError, ValueError) as exc:
-        raise ShapeError(
-            f"GET /businessdate date {value!r} is not a calendar day: {exc}. "
-            "If a deposit is rejected as future-dated, the organisation "
-            "business date is the likely cause."
-        ) from exc
+def _system_date_string() -> str:
+    return date.today().strftime("%d %B %Y")
+
+
+def _format_observed_date(value: Any) -> str:
+    """Format a BUSINESS_DATE date from the live response, not from a guessed schema.
+
+    [year, month, day] has never been observed on GET /businessdate on this
+    lab (enable-business-date is False). Inspect the value we actually got.
+    """
+    if isinstance(value, list) and len(value) >= 3:
+        try:
+            return date(int(value[0]), int(value[1]), int(value[2])).strftime(
+                "%d %B %Y"
+            )
+        except (TypeError, ValueError) as exc:
+            raise ShapeError(
+                f"BUSINESS_DATE date list is not a calendar day: {value!r} ({exc})"
+            ) from exc
+    if isinstance(value, str) and value.strip():
+        text = value.strip()
+        try:
+            return date.fromisoformat(text[:10]).strftime("%d %B %Y")
+        except ValueError:
+            return text
+    raise ShapeError(
+        "BUSINESS_DATE date field has an unobserved shape "
+        f"{type(value).__name__}: {value!r}"
+    )
 
 
 def business_date_string(api: Fineract) -> str:
-    """Organisation BUSINESS_DATE, not the client clock.
+    """Lab default: enable-business-date is False, so this returns [].
 
-    A later calendar day with a frozen container date rejects a
-    client-clock 'today' as a future-dated transaction.
+    Empty list or no BUSINESS_DATE entry is not an API-shape failure.
+    Fineract then validates deposits against the system date.
     """
     data = api.request("GET", f"{BASE}/businessdate")
     if not isinstance(data, list):
         raise ShapeError(
             f"GET /businessdate expected list, got {type(data).__name__}: {data!r}"[:800]
-            + " If a deposit is rejected as future-dated, the organisation "
-            "business date is the likely cause."
         )
     chosen = None
     for item in data:
@@ -86,12 +97,13 @@ def business_date_string(api: Fineract) -> str:
             chosen = rec["date"]
             break
     if chosen is None:
-        raise ShapeError(
-            "GET /businessdate has no type BUSINESS_DATE. "
-            "If a deposit is rejected as future-dated, the organisation "
-            f"business date is the likely cause. raw={data!r}"[:2000]
+        print(
+            "enable-business-date is False (config id 44, GET /v1/businessdate "
+            "returned no BUSINESS_DATE); using system date.",
+            file=sys.stderr,
         )
-    return _format_business_date(chosen)
+        return _system_date_string()
+    return _format_observed_date(chosen)
 
 
 def _require(obj: Any, *keys: str) -> dict[str, Any]:
@@ -399,9 +411,9 @@ def fund_if_needed(
         )
     except ShapeError as exc:
         raise ShapeError(
-            f"{exc} Likely cause: transactionDate is not the organisation "
-            "business date (GET /v1/businessdate, type BUSINESS_DATE). "
-            "A client-clock date can be ahead of the container."
+            f"{exc} Deposit date was {on_date!r}. Lab default is "
+            "enable-business-date=False (config id 44); Fineract then "
+            "validates against the system date."
         ) from exc
     rec = _require(result, "officeId", "clientId", "savingsId", "resourceId", "changes")
     _require(rec["changes"], "paymentTypeId")

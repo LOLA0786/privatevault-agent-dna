@@ -219,16 +219,19 @@ Do not hardcode `1`. `seed.py` calls `GET /v1/paymenttypes` and selects a
 type with `isSystemDefined` false (lowest id if several). It fails if none
 exists.
 
-`transactionDate` is the organisation `BUSINESS_DATE` from
-`GET /v1/businessdate`, not the client clock. Fineract rejects a date
-ahead of that business date or outside the account's active window. A
-deposit failure after a later calendar day should be read as a frozen
-container business date, not as an API-shape bug.
+`transactionDate` is the system date. Live check: `GET /v1/configurations`
+shows `enable-business-date` = False (id 44, hyphens not underscores).
+`GET /v1/businessdate` therefore returns `[]`. That is the Fineract default
+and this lab's normal state. Do not enable the feature — it is the
+counterparty's configuration and out of scope. `seed.py` treats `[]` / no
+`BUSINESS_DATE` as disabled, logs one line, and uses the system date. A
+non-list or malformed entry still fails loudly.
 
 ```
 POST /fineract-provider/api/v1/savingsaccounts/{accountId}/transactions?command=deposit
 GET  /fineract-provider/api/v1/paymenttypes
 GET  /fineract-provider/api/v1/savingsaccounts/{savingsId}/transactions/template
+GET  /fineract-provider/api/v1/configurations
 GET  /fineract-provider/api/v1/businessdate
 ```
 
