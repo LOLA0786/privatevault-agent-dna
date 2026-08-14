@@ -142,18 +142,50 @@ Body (`PostAccountTransfersRequest` in `AccountTransfersApiResourceSwagger`):
 ```
 
 List transfers: `GET /fineract-provider/api/v1/accounttransfers`.
-One transfer: `GET /fineract-provider/api/v1/accounttransfers/{transferId}`.
+Captured live envelope (not a bare list; a bare list was never observed
+at 1.11.0):
+
+```json
+{"totalFilteredRecords":2,"pageItems":[...]}
+```
+
+The join helper asserts that paged shape as expected and still accepts a
+bare list so a surprise payload fails at the join with the expected keys
+named. One transfer: `GET /fineract-provider/api/v1/accounttransfers/{transferId}`.
+Live 1.11.0 response to POST: `{"savingsId":N,"resourceId":N}`. No extra
+mandatory fields. Body above is unmodified from what worked.
 
 `seed.py` does not transfer. It only creates clients, accounts, and the
 deposit that funds A.
 
-**Correlator (weak, not a binding).** Case 4 joins our decision chain to
-Fineract's transfer list by `transferDescription`. Each transfer sets that
-field to `pv:` plus the `request_id`, or the first 16 hex characters of
-the `action_digest` if no request id is available. That is a description
-string match. It is not a cryptographic binding. Divergence still fails
-the test; a match does not prove exact-byte identity. Helper:
-`tests/pilot/conftest.py` `transfer_description()`.
+**Correlator (two hops, not a binding).** Case 4 does not read a description
+off the savings transaction. A savings row produced by a transfer has these
+keys and no description field of any kind (live 1.11.0):
+
+`accountId` `accountNo` `amount` `chargesPaidByData` `currency` `date`
+`entryType` `id` `interestedPostedAsOn` `isManualTransaction` `isReversal`
+`lienTransaction` `originalTransactionId` `releaseTransactionId` `reversed`
+`runningBalance` `submittedByUsername` `submittedOnDate` `transactionType`
+`transfer`
+
+The nested `transfer` object contains: `id`, `reversed`, `currency`,
+`transferAmount`, `transferDate`, `transferDescription`.
+
+`GET /v1/accounttransfers` returns the full transfer record including
+`transferDescription`, `fromAccount`, `toAccount`, `fromClient`, `toClient`.
+
+Join path:
+
+1. Our chain → `transferDescription` on `GET /v1/accounttransfers` → transfer
+   `id`. The string is one we choose (`pv:` plus `request_id`, or the first
+   16 hex of `action_digest`). Fineract stores it opaquely. That hop is not
+   a cryptographic binding.
+2. That transfer `id` → `transactions[].transfer.id` on the savings account.
+
+Helpers in `tests/pilot/conftest.py`: `transfer_description()`,
+`accounttransfer_ids_for_description()`, `savings_nested_transfer_ids()`.
+Divergence in either hop is a failure. A match is not proof of exact-byte
+identity.
 
 ### 5. Savings balance and transaction list
 
@@ -168,13 +200,45 @@ collection. `summary.accountBalance` is the ledger balance
 
 By external id: `GET /fineract-provider/api/v1/savingsaccounts/external-id/{externalId}?associations=transactions`.
 
-Deposit used to fund A:
+Deposit used to fund A. The deposit template must be consulted, not assumed.
+Live 1.11.0 requires `paymentTypeId`. Verified working body:
+
+```json
+{"paymentTypeId":1,"transactionDate":"14 August 2026","transactionAmount":10000,"dateFormat":"dd MMMM yyyy","locale":"en"}
+```
+
+Verified response:
+
+```json
+{"officeId":1,"clientId":1,"savingsId":1,"resourceId":1,"changes":{"paymentTypeId":1}}
+```
+
+Payment type 1 on this lab is "Money Transfer", `isSystemDefined` false.
+Types 2 and 3 are system-defined loan adjustments — do not use them.
+Do not hardcode `1`. `seed.py` calls `GET /v1/paymenttypes` and selects a
+type with `isSystemDefined` false (lowest id if several). It fails if none
+exists.
+
+`transactionDate` is the organisation `BUSINESS_DATE` from
+`GET /v1/businessdate`, not the client clock. Fineract rejects a date
+ahead of that business date or outside the account's active window. A
+deposit failure after a later calendar day should be read as a frozen
+container business date, not as an API-shape bug.
 
 ```
 POST /fineract-provider/api/v1/savingsaccounts/{accountId}/transactions?command=deposit
+GET  /fineract-provider/api/v1/paymenttypes
+GET  /fineract-provider/api/v1/savingsaccounts/{savingsId}/transactions/template
+GET  /fineract-provider/api/v1/businessdate
 ```
 
 (`SavingsAccountTransactionsApiResource` `@Path("/v1/savingsaccounts/{savingsId}/transactions")`.)
+
+## LAB STATE
+
+The lab accumulates state. A second `pytest -m pilot` on the same container
+sees money already moved. Assertions must be deltas from a snapshot taken
+at test start (`ledger_snapshot.delta()`), never absolute balances.
 
 ## What seed.py creates
 
@@ -198,11 +262,7 @@ and the raw body. Do not paper over that.
 If `seed-state.json` is absent or malformed, pilot tests **error** (they
 do not skip) with a message naming `cd pilot/fineract && python3 seed.py`.
 That fixture lives in `tests/pilot/conftest.py`, not the root conftest.
-
-Balance assertions are **deltas** from a per-test snapshot of accounts A, B,
-and C (`ledger_snapshot.delta()`). Case 2 leaves money in B; a second
-`pytest -m pilot` on the same container must not fail because an absolute
-balance no longer matches the first run.
+See LAB STATE: never assert absolute balances.
 
 ## What this does not prove
 

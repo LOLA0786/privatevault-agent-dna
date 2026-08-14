@@ -48,8 +48,50 @@ class ShapeError(RuntimeError):
     """API JSON did not match the keys this seed requires."""
 
 
-def _today() -> str:
-    return date.today().strftime("%d %B %Y")
+def _format_business_date(value: Any) -> str:
+    """Jackson LocalDate on 1.11.0 is [year, month, day]."""
+    if not (isinstance(value, list) and len(value) >= 3):
+        raise ShapeError(
+            f"GET /businessdate date is not [year, month, day]: {value!r}. "
+            "If a deposit is rejected as future-dated, the organisation "
+            "business date (GET /v1/businessdate) is the likely cause."
+        )
+    try:
+        return date(int(value[0]), int(value[1]), int(value[2])).strftime("%d %B %Y")
+    except (TypeError, ValueError) as exc:
+        raise ShapeError(
+            f"GET /businessdate date {value!r} is not a calendar day: {exc}. "
+            "If a deposit is rejected as future-dated, the organisation "
+            "business date is the likely cause."
+        ) from exc
+
+
+def business_date_string(api: Fineract) -> str:
+    """Organisation BUSINESS_DATE, not the client clock.
+
+    A later calendar day with a frozen container date rejects a
+    client-clock 'today' as a future-dated transaction.
+    """
+    data = api.request("GET", f"{BASE}/businessdate")
+    if not isinstance(data, list):
+        raise ShapeError(
+            f"GET /businessdate expected list, got {type(data).__name__}: {data!r}"[:800]
+            + " If a deposit is rejected as future-dated, the organisation "
+            "business date is the likely cause."
+        )
+    chosen = None
+    for item in data:
+        rec = _require(item, "type", "date")
+        if rec["type"] == "BUSINESS_DATE":
+            chosen = rec["date"]
+            break
+    if chosen is None:
+        raise ShapeError(
+            "GET /businessdate has no type BUSINESS_DATE. "
+            "If a deposit is rejected as future-dated, the organisation "
+            f"business date is the likely cause. raw={data!r}"[:2000]
+        )
+    return _format_business_date(chosen)
 
 
 def _require(obj: Any, *keys: str) -> dict[str, Any]:
@@ -168,7 +210,9 @@ def find_client(api: Fineract, external_id: str) -> int | None:
     return int(_require(data, "id")["id"])
 
 
-def create_client(api: Fineract, external_id: str, first: str, last: str) -> int:
+def create_client(
+    api: Fineract, external_id: str, first: str, last: str, on_date: str
+) -> int:
     existing = find_client(api, external_id)
     if existing is not None:
         return existing
@@ -182,8 +226,8 @@ def create_client(api: Fineract, external_id: str, first: str, last: str) -> int
             "lastname": last,
             "externalId": external_id,
             "active": True,
-            "activationDate": _today(),
-            "submittedOnDate": _today(),
+            "activationDate": on_date,
+            "submittedOnDate": on_date,
             "dateFormat": "dd MMMM yyyy",
             "locale": "en",
         },
@@ -237,7 +281,7 @@ def _savings_status(api: Fineract, account_id: int) -> dict[str, Any]:
     return _require(rec["status"], "active", "approved", "submittedAndPendingApproval")
 
 
-def activate_savings(api: Fineract, account_id: int) -> None:
+def activate_savings(api: Fineract, account_id: int, on_date: str) -> None:
     status = _savings_status(api, account_id)
     if status["active"]:
         return
@@ -248,7 +292,7 @@ def activate_savings(api: Fineract, account_id: int) -> None:
             {
                 "locale": "en",
                 "dateFormat": "dd MMMM yyyy",
-                "approvedOnDate": _today(),
+                "approvedOnDate": on_date,
             },
         )
     status = _savings_status(api, account_id)
@@ -260,7 +304,7 @@ def activate_savings(api: Fineract, account_id: int) -> None:
         {
             "locale": "en",
             "dateFormat": "dd MMMM yyyy",
-            "activatedOnDate": _today(),
+            "activatedOnDate": on_date,
         },
     )
     status = _savings_status(api, account_id)
@@ -268,10 +312,12 @@ def activate_savings(api: Fineract, account_id: int) -> None:
         raise ShapeError(f"savings {account_id} is not active after approve/activate: {status}")
 
 
-def create_savings(api: Fineract, client_id: int, product_id: int, external_id: str) -> int:
+def create_savings(
+    api: Fineract, client_id: int, product_id: int, external_id: str, on_date: str
+) -> int:
     existing = find_savings(api, external_id)
     if existing is not None:
-        activate_savings(api, existing)
+        activate_savings(api, existing, on_date)
         return existing
     data = api.request(
         "POST",
@@ -281,12 +327,12 @@ def create_savings(api: Fineract, client_id: int, product_id: int, external_id: 
             "productId": product_id,
             "locale": "en",
             "dateFormat": "dd MMMM yyyy",
-            "submittedOnDate": _today(),
+            "submittedOnDate": on_date,
             "externalId": external_id,
         },
     )
     account_id = int(_require(data, "savingsId")["savingsId"])
-    activate_savings(api, account_id)
+    activate_savings(api, account_id, on_date)
     return account_id
 
 
@@ -307,20 +353,58 @@ def account_snapshot(api: Fineract, account_id: int) -> dict[str, Any]:
     }
 
 
-def fund_if_needed(api: Fineract, account_id: int) -> None:
+def payment_type_id_for_deposit(api: Fineract) -> int:
+    """Non-system-defined payment type for a savings deposit.
+
+    Live 1.11.0: type 1 is "Money Transfer" (isSystemDefined false).
+    Types 2 and 3 are system-defined loan adjustments — do not use them.
+    Id 1 is not hardcoded; it is selected by this lookup.
+    """
+    data = api.request("GET", f"{BASE}/paymenttypes")
+    if not isinstance(data, list):
+        raise ShapeError(
+            f"GET /paymenttypes expected list, got {type(data)}: {data!r}"[:800]
+        )
+    usable: list[int] = []
+    for item in data:
+        rec = _require(item, "id", "isSystemDefined")
+        if rec["isSystemDefined"] is False:
+            usable.append(int(rec["id"]))
+    if not usable:
+        raise ShapeError(
+            "GET /paymenttypes has no non-system-defined type "
+            "(isSystemDefined=false). Deposit cannot proceed. "
+            f"raw={data!r}"[:2000]
+        )
+    return min(usable)
+
+
+def fund_if_needed(
+    api: Fineract, account_id: int, payment_type_id: int, on_date: str
+) -> None:
     snap = account_snapshot(api, account_id)
     if float(snap["accountBalance"]) >= float(FUND_AMOUNT):
         return
-    api.request(
-        "POST",
-        f"{BASE}/savingsaccounts/{account_id}/transactions?command=deposit",
-        {
-            "locale": "en",
-            "dateFormat": "dd MMMM yyyy",
-            "transactionDate": _today(),
-            "transactionAmount": FUND_AMOUNT,
-        },
-    )
+    try:
+        result = api.request(
+            "POST",
+            f"{BASE}/savingsaccounts/{account_id}/transactions?command=deposit",
+            {
+                "paymentTypeId": payment_type_id,
+                "transactionDate": on_date,
+                "transactionAmount": FUND_AMOUNT,
+                "dateFormat": "dd MMMM yyyy",
+                "locale": "en",
+            },
+        )
+    except ShapeError as exc:
+        raise ShapeError(
+            f"{exc} Likely cause: transactionDate is not the organisation "
+            "business date (GET /v1/businessdate, type BUSINESS_DATE). "
+            "A client-clock date can be ahead of the container."
+        ) from exc
+    rec = _require(result, "officeId", "clientId", "savingsId", "resourceId", "changes")
+    _require(rec["changes"], "paymentTypeId")
 
 
 def main() -> int:
@@ -330,13 +414,15 @@ def main() -> int:
         api = Fineract(ctx)
         office = api.request("GET", f"{BASE}/offices/1")
         _require(office, "id")
+        on_date = business_date_string(api)
         product_id = ensure_product(api)
-        client_a = create_client(api, CLIENT_A_EXT, "Pilot", "Alpha")
-        client_b = create_client(api, CLIENT_B_EXT, "Pilot", "Beta")
-        account_a = create_savings(api, client_a, product_id, ACCOUNT_A_EXT)
-        account_b = create_savings(api, client_b, product_id, ACCOUNT_B_EXT)
-        account_c = create_savings(api, client_b, product_id, ACCOUNT_C_EXT)
-        fund_if_needed(api, account_a)
+        client_a = create_client(api, CLIENT_A_EXT, "Pilot", "Alpha", on_date)
+        client_b = create_client(api, CLIENT_B_EXT, "Pilot", "Beta", on_date)
+        account_a = create_savings(api, client_a, product_id, ACCOUNT_A_EXT, on_date)
+        account_b = create_savings(api, client_b, product_id, ACCOUNT_B_EXT, on_date)
+        account_c = create_savings(api, client_b, product_id, ACCOUNT_C_EXT, on_date)
+        payment_type_id = payment_type_id_for_deposit(api)
+        fund_if_needed(api, account_a, payment_type_id, on_date)
         snaps = {
             "A": account_snapshot(api, account_a),
             "B": account_snapshot(api, account_b),
@@ -354,6 +440,8 @@ def main() -> int:
             "account_b_id": account_b,
             "account_c_id": account_c,
             "account_type_savings": SAVINGS_ACCOUNT_TYPE,
+            "payment_type_id": payment_type_id,
+            "business_date": on_date,
             "balances": {k: v["accountBalance"] for k, v in snaps.items()},
             "snapshots": snaps,
             "cert": str(CERT_PATH),
