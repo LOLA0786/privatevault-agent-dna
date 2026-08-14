@@ -345,7 +345,7 @@ def main():
         print(f"{short:<50} {verdict:<17} {trigger:<12} {'Y' if signed else 'N'}")
     print()
     print(
-        "CTO   : every level is a tested code path, 1175+ automated tests, CI-guarded."
+        "CTO   : every level is a tested code path, 1165+ automated tests, CI-guarded."
     )
     print("CAIO  : drift (L5) is the only probabilistic level — it can escalate, never")
     print("        override a deterministic BLOCK above it.")
