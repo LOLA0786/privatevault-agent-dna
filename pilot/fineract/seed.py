@@ -88,7 +88,9 @@ def business_date_string(api: Fineract) -> str:
     data = api.request("GET", f"{BASE}/businessdate")
     if not isinstance(data, list):
         raise ShapeError(
-            f"GET /businessdate expected list, got {type(data).__name__}: {data!r}"[:800]
+            f"GET /businessdate expected list, got {type(data).__name__}: {data!r}"[
+                :800
+            ]
         )
     chosen = None
     for item in data:
@@ -111,7 +113,9 @@ def _require(obj: Any, *keys: str) -> dict[str, Any]:
         raise ShapeError(f"expected object, got {type(obj).__name__}: {obj!r}")
     missing = [k for k in keys if k not in obj]
     if missing:
-        raise ShapeError(f"missing keys {missing} in {sorted(obj.keys())}: {obj!r}"[:2000])
+        raise ShapeError(
+            f"missing keys {missing} in {sorted(obj.keys())}: {obj!r}"[:2000]
+        )
     return obj
 
 
@@ -250,7 +254,9 @@ def create_client(
 def ensure_product(api: Fineract) -> int:
     data = api.request("GET", f"{BASE}/savingsproducts")
     if not isinstance(data, list):
-        raise ShapeError(f"GET /savingsproducts expected list, got {type(data)}: {data!r}"[:800])
+        raise ShapeError(
+            f"GET /savingsproducts expected list, got {type(data)}: {data!r}"[:800]
+        )
     for item in data:
         rec = _require(item, "id", "name")
         if rec["name"] == PRODUCT_NAME:
@@ -321,7 +327,9 @@ def activate_savings(api: Fineract, account_id: int, on_date: str) -> None:
     )
     status = _savings_status(api, account_id)
     if not status["active"]:
-        raise ShapeError(f"savings {account_id} is not active after approve/activate: {status}")
+        raise ShapeError(
+            f"savings {account_id} is not active after approve/activate: {status}"
+        )
 
 
 def create_savings(

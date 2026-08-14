@@ -52,8 +52,7 @@ def pytest_collection_modifyitems(
     if selected:
         return
     skip = pytest.mark.skip(
-        reason="Fineract lab pilot; run with pytest -m pilot after: "
-        + _SEED_CMD
+        reason="Fineract lab pilot; run with pytest -m pilot after: " + _SEED_CMD
     )
     for item in items:
         if item.get_closest_marker("pilot"):
@@ -131,7 +130,9 @@ def accounttransfer_ids_for_description(payload: Any, description: str) -> set[i
     found: set[int] = set()
     for item in _accounttransfer_items(payload):
         if not isinstance(item, dict):
-            raise RuntimeError(f"accounttransfers item is not an object: {item!r}"[:500])
+            raise RuntimeError(
+                f"accounttransfers item is not an object: {item!r}"[:500]
+            )
         missing = [k for k in ("id", "transferDescription") if k not in item]
         if missing:
             raise RuntimeError(
@@ -145,9 +146,7 @@ def accounttransfer_ids_for_description(payload: Any, description: str) -> set[i
 def savings_nested_transfer_ids(transactions: Any) -> set[int]:
     """Hop 2: transactions[].transfer.id. The savings row has no description."""
     if not isinstance(transactions, list):
-        raise RuntimeError(
-            f"savings transactions is not a list: {type(transactions)}"
-        )
+        raise RuntimeError(f"savings transactions is not a list: {type(transactions)}")
     found: set[int] = set()
     for txn in transactions:
         if not isinstance(txn, dict):
@@ -235,7 +234,11 @@ def ledger_snapshot(
     }
     before = {
         name: Decimal(
-            str(fineract_seed.account_snapshot(fineract_client, account_id)["accountBalance"])
+            str(
+                fineract_seed.account_snapshot(fineract_client, account_id)[
+                    "accountBalance"
+                ]
+            )
         )
         for name, account_id in ids.items()
     }

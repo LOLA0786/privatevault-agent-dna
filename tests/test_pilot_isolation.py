@@ -57,7 +57,10 @@ def _python_files() -> list[Path]:
             resolved = path.resolve()
             if resolved == self_path:
                 continue
-            if excluded_pilot_tests in resolved.parents or resolved == excluded_pilot_tests:
+            if (
+                excluded_pilot_tests in resolved.parents
+                or resolved == excluded_pilot_tests
+            ):
                 continue
             if any(part in _SKIP_DIR_NAMES for part in resolved.parts):
                 continue
