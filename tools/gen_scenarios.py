@@ -6,7 +6,11 @@ by tests pulled live from pytest collection. Steps with no matching test are
 shown as UNPROVEN, never quietly dropped.
 """
 
-import json, re, subprocess, sys, time
+import json
+import re
+import subprocess
+import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent

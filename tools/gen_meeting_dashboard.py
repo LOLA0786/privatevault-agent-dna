@@ -6,9 +6,13 @@ BFSI use case via explicit ordered rules below. Tests that match no rule are
 reported as UNMAPPED, never forced into a bucket.
 """
 
-import json, re, subprocess, sys, time, html
-from pathlib import Path
+import json
+import re
+import subprocess
+import sys
+import time
 from collections import defaultdict
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "meeting-dashboard.html"
