@@ -1,8 +1,9 @@
 //! DecisionRecord -- Rust mirror of agent_dna/decision_record.py.
 //!
-//! PARITY CONTRACT: payload() covers the exact 24 fields of the
-//! Python dataclass, hashed as sha256(canonical_json(payload)) where
-//! canonical_json is byte-identical to CPython json.dumps(...,
+//! PARITY CONTRACT: payload() covers the hash-covered fields of the
+//! Python dataclass (24 on drp/0.1; drp/0.2 also seals action_digest
+//! and dispatch_context_digest), hashed as sha256(canonical_json(payload))
+//! where canonical_json is byte-identical to CPython json.dumps(...,
 //! sort_keys=True, separators=(",", ":")). A record sealed here MUST
 //! verify under tools/verify_records.py with zero modifications.
 //!
@@ -30,10 +31,25 @@ pub const PROTOCOL_VERSION: &str = DRP_V01;
 /// protocol, not a cosmetic difference.
 ///
 /// The version is never inferred from the digest. A drp/0.2 record
-/// missing its binding is rejected, not downgraded.
+/// missing either binding is rejected, not downgraded.
+fn check_sha256_prefixed(label: &str, digest: &str) -> Result<(), String> {
+    let hex = digest
+        .strip_prefix("sha256:")
+        .ok_or_else(|| format!("malformed {label} {digest:?}"))?;
+    if hex.len() != 64
+        || !hex
+            .chars()
+            .all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c))
+    {
+        return Err(format!("malformed {label} {digest:?}"));
+    }
+    Ok(())
+}
+
 fn check_version_invariant(
     protocol_version: &str,
     action_digest: Option<&str>,
+    dispatch_context_digest: Option<&str>,
 ) -> Result<(), String> {
     match protocol_version {
         DRP_V01 => {
@@ -42,28 +58,38 @@ fn check_version_invariant(
                      must declare drp/0.2"
                     .into());
             }
+            if dispatch_context_digest.is_some() {
+                return Err(
+                    "drp/0.1 records carry no dispatch_context_digest; a bound \
+                     record must declare drp/0.2"
+                        .into(),
+                );
+            }
             Ok(())
         }
-        DRP_V02 => match action_digest {
-            None => Err(
-                "drp/0.2 requires an action_digest; a missing binding is not \
-                 a downgrade to drp/0.1"
-                    .into(),
-            ),
-            Some(digest) => {
-                let hex = digest
-                    .strip_prefix("sha256:")
-                    .ok_or_else(|| format!("malformed action_digest {digest:?}"))?;
-                if hex.len() != 64
-                    || !hex
-                        .chars()
-                        .all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c))
-                {
-                    return Err(format!("malformed action_digest {digest:?}"));
+        DRP_V02 => {
+            match action_digest {
+                None => {
+                    return Err(
+                        "drp/0.2 requires an action_digest; a missing binding is not \
+                         a downgrade to drp/0.1"
+                            .into(),
+                    );
                 }
-                Ok(())
+                Some(digest) => check_sha256_prefixed("action_digest", digest)?,
             }
-        },
+            match dispatch_context_digest {
+                None => {
+                    return Err(
+                        "drp/0.2 requires a dispatch_context_digest; a missing binding \
+                         is not a downgrade to drp/0.1"
+                            .into(),
+                    );
+                }
+                Some(digest) => check_sha256_prefixed("dispatch_context_digest", digest)?,
+            }
+            Ok(())
+        }
         other => Err(format!(
             "unknown protocol_version {other:?}; this build implements \
              [\"drp/0.1\", \"drp/0.2\"]"
@@ -152,6 +178,8 @@ pub struct DecisionRecord {
     /// mutated into an invalid pair after construction.
     #[pyo3(get)]
     pub action_digest: Option<String>,
+    #[pyo3(get)]
+    pub dispatch_context_digest: Option<String>,
 }
 
 #[pymethods]
@@ -185,6 +213,7 @@ impl DecisionRecord {
         receipt_ref = None,
         edges_json = String::from("[]"),
         action_digest = None,
+        dispatch_context_digest = None,
     ))]
     pub fn py_new(
         protocol_version: String,
@@ -211,9 +240,14 @@ impl DecisionRecord {
         receipt_ref: Option<String>,
         edges_json: String,
         action_digest: Option<String>,
+        dispatch_context_digest: Option<String>,
     ) -> PyResult<Self> {
-        check_version_invariant(&protocol_version, action_digest.as_deref())
-            .map_err(PyValueError::new_err)?;
+        check_version_invariant(
+            &protocol_version,
+            action_digest.as_deref(),
+            dispatch_context_digest.as_deref(),
+        )
+        .map_err(PyValueError::new_err)?;
         Ok(Self {
             kind: "decision".into(),
             protocol_version,
@@ -241,6 +275,7 @@ impl DecisionRecord {
             prev_hash,
             record_hash: String::new(),
             action_digest,
+            dispatch_context_digest,
         })
     }
 
@@ -333,6 +368,7 @@ impl DecisionRecord {
             kind: "decision".into(),
             protocol_version: DRP_V01.into(),
             action_digest: None,
+            dispatch_context_digest: None,
             decision_id,
             parent_decision,
             agent_id,
@@ -359,7 +395,7 @@ impl DecisionRecord {
         }
     }
 
-    /// The 24 hash-covered fields, mirroring Python payload().
+    /// The hash-covered fields, mirroring Python payload().
     /// Key order here is irrelevant: canonical() sorts.
     fn payload_value(&self) -> Value {
         let mut payload = json!({
@@ -389,15 +425,19 @@ impl DecisionRecord {
             "prev_hash": self.prev_hash,
         });
 
-        // drp/0.2 adds action_digest and nothing else, so a v0.1 payload
-        // is byte-identical to what it was before v0.2 existed. Keyed on
-        // the declared version, never on whether a digest happens to be
-        // present. canonical() sorts, so insertion order is irrelevant.
+        // drp/0.2 adds action_digest and dispatch_context_digest, so a
+        // v0.1 payload is byte-identical to what it was before v0.2
+        // existed. Keyed on the declared version, never on whether a
+        // digest happens to be present. canonical() sorts, so insertion
+        // order is irrelevant.
         if self.protocol_version == DRP_V02 {
-            if let (Some(map), Some(digest)) =
-                (payload.as_object_mut(), self.action_digest.as_ref())
-            {
-                map.insert("action_digest".into(), json!(digest));
+            if let Some(map) = payload.as_object_mut() {
+                if let Some(digest) = self.action_digest.as_ref() {
+                    map.insert("action_digest".into(), json!(digest));
+                }
+                if let Some(digest) = self.dispatch_context_digest.as_ref() {
+                    map.insert("dispatch_context_digest".into(), json!(digest));
+                }
             }
         }
 
@@ -409,7 +449,11 @@ impl DecisionRecord {
         // into an invalid version/digest pair. Checked here rather than
         // only at construction: seal() and verify() both route through
         // this, so neither can act on a record the invariant rejects.
-        check_version_invariant(&self.protocol_version, self.action_digest.as_deref())?;
+        check_version_invariant(
+            &self.protocol_version,
+            self.action_digest.as_deref(),
+            self.dispatch_context_digest.as_deref(),
+        )?;
 
         // json!() silently coerces non-finite f64 to null, which
         // would BOTH bypass the canonicalizer's NonFinite guard AND
