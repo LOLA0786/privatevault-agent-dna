@@ -271,7 +271,7 @@ def collect():
     return ids, total, (r.stdout.strip().splitlines() or [""])[-1]
 
 
-def main():
+def main():  # noqa: C901 - linear generator pipeline, split tracked separately
     t0 = time.time()
     ids, total, last = collect()
     if not ids:
@@ -282,7 +282,7 @@ def main():
     # specificity = pattern length; longer/rarer patterns claim first
     ranked = []
     for si, sc in enumerate(SCENARIOS):
-        for pi, (label, what, pat) in enumerate(sc["steps"]):
+        for pi, (_label, _what, pat) in enumerate(sc["steps"]):
             ranked.append((len(pat), si, pi, pat))
     ranked.sort(reverse=True)
 
@@ -299,7 +299,7 @@ def main():
 
     for si, sc in enumerate(SCENARIOS):
         steps = []
-        for pi, (label, what, pat) in enumerate(sc["steps"]):
+        for pi, (_label, _what, pat) in enumerate(sc["steps"]):
             hits = claims.get((si, pi), [])
             steps.append(
                 {
