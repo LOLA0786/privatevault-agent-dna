@@ -36,7 +36,9 @@ _NAMES = frozenset({"pilot", "fineract", "seabaas"})
 # `pilot` alone matches ordinary prose ("pilot deployment", "pilot scope")
 # in apikeys.py and server.py. Path-anchor it. fineract/seabaas are
 # unambiguous as bare words and stay as-is.
-_TERM = re.compile(r"(?i)(pilot[/\\]fineract|tests[./\\]pilot|\bfineract\b|\bseabaas\b)")
+_TERM = re.compile(
+    r"(?i)(pilot[/\\]fineract|tests[./\\]pilot|\bfineract\b|\bseabaas\b)"
+)
 
 # Allowlist is empty. Each candidate from the brief was opened:
 # - pytest marker: registered in tests/pilot/conftest.py pytest_configure
