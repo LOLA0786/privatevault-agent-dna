@@ -299,7 +299,7 @@ def main():  # noqa: C901 - linear generator pipeline, split tracked separately
 
     for si, sc in enumerate(SCENARIOS):
         steps = []
-        for pi, (_label, _what, pat) in enumerate(sc["steps"]):
+        for pi, (label, what, _pat) in enumerate(sc["steps"]):
             hits = claims.get((si, pi), [])
             steps.append(
                 {
