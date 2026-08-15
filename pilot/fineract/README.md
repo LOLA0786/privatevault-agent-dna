@@ -265,10 +265,12 @@ same 200 body directly: Fineract accepted it (`resourceId` 19; A
 misfire of the same 200 while the test was unmarked (`resourceId` 16)
 was also reverted (`resourceId` 17).
 
-Case 4 joins chain `action_digest`s to Fineract transfers; it must start
-from a re-seeded lab (`docker compose down -v && docker compose up -d`,
-then `python3 seed.py`) or the extra rows will look like dispatch that
-never went through PrivateVault.
+Case 4 joins chain `action_digest`s that reached dispatch to Fineract
+transfers. Extra rows with no chain record fail that bijection. The lab
+was re-seeded (`docker compose down -v && docker compose up -d`, then
+`python3 seed.py`) before case 4 so prior negative-control residue is
+gone. If the lab is reused without a re-seed, case 4 will fail on those
+unmatched transfers — that is the assertion working.
 
 ## What seed.py creates
 

@@ -1,10 +1,13 @@
-"""Fineract enforcement cases 1–3. Case 4 is not in this file."""
+"""Fineract enforcement cases 1–4."""
 
 from __future__ import annotations
 
 import base64
 import copy
+import os
 import ssl
+import subprocess
+import sys
 import time
 import uuid
 from datetime import UTC, datetime
@@ -50,6 +53,7 @@ from agent_dna.sqlite_store import SQLiteDecisionStore
 from agent_dna.trace import AgentAction
 from tests.pilot.conftest import (
     accounttransfer_ids_for_description,
+    all_accounttransfer_ids,
     transfer_description,
 )
 
@@ -561,6 +565,7 @@ def test_permit_replay(
     fineract_seed: Any,
     ledger_snapshot: Any,
     tmp_path: Path,
+    dispatched_transfers: list[dict[str, str]],
 ) -> None:
     if "account_type_savings" not in seed_state or "business_date" not in seed_state:
         raise RuntimeError(
@@ -615,6 +620,14 @@ def test_permit_replay(
     listed = fineract_client.request("GET", f"{fineract_seed.BASE}/accounttransfers")
     first_ids = accounttransfer_ids_for_description(listed, kit["description"])
     assert len(first_ids) == 1, first_ids
+    dispatched_transfers.append(
+        {
+            "action_digest": execution_action_digest(
+                _execution_action(body, agent_id=_AGENT)
+            ),
+            "description": kit["description"],
+        }
+    )
 
     second = dispatcher.dispatch(
         authorization=kit["authorization"],
@@ -659,6 +672,7 @@ def test_budget_exhausted_across_agents(
     fineract_seed: Any,
     ledger_snapshot: Any,
     tmp_path: Path,
+    dispatched_transfers: list[dict[str, str]],
 ) -> None:
     if "account_type_savings" not in seed_state or "business_date" not in seed_state:
         raise RuntimeError(
@@ -745,6 +759,14 @@ def test_budget_exhausted_across_agents(
     listed = fineract_client.request("GET", f"{fineract_seed.BASE}/accounttransfers")
     one_ids = accounttransfer_ids_for_description(listed, kit["description"])
     assert len(one_ids) == 1, one_ids
+    dispatched_transfers.append(
+        {
+            "action_digest": execution_action_digest(
+                _execution_action(body_one, agent_id=agent_one)
+            ),
+            "description": kit["description"],
+        }
+    )
 
     action_two = AgentAction(
         agent_id=agent_two,
@@ -778,3 +800,83 @@ def test_budget_exhausted_across_agents(
     assert (
         accounttransfer_ids_for_description(listed_again, kit["description"]) == one_ids
     )
+
+
+def test_chain_verifies_independently(
+    seed_state: dict[str, Any],
+    fineract_client: Any,
+    fineract_seed: Any,
+    ledger_snapshot: Any,
+    tmp_path: Path,
+    dispatched_transfers: list[dict[str, str]],
+) -> None:
+    if "account_type_savings" not in seed_state or "business_date" not in seed_state:
+        raise RuntimeError(
+            "seed-state.json is missing account_type_savings or business_date. "
+            f"Run: {_SEED_CMD}"
+        )
+    cert_path = _require_cert(seed_state)
+    request_id = f"req-chain-{uuid.uuid4().hex[:12]}"
+    body = _transfer_body(
+        seed_state,
+        to_account_id=int(seed_state["account_b_id"]),
+        request_id=request_id,
+        transfer_amount=50,
+    )
+    kit = _mint_kit(
+        seed_state,
+        tmp_path,
+        request_id=request_id,
+        body=body,
+        cert_path=cert_path,
+    )
+    first = kit["dispatcher"].dispatch(
+        authorization=kit["authorization"],
+        payload=body,
+        context=kit["context"],
+    )
+    assert first.outcome == OUTCOME_EXECUTED, (
+        f"chain case dispatch must succeed: outcome={first.outcome} "
+        f"reason={first.reason_code} detail={first.detail}"
+    )
+    assert first.sent is True
+    dispatched_transfers.append(
+        {
+            "action_digest": execution_action_digest(
+                _execution_action(body, agent_id=_AGENT)
+            ),
+            "description": kit["description"],
+        }
+    )
+
+    export = tmp_path / "chain.jsonl"
+    kit["store"].export_jsonl(export)
+    env = os.environ.copy()
+    env["PYTHONPATH"] = ""
+    env.pop("FINERACT_PILOT", None)
+    verifier = Path(__file__).resolve().parents[2] / "tools" / "verify_records.py"
+    proc = subprocess.run(
+        [sys.executable, str(verifier), str(export)],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stdout + "\n" + proc.stderr
+    assert "VERDICT: PASS" in proc.stdout, proc.stdout
+
+    listed = fineract_client.request("GET", f"{fineract_seed.BASE}/accounttransfers")
+    fineract_ids = all_accounttransfer_ids(listed)
+    joined: set[int] = set()
+    digests: set[str] = set()
+    for row in dispatched_transfers:
+        ids = accounttransfer_ids_for_description(listed, row["description"])
+        assert len(ids) == 1, (row, ids)
+        joined |= ids
+        digests.add(row["action_digest"])
+    assert joined == fineract_ids, (
+        f"chain digests and Fineract transfers diverged: "
+        f"joined={sorted(joined)} fineract={sorted(fineract_ids)}"
+    )
+    assert len(digests) == len(fineract_ids)

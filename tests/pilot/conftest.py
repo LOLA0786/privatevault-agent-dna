@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import importlib.util
 import json
-import os
 import re
 import ssl
 from dataclasses import dataclass
@@ -41,15 +40,35 @@ def pytest_configure(config: pytest.Config) -> None:
     )
 
 
+def pilot_markexpr_selected(config: pytest.Config) -> bool:
+    """True only when -m selects pilot. Env vars cannot opt in."""
+    markexpr = (config.option.markexpr or "").strip()
+    cleaned = re.sub(r"\bnot\s+pilot\b", "", markexpr)
+    return bool(re.search(r"\bpilot\b", cleaned))
+
+
+def require_seed_state() -> dict[str, Any]:
+    if not _SEED_STATE.is_file():
+        _fail_seed(f"{_SEED_STATE} is missing.")
+    try:
+        data = json.loads(_SEED_STATE.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        _fail_seed(f"{_SEED_STATE} is malformed ({exc}).")
+    if not isinstance(data, dict):
+        _fail_seed(f"{_SEED_STATE} is malformed (not an object).")
+    missing = [key for key in _REQUIRED_STATE if key not in data]
+    if missing:
+        _fail_seed(
+            f"{_SEED_STATE} is missing (stale seed file, required keys "
+            f"{missing} absent)."
+        )
+    return data
+
+
 def pytest_collection_modifyitems(
     config: pytest.Config, items: list[pytest.Item]
 ) -> None:
-    markexpr = (config.option.markexpr or "").strip()
-    cleaned = re.sub(r"\bnot\s+pilot\b", "", markexpr)
-    selected = os.environ.get("FINERACT_PILOT") == "1" or bool(
-        re.search(r"\bpilot\b", cleaned)
-    )
-    if selected:
+    if pilot_markexpr_selected(config):
         return
     skip = pytest.mark.skip(
         reason="Fineract lab pilot; run with pytest -m pilot after: " + _SEED_CMD
@@ -57,6 +76,14 @@ def pytest_collection_modifyitems(
     for item in items:
         if item.get_closest_marker("pilot"):
             item.add_marker(skip)
+
+
+def pytest_runtest_setup(item: pytest.Item) -> None:
+    if item.get_closest_marker("pilot") is None:
+        return
+    if not pilot_markexpr_selected(item.config):
+        pytest.skip("Fineract lab pilot; run with pytest -m pilot after: " + _SEED_CMD)
+    require_seed_state()
 
 
 def _seed_module() -> Any:
@@ -143,6 +170,15 @@ def accounttransfer_ids_for_description(payload: Any, description: str) -> set[i
     return found
 
 
+def all_accounttransfer_ids(payload: Any) -> set[int]:
+    found: set[int] = set()
+    for item in _accounttransfer_items(payload):
+        if not isinstance(item, dict) or "id" not in item:
+            raise RuntimeError(f"accounttransfers item missing id: {item!r}"[:500])
+        found.add(int(item["id"]))
+    return found
+
+
 def savings_nested_transfer_ids(transactions: Any) -> set[int]:
     """Hop 2: transactions[].transfer.id. The savings row has no description."""
     if not isinstance(transactions, list):
@@ -188,23 +224,15 @@ class LedgerSnapshot:
         return {name: now[name] - self.before[name] for name in self.before}
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session")
+def dispatched_transfers() -> list[dict[str, str]]:
+    """action_digest + transferDescription pairs that actually reached Fineract."""
+    return []
+
+
+@pytest.fixture(scope="session")
 def seed_state() -> dict[str, Any]:
-    if not _SEED_STATE.is_file():
-        _fail_seed(f"{_SEED_STATE} is missing.")
-    try:
-        data = json.loads(_SEED_STATE.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        _fail_seed(f"{_SEED_STATE} is malformed ({exc}).")
-    if not isinstance(data, dict):
-        _fail_seed(f"{_SEED_STATE} is malformed (not an object).")
-    missing = [key for key in _REQUIRED_STATE if key not in data]
-    if missing:
-        _fail_seed(
-            f"{_SEED_STATE} is missing (stale seed file, required keys "
-            f"{missing} absent)."
-        )
-    return data
+    return require_seed_state()
 
 
 @pytest.fixture(scope="session")
