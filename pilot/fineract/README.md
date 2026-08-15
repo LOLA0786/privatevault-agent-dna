@@ -22,9 +22,12 @@ OOM mid-boot looks like an API-shape bug; do not invent workarounds for that.
 ```bash
 cd pilot/fineract
 docker compose up -d
-# wait until https://localhost:8443/fineract-provider/actuator/health is {"status":"UP"}
-# first boot runs Liquibase; several minutes is normal
 python3 seed.py
+# seed.py waits up to 300s for
+# https://localhost:8443/fineract-provider/actuator/health → {"status":"UP"}
+# (FINERACT_HEALTH_TIMEOUT_SECONDS overrides). First boot runs Liquibase;
+# several minutes is normal. Do not run seed.py against a port that is
+# still handshaking — that is what the wait is for.
 # from the repo root, after seed-state.json exists:
 pytest -m pilot
 ```
@@ -246,7 +249,9 @@ at test start (`ledger_snapshot.delta()`), never absolute balances.
 The case 1 negative control posted the mutated A→C 500 transfer directly to
 Fineract (bypassing the adapter) and then posted a C→A 500 revert so
 balances returned to 10000/0/0. Those two transfers remain on the ledger
-and have no corresponding decision-chain record.
+and have no corresponding decision-chain record. The destination mutation
+is injected by the test as fault injection; case 1 does not claim an
+observed breach.
 
 The case 2 negative control posted the identical A→B 100 body twice
 directly (Fineract created two transfers) and then posted a B→A 200 revert

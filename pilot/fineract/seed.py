@@ -14,8 +14,10 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import ssl
 import sys
+import time
 from datetime import date
 from http.client import HTTPSConnection
 from pathlib import Path
@@ -28,6 +30,10 @@ STATE_PATH = HERE / "seed-state.json"
 
 HOST = "localhost"
 PORT = 8443
+HEALTH_PATH = "/fineract-provider/actuator/health"
+HEALTH_URL = f"https://{HOST}:{PORT}{HEALTH_PATH}"
+HEALTH_TIMEOUT_DEFAULT_S = 300.0
+HEALTH_TIMEOUT_ENV = "FINERACT_HEALTH_TIMEOUT_SECONDS"
 BASE = "/fineract-provider/api/v1"
 TENANT_HEADER = "Fineract-Platform-TenantId"
 TENANT_ID = "default"
@@ -157,6 +163,61 @@ def pin_cert() -> ssl.SSLContext:
     return ssl_context(COMPOSE_CERT)
 
 
+def _health_timeout_s() -> float:
+    raw = os.environ.get(HEALTH_TIMEOUT_ENV, str(HEALTH_TIMEOUT_DEFAULT_S))
+    try:
+        value = float(raw)
+    except ValueError:
+        raise SystemExit(f"{HEALTH_TIMEOUT_ENV}={raw!r} is not a number.") from None
+    if value <= 0:
+        raise SystemExit(f"{HEALTH_TIMEOUT_ENV} must be positive.")
+    return value
+
+
+def wait_until_healthy() -> None:
+    """Poll actuator/health until UP. No traceback on a cold Liquibase boot."""
+    if not COMPOSE_CERT.is_file():
+        raise SystemExit(
+            f"{COMPOSE_CERT} is missing. From pilot/fineract run: docker compose up -d"
+        )
+    timeout_s = _health_timeout_s()
+    deadline = time.monotonic() + timeout_s
+    ctx = ssl_context(COMPOSE_CERT)
+    last_err = "no attempt yet"
+    while time.monotonic() < deadline:
+        try:
+            conn = HTTPSConnection(HOST, PORT, context=ctx, timeout=5)
+            try:
+                conn.request("GET", HEALTH_PATH)
+                resp = conn.getresponse()
+                raw = resp.read()
+                status = resp.status
+            finally:
+                conn.close()
+            if status == 200:
+                try:
+                    body = json.loads(raw.decode("utf-8"))
+                except json.JSONDecodeError:
+                    last_err = f"health HTTP 200 was not JSON: {raw[:200]!r}"
+                else:
+                    if isinstance(body, dict) and body.get("status") == "UP":
+                        return
+                    last_err = f"health HTTP 200 body status={body!r}"[:500]
+            else:
+                last_err = f"health HTTP {status}"
+        except (OSError, ssl.SSLError) as exc:
+            last_err = f"{type(exc).__name__}: {exc}"
+        time.sleep(2)
+    raise SystemExit(
+        f"Fineract health did not become UP within {timeout_s:.0f}s "
+        f"(override with {HEALTH_TIMEOUT_ENV}).\n"
+        f"Polled {HEALTH_URL}\n"
+        f"Last error: {last_err}\n"
+        "The container may still be running Liquibase. Wait and re-run "
+        "python3 seed.py, or check: docker compose logs fineract"
+    )
+
+
 class Fineract:
     def __init__(self, ctx: ssl.SSLContext) -> None:
         self.ctx = ctx
@@ -195,24 +256,6 @@ class Fineract:
         if status == 404:
             return None
         return parsed
-
-
-def wait_up(ctx: ssl.SSLContext) -> None:
-    conn = HTTPSConnection(HOST, PORT, context=ctx, timeout=10)
-    try:
-        conn.request("GET", "/fineract-provider/actuator/health")
-        resp = conn.getresponse()
-        raw = resp.read()
-        status = resp.status
-    except OSError as exc:
-        raise SystemExit(
-            f"Fineract is not reachable at https://{HOST}:{PORT}: {exc}. "
-            "docker compose up -d, wait until healthy, then re-run."
-        ) from exc
-    finally:
-        conn.close()
-    if status != 200:
-        raise SystemExit(f"health HTTP {status}: {raw!r}")
 
 
 def find_client(api: Fineract, external_id: str) -> int | None:
@@ -429,8 +472,8 @@ def fund_if_needed(
 
 def main() -> int:
     try:
+        wait_until_healthy()
         ctx = pin_cert()
-        wait_up(ctx)
         api = Fineract(ctx)
         office = api.request("GET", f"{BASE}/offices/1")
         _require(office, "id")

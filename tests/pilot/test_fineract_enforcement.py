@@ -238,6 +238,11 @@ def test_payload_mutated_after_allow(
     tmp_path: Path,
     pilot_run_id: str,
 ) -> None:
+    """Adapter refuses a destination mutation injected after ALLOW.
+
+    The B→C mutation is fault injection by this test. The case does not
+    claim an observed breach.
+    """
     if "account_type_savings" not in seed_state or "business_date" not in seed_state:
         raise RuntimeError(
             "seed-state.json is missing account_type_savings or business_date. "
