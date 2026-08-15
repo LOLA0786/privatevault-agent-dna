@@ -253,6 +253,11 @@ directly (Fineract created two transfers) and then posted a B→A 200 revert
 so balances returned to whatever they were after case 2's real success.
 Those three extra rows also have no chain record.
 
+The case 3 negative control posted agent two's A→B 200 directly after
+agent one had already moved 900 (bypassing the group breaker). Fineract
+created the transfer (`resourceId` 9). A B→A 200 revert restored
+balances. Those two extra rows also have no chain record.
+
 Case 4 joins chain `action_digest`s to Fineract transfers; it must start
 from a re-seeded lab (`docker compose down -v && docker compose up -d`,
 then `python3 seed.py`) or the extra rows will look like dispatch that

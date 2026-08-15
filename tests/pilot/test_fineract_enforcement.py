@@ -1,4 +1,4 @@
-"""Fineract enforcement cases 1–2. Cases 3–4 are not in this file."""
+"""Fineract enforcement cases 1–3. Case 4 is not in this file."""
 
 from __future__ import annotations
 
@@ -27,6 +27,7 @@ from agent_dna.authorize_binding import (
     EXECUTION_AUTHORIZATION_CONSUMED,
     bind_authorize_to_sealed_allow,
 )
+from agent_dna.circuit_breaker import BreakerConfig, CircuitBreaker, GuardedEngine
 from agent_dna.connector.adapters.exact_byte_http import (
     OUTCOME_CONTROL_FAILURE,
     OUTCOME_EXECUTED,
@@ -148,10 +149,12 @@ def _transfer_body(
     }
 
 
-def _execution_action(parameters: dict[str, Any]) -> dict[str, Any]:
+def _execution_action(
+    parameters: dict[str, Any], *, agent_id: str = _AGENT
+) -> dict[str, Any]:
     return {
-        "subject_principal": f"{_AGENT}@{_ORG}",
-        "subject_key_id": _AGENT,
+        "subject_principal": f"{agent_id}@{_ORG}",
+        "subject_key_id": agent_id,
         "action": _CAP,
         "resource": "fineract:savings:accounttransfers",
         "parameters": parameters,
@@ -426,21 +429,26 @@ def _mint_kit(
     request_id: str,
     body: dict[str, Any],
     cert_path: str,
+    agent_id: str = _AGENT,
+    decided: Any | None = None,
+    agent_action: AgentAction | None = None,
 ) -> dict[str, Any]:
-    action = _execution_action(body)
+    action = _execution_action(body, agent_id=agent_id)
     ea_dispatch = _ea_dispatch()
     wire = serialize_json_payload(body)
-    registry = GrantRegistry()
-    registry.grant(agent_id=_AGENT, capability=_CAP, granted_by="lab")
-    engine = DecisionEngine(scorer=_StubScorer(), authorizer=registry)
-    agent_action = AgentAction(
-        agent_id=_AGENT,
-        capability=_CAP,
-        timestamp=time.time(),
-        arguments=copy.deepcopy(body),
-        request_id=request_id,
-    )
-    decided = engine.decide(agent_action)
+    if agent_action is None:
+        agent_action = AgentAction(
+            agent_id=agent_id,
+            capability=_CAP,
+            timestamp=time.time(),
+            arguments=copy.deepcopy(body),
+            request_id=request_id,
+        )
+    if decided is None:
+        registry = GrantRegistry()
+        registry.grant(agent_id=agent_id, capability=_CAP, granted_by="lab")
+        engine = DecisionEngine(scorer=_StubScorer(), authorizer=registry)
+        decided = engine.decide(agent_action)
     assert decided.decision is Decision.ALLOW, decided.reason
     store = SQLiteDecisionStore(str(tmp_path / f"pilot-consume-{request_id}.db"))
     record = DecisionRecorder(store=store).record(
@@ -454,7 +462,7 @@ def _mint_kit(
     receipt = "sha256:" + record.record_hash
     bind_reason = bind_authorize_to_sealed_allow(
         record.to_dict(),
-        agent_id=_AGENT,
+        agent_id=agent_id,
         decision_receipt_digest=receipt,
         action=action,
         dispatch=ea_dispatch,
@@ -635,3 +643,138 @@ def test_permit_replay(
             after_replay[name]["transaction_count"]
             == after_first[name]["transaction_count"]
         )
+
+
+def _amount_from_transfer(action, _evidence=None):
+    args = getattr(action, "arguments", None) or {}
+    raw = args.get("transferAmount")
+    if raw is None:
+        return None
+    return float(raw)
+
+
+def test_budget_exhausted_across_agents(
+    seed_state: dict[str, Any],
+    fineract_client: Any,
+    fineract_seed: Any,
+    ledger_snapshot: Any,
+    tmp_path: Path,
+) -> None:
+    if "account_type_savings" not in seed_state or "business_date" not in seed_state:
+        raise RuntimeError(
+            "seed-state.json is missing account_type_savings or business_date. "
+            f"Run: {_SEED_CMD}"
+        )
+    cert_path = _require_cert(seed_state)
+    agent_one = "fineract-lab-agent-1"
+    agent_two = "fineract-lab-agent-2"
+    group = "fineract-lab-swarm"
+
+    registry = GrantRegistry()
+    registry.grant(agent_id=agent_one, capability=_CAP, granted_by="lab")
+    registry.grant(agent_id=agent_two, capability=_CAP, granted_by="lab")
+    inner = DecisionEngine(scorer=_StubScorer(), authorizer=registry)
+    breaker = CircuitBreaker(
+        tmp_path / "breaker.db",
+        BreakerConfig(
+            max_decisions=None,
+            window_seconds=86400.0,
+            max_cumulative_amount=None,
+            max_consecutive_refusals=None,
+            groups={group: [agent_one, agent_two]},
+            group_volume_caps={group: 1000.0},
+        ),
+    )
+    guarded = GuardedEngine(inner, breaker, amount_fn=_amount_from_transfer)
+
+    req_one = f"req-budget-one-{uuid.uuid4().hex[:12]}"
+    req_two = f"req-budget-two-{uuid.uuid4().hex[:12]}"
+    body_one = _transfer_body(
+        seed_state,
+        to_account_id=int(seed_state["account_b_id"]),
+        request_id=req_one,
+        transfer_amount=900,
+    )
+    body_two = _transfer_body(
+        seed_state,
+        to_account_id=int(seed_state["account_b_id"]),
+        request_id=req_two,
+        transfer_amount=200,
+    )
+    action_one = AgentAction(
+        agent_id=agent_one,
+        capability=_CAP,
+        timestamp=time.time(),
+        arguments=copy.deepcopy(body_one),
+        request_id=req_one,
+    )
+    decided_one = guarded.decide(action_one)
+    assert decided_one.decision is Decision.ALLOW, decided_one.reason
+
+    kit = _mint_kit(
+        seed_state,
+        tmp_path,
+        request_id=req_one,
+        body=body_one,
+        cert_path=cert_path,
+        agent_id=agent_one,
+        decided=decided_one,
+        agent_action=action_one,
+    )
+    first = kit["dispatcher"].dispatch(
+        authorization=kit["authorization"],
+        payload=body_one,
+        context=kit["context"],
+    )
+    assert first.outcome == OUTCOME_EXECUTED, (
+        f"agent-one 900 must execute: outcome={first.outcome} "
+        f"reason={first.reason_code} detail={first.detail}"
+    )
+    assert first.sent is True
+    assert kit["transport"].write_count == 1
+
+    after_one = _refetch(fineract_seed, fineract_client, ledger_snapshot)
+    delta_one = {
+        name: Decimal(str(after_one[name]["accountBalance"]))
+        - ledger_snapshot.before[name]
+        for name in ("A", "B", "C")
+    }
+    assert delta_one["A"] == Decimal("-900"), delta_one
+    assert delta_one["B"] == Decimal("900"), delta_one
+    assert delta_one["C"] == Decimal("0"), delta_one
+    listed = fineract_client.request("GET", f"{fineract_seed.BASE}/accounttransfers")
+    one_ids = accounttransfer_ids_for_description(listed, kit["description"])
+    assert len(one_ids) == 1, one_ids
+
+    action_two = AgentAction(
+        agent_id=agent_two,
+        capability=_CAP,
+        timestamp=time.time(),
+        arguments=copy.deepcopy(body_two),
+        request_id=req_two,
+    )
+    decided_two = guarded.decide(action_two)
+    assert decided_two.decision is Decision.BLOCK, decided_two.reason
+    assert decided_two.triggered_by == "circuit_breaker"
+    assert "group_trip" in decided_two.reason
+    assert kit["transport"].write_count == 1
+
+    after_two = _refetch(fineract_seed, fineract_client, ledger_snapshot)
+    delta_two = {
+        name: Decimal(str(after_two[name]["accountBalance"]))
+        - ledger_snapshot.before[name]
+        for name in ("A", "B", "C")
+    }
+    assert delta_two == delta_one
+    total_moved = -(delta_two["A"])
+    assert total_moved == Decimal("900")
+    listed_again = fineract_client.request(
+        "GET", f"{fineract_seed.BASE}/accounttransfers"
+    )
+    two_ids = accounttransfer_ids_for_description(
+        listed_again, body_two["transferDescription"]
+    )
+    assert two_ids == set()
+    assert (
+        accounttransfer_ids_for_description(listed_again, kit["description"]) == one_ids
+    )
