@@ -258,7 +258,12 @@ reverted B→A 200 (`resourceId` 13); three more unmatched rows.
 The case 3 negative control posted agent two's A→B 200 directly after
 agent one had already moved 900 (bypassing the group breaker). Fineract
 created the transfer (`resourceId` 9). A B→A 200 revert restored
-balances. Those two extra rows also have no chain record.
+balances. Those two extra rows also have no chain record. A confirmatory
+run after a live case 3 execution (A 7900→7000, B 2100→3000) posted the
+same 200 body directly: Fineract accepted it (`resourceId` 19; A
+7000→6800, B 3000→3200). Reverted B→A 200 (`resourceId` 20). An earlier
+misfire of the same 200 while the test was unmarked (`resourceId` 16)
+was also reverted (`resourceId` 17).
 
 Case 4 joins chain `action_digest`s to Fineract transfers; it must start
 from a re-seeded lab (`docker compose down -v && docker compose up -d`,
