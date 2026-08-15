@@ -251,7 +251,9 @@ and have no corresponding decision-chain record.
 The case 2 negative control posted the identical A→B 100 body twice
 directly (Fineract created two transfers) and then posted a B→A 200 revert
 so balances returned to whatever they were after case 2's real success.
-Those three extra rows also have no chain record.
+Those three extra rows also have no chain record. A confirmatory re-run
+posted the same A→B 100 body twice again (`resourceId` 11 and 12) and
+reverted B→A 200 (`resourceId` 13); three more unmatched rows.
 
 The case 3 negative control posted agent two's A→B 200 directly after
 agent one had already moved 900 (bypassing the group breaker). Fineract
