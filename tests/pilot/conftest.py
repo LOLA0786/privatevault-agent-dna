@@ -7,9 +7,9 @@ from __future__ import annotations
 
 import importlib.util
 import json
-import os
 import re
 import ssl
+import uuid
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
@@ -30,6 +30,7 @@ _REQUIRED_STATE = (
     "office_id",
     "tenant_header",
     "tenant_id",
+    "payment_type_id",
 )
 
 
@@ -40,23 +41,50 @@ def pytest_configure(config: pytest.Config) -> None:
     )
 
 
+def pilot_markexpr_selected(config: pytest.Config) -> bool:
+    """True only when -m selects pilot. Env vars cannot opt in."""
+    markexpr = (config.option.markexpr or "").strip()
+    cleaned = re.sub(r"\bnot\s+pilot\b", "", markexpr)
+    return bool(re.search(r"\bpilot\b", cleaned))
+
+
+def require_seed_state() -> dict[str, Any]:
+    if not _SEED_STATE.is_file():
+        _fail_seed(f"{_SEED_STATE} is missing.")
+    try:
+        data = json.loads(_SEED_STATE.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        _fail_seed(f"{_SEED_STATE} is malformed ({exc}).")
+    if not isinstance(data, dict):
+        _fail_seed(f"{_SEED_STATE} is malformed (not an object).")
+    missing = [key for key in _REQUIRED_STATE if key not in data]
+    if missing:
+        _fail_seed(
+            f"{_SEED_STATE} is missing (stale seed file, required keys "
+            f"{missing} absent)."
+        )
+    return data
+
+
 def pytest_collection_modifyitems(
     config: pytest.Config, items: list[pytest.Item]
 ) -> None:
-    markexpr = (config.option.markexpr or "").strip()
-    cleaned = re.sub(r"\bnot\s+pilot\b", "", markexpr)
-    selected = os.environ.get("FINERACT_PILOT") == "1" or bool(
-        re.search(r"\bpilot\b", cleaned)
-    )
-    if selected:
+    if pilot_markexpr_selected(config):
         return
     skip = pytest.mark.skip(
-        reason="Fineract lab pilot; run with pytest -m pilot after: "
-        + _SEED_CMD
+        reason="Fineract lab pilot; run with pytest -m pilot after: " + _SEED_CMD
     )
     for item in items:
         if item.get_closest_marker("pilot"):
             item.add_marker(skip)
+
+
+def pytest_runtest_setup(item: pytest.Item) -> None:
+    if item.get_closest_marker("pilot") is None:
+        return
+    if not pilot_markexpr_selected(item.config):
+        pytest.skip("Fineract lab pilot; run with pytest -m pilot after: " + _SEED_CMD)
+    require_seed_state()
 
 
 def _seed_module() -> Any:
@@ -74,14 +102,23 @@ def _fail_seed(reason: str) -> None:
 
 
 def transfer_description(
-    *, request_id: str | None = None, action_digest: str | None = None
+    *,
+    run_id: str,
+    request_id: str | None = None,
+    action_digest: str | None = None,
 ) -> str:
-    """Value for Fineract transferDescription.
+    """Opaque string for POST /accounttransfers transferDescription.
 
-    The join between our decision chain and Fineract's ledger is this
-    description string. That is a weak correlator, not a cryptographic
-    binding. Do not treat a match as proof the bytes were bound.
+    Hop 1: we choose this string; Fineract stores it on the
+    /v1/accounttransfers record as transferDescription. That is not a
+    cryptographic binding. The run_id prefixes every transfer in one
+    pytest -m pilot session so case 4 can join this run without treating
+    earlier runs' rows as orphans.
+    Hop 2: the savings transaction has no description field. Join by
+    transactions[].transfer.id to the accounttransfers id.
     """
+    if not run_id or not str(run_id):
+        raise ValueError("run_id is required")
     if request_id is not None and str(request_id):
         token = str(request_id)
     elif action_digest is not None and str(action_digest):
@@ -89,7 +126,104 @@ def transfer_description(
         token = hexpart[:16]
     else:
         raise ValueError("request_id or action_digest is required")
-    return f"pv:{token}"
+    return f"pv:{run_id}:{token}"
+
+
+def _accounttransfer_items(payload: Any) -> list[dict[str, Any]]:
+    """Expected live 1.11.0 envelope: {totalFilteredRecords, pageItems}.
+
+    A bare list was never observed; still accepted so a shape change fails
+    at the join instead of at parse, with the expected keys named first.
+    """
+    if isinstance(payload, dict):
+        missing = [
+            key for key in ("totalFilteredRecords", "pageItems") if key not in payload
+        ]
+        if not missing:
+            items = payload["pageItems"]
+            if not isinstance(items, list):
+                raise RuntimeError(
+                    f"accounttransfers pageItems is not a list: {type(items)}"
+                )
+            return items
+        if "pageItems" in payload and isinstance(payload["pageItems"], list):
+            return payload["pageItems"]
+        raise RuntimeError(
+            "GET /accounttransfers expected {totalFilteredRecords, pageItems} "
+            f"(captured live at 1.11.0). missing={missing} keys={sorted(payload)}"
+        )
+    if isinstance(payload, list):
+        return payload
+    raise RuntimeError(
+        "GET /accounttransfers expected {totalFilteredRecords, pageItems} "
+        f"(captured live at 1.11.0); got {type(payload).__name__}"
+    )
+
+
+def accounttransfer_ids_for_description(payload: Any, description: str) -> set[int]:
+    """Hop 1: ids of /v1/accounttransfers rows with this transferDescription."""
+    found: set[int] = set()
+    for item in _accounttransfer_items(payload):
+        if not isinstance(item, dict):
+            raise RuntimeError(
+                f"accounttransfers item is not an object: {item!r}"[:500]
+            )
+        missing = [k for k in ("id", "transferDescription") if k not in item]
+        if missing:
+            raise RuntimeError(
+                f"accounttransfers item missing {missing}: {sorted(item)}"
+            )
+        if item["transferDescription"] == description:
+            found.add(int(item["id"]))
+    return found
+
+
+def all_accounttransfer_ids(payload: Any) -> set[int]:
+    found: set[int] = set()
+    for item in _accounttransfer_items(payload):
+        if not isinstance(item, dict) or "id" not in item:
+            raise RuntimeError(f"accounttransfers item missing id: {item!r}"[:500])
+        found.add(int(item["id"]))
+    return found
+
+
+def accounttransfer_ids_for_run(payload: Any, run_id: str) -> set[int]:
+    """Ids of /v1/accounttransfers rows whose description belongs to this run."""
+    prefix = f"pv:{run_id}:"
+    found: set[int] = set()
+    for item in _accounttransfer_items(payload):
+        if not isinstance(item, dict):
+            raise RuntimeError(
+                f"accounttransfers item is not an object: {item!r}"[:500]
+            )
+        missing = [k for k in ("id", "transferDescription") if k not in item]
+        if missing:
+            raise RuntimeError(
+                f"accounttransfers item missing {missing}: {sorted(item)}"
+            )
+        description = item["transferDescription"]
+        if isinstance(description, str) and description.startswith(prefix):
+            found.add(int(item["id"]))
+    return found
+
+
+def savings_nested_transfer_ids(transactions: Any) -> set[int]:
+    """Hop 2: transactions[].transfer.id. The savings row has no description."""
+    if not isinstance(transactions, list):
+        raise RuntimeError(f"savings transactions is not a list: {type(transactions)}")
+    found: set[int] = set()
+    for txn in transactions:
+        if not isinstance(txn, dict):
+            raise RuntimeError(f"savings transaction is not an object: {txn!r}"[:500])
+        nested = txn.get("transfer")
+        if nested is None:
+            continue
+        if not isinstance(nested, dict) or "id" not in nested:
+            raise RuntimeError(
+                f"savings transaction.transfer missing id: {nested!r}"[:500]
+            )
+        found.add(int(nested["id"]))
+    return found
 
 
 @dataclass(frozen=True)
@@ -118,20 +252,21 @@ class LedgerSnapshot:
         return {name: now[name] - self.before[name] for name in self.before}
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session")
+def dispatched_transfers() -> list[dict[str, str]]:
+    """action_digest + transferDescription pairs that actually reached Fineract."""
+    return []
+
+
+@pytest.fixture(scope="session")
+def pilot_run_id() -> str:
+    """One identifier for every transfer created in this pytest -m pilot session."""
+    return uuid.uuid4().hex[:12]
+
+
+@pytest.fixture(scope="session")
 def seed_state() -> dict[str, Any]:
-    if not _SEED_STATE.is_file():
-        _fail_seed(f"{_SEED_STATE} is missing.")
-    try:
-        data = json.loads(_SEED_STATE.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        _fail_seed(f"{_SEED_STATE} is malformed ({exc}).")
-    if not isinstance(data, dict):
-        _fail_seed(f"{_SEED_STATE} is malformed (not an object).")
-    missing = [key for key in _REQUIRED_STATE if key not in data]
-    if missing:
-        _fail_seed(f"{_SEED_STATE} is missing keys {missing}.")
-    return data
+    return require_seed_state()
 
 
 @pytest.fixture(scope="session")
@@ -161,7 +296,11 @@ def ledger_snapshot(
     }
     before = {
         name: Decimal(
-            str(fineract_seed.account_snapshot(fineract_client, account_id)["accountBalance"])
+            str(
+                fineract_seed.account_snapshot(fineract_client, account_id)[
+                    "accountBalance"
+                ]
+            )
         )
         for name, account_id in ids.items()
     }

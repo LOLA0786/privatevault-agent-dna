@@ -1,0 +1,112 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Regulated action coverage — PrivateVault</title><style>
+:root{--bg:#0b0d10;--elev:#11141a;--elev2:#151922;--line:#1c2129;--line2:#252b35;
+--text:#eceef1;--muted:#8a9099;--dim:#5c6370;--pass:#3d9a6a;--warn:#c4a35a;--info:#5b7f9e;
+--sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+*{box-sizing:border-box}html{background:var(--bg)}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.5}
+.wrap{max-width:1560px;margin:0 auto;padding:0 36px 72px}
+header{border-bottom:1px solid var(--line);padding:24px 0 20px;margin-bottom:26px;
+display:flex;justify-content:space-between;align-items:flex-end;gap:28px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:12px}
+.mark{width:32px;height:32px;border:1px solid var(--pass);border-radius:6px;display:grid;
+place-items:center;font:600 11px/1 var(--mono);color:var(--pass)}
+.bt{font-size:15px;font-weight:600}
+.bs{font:400 11px/1.4 var(--mono);color:var(--dim);letter-spacing:.09em;text-transform:uppercase;margin-top:3px}
+.stamp{font:400 11px/1.7 var(--mono);color:var(--dim);text-align:right}
+.stamp b{color:var(--muted);font-weight:400}
+.strip{display:grid;grid-template-columns:repeat(5,1fr);border:1px solid var(--line);
+border-radius:8px;background:var(--elev);overflow:hidden;margin-bottom:22px}
+.cell{padding:17px 20px;border-right:1px solid var(--line)}.cell:last-child{border-right:none}
+.k{font:400 10px/1 var(--mono);color:var(--dim);letter-spacing:.1em;text-transform:uppercase}
+.v{font:500 29px/1.1 var(--mono);margin:10px 0 5px;font-variant-numeric:tabular-nums}
+.sub{font-size:11.5px;color:var(--muted)}
+.ctrl{display:flex;gap:10px;margin-bottom:22px;flex-wrap:wrap;align-items:center}
+input#q{flex:1;min-width:260px;background:var(--elev);border:1px solid var(--line2);
+border-radius:6px;padding:10px 13px;color:var(--text);font:400 13px/1 var(--mono)}
+input#q:focus{outline:none;border-color:var(--pass)}
+.count{font:400 12px/1 var(--mono);color:var(--dim);white-space:nowrap}
+.uc{border:1px solid var(--line);border-radius:8px;background:var(--elev);margin-bottom:12px;overflow:hidden}
+.uch{display:grid;grid-template-columns:1fr 200px 78px 30px;align-items:center;gap:18px;
+padding:16px 20px;cursor:pointer;transition:background .12s}
+.uch:hover,.uch:focus-visible{background:var(--elev2);outline:none}
+.ucn{font-size:14px;font-weight:600}
+.uca{font:400 10.5px/1 var(--mono);color:var(--pass);letter-spacing:.06em;
+text-transform:uppercase;margin-top:6px}
+.bar{height:6px;background:#161a21;border-radius:2px;overflow:hidden}
+.fill{height:100%;background:var(--pass);opacity:.85;border-radius:2px}
+.n{font:500 16px/1 var(--mono);text-align:right;font-variant-numeric:tabular-nums}
+.chev{color:var(--dim);font-size:10px;text-align:right;transition:transform .15s}
+.uch[aria-expanded=true] .chev{transform:rotate(90deg)}
+.body{display:none;border-top:1px solid var(--line);background:#0e1116;max-height:460px;overflow:auto}
+.body.open{display:block}
+.t{display:grid;grid-template-columns:1fr 300px 96px;gap:16px;padding:8px 20px;
+border-bottom:1px solid #14181f;font:400 11.5px/1.5 var(--mono)}
+.t:last-child{border-bottom:none}
+.tf{color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tp{color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ts{color:var(--muted);text-align:right}
+mark{background:#2b3a2f;color:var(--pass)}
+.unm{border-color:#3a3120}.unm .fill{background:var(--warn)}.unm .uca{color:var(--warn)}
+footer{border-top:1px solid var(--line);padding-top:18px;margin-top:36px;display:flex;
+justify-content:space-between;gap:20px;flex-wrap:wrap;font:400 11px/1.6 var(--mono);color:var(--dim)}
+@media(max-width:1100px){.strip{grid-template-columns:repeat(3,1fr)}
+.uch{grid-template-columns:1fr 78px 30px}.uch .bar{display:none}
+.t{grid-template-columns:1fr 96px}.tp{display:none}}
+</style></head><body><div class="wrap">
+<header><div class="brand"><div class="mark">PV</div><div>
+<div class="bt">PrivateVault Agent DNA</div>
+<div class="bs">Regulated action coverage · every collected test</div></div></div>
+<div class="stamp">Generated <b id="g">—</b><br>Collection <b id="c">—</b> · pytest --collect-only</div>
+</header>
+<div class="strip" id="strip"></div>
+<div class="ctrl">
+<input id="q" placeholder="Filter by test name, file, stage, or use case…" autocomplete="off">
+<span class="count" id="cnt"></span></div>
+<div id="list"></div>
+<footer><div>Generated from pytest collection · tools/gen_meeting_dashboard.py</div>
+<div>PrivateVault Decision Security Engineering</div></footer>
+</div><script>
+const D=__PAYLOAD__;
+const $=s=>document.querySelector(s),num=n=>n.toLocaleString("en-US");
+const mapped=D.useCases.reduce((a,u)=>a+u.tests.length,0);
+document.getElementById("g").textContent=new Date(D.generated).toLocaleString("en-US",
+{year:"numeric",month:"short",day:"2-digit",hour:"2-digit",minute:"2-digit"});
+document.getElementById("c").textContent=D.collectLine||D.collected+" collected";
+[["Collected tests",num(D.collected),D.enumerated+" enumerated node IDs"],
+["Regulated use cases",D.useCases.length,"each backed by named tests"],
+["Mapped to a use case",num(mapped),(mapped/D.enumerated*100).toFixed(1)+"% of collection"],
+["Unmapped",num(D.unmapped.length),"listed in full, not hidden"],
+["Largest surface",D.useCases.length?num(Math.max(...D.useCases.map(u=>u.tests.length))):0,
+D.useCases.length?D.useCases.slice().sort((a,b)=>b.tests.length-a.tests.length)[0].name:"—"]]
+.forEach(([k,v,s])=>{const d=document.createElement("div");d.className="cell";
+d.innerHTML=`<div class="k">${k}</div><div class="v">${v}</div><div class="sub">${s}</div>`;
+$("#strip").appendChild(d)});
+const groups=D.useCases.slice().sort((a,b)=>b.tests.length-a.tests.length);
+if(D.unmapped.length)groups.push({id:"__un",name:"Unmapped by current rules",
+anchor:"tighten USE_CASES in the generator",tests:D.unmapped,un:1});
+const peak=Math.max(...groups.map(g=>g.tests.length),1);
+const esc=s=>s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+function hl(s,q){if(!q)return esc(s);const i=s.toLowerCase().indexOf(q);
+return i<0?esc(s):esc(s.slice(0,i))+"<mark>"+esc(s.slice(i,i+q.length))+"</mark>"+esc(s.slice(i+q.length))}
+function render(q){q=(q||"").trim().toLowerCase();$("#list").innerHTML="";let shown=0;
+groups.forEach(g=>{const hit=q?g.tests.filter(t=>(t.id+" "+t.stage+" "+g.name).toLowerCase().includes(q)):g.tests;
+if(q&&!hit.length&&!g.name.toLowerCase().includes(q))return;shown+=hit.length;
+const box=document.createElement("div");box.className="uc"+(g.un?" unm":"");
+box.innerHTML=`<div class="uch" role="button" tabindex="0" aria-expanded="${q?"true":"false"}">
+<div><div class="ucn">${g.name}</div><div class="uca">${g.anchor}</div></div>
+<div class="bar"><div class="fill" style="width:${(hit.length/peak*100).toFixed(1)}%"></div></div>
+<div class="n">${num(hit.length)}</div><div class="chev">▶</div></div>
+<div class="body${q?" open":""}">${hit.map(t=>
+`<div class="t"><div class="tf">${hl(t.fn,q)}</div><div class="tp">${hl(t.file,q)}</div>
+<div class="ts">${t.stage}</div></div>`).join("")||
+'<div class="t"><div class="tf" style="color:var(--dim)">no match</div></div>'}</div>`;
+const h=box.querySelector(".uch"),b=box.querySelector(".body");
+const tog=()=>{const o=b.classList.toggle("open");h.setAttribute("aria-expanded",o)};
+h.onclick=tog;h.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();tog()}};
+$("#list").appendChild(box)});
+$("#cnt").textContent=q?shown+" of "+num(D.enumerated)+" tests":num(D.enumerated)+" tests";}
+render("");$("#q").addEventListener("input",e=>render(e.target.value));
+</script></body></html>

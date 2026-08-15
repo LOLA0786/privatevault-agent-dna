@@ -1,0 +1,88 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>What the system stops — PrivateVault</title><style>
+:root{--bg:#0b0d10;--elev:#11141a;--elev2:#161a22;--line:#1c2129;--line2:#252b35;
+--text:#eceef1;--muted:#8a9099;--dim:#5c6370;--pass:#3d9a6a;--warn:#c4a35a;--risk:#c45c4a;
+--sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+*{box-sizing:border-box}html{background:var(--bg)}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.55}
+.wrap{max-width:1280px;margin:0 auto;padding:0 40px 80px}
+header{border-bottom:1px solid var(--line);padding:26px 0 22px;margin-bottom:30px;
+display:flex;justify-content:space-between;align-items:flex-end;gap:28px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:12px}
+.mark{width:32px;height:32px;border:1px solid var(--pass);border-radius:6px;display:grid;
+place-items:center;font:600 11px/1 var(--mono);color:var(--pass)}
+.bt{font-size:15px;font-weight:600}
+.bs{font:400 11px/1.4 var(--mono);color:var(--dim);letter-spacing:.09em;text-transform:uppercase;margin-top:3px}
+.stamp{font:400 11px/1.7 var(--mono);color:var(--dim);text-align:right}
+.stamp b{color:var(--muted);font-weight:400}
+.lede{font-size:16px;color:var(--muted);max-width:760px;margin:0 0 30px}
+.lede b{color:var(--text);font-weight:600}
+.sc{border:1px solid var(--line);border-radius:10px;background:var(--elev);margin-bottom:16px;overflow:hidden}
+.sch{padding:22px 26px;cursor:pointer;transition:background .12s}
+.sch:hover,.sch:focus-visible{background:var(--elev2);outline:none}
+.meta{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:11px}
+.pill{font:400 10px/1 var(--mono);letter-spacing:.07em;text-transform:uppercase;
+padding:4px 8px;border-radius:3px;border:1px solid var(--line2);color:var(--dim)}
+.pill.reg{color:var(--pass);border-color:#1f3a2b;background:#101a15}
+.sct{font-size:19px;font-weight:600;letter-spacing:-.015em;margin-bottom:9px;
+display:flex;justify-content:space-between;gap:20px;align-items:baseline}
+.cite{font:400 11.5px/1 var(--mono);color:var(--dim);white-space:nowrap}
+.story{color:var(--muted);max-width:820px;margin-bottom:14px}
+.out{display:flex;gap:10px;align-items:center;font:500 12.5px/1 var(--mono);color:var(--pass)}
+.out .b{width:6px;height:6px;border-radius:50%;background:var(--pass)}
+.body{display:none;border-top:1px solid var(--line);background:#0e1116;padding:8px 26px 22px}
+.body.open{display:block}
+.step{border-left:2px solid var(--line2);padding:16px 0 16px 22px;margin-left:6px;position:relative}
+.step:last-child{padding-bottom:6px}
+.step::before{content:"";position:absolute;left:-5px;top:22px;width:8px;height:8px;
+border-radius:50%;background:var(--pass);border:2px solid var(--bg)}
+.step.none::before{background:var(--warn)}
+.step.none{border-left-color:#3a3120}
+.sl{display:flex;justify-content:space-between;gap:18px;align-items:baseline;margin-bottom:4px}
+.sn{font-size:13.5px;font-weight:600}
+.sq{font:400 11.5px/1 var(--mono);color:var(--muted);white-space:nowrap}
+.sq.none{color:var(--warn)}
+.sw{font-size:12.5px;color:var(--muted);margin-bottom:10px}
+.tl{display:flex;flex-wrap:wrap;gap:5px}
+.tt{font:400 11px/1 var(--mono);color:var(--muted);background:#141821;
+border:1px solid var(--line2);border-radius:3px;padding:5px 8px}
+.more{font:400 11px/1 var(--mono);color:var(--dim);padding:5px 2px}
+footer{border-top:1px solid var(--line);padding-top:20px;margin-top:44px;display:flex;
+justify-content:space-between;gap:20px;flex-wrap:wrap;font:400 11px/1.6 var(--mono);color:var(--dim)}
+@media(max-width:760px){.wrap{padding:0 18px 56px}.sct{flex-direction:column;gap:6px}}
+</style></head><body><div class="wrap">
+<header><div class="brand"><div class="mark">PV</div><div>
+<div class="bt">PrivateVault Agent DNA</div>
+<div class="bs">What the system stops · proven by the test suite</div></div></div>
+<div class="stamp">Generated <b id="g">—</b><br><b id="c">—</b></div></header>
+<p class="lede">Six situations a regulated institution actually faces when an AI agent
+holds authority over money. Each one is walked step by step, and every step names the
+tests in this repository that prove it holds. <b>Expand any scenario to see the tests.</b></p>
+<div id="list"></div>
+<footer><div>Generated from live pytest collection · tools/gen_scenarios.py</div>
+<div>PrivateVault Decision Security Engineering</div></footer></div>
+<script>
+const D=__PAYLOAD__,$=s=>document.querySelector(s),n=x=>x.toLocaleString("en-US");
+$("#g").textContent=new Date(D.generated).toLocaleString("en-US",
+{year:"numeric",month:"short",day:"2-digit",hour:"2-digit",minute:"2-digit"});
+$("#c").textContent=D.collectLine+" · "+n(D.distinctTestsCited)+" distinct tests cited";
+D.scenarios.forEach(s=>{const box=document.createElement("div");box.className="sc";
+box.innerHTML=`<div class="sch" role="button" tabindex="0" aria-expanded="false">
+<div class="meta"><span class="pill">${s.sector}</span><span class="pill reg">${s.anchor}</span></div>
+<div class="sct"><span>${s.title}</span><span class="cite">${n(s.total)} test citations ▸</span></div>
+<div class="story">${s.story}</div>
+<div class="out"><span class="b"></span>${s.outcome}</div></div>
+<div class="body">${s.steps.map(st=>`
+<div class="step${st.count?"":" none"}">
+<div class="sl"><span class="sn">${st.label}</span>
+<span class="sq${st.count?"":" none"}">${st.count?n(st.count)+" tests":"UNPROVEN — no matching test"}</span></div>
+<div class="sw">${st.what}</div>
+<div class="tl">${st.tests.map(t=>`<span class="tt">${t.fn}</span>`).join("")}
+${st.more?`<span class="more">+${n(st.more)} more</span>`:""}</div></div>`).join("")}</div>`;
+const h=box.querySelector(".sch"),b=box.querySelector(".body");
+const t=()=>{const o=b.classList.toggle("open");h.setAttribute("aria-expanded",o)};
+h.onclick=t;h.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();t()}};
+$("#list").appendChild(box)});
+</script></body></html>

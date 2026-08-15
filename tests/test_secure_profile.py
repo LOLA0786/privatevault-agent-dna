@@ -15,9 +15,9 @@ from agent_dna.authority_v01 import (
 )
 from agent_dna.composition import RuntimeConfig, build_production_runtime
 from agent_dna.connector.adapters.execution_trust import (
-    validate_execution_trust_bundle,
     DISPATCH_WITNESS_KEY_ENV,
     EXECUTION_TRUST_BUNDLE_ENV,
+    validate_execution_trust_bundle,
 )
 from agent_dna.signer_python import ReceiptSigner
 

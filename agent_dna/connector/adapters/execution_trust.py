@@ -64,9 +64,9 @@ def validate_execution_trust_bundle(bundle: Mapping[str, Any]) -> dict[str, Any]
             f"{EXECUTION_TRUST_BUNDLE_ENV} missing required key usages: "
             + ", ".join(sorted(missing))
         )
-    shared = holders["execution_authorization_signer"] & holders[
-        "dispatch_witness_signer"
-    ]
+    shared = (
+        holders["execution_authorization_signer"] & holders["dispatch_witness_signer"]
+    )
     if shared:
         raise RuntimeError(
             f"{EXECUTION_TRUST_BUNDLE_ENV} key(s) {', '.join(sorted(shared))} hold "

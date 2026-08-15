@@ -68,16 +68,10 @@ def decision_case(name, **kw):
         prev_hash=kw.get("prev_hash", GENESIS),
     ).seal()
 
-    # Rust DRP 0.2 does not yet seal dispatch_context_digest (Phase 1 Python
-    # first). Skip RS hash compare for bound v0.2 records until rust/ catches up.
-    if version == DRP_V02 and dispatch_context_digest is not None:
-        print(f"SKIP rust parity for {name}: rust lacks dispatch_context_digest")
-        HASHES[name] = (py.record_hash, None)
-        return
-
     rs = pv_runtime.DecisionRecord(
         protocol_version=version,
         action_digest=action_digest,
+        dispatch_context_digest=dispatch_context_digest,
         decision_id=kw["decision_id"],
         agent_id=kw["agent_id"],
         capability=kw["capability"],
@@ -258,13 +252,14 @@ decision_case(
     timestamp=1785000000.0,
 )
 
-# Agreement alone is not enough. If action_digest were decoration rather
-# than part of the hashed payload, both implementations could agree on a
-# single hash for all three variants below -- and every case above would
-# still report PASS.
+# Agreement alone is not enough. If action_digest or
+# dispatch_context_digest were decoration rather than part of the hashed
+# payload, both implementations could agree on a single hash for all
+# four variants below -- and every case above would still report PASS.
 _DISTINCT = [
     "v0.2 bound to an execution action",
     "v0.2 differing only in action_digest",
+    "v0.2 differing only in dispatch_context_digest",
     "v0.1 alongside v0.2, same fields otherwise",
 ]
 for _side, _label in ((0, "python"), (1, "rust")):

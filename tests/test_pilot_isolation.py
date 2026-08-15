@@ -33,7 +33,12 @@ _SKIP_DIR_NAMES = frozenset(
     }
 )
 _NAMES = frozenset({"pilot", "fineract", "seabaas"})
-_TERM = re.compile(r"(?i)\b(pilot|fineract|seabaas)\b")
+# `pilot` alone matches ordinary prose ("pilot deployment", "pilot scope")
+# in apikeys.py and server.py. Path-anchor it. fineract/seabaas are
+# unambiguous as bare words and stay as-is.
+_TERM = re.compile(
+    r"(?i)(pilot[/\\]fineract|tests[./\\]pilot|\bfineract\b|\bseabaas\b)"
+)
 
 # Allowlist is empty. Each candidate from the brief was opened:
 # - pytest marker: registered in tests/pilot/conftest.py pytest_configure
@@ -57,7 +62,10 @@ def _python_files() -> list[Path]:
             resolved = path.resolve()
             if resolved == self_path:
                 continue
-            if excluded_pilot_tests in resolved.parents or resolved == excluded_pilot_tests:
+            if (
+                excluded_pilot_tests in resolved.parents
+                or resolved == excluded_pilot_tests
+            ):
                 continue
             if any(part in _SKIP_DIR_NAMES for part in resolved.parts):
                 continue
