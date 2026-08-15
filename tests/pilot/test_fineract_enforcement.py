@@ -1,7 +1,4 @@
-"""Case 1: payload mutated after ALLOW never opens a Fineract connection.
-
-Cases 2-4 are not in this file.
-"""
+"""Fineract enforcement cases 1–2. Cases 3–4 are not in this file."""
 
 from __future__ import annotations
 
@@ -26,9 +23,13 @@ from agent_dna.authority_v01 import (
     encode_public_key,
     sha256_digest,
 )
-from agent_dna.authorize_binding import bind_authorize_to_sealed_allow
+from agent_dna.authorize_binding import (
+    EXECUTION_AUTHORIZATION_CONSUMED,
+    bind_authorize_to_sealed_allow,
+)
 from agent_dna.connector.adapters.exact_byte_http import (
     OUTCOME_CONTROL_FAILURE,
+    OUTCOME_EXECUTED,
     ExactByteContext,
     ExactByteHttpDispatcher,
     TlsHttpsSidecarTransport,
@@ -46,7 +47,10 @@ from agent_dna.execution_v01 import (
 from agent_dna.grants import GrantRegistry
 from agent_dna.sqlite_store import SQLiteDecisionStore
 from agent_dna.trace import AgentAction
-from tests.pilot.conftest import transfer_description
+from tests.pilot.conftest import (
+    accounttransfer_ids_for_description,
+    transfer_description,
+)
 
 pytestmark = pytest.mark.pilot
 
@@ -71,16 +75,38 @@ class _StubScorer:
         )
 
 
-class _ConnectCountingTransport(TlsHttpsSidecarTransport):
-    """Real TLS transport; counts connect() so a refusal is observable."""
+class _InstrumentedSession:
+    """Delegates to the real TLS session; counts write() only."""
+
+    def __init__(self, inner: Any, parent: _InstrumentedTransport) -> None:
+        self._inner = inner
+        self._parent = parent
+        self.peer_identity_bytes = inner.peer_identity_bytes
+
+    def write(self, wire: bytes, *, operation: str):
+        self._parent.write_count += 1
+        return self._inner.write(wire, operation=operation)
+
+    def close(self) -> None:
+        self._inner.close()
+
+    @property
+    def closed(self) -> bool:
+        return self._inner.closed
+
+
+class _InstrumentedTransport(TlsHttpsSidecarTransport):
+    """Real TLS transport; counts connect/write so refusals are observable."""
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.connect_count = 0
+        self.write_count = 0
 
     def connect(self, destination: str, *, credential_audience: str = ""):
         self.connect_count += 1
-        return super().connect(destination, credential_audience=credential_audience)
+        inner = super().connect(destination, credential_audience=credential_audience)
+        return _InstrumentedSession(inner, self)
 
 
 def _rfc3339_now() -> str:
@@ -102,6 +128,7 @@ def _transfer_body(
     *,
     to_account_id: int,
     request_id: str,
+    transfer_amount: int,
 ) -> dict[str, Any]:
     """README section 4 body, filled from seed-state (not the example ids)."""
     return {
@@ -116,7 +143,7 @@ def _transfer_body(
         "dateFormat": "dd MMMM yyyy",
         "locale": "en",
         "transferDate": seed_state["business_date"],
-        "transferAmount": 500,
+        "transferAmount": transfer_amount,
         "transferDescription": transfer_description(request_id=request_id),
     }
 
@@ -219,11 +246,13 @@ def test_payload_mutated_after_allow(
         seed_state,
         to_account_id=int(seed_state["account_b_id"]),
         request_id=request_id,
+        transfer_amount=500,
     )
     mutated_body = _transfer_body(
         seed_state,
         to_account_id=int(seed_state["account_c_id"]),
         request_id=request_id,
+        transfer_amount=500,
     )
     assert mutated_body["toClientId"] == authorized_body["toClientId"]
     assert mutated_body["toAccountId"] != authorized_body["toAccountId"]
@@ -308,7 +337,7 @@ def test_payload_mutated_after_allow(
         runtime_key,
     )
 
-    transport = _ConnectCountingTransport(
+    transport = _InstrumentedTransport(
         credentials_headers=_basic_headers(seed_state),
         allowed_destinations=frozenset([_DESTINATION, "localhost"]),
         allowed_audiences=frozenset([_DESTINATION]),
@@ -387,4 +416,222 @@ def test_payload_mutated_after_allow(
         )
         assert after_count == counts_before[name], (
             f"{name} transaction_count changed {counts_before[name]} -> {after_count}"
+        )
+
+
+def _mint_kit(
+    seed_state: dict[str, Any],
+    tmp_path: Path,
+    *,
+    request_id: str,
+    body: dict[str, Any],
+    cert_path: str,
+) -> dict[str, Any]:
+    action = _execution_action(body)
+    ea_dispatch = _ea_dispatch()
+    wire = serialize_json_payload(body)
+    registry = GrantRegistry()
+    registry.grant(agent_id=_AGENT, capability=_CAP, granted_by="lab")
+    engine = DecisionEngine(scorer=_StubScorer(), authorizer=registry)
+    agent_action = AgentAction(
+        agent_id=_AGENT,
+        capability=_CAP,
+        timestamp=time.time(),
+        arguments=copy.deepcopy(body),
+        request_id=request_id,
+    )
+    decided = engine.decide(agent_action)
+    assert decided.decision is Decision.ALLOW, decided.reason
+    store = SQLiteDecisionStore(str(tmp_path / f"pilot-consume-{request_id}.db"))
+    record = DecisionRecorder(store=store).record(
+        agent_action,
+        decided,
+        execution_action=action,
+        dispatch_context=_dispatch_context(),
+    )
+    assert record.protocol_version == DRP_V02
+    assert record.verify()
+    receipt = "sha256:" + record.record_hash
+    bind_reason = bind_authorize_to_sealed_allow(
+        record.to_dict(),
+        agent_id=_AGENT,
+        decision_receipt_digest=receipt,
+        action=action,
+        dispatch=ea_dispatch,
+        record_hash=record.record_hash,
+    )
+    assert bind_reason is None
+    runtime_key = SigningKey.generate()
+    witness_key = SigningKey.generate()
+    trust_bundle = _trust_bundle(runtime_key, witness_key)
+    now = _rfc3339_now()
+    ea_id = f"eauth-{uuid.uuid4()}"
+    authorization = sign_execution_authorization(
+        {
+            "spec": EXECUTION_AUTHORIZATION_SPEC,
+            "canonicalization": CANONICALIZATION,
+            "execution_authorization_id": ea_id,
+            "organisation_id": _ORG,
+            "request_id": request_id,
+            "issued_at": now,
+            "not_before": now,
+            "expires_at": "2099-01-01T00:00:00Z",
+            "nonce": uuid.uuid4().hex,
+            "decision_receipt_digest": receipt,
+            "authority_receipt_digest": _ONE,
+            "approval_artifact_digest": _Z,
+            "action": action,
+            "action_digest": execution_action_digest(action),
+            "expected_wire_bytes_digest": sha256_bytes_digest(wire),
+            "expected_wire_bytes_length": len(wire),
+            "expected_peer_identity_digest": sha256_bytes_digest(
+                ssl.PEM_cert_to_DER_cert(Path(cert_path).read_text(encoding="utf-8"))
+            ),
+            "dispatch": ea_dispatch,
+            "state_snapshot_digest": _Z,
+            "policy_bundle_digest": _ONE,
+            "trust_bundle_digest": sha256_digest(trust_bundle),
+            "obligations_digest": _Z,
+            "max_uses": 1,
+            "signer_key_id": "ea-signer",
+        },
+        runtime_key,
+    )
+    transport = _InstrumentedTransport(
+        credentials_headers=_basic_headers(seed_state),
+        allowed_destinations=frozenset([_DESTINATION, "localhost"]),
+        allowed_audiences=frozenset([_DESTINATION]),
+        ca_file=cert_path,
+        timeout_s=30.0,
+        tls_verify=True,
+    )
+    dispatcher = ExactByteHttpDispatcher(
+        consume_ledger=store,
+        witness=WitnessSigner(
+            signing_key=witness_key,
+            signer_key_id="witness-01",
+            witness_component_id="fineract-pilot-egress",
+            closure_signer_key_id="witness-01",
+            closure_signing_key=witness_key,
+        ),
+        trust_bundle=trust_bundle,
+        transport=transport,
+    )
+    context = ExactByteContext(
+        request_id=request_id,
+        observed_action=copy.deepcopy(action),
+        observed_dispatch=copy.deepcopy(ea_dispatch),
+        decision_receipt_digest=receipt,
+        authority_receipt_digest=_ONE,
+        approval_artifact_digest=_Z,
+        state_snapshot_digest=_Z,
+        policy_bundle_digest=_ONE,
+        obligations_digest=_Z,
+        at_time=_rfc3339_now(),
+    )
+    return {
+        "authorization": authorization,
+        "dispatcher": dispatcher,
+        "transport": transport,
+        "store": store,
+        "ea_id": ea_id,
+        "context": context,
+        "description": body["transferDescription"],
+    }
+
+
+def _refetch(fineract_seed: Any, fineract_client: Any, ledger_snapshot: Any):
+    return {
+        name: fineract_seed.account_snapshot(fineract_client, account_id)
+        for name, account_id in ledger_snapshot.account_ids.items()
+    }
+
+
+def test_permit_replay(
+    seed_state: dict[str, Any],
+    fineract_client: Any,
+    fineract_seed: Any,
+    ledger_snapshot: Any,
+    tmp_path: Path,
+) -> None:
+    if "account_type_savings" not in seed_state or "business_date" not in seed_state:
+        raise RuntimeError(
+            "seed-state.json is missing account_type_savings or business_date. "
+            f"Run: {_SEED_CMD}"
+        )
+    cert_path = _require_cert(seed_state)
+    request_id = f"req-replay-{uuid.uuid4().hex[:12]}"
+    body = _transfer_body(
+        seed_state,
+        to_account_id=int(seed_state["account_b_id"]),
+        request_id=request_id,
+        transfer_amount=100,
+    )
+    kit = _mint_kit(
+        seed_state,
+        tmp_path,
+        request_id=request_id,
+        body=body,
+        cert_path=cert_path,
+    )
+    dispatcher = kit["dispatcher"]
+    transport = kit["transport"]
+    store = kit["store"]
+    ea_id = kit["ea_id"]
+
+    first = dispatcher.dispatch(
+        authorization=kit["authorization"],
+        payload=body,
+        context=kit["context"],
+    )
+    assert first.outcome == OUTCOME_EXECUTED, (
+        f"first dispatch must succeed: outcome={first.outcome} "
+        f"reason={first.reason_code} detail={first.detail}"
+    )
+    assert first.sent is True
+    assert first.tool_executed is True
+    assert first.closure is not None
+    assert first.closure["response_status"] == "200"
+    assert transport.write_count == 1
+    assert store.is_execution_authorization_consumed(ea_id)
+
+    after_first = _refetch(fineract_seed, fineract_client, ledger_snapshot)
+    delta_first = {
+        name: Decimal(str(after_first[name]["accountBalance"]))
+        - ledger_snapshot.before[name]
+        for name in ("A", "B", "C")
+    }
+    assert delta_first["A"] == Decimal("-100"), delta_first
+    assert delta_first["B"] == Decimal("100"), delta_first
+    assert delta_first["C"] == Decimal("0"), delta_first
+    listed = fineract_client.request("GET", f"{fineract_seed.BASE}/accounttransfers")
+    first_ids = accounttransfer_ids_for_description(listed, kit["description"])
+    assert len(first_ids) == 1, first_ids
+
+    second = dispatcher.dispatch(
+        authorization=kit["authorization"],
+        payload=body,
+        context=kit["context"],
+    )
+    assert second.sent is False
+    assert second.outcome == OUTCOME_CONTROL_FAILURE
+    assert second.reason_code == EXECUTION_AUTHORIZATION_CONSUMED
+    assert transport.write_count == 1
+
+    after_replay = _refetch(fineract_seed, fineract_client, ledger_snapshot)
+    delta_replay = {
+        name: Decimal(str(after_replay[name]["accountBalance"]))
+        - ledger_snapshot.before[name]
+        for name in ("A", "B", "C")
+    }
+    assert delta_replay == delta_first
+    listed_again = fineract_client.request(
+        "GET", f"{fineract_seed.BASE}/accounttransfers"
+    )
+    replay_ids = accounttransfer_ids_for_description(listed_again, kit["description"])
+    assert replay_ids == first_ids
+    for name in ("A", "B", "C"):
+        assert (
+            after_replay[name]["transaction_count"]
+            == after_first[name]["transaction_count"]
         )

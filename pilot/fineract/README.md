@@ -246,11 +246,17 @@ at test start (`ledger_snapshot.delta()`), never absolute balances.
 The case 1 negative control posted the mutated A→C 500 transfer directly to
 Fineract (bypassing the adapter) and then posted a C→A 500 revert so
 balances returned to 10000/0/0. Those two transfers remain on the ledger
-and have no corresponding decision-chain record. Case 4 joins chain
-`action_digest`s to Fineract transfers; it must start from a re-seeded lab
-(`docker compose down -v && docker compose up -d`, then `python3 seed.py`)
-or the extra rows will look like dispatch that never went through
-PrivateVault.
+and have no corresponding decision-chain record.
+
+The case 2 negative control posted the identical A→B 100 body twice
+directly (Fineract created two transfers) and then posted a B→A 200 revert
+so balances returned to whatever they were after case 2's real success.
+Those three extra rows also have no chain record.
+
+Case 4 joins chain `action_digest`s to Fineract transfers; it must start
+from a re-seeded lab (`docker compose down -v && docker compose up -d`,
+then `python3 seed.py`) or the extra rows will look like dispatch that
+never went through PrivateVault.
 
 ## What seed.py creates
 
