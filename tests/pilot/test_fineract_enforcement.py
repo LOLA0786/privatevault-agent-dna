@@ -53,7 +53,7 @@ from agent_dna.sqlite_store import SQLiteDecisionStore
 from agent_dna.trace import AgentAction
 from tests.pilot.conftest import (
     accounttransfer_ids_for_description,
-    all_accounttransfer_ids,
+    accounttransfer_ids_for_run,
     transfer_description,
 )
 
@@ -134,6 +134,7 @@ def _transfer_body(
     to_account_id: int,
     request_id: str,
     transfer_amount: int,
+    run_id: str,
 ) -> dict[str, Any]:
     """README section 4 body, filled from seed-state (not the example ids)."""
     return {
@@ -149,7 +150,9 @@ def _transfer_body(
         "locale": "en",
         "transferDate": seed_state["business_date"],
         "transferAmount": transfer_amount,
-        "transferDescription": transfer_description(request_id=request_id),
+        "transferDescription": transfer_description(
+            run_id=run_id, request_id=request_id
+        ),
     }
 
 
@@ -233,6 +236,7 @@ def test_payload_mutated_after_allow(
     fineract_seed: Any,
     ledger_snapshot: Any,
     tmp_path: Path,
+    pilot_run_id: str,
 ) -> None:
     if "account_type_savings" not in seed_state or "business_date" not in seed_state:
         raise RuntimeError(
@@ -254,12 +258,14 @@ def test_payload_mutated_after_allow(
         to_account_id=int(seed_state["account_b_id"]),
         request_id=request_id,
         transfer_amount=500,
+        run_id=pilot_run_id,
     )
     mutated_body = _transfer_body(
         seed_state,
         to_account_id=int(seed_state["account_c_id"]),
         request_id=request_id,
         transfer_amount=500,
+        run_id=pilot_run_id,
     )
     assert mutated_body["toClientId"] == authorized_body["toClientId"]
     assert mutated_body["toAccountId"] != authorized_body["toAccountId"]
@@ -566,6 +572,7 @@ def test_permit_replay(
     ledger_snapshot: Any,
     tmp_path: Path,
     dispatched_transfers: list[dict[str, str]],
+    pilot_run_id: str,
 ) -> None:
     if "account_type_savings" not in seed_state or "business_date" not in seed_state:
         raise RuntimeError(
@@ -579,6 +586,7 @@ def test_permit_replay(
         to_account_id=int(seed_state["account_b_id"]),
         request_id=request_id,
         transfer_amount=100,
+        run_id=pilot_run_id,
     )
     kit = _mint_kit(
         seed_state,
@@ -673,6 +681,7 @@ def test_budget_exhausted_across_agents(
     ledger_snapshot: Any,
     tmp_path: Path,
     dispatched_transfers: list[dict[str, str]],
+    pilot_run_id: str,
 ) -> None:
     if "account_type_savings" not in seed_state or "business_date" not in seed_state:
         raise RuntimeError(
@@ -708,12 +717,14 @@ def test_budget_exhausted_across_agents(
         to_account_id=int(seed_state["account_b_id"]),
         request_id=req_one,
         transfer_amount=900,
+        run_id=pilot_run_id,
     )
     body_two = _transfer_body(
         seed_state,
         to_account_id=int(seed_state["account_b_id"]),
         request_id=req_two,
         transfer_amount=200,
+        run_id=pilot_run_id,
     )
     action_one = AgentAction(
         agent_id=agent_one,
@@ -809,7 +820,19 @@ def test_chain_verifies_independently(
     ledger_snapshot: Any,
     tmp_path: Path,
     dispatched_transfers: list[dict[str, str]],
+    pilot_run_id: str,
 ) -> None:
+    """This run's dispatched action_digests match this run's Fineract transfers.
+
+    Proves: every action_digest that reached dispatch in this pytest -m
+    pilot session has exactly one Fineract transfer whose description
+    carries this session's run id, and every Fineract transfer bearing
+    that run id has exactly one such digest.
+
+    Does not prove: the ledger contains nothing else. Transfers from
+    earlier runs, negative controls, or anything outside this session's
+    correlator are out of scope by construction.
+    """
     if "account_type_savings" not in seed_state or "business_date" not in seed_state:
         raise RuntimeError(
             "seed-state.json is missing account_type_savings or business_date. "
@@ -822,6 +845,7 @@ def test_chain_verifies_independently(
         to_account_id=int(seed_state["account_b_id"]),
         request_id=request_id,
         transfer_amount=50,
+        run_id=pilot_run_id,
     )
     kit = _mint_kit(
         seed_state,
@@ -867,16 +891,19 @@ def test_chain_verifies_independently(
     assert "VERDICT: PASS" in proc.stdout, proc.stdout
 
     listed = fineract_client.request("GET", f"{fineract_seed.BASE}/accounttransfers")
-    fineract_ids = all_accounttransfer_ids(listed)
+    this_run_ids = accounttransfer_ids_for_run(listed, pilot_run_id)
     joined: set[int] = set()
-    digests: set[str] = set()
+    digest_by_description: dict[str, str] = {}
+    prefix = f"pv:{pilot_run_id}:"
     for row in dispatched_transfers:
+        assert row["description"].startswith(prefix), row["description"]
         ids = accounttransfer_ids_for_description(listed, row["description"])
         assert len(ids) == 1, (row, ids)
         joined |= ids
-        digests.add(row["action_digest"])
-    assert joined == fineract_ids, (
-        f"chain digests and Fineract transfers diverged: "
-        f"joined={sorted(joined)} fineract={sorted(fineract_ids)}"
+        assert row["description"] not in digest_by_description, row["description"]
+        digest_by_description[row["description"]] = row["action_digest"]
+    assert joined == this_run_ids, (
+        f"this-run chain and Fineract transfers diverged: "
+        f"joined={sorted(joined)} this_run={sorted(this_run_ids)}"
     )
-    assert len(digests) == len(fineract_ids)
+    assert len(digest_by_description) == len(this_run_ids)

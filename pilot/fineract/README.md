@@ -137,7 +137,7 @@ Body (`PostAccountTransfersRequest` in `AccountTransfersApiResourceSwagger`):
   "locale": "en",
   "transferDate": "14 August 2026",
   "transferAmount": 500,
-  "transferDescription": "pv:<request_id or first 16 hex of action_digest>"
+  "transferDescription": "pv:<run_id>:<request_id or first 16 hex of action_digest>"
 }
 ```
 
@@ -177,9 +177,9 @@ The nested `transfer` object contains: `id`, `reversed`, `currency`,
 Join path:
 
 1. Our chain → `transferDescription` on `GET /v1/accounttransfers` → transfer
-   `id`. The string is one we choose (`pv:` plus `request_id`, or the first
-   16 hex of `action_digest`). Fineract stores it opaquely. That hop is not
-   a cryptographic binding.
+   `id`. The string is one we choose (`pv:` plus a per-session `run_id`, then
+   `request_id` or the first 16 hex of `action_digest`). Fineract stores it
+   opaquely. That hop is not a cryptographic binding.
 2. That transfer `id` → `transactions[].transfer.id` on the savings account.
 
 Helpers in `tests/pilot/conftest.py`: `transfer_description()`,
@@ -265,12 +265,12 @@ same 200 body directly: Fineract accepted it (`resourceId` 19; A
 misfire of the same 200 while the test was unmarked (`resourceId` 16)
 was also reverted (`resourceId` 17).
 
-Case 4 joins chain `action_digest`s that reached dispatch to Fineract
-transfers. Extra rows with no chain record fail that bijection. The lab
-was re-seeded (`docker compose down -v && docker compose up -d`, then
-`python3 seed.py`) before case 4 so prior negative-control residue is
-gone. If the lab is reused without a re-seed, case 4 will fail on those
-unmatched transfers — that is the assertion working.
+Case 4 joins this pytest session's dispatched `action_digest`s to Fineract
+transfers whose `transferDescription` carries this session's `run_id`.
+That bijection is both directions for this run only. It does not prove
+the ledger contains nothing else — earlier runs, negative-control posts,
+and any other source are out of scope by construction. The suite must
+pass twice on the same container without a re-seed.
 
 ## What seed.py creates
 

@@ -9,6 +9,7 @@ import importlib.util
 import json
 import re
 import ssl
+import uuid
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
@@ -101,16 +102,23 @@ def _fail_seed(reason: str) -> None:
 
 
 def transfer_description(
-    *, request_id: str | None = None, action_digest: str | None = None
+    *,
+    run_id: str,
+    request_id: str | None = None,
+    action_digest: str | None = None,
 ) -> str:
     """Opaque string for POST /accounttransfers transferDescription.
 
     Hop 1: we choose this string; Fineract stores it on the
     /v1/accounttransfers record as transferDescription. That is not a
-    cryptographic binding.
+    cryptographic binding. The run_id prefixes every transfer in one
+    pytest -m pilot session so case 4 can join this run without treating
+    earlier runs' rows as orphans.
     Hop 2: the savings transaction has no description field. Join by
     transactions[].transfer.id to the accounttransfers id.
     """
+    if not run_id or not str(run_id):
+        raise ValueError("run_id is required")
     if request_id is not None and str(request_id):
         token = str(request_id)
     elif action_digest is not None and str(action_digest):
@@ -118,7 +126,7 @@ def transfer_description(
         token = hexpart[:16]
     else:
         raise ValueError("request_id or action_digest is required")
-    return f"pv:{token}"
+    return f"pv:{run_id}:{token}"
 
 
 def _accounttransfer_items(payload: Any) -> list[dict[str, Any]]:
@@ -179,6 +187,26 @@ def all_accounttransfer_ids(payload: Any) -> set[int]:
     return found
 
 
+def accounttransfer_ids_for_run(payload: Any, run_id: str) -> set[int]:
+    """Ids of /v1/accounttransfers rows whose description belongs to this run."""
+    prefix = f"pv:{run_id}:"
+    found: set[int] = set()
+    for item in _accounttransfer_items(payload):
+        if not isinstance(item, dict):
+            raise RuntimeError(
+                f"accounttransfers item is not an object: {item!r}"[:500]
+            )
+        missing = [k for k in ("id", "transferDescription") if k not in item]
+        if missing:
+            raise RuntimeError(
+                f"accounttransfers item missing {missing}: {sorted(item)}"
+            )
+        description = item["transferDescription"]
+        if isinstance(description, str) and description.startswith(prefix):
+            found.add(int(item["id"]))
+    return found
+
+
 def savings_nested_transfer_ids(transactions: Any) -> set[int]:
     """Hop 2: transactions[].transfer.id. The savings row has no description."""
     if not isinstance(transactions, list):
@@ -228,6 +256,12 @@ class LedgerSnapshot:
 def dispatched_transfers() -> list[dict[str, str]]:
     """action_digest + transferDescription pairs that actually reached Fineract."""
     return []
+
+
+@pytest.fixture(scope="session")
+def pilot_run_id() -> str:
+    """One identifier for every transfer created in this pytest -m pilot session."""
+    return uuid.uuid4().hex[:12]
 
 
 @pytest.fixture(scope="session")
