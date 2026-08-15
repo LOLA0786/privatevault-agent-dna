@@ -243,6 +243,15 @@ The lab accumulates state. A second `pytest -m pilot` on the same container
 sees money already moved. Assertions must be deltas from a snapshot taken
 at test start (`ledger_snapshot.delta()`), never absolute balances.
 
+The case 1 negative control posted the mutated A→C 500 transfer directly to
+Fineract (bypassing the adapter) and then posted a C→A 500 revert so
+balances returned to 10000/0/0. Those two transfers remain on the ledger
+and have no corresponding decision-chain record. Case 4 joins chain
+`action_digest`s to Fineract transfers; it must start from a re-seeded lab
+(`docker compose down -v && docker compose up -d`, then `python3 seed.py`)
+or the extra rows will look like dispatch that never went through
+PrivateVault.
+
 ## What seed.py creates
 
 Two clients (`pv-pilot-client-a`, `pv-pilot-client-b`) and **three** savings
