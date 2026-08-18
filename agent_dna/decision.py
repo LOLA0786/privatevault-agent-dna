@@ -9,6 +9,7 @@ from enum import StrEnum
 from typing import Protocol, runtime_checkable
 
 from .advisory import AdvisorySignal, Severity
+from .amount import InvalidAmountError, coerce_amount
 from .evidence import EvidenceEngine, EvidenceReport
 from .trace import AgentAction
 
@@ -373,29 +374,31 @@ class DecisionEngine:
         elif hasattr(self.authorizer, "explain"):
             raw_amount = (action.arguments or {}).get("amount")
             amount = None
-            malformed = False
             if raw_amount is not None:
                 try:
-                    amount = float(raw_amount)
-                except (TypeError, ValueError):
-                    # Audit set 4: a garbage amount used to coerce
-                    # to None, silently SKIPPING the budget check
-                    # on a budgeted grant -- malformed input must
-                    # never widen authorization.
-                    malformed = True
-            if malformed:
-                authorized, auth_reason, grant_id = (
-                    False,
-                    f"malformed amount {raw_amount!r}: budget cannot "
-                    "be evaluated (fail-closed)",
-                    None,
-                )
-            else:
-                authorized, auth_reason, grant_id = self.authorizer.explain(
-                    action.agent_id,
-                    action.capability,
-                    amount=amount,
-                )
+                    amount = coerce_amount(raw_amount)
+                except InvalidAmountError as exc:
+                    return DecisionResult(
+                        decision=Decision.BLOCK,
+                        triggered_by="authorization",
+                        reason=str(exc),
+                        capability=action.capability,
+                        agent_id=action.agent_id,
+                        drift_score=signal.drift_score,
+                        severity=Severity.CRITICAL,
+                        invariant_message="",
+                        advisory_reasons=list(signal.reasons),
+                        evidence=self.evidence_engine.build(
+                            drift_score=signal.drift_score,
+                            invariant=True,
+                            authorized=False,
+                        ),
+                    )
+            authorized, auth_reason, grant_id = self.authorizer.explain(
+                action.agent_id,
+                action.capability,
+                amount=amount,
+            )
         else:
             authorized = self.authorizer.is_authorized(
                 action.agent_id, action.capability

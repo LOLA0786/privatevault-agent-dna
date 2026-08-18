@@ -6,6 +6,13 @@ and a named test that runs in CI.
 ## Unreleased
 
 ### Security
+- **Amount coercion:** grant budgets and circuit-breaker caps reject
+  bool, NaN, ±inf, negative, non-numeric, and over-ceiling amounts
+  with `INVALID_AMOUNT` before any spent or breaker-row mutation.
+  Coercion is `Decimal`, not `float()` (`tests/test_amount_coercion.py`).
+- **Stdio env isolation:** MCP stdio children receive an explicit
+  environment allowlist, not a copy of `os.environ`
+  (`tests/test_stdio_env_isolation.py`).
 - **Sidecar production audit (two-stage egress):** offline execution
   authorization verify before any socket; per-dispatch TLS sessions
   (no shared live connection); credential attachment requires

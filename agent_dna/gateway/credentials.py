@@ -16,6 +16,38 @@ from agent_dna.gateway.errors import CredentialLeakError
 GATEWAY_SESSION_HEADER = "X-PV-Gateway-Session"
 GATEWAY_SESSION_ENV = "PV_GATEWAY_SESSION_ID"
 
+# Names copied from the parent into a stdio child. Secrets, cloud
+# provider keys, and PV_* operator config are not on this list.
+STDIO_ENV_ALLOWLIST = frozenset(
+    {
+        "PATH",
+        "HOME",
+        "USER",
+        "LOGNAME",
+        "SHELL",
+        "LANG",
+        "LC_ALL",
+        "LC_CTYPE",
+        "LC_MESSAGES",
+        "LC_NUMERIC",
+        "TZ",
+        "TMPDIR",
+        "TMP",
+        "TEMP",
+        "SYSTEMROOT",
+        "WINDIR",
+        "COMSPEC",
+        "PATHEXT",
+    }
+)
+
+
+def _leaks_secret_name(name: str) -> bool:
+    upper = name.upper()
+    if upper.startswith(("PV_", "AWS_", "GOOGLE_", "ANTHROPIC_", "OPENAI_")):
+        return True
+    return upper.endswith("_KEY") or upper.endswith("_TOKEN")
+
 
 @dataclass(frozen=True)
 class UpstreamCredentials:
@@ -40,7 +72,13 @@ class UpstreamCredentials:
         *,
         session_id: str = "",
     ) -> dict[str, str]:
-        out = dict(base or {})
+        src = dict(base) if base is not None else {}
+        out: dict[str, str] = {}
+        for key in STDIO_ENV_ALLOWLIST:
+            if key in src and not _leaks_secret_name(key):
+                value = src[key]
+                if value:
+                    out[key] = value
         out.update(self.env)
         if session_id:
             out[GATEWAY_SESSION_ENV] = session_id

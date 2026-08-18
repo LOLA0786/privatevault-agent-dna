@@ -93,8 +93,8 @@ def test_malformed_amount_fails_authorization_closed():
         budget=100.0,
     )
     result = _engine(reg).decide(_act(amount="not-a-number"))
-    assert result.decision is Decision.REQUIRE_APPROVAL
-    assert "malformed amount" in result.reason
+    assert result.decision is Decision.BLOCK
+    assert "INVALID_AMOUNT" in result.reason
 
 
 def test_failing_spend_ledger_fails_closed(tmp_path):

@@ -30,6 +30,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from .amount import InvalidAmountError, coerce_amount
 from .decision import Decision, DecisionResult, Severity
 
 RESET_CAPABILITY = "breaker.reset"
@@ -252,7 +253,7 @@ class CircuitBreaker:
     # transactional preflight (P0-5)
     # ------------------------------------------------------------------
 
-    def reserve(self, agent_id: str, amount: float | None):
+    def reserve(self, agent_id: str, amount: object | None):
         """Pre-execution gate with PROJECTED counters (P0-5).
 
         Previously the breaker observed AFTER the inner decision, so
@@ -268,6 +269,9 @@ class CircuitBreaker:
         Returns (trip_reason, None) if blocked, else
         (None, reservation_id) -- pass the id to finalize() with the
         verdict."""
+        if amount is not None:
+            amount = coerce_amount(amount)
+        stored = None if amount is None else float(amount)
         pre = self.pre_gate(agent_id)
         if pre is not None:
             return pre, None
@@ -280,7 +284,7 @@ class CircuitBreaker:
             cur = conn.execute(
                 "INSERT INTO breaker_events (agent_id, ts, decision, amount) "
                 "VALUES (?, ?, 'reserved', ?)",
-                (agent_id, now, amount),
+                (agent_id, now, stored),
             )
             rid = cur.lastrowid
             reason = self._evaluate(agent_id, now)  # projected
@@ -497,7 +501,7 @@ class CircuitBreaker:
             self._local.conn = None
 
 
-def _default_amount(action, evidence: dict | None) -> float | None:
+def _default_amount(action, evidence: dict | None) -> object | None:
     amt = getattr(action, "amount", None)
     if amt is None:
         # P0-5: normal AgentAction amounts live here -- this path was
@@ -506,10 +510,9 @@ def _default_amount(action, evidence: dict | None) -> float | None:
         amt = args.get("amount")
     if amt is None and evidence:
         amt = evidence.get("amount")
-    try:
-        return float(amt) if amt is not None else None
-    except (TypeError, ValueError):
+    if amt is None:
         return None
+    return coerce_amount(amt)
 
 
 class GuardedEngine:
@@ -568,7 +571,28 @@ class GuardedEngine:
         # remaining budget inside the breaker's write transaction.
         try:
             amount = self._amount_fn(action, evidence)
+        except InvalidAmountError as exc:
+            return DecisionResult(
+                decision=Decision.BLOCK,
+                triggered_by="authorization",
+                reason=str(exc),
+                capability=action.capability,
+                agent_id=action.agent_id,
+                drift_score=0.0,
+                severity=Severity.CRITICAL,
+            )
+        try:
             reason, rid = self.breaker.reserve(action.agent_id, amount)
+        except InvalidAmountError as exc:
+            return DecisionResult(
+                decision=Decision.BLOCK,
+                triggered_by="authorization",
+                reason=str(exc),
+                capability=action.capability,
+                agent_id=action.agent_id,
+                drift_score=0.0,
+                severity=Severity.CRITICAL,
+            )
         except Exception as exc:
             # a faulting breaker must never become a bypass
             return self._blocked(action, f"breaker_fault: {type(exc).__name__}: {exc}")
