@@ -18,6 +18,9 @@ from __future__ import annotations
 import time
 import uuid
 from dataclasses import dataclass, field
+from decimal import Decimal
+
+from agent_dna.amount import InvalidAmountError, coerce_amount
 
 
 @dataclass
@@ -28,7 +31,7 @@ class CapabilityGrant:
     granted_by: str
     expires_at: float | None = None  # epoch seconds; None = no expiry
     budget: float | None = None  # cumulative amount ceiling; None = unmetered
-    spent: float = 0.0
+    spent: Decimal = field(default_factory=lambda: Decimal("0"))
     revoked: bool = False
     revoked_at: float | None = None
     revoked_by: str | None = None
@@ -104,6 +107,12 @@ class GrantRegistry:
         if not candidates:
             return False, f"no grant exists for '{capability}'", None
 
+        coerced_amount = None
+        if amount is not None:
+            try:
+                coerced_amount = coerce_amount(amount)
+            except InvalidAmountError as exc:
+                return False, str(exc), None
         reasons = []
         for g in candidates:
             if g.revoked:
@@ -112,22 +121,24 @@ class GrantRegistry:
             if g.expires_at is not None and now >= g.expires_at:
                 reasons.append(f"grant {g.grant_id[:14]} expired")
                 continue
-            if (
-                g.budget is not None
-                and amount is not None
-                and g.spent + amount > g.budget
-            ):
-                reasons.append(
-                    f"grant {g.grant_id[:14]} budget exceeded "
-                    f"({g.spent + amount:.2f} > {g.budget:.2f})"
-                )
-                continue
+            if g.budget is not None and coerced_amount is not None:
+                spent = coerce_amount(g.spent)
+                budget = coerce_amount(g.budget)
+                projected = spent + coerced_amount
+                if projected > budget:
+                    reasons.append(
+                        f"grant {g.grant_id[:14]} budget exceeded "
+                        f"({projected} > {budget})"
+                    )
+                    continue
             return True, f"grant {g.grant_id[:14]} valid", g.grant_id
 
         return False, "; ".join(reasons), None
 
-    def record_spend(self, grant_id: str, amount: float) -> None:
-        self._grants[grant_id].spent += amount
+    def record_spend(self, grant_id: str, amount: object) -> None:
+        delta = coerce_amount(amount)
+        current = coerce_amount(self._grants[grant_id].spent)
+        self._grants[grant_id].spent = current + delta
 
     # ---- authorizer protocol (drop-in for allowlist) -------------------
 

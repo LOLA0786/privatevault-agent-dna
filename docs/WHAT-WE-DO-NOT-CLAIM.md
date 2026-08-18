@@ -24,7 +24,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 1165+ automated tests, run in CI on every commit
+- 1210+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
@@ -84,7 +84,11 @@ first-class, restart-safe record kind is on our roadmap, not shipped.
 approval-token binding are shipped.** What is shipped and tested:
 grants with expiry, revocation, and cumulative budget, with failures
 naming their specific condition (e.g. "grant expired," "grant revoked
-by security@corp," "budget exceeded"). Revocation history is
+by security@corp," "budget exceeded"). Amounts on the grant-budget and
+circuit-breaker paths are coerced to `Decimal` before any spent or
+breaker-row mutation; bool, NaN, ±inf, negative, non-numeric, and
+over-ceiling values BLOCK with `INVALID_AMOUNT`
+(`tests/test_amount_coercion.py`). Revocation history is
 reconstructable from the audit trail alone. Delegation and rescoping
 are the next build.
 
@@ -359,7 +363,11 @@ What is shipped and tested (`tests/gateway/`):
   `resources/read`, and `resources/subscribe` before any bytes are written
   upstream. `resources/*` that read or subscribe are treated as
   consequential and gated through the same decide path
-  (`tests/gateway/test_protocol_hardening.py`).
+  (`tests/gateway/test_protocol_hardening.py`). A stdio upstream is
+  spawned with an explicit environment allowlist, not a copy of
+  `os.environ`; `PV_*`, cloud-provider, and `*_KEY`/`*_TOKEN` names do
+  not inherit except the declared upstream credential
+  (`tests/test_stdio_env_isolation.py`).
 - DENY / REQUIRE_APPROVAL return MCP errors and never forward.
 - Exact-byte binding on this transport: the gateway freezes the
   Content-Length–framed JSON-RPC payload it will write, digests those
