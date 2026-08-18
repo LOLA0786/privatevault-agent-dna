@@ -155,6 +155,9 @@ Properties that hold across the engine, each backed by named tests:
 - The store survives restarts with chain state intact
   (`test_restart_survival.py`) and concurrent writers
   (`test_multi_writer_safety.py`).
+- Payload mutation after ALLOW, permit replay, group-budget exhaustion,
+  and run-scoped chain bijection against Fineract
+  (`tests/pilot/test_fineract_enforcement.py`).
 
 ## Audit trail
 

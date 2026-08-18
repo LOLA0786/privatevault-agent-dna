@@ -40,27 +40,43 @@ _TERM = re.compile(
     r"(?i)(pilot[/\\]fineract|tests[./\\]pilot|\bfineract\b|\bseabaas\b)"
 )
 
-# Allowlist is empty. Each candidate from the brief was opened:
-# - pytest marker: registered in tests/pilot/conftest.py pytest_configure
-#   (that tree is excluded; pyproject.toml has no markers table).
-# - optional extra named pilot: pyproject.toml [project.optional-dependencies]
-#   has only "dev" and "integrations".
-# - CI job named pilot: .github/workflows/{ci,rust,policy-gate,codeql}.yml
-#   have no such job.
-_ALLOWLIST: frozenset[tuple[str, int, str]] = frozenset()
+# This file names the experiment in order to forbid it. The removal README
+# names the paths that must be deleted. Scanning either is a self-hit.
+_SKIP_RELATIVE = frozenset(
+    {
+        "tests/test_pilot_isolation.py",
+        "pilot/fineract/README.md",
+    }
+)
+
+# Honesty seam: one README claim-table row. Line numbers are the claim;
+# a second mention elsewhere in README.md is a new product dependency.
+_ALLOWLIST: frozenset[tuple[str, int, str]] = frozenset(
+    {
+        ("README.md", 159, "fineract"),
+        ("README.md", 160, "tests/pilot"),
+    }
+)
+
+
+def _relative(path: Path) -> str:
+    return path.resolve().relative_to(_REPO).as_posix()
+
+
+def _is_skipped(path: Path) -> bool:
+    return _relative(path) in _SKIP_RELATIVE
 
 
 def _python_files() -> list[Path]:
     files: list[Path] = []
     excluded_pilot_tests = (_REPO / "tests" / "pilot").resolve()
-    self_path = Path(__file__).resolve()
     for tree_name in _TREES:
         root = _REPO / tree_name
         if not root.is_dir():
             continue
         for path in root.rglob("*.py"):
             resolved = path.resolve()
-            if resolved == self_path:
+            if _is_skipped(resolved):
                 continue
             if (
                 excluded_pilot_tests in resolved.parents
@@ -114,39 +130,51 @@ def _term_hits(text: str, start_lineno: int) -> list[tuple[int, str]]:
     return hits
 
 
-def _string_literal_hits(tree: ast.AST) -> list[tuple[int, str]]:
-    hits: list[tuple[int, str]] = []
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Constant) and isinstance(node.value, str):
-            hits.extend(_term_hits(node.value, node.lineno))
-    return hits
-
-
 def _confirmed_non_python_files() -> list[Path]:
-    """Only paths opened and confirmed present. Missing names are omitted."""
+    """Only paths opened and confirmed present. Missing names are omitted.
+
+    pytest marker: registered in tests/pilot/conftest.py pytest_configure
+    (that tree is excluded; pyproject.toml has no markers table).
+    optional extra named pilot: pyproject.toml [project.optional-dependencies]
+    has only "dev" and "integrations".
+    CI job named pilot: .github/workflows/{ci,rust,policy-gate,codeql}.yml
+    have no such job.
+    """
     files: list[Path] = []
+    seen: set[Path] = set()
     for relative in (
         "pyproject.toml",
         "Dockerfile",
         "deploy/platform/Dockerfile.dashboard",
+        "README.md",
     ):
-        path = _REPO / relative
-        if path.is_file():
+        path = (_REPO / relative).resolve()
+        if path.is_file() and not _is_skipped(path):
             files.append(path)
+            seen.add(path)
     workflows = _REPO / ".github" / "workflows"
     if workflows.is_dir():
-        files.extend(sorted(p for p in workflows.iterdir() if p.is_file()))
+        for path in sorted(p.resolve() for p in workflows.iterdir() if p.is_file()):
+            if not _is_skipped(path):
+                files.append(path)
+                seen.add(path)
+    for path in _REPO.rglob("README.md"):
+        resolved = path.resolve()
+        if resolved in seen or _is_skipped(resolved):
+            continue
+        if any(part in _SKIP_DIR_NAMES for part in resolved.parts):
+            continue
+        files.append(resolved)
+        seen.add(resolved)
     return files
 
 
 def _format_hit(path: Path, lineno: int, term: str) -> str:
-    rel = path.relative_to(_REPO).as_posix()
-    return f"{rel}:{lineno}: {term}"
+    return f"{_relative(path)}:{lineno}: {term}"
 
 
 def _is_allowlisted(path: Path, lineno: int, term: str) -> bool:
-    rel = path.relative_to(_REPO).as_posix()
-    return (rel, lineno, term.lower()) in _ALLOWLIST
+    return (_relative(path), lineno, term.lower()) in _ALLOWLIST
 
 
 def test_core_does_not_reference_pilot() -> None:
@@ -163,12 +191,11 @@ def test_core_does_not_reference_pilot() -> None:
 
 
 def test_core_does_not_embed_pilot_in_literals_or_config() -> None:
-    """String literals and packaging/CI files must not name the experiment."""
+    """Comments, literals, and packaging/CI files must not name the experiment."""
     hits: list[str] = []
     for path in _python_files():
         source = path.read_text(encoding="utf-8")
-        tree = ast.parse(source, filename=str(path))
-        for lineno, term in _string_literal_hits(tree):
+        for lineno, term in _term_hits(source, 1):
             if not _is_allowlisted(path, lineno, term):
                 hits.append(_format_hit(path, lineno, term))
     for path in _confirmed_non_python_files():
@@ -179,3 +206,14 @@ def test_core_does_not_embed_pilot_in_literals_or_config() -> None:
     assert hits == [], "product references the deletable experiment:\n" + "\n".join(
         hits
     )
+
+
+def test_isolation_scan_skips_its_own_source() -> None:
+    """The scanner names the experiment. The removal README names the delete paths."""
+    python = {p.resolve() for p in _python_files()}
+    non_py = {p.resolve() for p in _confirmed_non_python_files()}
+    assert Path(__file__).resolve() not in python
+    assert Path(__file__).resolve() not in non_py
+    removal_readme = (_REPO / "pilot" / "fineract" / "README.md").resolve()
+    assert removal_readme not in python
+    assert removal_readme not in non_py

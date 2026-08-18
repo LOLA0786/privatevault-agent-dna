@@ -232,6 +232,11 @@ agent any other outbound path.
 **We still do not claim complete mediation** for effects that never
 call the sidecar (see below).
 
+**We do not claim a production core-banking integration.** This is an
+open-source core in a lab, a single instance, no production data, no
+Tier-1 deployment. No regulator has reviewed it. Evidence:
+`tests/pilot/test_fineract_enforcement.py`.
+
 ## Compliance
 
 **We do not claim compliance.** A signed, tamper-evident decision
