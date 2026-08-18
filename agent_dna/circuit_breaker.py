@@ -28,6 +28,7 @@ import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from decimal import Decimal
 from pathlib import Path
 
 from .amount import InvalidAmountError, coerce_amount
@@ -36,6 +37,19 @@ from .decision import Decision, DecisionResult, Severity
 RESET_CAPABILITY = "breaker.reset"
 RESET_GROUP_CAPABILITY = "breaker.reset_group"
 GENESIS = "0" * 64
+_DECIMAL_STORAGE_PREFIX = "decimal:"
+
+
+def _serialize_amount(value: Decimal | None) -> str | None:
+    if value is None:
+        return None
+    return f"{_DECIMAL_STORAGE_PREFIX}{value}"
+
+
+def _deserialize_amount(raw: object) -> Decimal:
+    if isinstance(raw, str) and raw.startswith(_DECIMAL_STORAGE_PREFIX):
+        raw = raw.removeprefix(_DECIMAL_STORAGE_PREFIX)
+    return coerce_amount(raw)
 
 
 @dataclass(frozen=True)
@@ -68,6 +82,15 @@ class CircuitBreaker:
     ) -> None:
         config = config if config is not None else BreakerConfig()
         self.config = config
+        self._max_cumulative_amount = (
+            None
+            if config.max_cumulative_amount is None
+            else coerce_amount(config.max_cumulative_amount)
+        )
+        self._group_volume_caps = {
+            group_id: coerce_amount(cap)
+            for group_id, cap in (config.group_volume_caps or {}).items()
+        }
         self._clock = clock
         self._path = str(path)
         # Thread-local connections — same rationale as
@@ -82,7 +105,7 @@ class CircuitBreaker:
                 agent_id TEXT NOT NULL,
                 ts REAL NOT NULL,
                 decision TEXT NOT NULL,
-                amount REAL
+                amount TEXT
             );
             CREATE INDEX IF NOT EXISTS idx_events_agent_ts
                 ON breaker_events (agent_id, ts);
@@ -135,15 +158,17 @@ class CircuitBreaker:
         self,
         agent_id: str,
         decision: str,
-        amount: float | None = None,
+        amount: object | None = None,
     ) -> str | None:
         """Record one verdict; trip if any threshold is crossed.
         Returns the trip reason if this observation tripped the breaker."""
+        coerced = None if amount is None else coerce_amount(amount)
+        stored = _serialize_amount(coerced)
         now = self._clock()
         self._conn.execute(
             "INSERT INTO breaker_events (agent_id, ts, decision, amount) "
             "VALUES (?, ?, ?, ?)",
-            (agent_id, now, decision, amount),
+            (agent_id, now, decision, stored),
         )
         self._conn.commit()
         reason = self._evaluate(agent_id, now)
@@ -167,17 +192,18 @@ class CircuitBreaker:
                     f"window (limit {cfg.max_decisions})"
                 )
 
-        if cfg.max_cumulative_amount is not None:
-            (total,) = self._conn.execute(
-                "SELECT COALESCE(SUM(amount), 0) FROM breaker_events "
+        if self._max_cumulative_amount is not None:
+            rows = self._conn.execute(
+                "SELECT amount FROM breaker_events "
                 "WHERE agent_id = ? AND ts >= ? AND amount IS NOT NULL",
                 (agent_id, since),
-            ).fetchone()
-            if total > cfg.max_cumulative_amount:
+            ).fetchall()
+            total = sum((_deserialize_amount(row[0]) for row in rows), Decimal("0"))
+            if total > self._max_cumulative_amount:
                 return (
                     f"volume_trip: cumulative {total:.2f} in "
                     f"{cfg.window_seconds}s window "
-                    f"(cap {cfg.max_cumulative_amount:.2f})"
+                    f"(cap {self._max_cumulative_amount:.2f})"
                 )
 
         if cfg.max_consecutive_refusals is not None:
@@ -216,16 +242,17 @@ class CircuitBreaker:
         for gid, members in cfg.groups.items():
             if agent_id not in members:
                 continue
-            cap = cfg.group_volume_caps.get(gid)
+            cap = self._group_volume_caps.get(gid)
             if cap is None:
                 continue
             marks = ",".join("?" * len(members))
-            (total,) = self._conn.execute(
-                f"SELECT COALESCE(SUM(amount), 0) FROM breaker_events "
+            rows = self._conn.execute(
+                f"SELECT amount FROM breaker_events "
                 f"WHERE agent_id IN ({marks}) AND ts >= ? "
                 f"AND amount IS NOT NULL",
                 (*members, since),
-            ).fetchone()
+            ).fetchall()
+            total = sum((_deserialize_amount(row[0]) for row in rows), Decimal("0"))
             if total > cap:
                 return (
                     gid,
@@ -271,7 +298,7 @@ class CircuitBreaker:
         verdict."""
         if amount is not None:
             amount = coerce_amount(amount)
-        stored = None if amount is None else float(amount)
+        stored = _serialize_amount(amount)
         pre = self.pre_gate(agent_id)
         if pre is not None:
             return pre, None
