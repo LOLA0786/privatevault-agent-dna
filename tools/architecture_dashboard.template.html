@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PrivateVault — test architecture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0b0d10;
+  --elev: #11141a;
+  --line: #1c2129;
+  --text: #eceef1;
+  --muted: #8a9099;
+  --dim: #5c6370;
+  --pass: #3d9a6a;
+  --warn: #c4a35a;
+  --risk: #c45c4a;
+  --hair: 1px solid var(--line);
+  --sans: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); }
+body {
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+code, .mono { font-family: var(--mono); }
+.wrap { max-width: 1440px; margin: 0 auto; padding: 28px 32px 0; }
+.kicker {
+  margin: 0 0 6px;
+  color: var(--dim);
+  font: 500 11px/1 var(--mono);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+.brand {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 24px;
+  padding-bottom: 20px;
+  border-bottom: var(--hair);
+}
+.brand h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -.03em;
+}
+.brand p { margin: 0; color: var(--muted); font-size: 13px; }
+.strip {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  border-bottom: var(--hair);
+}
+.metric { padding: 18px 20px 18px 0; border-right: var(--hair); }
+.metric:last-child { border-right: 0; padding-right: 0; }
+.metric b {
+  display: block;
+  font: 500 28px/1 var(--mono);
+  letter-spacing: -.04em;
+}
+.metric .sub { display: block; margin-top: 6px; color: var(--muted); font: 12px/1.35 var(--mono); }
+.metric.tight b { font-size: 15px; letter-spacing: -.02em; line-height: 1.2; padding-top: 8px; }
+section { padding: 36px 0 8px; border-bottom: var(--hair); }
+section h2 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.lede { margin: 0 0 22px; color: var(--muted); max-width: 760px; font-size: 13px; }
+.spine {
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  gap: 8px;
+}
+.stage {
+  border: var(--hair);
+  background: var(--elev);
+  padding: 12px 12px 14px;
+  min-height: 132px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.stage:hover, .stage[aria-expanded="true"] { border-color: #2c3340; }
+.stage .idx { color: var(--dim); font: 500 10px/1 var(--mono); letter-spacing: .12em; }
+.stage .name { font-size: 13px; font-weight: 500; letter-spacing: -.01em; }
+.stage .n { margin-top: auto; font: 500 20px/1 var(--mono); letter-spacing: -.03em; }
+.stage .meta { color: var(--dim); font: 11px/1.3 var(--mono); }
+.bar {
+  height: 2px;
+  background: var(--line);
+  margin-top: 4px;
+}
+.bar > i { display: block; height: 2px; background: var(--text); }
+.stage.has-zero .bar > i { background: var(--warn); }
+.other {
+  margin-top: 8px;
+  border: var(--hair);
+  background: var(--elev);
+  padding: 14px 16px;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 16px;
+  align-items: center;
+}
+.other .name { font-weight: 500; }
+.other .n { font: 500 20px/1 var(--mono); }
+.panel {
+  display: none;
+  margin-top: 12px;
+  border: var(--hair);
+  padding: 14px 16px 16px;
+}
+.panel.open { display: block; }
+.mods { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  display: inline-flex;
+  gap: 10px;
+  align-items: baseline;
+  border: var(--hair);
+  padding: 4px 8px;
+  font: 12px/1.3 var(--mono);
+  color: var(--text);
+}
+.chip.zero { color: var(--warn); border-color: #3a3424; }
+.invert {
+  display: grid;
+  grid-template-columns: 1.15fr .85fr;
+  gap: 36px;
+}
+.col-h {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: var(--hair);
+}
+.col-h h3 { margin: 0; font-size: 14px; font-weight: 500; }
+.col-h span { font: 12px/1 var(--mono); color: var(--dim); }
+.rank { list-style: none; margin: 0; padding: 0; }
+.rank li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 7px 0;
+  border-bottom: var(--hair);
+  font: 12px/1.35 var(--mono);
+}
+.rank .path { color: var(--dim); font-size: 11px; }
+.ibar { display: block; height: 2px; margin-top: 5px; background: var(--line); }
+.ibar > i { display: block; height: 2px; background: var(--text); }
+.zero-col .col-h h3 { color: var(--warn); }
+.clusters { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.cluster {
+  border: var(--hair);
+  background: var(--elev);
+  padding: 12px 14px;
+}
+.cluster.isolated { border-color: #2c3340; }
+.cluster h3 { margin: 0 0 4px; font-size: 13px; font-weight: 500; }
+.cluster .meta { color: var(--dim); font: 11px/1.4 var(--mono); margin-bottom: 8px; }
+.cluster ul { margin: 0; padding: 0; list-style: none; }
+.cluster li { padding: 3px 0; font: 12px/1.35 var(--mono); color: var(--muted); }
+.cluster li b { color: var(--text); font-weight: 500; }
+.more { margin-top: 10px; color: var(--muted); font: 12px/1.4 var(--mono); }
+.cross { display: grid; gap: 0; }
+.xrow {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.6fr) auto;
+  gap: 16px;
+  align-items: start;
+  padding: 11px 0 11px 12px;
+  border-top: var(--hair);
+  border-left: 2px solid var(--line);
+}
+.xrow.deep { border-left-color: var(--text); }
+.xrow .file { font: 12px/1.35 var(--mono); }
+.xrow .doc { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.xrow .path { color: var(--muted); font: 11px/1.45 var(--mono); }
+.xrow .n { font: 500 14px/1 var(--mono); }
+.unparsed { margin-top: 16px; font: 12px/1.4 var(--mono); color: var(--dim); }
+.unparsed.hot { color: var(--risk); }
+footer {
+  padding: 22px 32px 40px;
+  color: var(--dim);
+  font: 11px/1.5 var(--mono);
+  max-width: 1440px;
+  margin: 0 auto;
+}
+@media (max-width: 1100px) {
+  .strip, .spine, .invert, .clusters, .xrow { grid-template-columns: 1fr 1fr; }
+  .spine { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 720px) {
+  .strip, .spine, .invert, .clusters, .other, .xrow { grid-template-columns: 1fr; }
+  .wrap { padding: 20px 16px 0; }
+}
+</style>
+</head>
+<body data-pytest-collected="__PYTEST_COLLECTED__">
+<script type="application/json" id="map-data">__DATA_JSON__</script>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <div>
+        <p class="kicker">PrivateVault · Decision Security Engineering</p>
+        <h1>Test architecture</h1>
+      </div>
+      <p>agent_dna + api · AST import graph + pytest collection</p>
+    </div>
+    <div class="strip" id="strip"></div>
+  </header>
+  <main>
+    <section id="enforcement">
+      <h2>Enforcement path</h2>
+      <p class="lede">Ordered spine from identity to dispatch. Counts are pytest-collected tests in files that import a module assigned to the stage. Click a stage for its modules. Unmatched modules stay in other / supporting.</p>
+      <div class="spine" id="spine"></div>
+      <button class="other" id="other-btn" type="button"></button>
+      <div class="panel" id="stage-panel"></div>
+    </section>
+    <section id="coverage">
+      <h2>Coverage inversion</h2>
+      <p class="lede">Every agent_dna / api module, ranked by how many test files import it. Zero test-file imports are the next hardening surface — not a suite failure. Package <code>__init__</code> files with no direct importers are included.</p>
+      <div class="invert">
+        <div>
+          <div class="col-h"><h3>Load-bearing</h3><span id="load-count"></span></div>
+          <ol class="rank" id="load-rank"></ol>
+          <button class="more" id="load-toggle" type="button" hidden></button>
+          <ol class="rank" id="load-tail" hidden></ol>
+        </div>
+        <div class="zero-col">
+          <div class="col-h"><h3>Zero test-file imports</h3><span id="zero-count"></span></div>
+          <ol class="rank" id="zero-rank"></ol>
+        </div>
+      </div>
+    </section>
+    <section id="clusters">
+      <h2>Test clusters</h2>
+      <p class="lede">Files that share an identical agent_dna / api import set. Isolated files import none of those packages (spec, vector, schema). Singletons are collapsed.</p>
+      <div class="clusters" id="clusters"></div>
+      <button class="more" id="singleton-toggle" type="button"></button>
+      <div class="clusters" id="singletons" hidden></div>
+    </section>
+    <section id="cross">
+      <h2>Cross-layer edges</h2>
+      <p class="lede">A single test file that imports modules from more than one enforcement stage. These composition tests catch what per-stage checks cannot. A heavier left rule marks three or more stages.</p>
+      <div class="cross" id="cross"></div>
+    </section>
+    <p class="unparsed" id="unparsed"></p>
+  </main>
+</div>
+<footer>Generated from AST import graph + pytest collection · tools/gen_architecture.py · PrivateVault Decision Security Engineering</footer>
+<script>
+(function () {
+  const DATA = JSON.parse(document.getElementById("map-data").textContent);
+  const fmt = (n) => new Intl.NumberFormat("en-US").format(n);
+  const short = (name) => name.replace(/^agent_dna\./, "").replace(/^api\./, "api.");
+  const esc = (s) => String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+  const noun = (n, one, many) => n + " " + (n === 1 ? one : many);
+
+  function renderStrip() {
+    const p = DATA.pytest;
+    const spine = DATA.spineCoverage;
+    const collect = p.collectSeconds == null ? "—" : p.collectSeconds.toFixed(2) + "s";
+    const passSrc = DATA.suite.source === "configured" ? "configured" : DATA.suite.source;
+    const zeroClass = DATA.zeroImportModules ? "warn" : "pass";
+    const unparsedN = DATA.unparsed.length;
+    const stamp = DATA.generatedAt.replace("T", " ").replace("Z", " UTC");
+    document.getElementById("strip").innerHTML = [
+      metric("pytest collected", fmt(p.collected), p.lastLine || (fmt(DATA.astTestNames) + " AST test_*"), "pass"),
+      metric("pass rate", DATA.suite.passRatePercent + "%", passSrc + " · not measured here", ""),
+      metric("collection", collect, fmt(DATA.testFiles) + " files · " + fmt(DATA.astTestNames) + " AST names", ""),
+      metric("spine coverage", spine.imported + "/" + spine.total, "modules with ≥1 test-file import", ""),
+      metric("zero-import", fmt(DATA.zeroImportModules), "next hardening surface", zeroClass),
+      metric("generated", stamp, "generator " + DATA.generatorSeconds.toFixed(2) + "s", (unparsedN ? "risk " : "") + "tight")
+    ].join("");
+  }
+
+  function metric(label, value, sub, klass) {
+    return '<div class="metric ' + klass + '"><p class="kicker">' + esc(label) + "</p><b>" +
+      esc(value) + '</b><span class="sub">' + esc(sub) + "</span></div>";
+  }
+
+  function stageCard(stage, idx, maxTests) {
+    const pct = maxTests ? Math.round(100 * stage.tests / maxTests) : 0;
+    const i = idx == null ? "—" : String(idx).padStart(2, "0");
+    const zero = stage.zeroImportCount ? " has-zero" : "";
+    return '<button class="stage' + zero + '" type="button" data-stage="' + esc(stage.id) +
+      '"><span class="idx">' + i + '</span><span class="name">' + esc(stage.id) +
+      '</span><span class="n">' + fmt(stage.tests) + '</span><span class="meta">' +
+      noun(stage.moduleCount, "module", "modules") + " · " +
+      noun(stage.files, "file", "files") + '</span>' +
+      '<span class="bar"><i style="width:' + pct + '%"></i></span></button>';
+  }
+
+  function moduleChips(modules) {
+    return '<div class="mods">' + modules.map(function (m) {
+      const z = m.testFileImports === 0 ? " zero" : "";
+      return '<span class="chip' + z + '">' + esc(m.name) + "<b>" + m.testFileImports + "</b></span>";
+    }).join("") + "</div>";
+  }
+
+  let selected = null;
+  const byId = {};
+  DATA.spine.forEach((s) => { byId[s.id] = s; });
+  byId[DATA.other.id] = DATA.other;
+
+  function showStage(id) {
+    const panel = document.getElementById("stage-panel");
+    if (selected === id) {
+      selected = null;
+      panel.className = "panel";
+      panel.innerHTML = "";
+      document.querySelectorAll(".stage,[id='other-btn']").forEach((el) => el.setAttribute("aria-expanded", "false"));
+      return;
+    }
+    selected = id;
+    const stage = byId[id];
+    panel.className = "panel open";
+    panel.innerHTML = "<p class='kicker'>" + esc(stage.id) + "</p>" +
+      "<p class='lede' style='margin-bottom:12px'>" + fmt(stage.tests) + " collected tests · " +
+      fmt(stage.moduleCount) + " modules · " + fmt(stage.zeroImportCount) + " with zero test-file imports</p>" +
+      moduleChips(stage.modules);
+    document.querySelectorAll(".stage").forEach((el) => {
+      el.setAttribute("aria-expanded", el.getAttribute("data-stage") === id ? "true" : "false");
+    });
+    document.getElementById("other-btn").setAttribute("aria-expanded", id === DATA.other.id ? "true" : "false");
+  }
+
+  function renderSpine() {
+    const max = Math.max.apply(null, DATA.spine.map((s) => s.tests).concat([1]));
+    document.getElementById("spine").innerHTML = DATA.spine.map((s, i) => stageCard(s, i + 1, max)).join("");
+    const o = DATA.other;
+    document.getElementById("other-btn").innerHTML =
+      '<div><p class="kicker">Not on the spine</p><div class="name">' + esc(o.id) + "</div></div>" +
+      '<div class="n">' + fmt(o.tests) + "</div>" +
+      '<div class="meta mono">' + noun(o.moduleCount, "module", "modules") + " · " +
+      noun(o.files, "file", "files") + " · " +
+      fmt(o.zeroImportCount) + " zero-import</div>";
+    document.getElementById("spine").addEventListener("click", (ev) => {
+      const btn = ev.target.closest(".stage");
+      if (btn) showStage(btn.getAttribute("data-stage"));
+    });
+    document.getElementById("other-btn").addEventListener("click", () => showStage(DATA.other.id));
+  }
+
+  function rankRow(m, maxN, zero) {
+    const pct = zero || !maxN ? 0 : Math.max(3, Math.round(100 * m.testFileImports / maxN));
+    const bar = zero ? "" : '<span class="ibar"><i style="width:' + pct + '%"></i></span>';
+    const path = m.path ? esc(m.path) : "unresolved import";
+    return "<li><div>" + esc(m.name) + '<div class="path">' + path + "</div>" + bar +
+      "</div><b>" + m.testFileImports + "</b></li>";
+  }
+
+  function renderInversion() {
+    const load = DATA.loadBearing;
+    const zeros = DATA.zeroImports;
+    const maxN = load.length ? load[0].testFileImports : 1;
+    const featured = load.filter((m) => m.testFileImports >= 5);
+    const tail = load.filter((m) => m.testFileImports < 5);
+    document.getElementById("load-count").textContent = fmt(load.length) + " modules";
+    document.getElementById("zero-count").textContent = fmt(zeros.length) + " modules";
+    document.getElementById("load-rank").innerHTML = featured.map((m) => rankRow(m, maxN, false)).join("");
+    document.getElementById("zero-rank").innerHTML = zeros.map((m) => rankRow(m, 1, true)).join("");
+    const btn = document.getElementById("load-toggle");
+    const tailList = document.getElementById("load-tail");
+    if (tail.length) {
+      btn.hidden = false;
+      btn.textContent = "Show remaining " + fmt(tail.length) + " (fewer than 5 test-file imports)";
+      tailList.innerHTML = tail.map((m) => rankRow(m, maxN, false)).join("");
+      btn.addEventListener("click", () => {
+        const open = !tailList.hidden;
+        tailList.hidden = open;
+        btn.textContent = (open ? "Show remaining " : "Hide remaining ") +
+          fmt(tail.length) + " (fewer than 5 test-file imports)";
+      });
+    }
+  }
+
+  function clusterCard(c) {
+    const n = c.files.length;
+    const tests = c.files.reduce((a, f) => a + f.collected, 0);
+    const title = c.label || (n + " files · " + c.imports.length + " shared modules");
+    const imports = c.isolated
+      ? "No agent_dna / api import"
+      : c.imports.map(short).join(", ");
+    const files = c.files.map((f) => "<li><b>" + esc(f.path.replace(/^tests\//, "")) +
+      "</b> · " + f.collected + "</li>").join("");
+    return '<article class="cluster' + (c.isolated ? " isolated" : "") + '"><h3>' +
+      esc(title) + '</h3><div class="meta">' + n + " files · " + fmt(tests) +
+      " collected<br>" + esc(imports) + "</div><ul>" + files + "</ul></article>";
+  }
+
+  function renderClusters() {
+    const grouped = DATA.clusters.filter((c) => c.isolated || c.files.length >= 2);
+    const singles = DATA.clusters.filter((c) => !c.isolated && c.files.length === 1);
+    document.getElementById("clusters").innerHTML = grouped.map(clusterCard).join("");
+    document.getElementById("singletons").innerHTML = singles.map(clusterCard).join("");
+    const btn = document.getElementById("singleton-toggle");
+    btn.textContent = fmt(singles.length) + " singleton import sets — show";
+    btn.addEventListener("click", () => {
+      const box = document.getElementById("singletons");
+      const open = !box.hidden;
+      box.hidden = open;
+      btn.textContent = fmt(singles.length) + (open ? " singleton import sets — show" : " singleton import sets — hide");
+    });
+  }
+
+  function renderCross() {
+    document.getElementById("cross").innerHTML = DATA.crossLayer.map((row) => {
+      const deep = row.stages.length >= 3 ? " deep" : "";
+      const doc = row.doc ? '<div class="doc">' + esc(row.doc) + "</div>" : "";
+      return '<div class="xrow' + deep + '"><div class="file">' + esc(row.path) + doc +
+        '</div><div class="path">' + esc(row.stages.join(" × ")) + '</div><div class="n">' +
+        fmt(row.collected) + "</div></div>";
+    }).join("");
+  }
+
+  function renderUnparsed() {
+    const el = document.getElementById("unparsed");
+    const n = DATA.unparsed.length;
+    if (!n) {
+      el.textContent = "Unparsed (0) — none";
+      return;
+    }
+    el.className = "unparsed hot";
+    el.textContent = "Unparsed (" + n + ") — " + DATA.unparsed.map((u) => u.path + ": " + u.error).join(" · ");
+  }
+
+  renderStrip();
+  renderSpine();
+  renderInversion();
+  renderClusters();
+  renderCross();
+  renderUnparsed();
+})();
+</script>
+</body>
+</html>
