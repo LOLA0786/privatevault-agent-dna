@@ -77,6 +77,14 @@ and a named test that runs in CI.
   (`tests/test_consume_ledger.py`).
 
 ### Added
+- **Campfire hosted black-box evaluation pack**: source-free partner
+  zip plus operator bootstrap (`tools/init_campfire_blackbox.py`,
+  `tools/build_campfire_partner_pack.py`,
+  `tests/test_campfire_blackbox.py`). The pack is a hosted interface,
+  not complete mediation of Campfire's tool path. The evaluation
+  runtime sets `PV_BASELINE_CAPABILITIES` so the sandbox write is on
+  the synthetic baseline; default grant-plus-drift behaviour is
+  unchanged.
 - **Multi-agent on the live decide path**: definitional dual-control +
   structural approval CABI attached by default (`PV_CROSS_AGENT=1`),
   escalation-only on HTTP `POST /v1/decide` and connector middleware when

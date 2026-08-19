@@ -24,7 +24,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 1190+ automated tests, run in CI on every commit
+- 1220+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
@@ -288,6 +288,9 @@ Residual gaps we still do not claim closed:
   consumed (unless a later mint ledger is merged).
 - **Complete mediation** remains unsolved: an agent that never calls
   `/v1/decide` is not controlled by these flags.
+- **The Campfire black-box pack is a hosted interface**, not source
+  and not proof that Campfire's real tool path is mediated
+  (`docs/pilot/CAMPFIRE-BLACKBOX.md`, `tests/test_campfire_blackbox.py`).
 
 ## Latency and benchmark figures
 

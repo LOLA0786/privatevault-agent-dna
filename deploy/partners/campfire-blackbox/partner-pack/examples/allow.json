@@ -1,0 +1,27 @@
+{
+  "agent_id": "campfire-agent",
+  "capability": "campfire.files.write_sandbox",
+  "timestamp": 1753000000.0,
+  "arguments": {
+    "path": "/sandbox/notes.txt",
+    "content": "hello from the evaluation sandbox"
+  },
+  "request_id": "campfire-allow-001",
+  "execution_action": {
+    "subject_principal": "campfire-agent@campfire.eval",
+    "subject_key_id": "campfire-agent",
+    "action": "campfire.files.write_sandbox",
+    "resource": "files:sandbox",
+    "parameters": {
+      "path": "/sandbox/notes.txt",
+      "content": "hello from the evaluation sandbox"
+    }
+  },
+  "dispatch_context": {
+    "adapter": "https",
+    "transport": "https",
+    "operation": "PUT /sandbox/notes.txt",
+    "destination": "sandbox.campfire.eval",
+    "wire_content_type": "application/json"
+  }
+}

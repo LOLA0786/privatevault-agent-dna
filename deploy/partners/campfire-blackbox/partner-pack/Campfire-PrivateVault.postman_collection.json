@@ -1,0 +1,133 @@
+{
+  "info": {
+    "name": "Campfire PrivateVault evaluation",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Hosted black-box subset. 403 on decide is a BLOCK verdict. 202 must not execute. Authorize mints; it does not dispatch."
+  },
+  "variable": [
+    { "key": "BASE_URL", "value": "https://YOUR-HOSTED-PRIVATEVAULT-URL" },
+    { "key": "CAMPFIRE_API_KEY", "value": "" },
+    { "key": "CAMPFIRE_AUDIT_KEY", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "GET health",
+      "request": {
+        "method": "GET",
+        "url": "{{BASE_URL}}/health"
+      }
+    },
+    {
+      "name": "GET ready",
+      "request": {
+        "method": "GET",
+        "url": "{{BASE_URL}}/ready"
+      }
+    },
+    {
+      "name": "POST decide ALLOW",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "X-API-Key", "value": "{{CAMPFIRE_API_KEY}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"agent_id\": \"campfire-agent\",\n  \"capability\": \"campfire.files.write_sandbox\",\n  \"timestamp\": 1753000000.0,\n  \"arguments\": {\"path\": \"/sandbox/notes.txt\", \"content\": \"hello from the evaluation sandbox\"},\n  \"request_id\": \"campfire-allow-001\",\n  \"execution_action\": {\n    \"subject_principal\": \"campfire-agent@campfire.eval\",\n    \"subject_key_id\": \"campfire-agent\",\n    \"action\": \"campfire.files.write_sandbox\",\n    \"resource\": \"files:sandbox\",\n    \"parameters\": {\"path\": \"/sandbox/notes.txt\", \"content\": \"hello from the evaluation sandbox\"}\n  },\n  \"dispatch_context\": {\n    \"adapter\": \"https\",\n    \"transport\": \"https\",\n    \"operation\": \"PUT /sandbox/notes.txt\",\n    \"destination\": \"sandbox.campfire.eval\",\n    \"wire_content_type\": \"application/json\"\n  }\n}"
+        },
+        "url": "{{BASE_URL}}/v1/decide"
+      }
+    },
+    {
+      "name": "POST decide REVIEW",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "X-API-Key", "value": "{{CAMPFIRE_API_KEY}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"agent_id\": \"campfire-agent\",\n  \"capability\": \"campfire.files.write_sandbox\",\n  \"timestamp\": 1753000000.0,\n  \"arguments\": {\"path\": \"/sandbox/notes.txt\", \"content\": \"needs a human look\", \"review\": true},\n  \"request_id\": \"campfire-review-001\",\n  \"execution_action\": {\n    \"subject_principal\": \"campfire-agent@campfire.eval\",\n    \"subject_key_id\": \"campfire-agent\",\n    \"action\": \"campfire.files.write_sandbox\",\n    \"resource\": \"files:sandbox\",\n    \"parameters\": {\"path\": \"/sandbox/notes.txt\", \"content\": \"needs a human look\", \"review\": true}\n  },\n  \"dispatch_context\": {\n    \"adapter\": \"https\",\n    \"transport\": \"https\",\n    \"operation\": \"PUT /sandbox/notes.txt\",\n    \"destination\": \"sandbox.campfire.eval\",\n    \"wire_content_type\": \"application/json\"\n  }\n}"
+        },
+        "url": "{{BASE_URL}}/v1/decide"
+      }
+    },
+    {
+      "name": "POST decide BLOCK",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "X-API-Key", "value": "{{CAMPFIRE_API_KEY}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"agent_id\": \"campfire-agent\",\n  \"capability\": \"campfire.files.write_sandbox\",\n  \"timestamp\": 1753000000.0,\n  \"arguments\": {\"path\": \"/protected/secrets.txt\", \"content\": \"should never write\"},\n  \"request_id\": \"campfire-block-001\",\n  \"execution_action\": {\n    \"subject_principal\": \"campfire-agent@campfire.eval\",\n    \"subject_key_id\": \"campfire-agent\",\n    \"action\": \"campfire.files.write_sandbox\",\n    \"resource\": \"files:sandbox\",\n    \"parameters\": {\"path\": \"/protected/secrets.txt\", \"content\": \"should never write\"}\n  },\n  \"dispatch_context\": {\n    \"adapter\": \"https\",\n    \"transport\": \"https\",\n    \"operation\": \"PUT /protected/secrets.txt\",\n    \"destination\": \"sandbox.campfire.eval\",\n    \"wire_content_type\": \"application/json\"\n  }\n}"
+        },
+        "url": "{{BASE_URL}}/v1/decide"
+      }
+    },
+    {
+      "name": "POST authorize",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "X-API-Key", "value": "{{CAMPFIRE_API_KEY}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"request_id\": \"campfire-auth-001\",\n  \"agent_id\": \"campfire-agent\",\n  \"organisation_id\": \"campfire.eval\",\n  \"decision_id\": \"REPLACE_FROM_ALLOW_RECORD\",\n  \"action\": {\n    \"subject_principal\": \"campfire-agent@campfire.eval\",\n    \"subject_key_id\": \"campfire-agent\",\n    \"action\": \"campfire.files.write_sandbox\",\n    \"resource\": \"files:sandbox\",\n    \"parameters\": {\"path\": \"/sandbox/notes.txt\", \"content\": \"hello from the evaluation sandbox\"}\n  },\n  \"dispatch\": {\n    \"transport\": \"https\",\n    \"destination\": \"sandbox.campfire.eval\",\n    \"operation\": \"PUT /sandbox/notes.txt\",\n    \"wire_content_type\": \"application/json\",\n    \"wire_content_encoding\": \"identity\",\n    \"tool_id\": \"campfire.files.write_sandbox.v1\",\n    \"tool_schema_digest\": \"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\n    \"tool_artifact_digest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\n    \"credential_audience\": \"sandbox.campfire.eval\",\n    \"idempotency_key_digest\": \"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\n    \"retry_policy_digest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\"\n  },\n  \"expected_wire_bytes_digest\": \"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\n  \"expected_wire_bytes_length\": 0,\n  \"expected_peer_identity_digest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\n  \"decision_receipt_digest\": \"sha256:REPLACE_RECORD_HASH\",\n  \"authority_receipt_digest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\n  \"approval_artifact_digest\": \"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\n  \"state_snapshot_digest\": \"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\n  \"policy_bundle_digest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\n  \"obligations_digest\": \"sha256:0000000000000000000000000000000000000000000000000000000000000000\"\n}"
+        },
+        "url": "{{BASE_URL}}/v1/authorize"
+      }
+    },
+    {
+      "name": "POST outcome",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "X-API-Key", "value": "{{CAMPFIRE_API_KEY}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"decision_id\": \"REPLACE_FROM_RECORD\",\n  \"status\": \"ok\",\n  \"detail\": \"\"\n}"
+        },
+        "url": "{{BASE_URL}}/v1/outcome"
+      }
+    },
+    {
+      "name": "GET verify",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "X-API-Key", "value": "{{CAMPFIRE_AUDIT_KEY}}" }
+        ],
+        "url": "{{BASE_URL}}/v1/verify"
+      }
+    },
+    {
+      "name": "GET audit export",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "X-API-Key", "value": "{{CAMPFIRE_AUDIT_KEY}}" }
+        ],
+        "url": "{{BASE_URL}}/v1/audit/export"
+      }
+    },
+    {
+      "name": "GET envelope",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "X-API-Key", "value": "{{CAMPFIRE_API_KEY}}" }
+        ],
+        "url": "{{BASE_URL}}/v1/envelope/REPLACE_RECORD_HASH"
+      }
+    }
+  ]
+}

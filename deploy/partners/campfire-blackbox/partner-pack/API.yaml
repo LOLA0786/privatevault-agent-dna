@@ -1,0 +1,219 @@
+openapi: 3.0.3
+info:
+  title: PrivateVault Campfire evaluation API
+  version: 0.4.0
+  description: >
+    Hosted subset for the Campfire black-box evaluation. HTTP status on
+    /v1/decide is the verdict. 403 is BLOCK, not a retryable transport
+    error. 202 is pending approval and must not execute. /v1/authorize
+    mints a single-use permit and does not dispatch.
+servers:
+  - url: '{BASE_URL}'
+    variables:
+      BASE_URL:
+        default: https://YOUR-HOSTED-PRIVATEVAULT-URL
+paths:
+  /health:
+    get:
+      summary: Liveness
+      security: []
+      responses:
+        '200':
+          description: Process is up
+  /ready:
+    get:
+      summary: Store readiness
+      security: []
+      responses:
+        '200':
+          description: Store accepts queries
+        '503':
+          description: Not ready
+  /v1/decide:
+    post:
+      summary: Submit a proposed action
+      security:
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DecideRequest'
+      responses:
+        '200':
+          description: ALLOW. Only this status may proceed toward authorize.
+        '202':
+          description: REQUIRE_APPROVAL. Do not execute.
+        '403':
+          description: BLOCK verdict. Do not execute. Do not retry.
+        '401':
+          description: Missing or wrong-scope key
+        '422':
+          description: Malformed binding (partial fields or caller-authored digests)
+  /v1/authorize:
+    post:
+      summary: Mint a signed single-use execution authorization
+      description: >
+        Bound to a sealed ALLOW and exact-byte fields. Does not dispatch.
+      security:
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthorizeRequest'
+      responses:
+        '200':
+          description: Permit minted
+        '403':
+          description: Binding or organisation refused
+        '404':
+          description: Sealed decision not found
+        '422':
+          description: Malformed mint request
+  /v1/outcome:
+    post:
+      summary: Report what happened after a decision
+      security:
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OutcomeRequest'
+      responses:
+        '200':
+          description: Execution event sealed
+  /v1/verify:
+    get:
+      summary: Chain verification
+      security:
+        - apiKey: []
+        - auditKey: []
+      responses:
+        '200':
+          description: Per-agent chain results
+  /v1/audit/export:
+    get:
+      summary: Canonical JSONL export
+      security:
+        - apiKey: []
+        - auditKey: []
+      responses:
+        '200':
+          description: DRP JSONL
+  /v1/envelope/{record_hash}:
+    get:
+      summary: Detached signature envelope
+      security:
+        - apiKey: []
+      parameters:
+        - in: path
+          name: record_hash
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Envelope
+        '404':
+          description: No envelope
+components:
+  securitySchemes:
+    apiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: Full-scope Campfire key. Delivered separately.
+    auditKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: Audit-only key. Cannot call /v1/decide.
+  schemas:
+    DecideRequest:
+      type: object
+      required: [agent_id, capability, timestamp]
+      properties:
+        agent_id:
+          type: string
+        capability:
+          type: string
+        timestamp:
+          type: number
+        arguments:
+          type: object
+        request_id:
+          type: string
+        execution_action:
+          type: object
+          description: Five canonical fields. Do not include a digest.
+        dispatch_context:
+          type: object
+          description: Five context fields. Do not include a digest.
+    AuthorizeRequest:
+      type: object
+      required:
+        - request_id
+        - agent_id
+        - organisation_id
+        - action
+        - dispatch
+        - expected_wire_bytes_digest
+        - expected_wire_bytes_length
+        - expected_peer_identity_digest
+        - decision_receipt_digest
+        - authority_receipt_digest
+        - state_snapshot_digest
+        - policy_bundle_digest
+        - obligations_digest
+      properties:
+        request_id:
+          type: string
+        agent_id:
+          type: string
+        organisation_id:
+          type: string
+        decision_id:
+          type: string
+        record_hash:
+          type: string
+        action:
+          type: object
+        dispatch:
+          type: object
+        expected_wire_bytes_digest:
+          type: string
+        expected_wire_bytes_length:
+          type: integer
+        expected_peer_identity_digest:
+          type: string
+        decision_receipt_digest:
+          type: string
+        authority_receipt_digest:
+          type: string
+        approval_artifact_digest:
+          type: string
+          nullable: true
+        state_snapshot_digest:
+          type: string
+        policy_bundle_digest:
+          type: string
+        obligations_digest:
+          type: string
+    OutcomeRequest:
+      type: object
+      required: [decision_id, status]
+      properties:
+        decision_id:
+          type: string
+        status:
+          type: string
+          enum: [ok, error, refused, indeterminate]
+        detail:
+          type: string
+        response_digest:
+          type: string
