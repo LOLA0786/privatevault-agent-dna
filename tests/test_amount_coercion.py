@@ -149,6 +149,41 @@ def test_breaker_cap_rejects_negative_then_holds_limit(tmp_path) -> None:
     assert follow.decision is not Decision.ALLOW
 
 
+@pytest.mark.parametrize(
+    "raw",
+    [True, float("nan"), float("inf"), -1000, "not-a-number"],
+)
+def test_breaker_observe_rejects_invalid_before_mutation(tmp_path, raw) -> None:
+    breaker = CircuitBreaker(
+        tmp_path / "observe-breaker.db",
+        BreakerConfig(
+            max_decisions=None,
+            max_cumulative_amount=Decimal("100"),
+            max_consecutive_refusals=None,
+        ),
+    )
+
+    with pytest.raises(InvalidAmountError):
+        breaker.observe(AGENT, Decision.ALLOW.value, amount=raw)
+
+    (events,) = breaker._conn.execute(
+        "SELECT COUNT(*) FROM breaker_events WHERE agent_id = ?",
+        (AGENT,),
+    ).fetchone()
+    assert events == 0
+    assert breaker.observe(AGENT, Decision.ALLOW.value, amount="100") is None
+
+
+def test_breaker_decimal_boundary_is_exact(tmp_path) -> None:
+    guarded = _guarded_breaker(tmp_path, cap=Decimal("0.3"))
+
+    first = guarded.decide(_act("0.1"))
+    second = guarded.decide(_act("0.2"))
+
+    assert first.decision is Decision.ALLOW
+    assert second.decision is Decision.ALLOW
+
+
 def test_nan_does_not_poison_spent(tmp_path) -> None:
     """'NaN' must not poison spent; any later amount still faces the limit."""
     reg, guarded = _guarded_grant(tmp_path, budget=100.0)
