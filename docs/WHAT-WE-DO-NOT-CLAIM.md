@@ -291,6 +291,9 @@ Residual gaps we still do not claim closed:
 - **The Campfire black-box pack is a hosted interface**, not source
   and not proof that Campfire's real tool path is mediated
   (`docs/pilot/CAMPFIRE-BLACKBOX.md`, `tests/test_campfire_blackbox.py`).
+  Replay/byte-mutation refusal is the reference exact-byte test, not a
+  live partner dispatch test, unless that tool path is routed through
+  the dispatcher.
 
 ## Latency and benchmark figures
 

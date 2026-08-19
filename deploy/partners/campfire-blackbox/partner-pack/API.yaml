@@ -144,6 +144,7 @@ components:
           type: string
         timestamp:
           type: number
+          description: Current Unix time in seconds. Replace stale sample values before submission.
         arguments:
           type: object
         request_id:
@@ -213,7 +214,11 @@ components:
         status:
           type: string
           enum: [ok, error, refused, indeterminate]
+          description: ok only if the tool actually ran. Use refused or omit the outcome if it was not dispatched.
         detail:
           type: string
+        dispatched:
+          type: boolean
+          description: Required true when status is ok. False or omitted with ok is HTTP 409.
         response_digest:
           type: string

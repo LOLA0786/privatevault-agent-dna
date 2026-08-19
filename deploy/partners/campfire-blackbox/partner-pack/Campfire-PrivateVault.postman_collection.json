@@ -34,7 +34,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"agent_id\": \"campfire-agent\",\n  \"capability\": \"campfire.files.write_sandbox\",\n  \"timestamp\": 1753000000.0,\n  \"arguments\": {\"path\": \"/sandbox/notes.txt\", \"content\": \"hello from the evaluation sandbox\"},\n  \"request_id\": \"campfire-allow-001\",\n  \"execution_action\": {\n    \"subject_principal\": \"campfire-agent@campfire.eval\",\n    \"subject_key_id\": \"campfire-agent\",\n    \"action\": \"campfire.files.write_sandbox\",\n    \"resource\": \"files:sandbox\",\n    \"parameters\": {\"path\": \"/sandbox/notes.txt\", \"content\": \"hello from the evaluation sandbox\"}\n  },\n  \"dispatch_context\": {\n    \"adapter\": \"https\",\n    \"transport\": \"https\",\n    \"operation\": \"PUT /sandbox/notes.txt\",\n    \"destination\": \"sandbox.campfire.eval\",\n    \"wire_content_type\": \"application/json\"\n  }\n}"
+          "raw": "{\n  \"agent_id\": \"campfire-agent\",\n  \"capability\": \"campfire.files.write_sandbox\",\n  \"timestamp\": {{$timestamp}},\n  \"arguments\": {\"path\": \"/sandbox/notes.txt\", \"content\": \"hello from the evaluation sandbox\"},\n  \"request_id\": \"campfire-allow-001\",\n  \"execution_action\": {\n    \"subject_principal\": \"campfire-agent@campfire.eval\",\n    \"subject_key_id\": \"campfire-agent\",\n    \"action\": \"campfire.files.write_sandbox\",\n    \"resource\": \"files:sandbox\",\n    \"parameters\": {\"path\": \"/sandbox/notes.txt\", \"content\": \"hello from the evaluation sandbox\"}\n  },\n  \"dispatch_context\": {\n    \"adapter\": \"https\",\n    \"transport\": \"https\",\n    \"operation\": \"PUT /sandbox/notes.txt\",\n    \"destination\": \"sandbox.campfire.eval\",\n    \"wire_content_type\": \"application/json\"\n  }\n}"
         },
         "url": "{{BASE_URL}}/v1/decide"
       }
@@ -49,7 +49,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"agent_id\": \"campfire-agent\",\n  \"capability\": \"campfire.files.write_sandbox\",\n  \"timestamp\": 1753000000.0,\n  \"arguments\": {\"path\": \"/sandbox/notes.txt\", \"content\": \"needs a human look\", \"review\": true},\n  \"request_id\": \"campfire-review-001\",\n  \"execution_action\": {\n    \"subject_principal\": \"campfire-agent@campfire.eval\",\n    \"subject_key_id\": \"campfire-agent\",\n    \"action\": \"campfire.files.write_sandbox\",\n    \"resource\": \"files:sandbox\",\n    \"parameters\": {\"path\": \"/sandbox/notes.txt\", \"content\": \"needs a human look\", \"review\": true}\n  },\n  \"dispatch_context\": {\n    \"adapter\": \"https\",\n    \"transport\": \"https\",\n    \"operation\": \"PUT /sandbox/notes.txt\",\n    \"destination\": \"sandbox.campfire.eval\",\n    \"wire_content_type\": \"application/json\"\n  }\n}"
+          "raw": "{\n  \"agent_id\": \"campfire-agent\",\n  \"capability\": \"campfire.files.write_sandbox\",\n  \"timestamp\": {{$timestamp}},\n  \"arguments\": {\"path\": \"/sandbox/notes.txt\", \"content\": \"needs a human look\", \"review\": true},\n  \"request_id\": \"campfire-review-001\",\n  \"execution_action\": {\n    \"subject_principal\": \"campfire-agent@campfire.eval\",\n    \"subject_key_id\": \"campfire-agent\",\n    \"action\": \"campfire.files.write_sandbox\",\n    \"resource\": \"files:sandbox\",\n    \"parameters\": {\"path\": \"/sandbox/notes.txt\", \"content\": \"needs a human look\", \"review\": true}\n  },\n  \"dispatch_context\": {\n    \"adapter\": \"https\",\n    \"transport\": \"https\",\n    \"operation\": \"PUT /sandbox/notes.txt\",\n    \"destination\": \"sandbox.campfire.eval\",\n    \"wire_content_type\": \"application/json\"\n  }\n}"
         },
         "url": "{{BASE_URL}}/v1/decide"
       }
@@ -64,7 +64,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"agent_id\": \"campfire-agent\",\n  \"capability\": \"campfire.files.write_sandbox\",\n  \"timestamp\": 1753000000.0,\n  \"arguments\": {\"path\": \"/protected/secrets.txt\", \"content\": \"should never write\"},\n  \"request_id\": \"campfire-block-001\",\n  \"execution_action\": {\n    \"subject_principal\": \"campfire-agent@campfire.eval\",\n    \"subject_key_id\": \"campfire-agent\",\n    \"action\": \"campfire.files.write_sandbox\",\n    \"resource\": \"files:sandbox\",\n    \"parameters\": {\"path\": \"/protected/secrets.txt\", \"content\": \"should never write\"}\n  },\n  \"dispatch_context\": {\n    \"adapter\": \"https\",\n    \"transport\": \"https\",\n    \"operation\": \"PUT /protected/secrets.txt\",\n    \"destination\": \"sandbox.campfire.eval\",\n    \"wire_content_type\": \"application/json\"\n  }\n}"
+          "raw": "{\n  \"agent_id\": \"campfire-agent\",\n  \"capability\": \"campfire.files.write_sandbox\",\n  \"timestamp\": {{$timestamp}},\n  \"arguments\": {\"path\": \"/protected/secrets.txt\", \"content\": \"should never write\"},\n  \"request_id\": \"campfire-block-001\",\n  \"execution_action\": {\n    \"subject_principal\": \"campfire-agent@campfire.eval\",\n    \"subject_key_id\": \"campfire-agent\",\n    \"action\": \"campfire.files.write_sandbox\",\n    \"resource\": \"files:sandbox\",\n    \"parameters\": {\"path\": \"/protected/secrets.txt\", \"content\": \"should never write\"}\n  },\n  \"dispatch_context\": {\n    \"adapter\": \"https\",\n    \"transport\": \"https\",\n    \"operation\": \"PUT /protected/secrets.txt\",\n    \"destination\": \"sandbox.campfire.eval\",\n    \"wire_content_type\": \"application/json\"\n  }\n}"
         },
         "url": "{{BASE_URL}}/v1/decide"
       }
@@ -94,7 +94,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"decision_id\": \"REPLACE_FROM_RECORD\",\n  \"status\": \"ok\",\n  \"detail\": \"\"\n}"
+          "raw": "{\n  \"decision_id\": \"REPLACE_FROM_RECORD\",\n  \"status\": \"refused\",\n  \"dispatched\": false,\n  \"detail\": \"report ok only if the tool actually ran through the PrivateVault dispatcher\"\n}"
         },
         "url": "{{BASE_URL}}/v1/outcome"
       }

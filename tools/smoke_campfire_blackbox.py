@@ -57,6 +57,7 @@ def _example(name: str) -> dict:
     payload = json.loads(
         (PACK / "examples" / f"{name}.json").read_text(encoding="utf-8")
     )
+    payload = {key: value for key, value in payload.items() if not key.startswith("_")}
     payload["timestamp"] = time.time()
     payload["request_id"] = f"{payload['request_id']}-{int(time.time() * 1000)}"
     return payload
@@ -162,6 +163,16 @@ def run_smoke() -> int:  # noqa: C901 - ordered protocol checklist
             ready = client.get("/ready")
             if health.status_code != 200 or ready.status_code != 200:
                 _fail(f"health/ready {health.status_code}/{ready.status_code}")
+
+            runtime = client.get("/v1/runtime", headers={"X-API-Key": full})
+            if runtime.status_code != 200:
+                _fail(f"runtime {runtime.status_code}")
+            baseline = runtime.json()["composition"]["baseline_capabilities"]
+            if baseline.get("override") != "true":
+                _fail(f"baseline override missing {baseline}")
+            if CAPABILITY not in baseline.get("capabilities", []):
+                _fail(f"baseline capabilities {baseline.get('capabilities')}")
+            evidence.append(f"baseline_capabilities={baseline['capabilities']}")
 
             audit_decide = client.post(
                 "/v1/decide",
@@ -298,12 +309,19 @@ def run_smoke() -> int:  # noqa: C901 - ordered protocol checklist
                 headers={"X-API-Key": full},
                 json={
                     "decision_id": record["decision_id"],
-                    "status": "ok",
-                    "detail": "evaluation sandbox write not dispatched by this smoke",
+                    "status": "refused",
+                    "dispatched": False,
+                    "detail": "evaluation sandbox write was not dispatched by this smoke",
                 },
             )
             if outcome.status_code != 200:
                 _fail(f"outcome {outcome.status_code} {outcome.text}")
+            recorded = outcome.json()["event"]
+            if recorded.get("status") == "ok":
+                _fail("undispatched execution recorded as ok")
+            if recorded.get("status") != "refused":
+                _fail(f"undispatched outcome {recorded.get('status')}")
+            evidence.append("outcome=refused (tool not dispatched)")
 
             verify = client.get("/v1/verify", headers={"X-API-Key": audit})
             if verify.status_code != 200:

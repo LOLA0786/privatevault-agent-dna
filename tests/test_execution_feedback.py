@@ -110,6 +110,17 @@ def test_honest_refusal_is_not_divergent():
     assert recorder.graph.find_divergent() == []
 
 
+def test_undispatched_execution_cannot_be_recorded_as_ok():
+    engine, recorder = _pipeline()
+    rec, _ = _decide_and_record(engine, recorder, "crm.read")
+    with pytest.raises(ValueError, match="undispatched"):
+        recorder.report_outcome(rec.decision_id, "ok", dispatched=False)
+    ev = recorder.report_outcome(rec.decision_id, "refused", dispatched=False)
+    assert ev.status == "refused"
+    assert ev.status != "ok"
+    assert recorder.graph.outcome_of(rec.decision_id) != "ok"
+
+
 def test_indeterminate_is_not_ok_and_not_divergence():
     engine, recorder = _pipeline()
     rec, _ = _decide_and_record(engine, recorder, "crm.read")

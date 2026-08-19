@@ -9,3 +9,5 @@ Operator steps: `docs` here, `INTERNAL-DEPLOYMENT.md` next to the pack, `tools/i
 Named tests: `tests/test_campfire_blackbox.py`.
 
 This evaluation does not prove that Campfire's real tool path is mediated until that path is routed through the dispatcher.
+
+Replay refusal and byte-mutation refusal are demonstrated by `tools/adversarial_egress_demo.py` (recording transport). That is not a partner-executable live dispatch test unless Campfire routes its real tool execution through the PrivateVault dispatcher.

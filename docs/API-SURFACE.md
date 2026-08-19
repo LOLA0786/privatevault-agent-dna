@@ -132,8 +132,10 @@ enforcement divergence detectable.
 
 `status` is one of `ok`, `error`, `refused`, `indeterminate`. Optional
 `response_digest` (`sha256:` + 64 lowercase hex) binds the exact
-response bytes to that same execution event. The resulting execution
-event is hash-anchored to the decision it references.
+response bytes to that same execution event. `status=ok` requires
+`dispatched=true`; false or omitted `dispatched` returns 409. The
+resulting execution event is hash-anchored to the decision it
+references.
 
 If a decision was `block` and its outcome reports `ok`, verification
 fails with ENFORCEMENT DIVERGENCE. Clients should report outcomes
@@ -192,6 +194,12 @@ deployment actually enforces rather than what it advertises.
 ```json
 {"composition": {"...": "per-level status and detail"}}
 ```
+
+`composition.baseline_capabilities` lists the normalized
+`PV_BASELINE_CAPABILITIES` override (`override=true`, status
+`attached`) or `override=false` with an empty list when the
+variable is not set. That override changes the synthetic drift
+baseline; auditors must be able to see when it is active.
 
 ---
 

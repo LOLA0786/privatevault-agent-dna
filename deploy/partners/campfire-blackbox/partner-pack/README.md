@@ -13,6 +13,8 @@ export CAMPFIRE_API_KEY="the key delivered separately"
 
 ## 2. Send the three examples
 
+Replace `timestamp` in each JSON file with the current Unix time (seconds since epoch) before submission. The sample value is stale. The Postman collection uses `{{$timestamp}}` so it does this automatically.
+
 `200` is ALLOW. `202` is REQUIRE_APPROVAL: do not execute. `403` is BLOCK: do not execute. Any other status is also non-executable. Do not treat `403` as a retryable HTTP error.
 
 ```bash
@@ -32,7 +34,7 @@ curl -sS -D - "$BASE_URL/v1/decide" \
   --data-binary @examples/block.json
 ```
 
-Mint a permit only after a sealed ALLOW (`200` and `decision=allow`). `POST /v1/authorize` signs a single-use permit. It does not dispatch the write.
+Mint a permit only after a sealed ALLOW (`200` and `decision=allow`). `POST /v1/authorize` signs a single-use permit. It does not dispatch the write. Replay/byte-mutation refusal is the reference exact-byte test, not a live partner dispatch test, unless Campfire routes its real tool execution through the PrivateVault dispatcher. Do not report `/v1/outcome` as `ok` unless the tool actually ran.
 
 ## 3. Evidence
 

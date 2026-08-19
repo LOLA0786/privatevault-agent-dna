@@ -156,6 +156,128 @@ def test_bootstrap_identity_binding_and_scopes(tmp_path, init_mod, monkeypatch):
         assert bound.status_code == 403
 
 
+def test_undispatched_http_outcome_cannot_be_recorded_as_ok(
+    tmp_path, init_mod, monkeypatch
+):
+    import importlib
+
+    from fastapi.testclient import TestClient
+
+    out = tmp_path / "runtime"
+    _bootstrap(init_mod, out)
+    secrets = _parse_secrets(out / "keys.secrets.txt")
+    _apply_runtime_env(out, secrets, monkeypatch)
+    monkeypatch.delenv("PV_ALLOW_NO_AUTH", raising=False)
+    monkeypatch.setenv("PV_DB_PATH", str(tmp_path / "pv.db"))
+
+    import api.server as server
+
+    server._pv_signer_cache.clear()
+    importlib.reload(server)
+    server._pv_signer_cache.clear()
+
+    with TestClient(server.app) as client:
+        key = secrets["CAMPFIRE_API_KEY"]
+        decided = client.post(
+            "/v1/decide", headers={"X-API-Key": key}, json=_stamped("allow")
+        )
+        assert decided.status_code == 200, decided.text
+        decision_id = decided.json()["record"]["decision_id"]
+        false_ok = client.post(
+            "/v1/outcome",
+            headers={"X-API-Key": key},
+            json={
+                "decision_id": decision_id,
+                "status": "ok",
+                "dispatched": False,
+                "detail": "tool was not dispatched",
+            },
+        )
+        assert false_ok.status_code == 409, false_ok.text
+        assert "dispatched=true" in false_ok.json()["detail"]
+        omitted = client.post(
+            "/v1/outcome",
+            headers={"X-API-Key": key},
+            json={
+                "decision_id": decision_id,
+                "status": "ok",
+                "detail": "tool was not dispatched",
+            },
+        )
+        assert omitted.status_code == 409, omitted.text
+        assert "dispatched=true" in omitted.json()["detail"]
+        null_ok = client.post(
+            "/v1/outcome",
+            headers={"X-API-Key": key},
+            json={
+                "decision_id": decision_id,
+                "status": "ok",
+                "dispatched": None,
+                "detail": "tool was not dispatched",
+            },
+        )
+        assert null_ok.status_code == 409, null_ok.text
+        assert "dispatched=true" in null_ok.json()["detail"]
+        honest = client.post(
+            "/v1/outcome",
+            headers={"X-API-Key": key},
+            json={
+                "decision_id": decision_id,
+                "status": "refused",
+                "dispatched": False,
+                "detail": "tool was not dispatched",
+            },
+        )
+        assert honest.status_code == 200, honest.text
+        event = honest.json()["event"]
+        assert event["status"] == "refused"
+        assert event["status"] != "ok"
+
+
+def test_runtime_manifest_exposes_baseline_override(tmp_path, init_mod, monkeypatch):
+    import importlib
+
+    from fastapi.testclient import TestClient
+
+    out = tmp_path / "runtime"
+    _bootstrap(init_mod, out)
+    secrets = _parse_secrets(out / "keys.secrets.txt")
+    _apply_runtime_env(out, secrets, monkeypatch)
+    monkeypatch.delenv("PV_ALLOW_NO_AUTH", raising=False)
+    monkeypatch.setenv("PV_DB_PATH", str(tmp_path / "pv.db"))
+
+    import api.server as server
+
+    server._pv_signer_cache.clear()
+    importlib.reload(server)
+    server._pv_signer_cache.clear()
+
+    with TestClient(server.app) as client:
+        shown = client.get(
+            "/v1/runtime", headers={"X-API-Key": secrets["CAMPFIRE_API_KEY"]}
+        )
+        assert shown.status_code == 200, shown.text
+        baseline = shown.json()["composition"]["baseline_capabilities"]
+        assert baseline["override"] == "true"
+        assert baseline["capabilities"] == [CAPABILITY]
+
+
+def test_postman_uses_dynamic_unix_timestamp():
+    text = (PACK_SRC / "Campfire-PrivateVault.postman_collection.json").read_text(
+        encoding="utf-8"
+    )
+    assert "{{$timestamp}}" in text
+    assert "1753000000" not in text
+
+
+def test_examples_instruct_current_unix_timestamp():
+    for name in ("allow.json", "review.json", "block.json"):
+        payload = json.loads((PACK_SRC / "examples" / name).read_text(encoding="utf-8"))
+        instruction = payload["_timestamp_instruction"].lower()
+        assert "current unix time" in instruction
+        assert "timestamp" in instruction
+
+
 def test_generated_policy_is_deterministic_allow_review_block(
     tmp_path, init_mod, monkeypatch
 ):
@@ -593,12 +715,15 @@ def test_smoke_script_succeeds():
     assert proc.returncode == 0, proc.stdout + proc.stderr
     combined = (proc.stdout + proc.stderr).lower()
     assert "must not be retried" in combined or "do not retry" in combined
+    assert "outcome=refused" in combined
+    assert "tool not dispatched" in combined
 
 
 def _example(name: str) -> dict[str, Any]:
-    return json.loads(
+    payload = json.loads(
         (PACK_SRC / "examples" / f"{name}.json").read_text(encoding="utf-8")
     )
+    return {key: value for key, value in payload.items() if not key.startswith("_")}
 
 
 def _stamped(name: str) -> dict[str, Any]:

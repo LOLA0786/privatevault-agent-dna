@@ -26,7 +26,11 @@ from .decision_record import (
     build_record,
     build_record_v02,
 )
-from .execution_record import ExecutionEvent, build_execution_event
+from .execution_record import (
+    ExecutionEvent,
+    build_execution_event,
+    require_honest_outcome_status,
+)
 from .trace import AgentAction
 
 
@@ -252,10 +256,17 @@ class DecisionRecorder:
         detail: str = "",
         *,
         response_digest: str = "",
+        dispatched: bool | None = None,
     ) -> ExecutionEvent:
         """Executor feedback: append an ExecutionEvent anchored to the
         decision it reports on. Does NOT touch the decision chain —
-        events chain off their decision's hash, not the agent chain."""
+        events chain off their decision's hash, not the agent chain.
+
+        When ``dispatched`` is False, ``status='ok'`` is refused: that
+        would be false execution evidence.
+        """
+        if dispatched is not None:
+            require_honest_outcome_status(dispatched=dispatched, status=status)
         if self.multi_writer_safe:
             # The in-memory graph is deliberately unpopulated in this
             # mode; the store is authoritative (audit set 4). The
