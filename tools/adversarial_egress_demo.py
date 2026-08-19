@@ -20,6 +20,7 @@ import copy
 import sys
 import tempfile
 import uuid
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from nacl.signing import SigningKey
@@ -54,7 +55,6 @@ ONE = "sha256:" + ("1" * 64)
 ORG = "demo.example"
 WIRE = b'{"account":"4471","amount":400000,"currency":"INR"}'
 PEER = b"tls-spki:payments.demo.example:v3"
-AT = "2026-08-10T16:00:05Z"
 
 
 def _fail(msg: str) -> None:
@@ -65,6 +65,10 @@ def _fail(msg: str) -> None:
 def main() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
+        now = datetime.now(UTC).replace(microsecond=0)
+        issued_at = (now - timedelta(seconds=1)).isoformat().replace("+00:00", "Z")
+        at = now.isoformat().replace("+00:00", "Z")
+        expires_at = (now + timedelta(minutes=10)).isoformat().replace("+00:00", "Z")
         runtime_key = SigningKey.generate()
         witness_key = SigningKey.generate()
         trust = {
@@ -117,9 +121,9 @@ def main() -> None:
                 "execution_authorization_id": f"eauth-{uuid.uuid4()}",
                 "organisation_id": ORG,
                 "request_id": "req-demo-1",
-                "issued_at": "2026-08-10T16:00:00Z",
-                "not_before": "2026-08-10T16:00:00Z",
-                "expires_at": "2026-08-10T16:10:00Z",
+                "issued_at": issued_at,
+                "not_before": issued_at,
+                "expires_at": expires_at,
                 "nonce": uuid.uuid4().hex,
                 "decision_receipt_digest": Z,
                 "authority_receipt_digest": ONE,
@@ -163,7 +167,7 @@ def main() -> None:
             state_snapshot_digest=Z,
             policy_bundle_digest=ONE,
             obligations_digest=Z,
-            at_time=AT,
+            at_time=at,
         )
 
         print("1) ALLOW path — exact-byte dispatch")
@@ -171,7 +175,7 @@ def main() -> None:
             authorization=authorization,
             wire_bytes=WIRE,
             context=ctx,
-            observed_at=AT,
+            observed_at=at,
         )
         if not ok.sent or transport.writes != [WIRE] or ok.witness is None:
             _fail(f"happy path failed: sent={ok.sent} reason={ok.reason_code}")
@@ -189,7 +193,7 @@ def main() -> None:
             authorization=mut_auth,
             wire_bytes=tampered,
             context=ctx,
-            observed_at=AT,
+            observed_at=at,
         )
         if mut.sent or transport.writes:
             _fail("mutation was sent")
@@ -203,7 +207,7 @@ def main() -> None:
             authorization=authorization,
             wire_bytes=WIRE,
             context=ctx,
-            observed_at=AT,
+            observed_at=at,
         )
         if replay.sent or transport.writes:
             _fail("replay was sent")
