@@ -35,7 +35,10 @@ Point the process at the generated files:
 * `PV_ORGANISATION_ID=campfire.eval`
 * `PV_BASELINE_CAPABILITIES=campfire.files.write_sandbox` (so the
   sandbox write is on the synthetic baseline; without it, novelty
-  drift would escalate ALLOW to review)
+  drift would escalate ALLOW to review). Confirm the override on
+  `GET /v1/runtime` under `composition.baseline_capabilities`
+  (`override=true` and the capability list). Unset, the field is
+  `override=false` and default grant-plus-drift behaviour is unchanged.
 
 Enable `PV_SECURE_PROFILE=1` only after every required signing, trust, grants, and API-key input exists. If any of those is missing, startup must fail closed.
 
@@ -51,4 +54,4 @@ Stop the sandbox by stopping the process and unmounting or deleting `PV_DB_PATH`
 
 ## Honesty
 
-A remotely hosted decision service does not prove complete mediation of Campfire's downstream tool execution. Their harness must be structurally unable to write on any status other than ALLOW, and mutation must go through the governed dispatcher. The recording-transport exact-byte demo is a reference test, not proof of network delivery. Do not auto-retry `INDETERMINATE`.
+A remotely hosted decision service does not prove complete mediation of Campfire's downstream tool execution. Their harness must be structurally unable to write on any status other than ALLOW, and mutation must go through the governed dispatcher. Replay/byte-mutation refusal is demonstrated by the reference exact-byte test and is not a partner-executable live dispatch test unless Campfire routes its real tool execution through the PrivateVault dispatcher. The recording-transport exact-byte demo is not proof of network delivery. Do not auto-retry `INDETERMINATE`. Do not record `/v1/outcome` as `ok` when the tool was not dispatched.

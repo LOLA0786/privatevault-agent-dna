@@ -16,7 +16,9 @@ The control plane allowed the proposed sandbox write under the evaluation policy
 
 ## Exact-byte demo honesty
 
-The in-tree exact-byte reference uses a recording transport. It proves honest bytes accepted, mutated bytes refused, consumed-permit replay refused, and that the witness verifies. It does not prove bytes reached a network peer.
+Replay refusal and byte-mutation refusal are demonstrated by the in-tree reference exact-byte test (`tools/adversarial_egress_demo.py`). That test uses a recording transport. It is not a partner-executable live dispatch test unless Campfire routes its real tool execution through the PrivateVault dispatcher.
+
+The recording transport proves honest bytes accepted, mutated bytes refused, consumed-permit replay refused, and that the witness verifies. It does not prove bytes reached a network peer, and it does not prove Campfire's live tool path is mediated.
 
 ## INDETERMINATE
 

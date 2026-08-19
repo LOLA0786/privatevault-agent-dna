@@ -129,6 +129,7 @@ def test_api_serves_composition_manifest(tmp_path, monkeypatch):
     monkeypatch.setenv("PV_DB_PATH", str(tmp_path / "api.db"))
     monkeypatch.delenv("PV_API_KEYS_FILE", raising=False)
     monkeypatch.delenv("PV_RECEIPT_SIGNING_KEY", raising=False)
+    monkeypatch.delenv("PV_BASELINE_CAPABILITIES", raising=False)
     import api.server as server
 
     importlib.reload(server)
@@ -141,3 +142,43 @@ def test_api_serves_composition_manifest(tmp_path, monkeypatch):
         assert comp["uaal_constraint"]["status"] == "attached"
         assert comp["consensus"]["status"] == "attached"
         assert "synthetic" in comp["drift"]["detail"]
+        assert comp["baseline_capabilities"]["status"] == "not_configured"
+        assert comp["baseline_capabilities"]["capabilities"] == []
+        assert comp["baseline_capabilities"]["override"] == "false"
+
+
+def test_baseline_capabilities_unset_preserves_default_scorer(tmp_path, monkeypatch):
+    monkeypatch.delenv("PV_BASELINE_CAPABILITIES", raising=False)
+    rt = build_production_runtime(_cfg(tmp_path))
+    assert rt.composition["baseline_capabilities"]["status"] == "not_configured"
+    assert rt.composition["baseline_capabilities"]["capabilities"] == []
+    assert rt.composition["baseline_capabilities"]["override"] == "false"
+    assert (
+        "PV_BASELINE_CAPABILITIES override active"
+        not in rt.composition["drift"]["detail"]
+    )
+
+
+def test_baseline_capabilities_normalized_in_manifest(tmp_path, monkeypatch):
+    monkeypatch.setenv(
+        "PV_BASELINE_CAPABILITIES",
+        " campfire.files.write_sandbox,crm.read, campfire.files.write_sandbox ",
+    )
+    rt = build_production_runtime(_cfg(tmp_path))
+    shown = rt.composition["baseline_capabilities"]
+    assert shown["status"] == "attached"
+    assert shown["override"] == "true"
+    assert shown["capabilities"] == ["campfire.files.write_sandbox", "crm.read"]
+    assert "campfire.files.write_sandbox" in rt.composition["drift"]["detail"]
+
+
+def test_invalid_baseline_capabilities_fail_closed(tmp_path, monkeypatch):
+    monkeypatch.setenv("PV_BASELINE_CAPABILITIES", "shell;rm -rf /")
+    with pytest.raises(ValueError, match="invalid capability"):
+        build_production_runtime(_cfg(tmp_path))
+    monkeypatch.setenv("PV_BASELINE_CAPABILITIES", "../etc/passwd")
+    with pytest.raises(ValueError, match="invalid capability"):
+        build_production_runtime(_cfg(tmp_path))
+    monkeypatch.setenv("PV_BASELINE_CAPABILITIES", "*")
+    with pytest.raises(ValueError, match="invalid capability"):
+        build_production_runtime(_cfg(tmp_path))

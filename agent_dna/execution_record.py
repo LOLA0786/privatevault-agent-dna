@@ -31,6 +31,17 @@ from typing import Any
 VALID_STATUS = ("ok", "error", "refused", "indeterminate")
 
 
+def require_honest_outcome_status(*, dispatched: bool, status: str) -> None:
+    """Refuse to treat a non-dispatch as successful execution.
+
+    `ok` means the tool ran. An execution that was not dispatched must
+    never be recorded as `ok`. Callers that omit `dispatched` keep the
+    legacy executor-attestation path.
+    """
+    if status == "ok" and not dispatched:
+        raise ValueError("undispatched execution cannot be recorded as ok")
+
+
 PROTOCOL_VERSION = "drp/0.1"
 
 

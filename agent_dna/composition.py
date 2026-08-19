@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -170,7 +171,7 @@ class ProductionRuntime:
     replay: Any = None
     cross_agent: Any = None
     trusted_public_keys: frozenset[str] = field(default_factory=frozenset)
-    composition: dict[str, dict[str, str]] = field(default_factory=dict)
+    composition: dict[str, dict[str, Any]] = field(default_factory=dict)
     loop_events_required: bool = False
     execution_trust_bundle: dict[str, Any] | None = None
     egress_sidecar: ExactByteHttpDispatcher | None = None
@@ -196,6 +197,25 @@ class ProductionRuntime:
         )
 
 
+_BASELINE_CAPABILITY_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_.-]{0,127}$")
+
+
+def parse_baseline_capabilities(raw: str | None = None) -> list[str]:
+    """Normalize PV_BASELINE_CAPABILITIES. Unset/empty → []. Invalid fails closed."""
+    text = os.getenv("PV_BASELINE_CAPABILITIES", "") if raw is None else raw
+    if not isinstance(text, str):
+        raise ValueError("PV_BASELINE_CAPABILITIES: expected a comma-separated string")
+    seen: set[str] = set()
+    for part in text.split(","):
+        cap = part.strip()
+        if not cap:
+            continue
+        if not _BASELINE_CAPABILITY_RE.fullmatch(cap):
+            raise ValueError(f"PV_BASELINE_CAPABILITIES: invalid capability {cap!r}")
+        seen.add(cap)
+    return sorted(seen)
+
+
 def _baseline_capabilities() -> list[str]:
     """Optional extra capabilities for the synthetic drift baseline.
 
@@ -203,8 +223,7 @@ def _baseline_capabilities() -> list[str]:
     novelty-escalated. Unset in production: an explicit grant still
     leaves unknown capabilities subject to drift review.
     """
-    raw = os.getenv("PV_BASELINE_CAPABILITIES", "")
-    return sorted({part.strip() for part in raw.split(",") if part.strip()})
+    return parse_baseline_capabilities()
 
 
 def _train_scorer(extra_capabilities: list[str] | None = None) -> DriftScorer:
@@ -352,7 +371,7 @@ def build_production_runtime(
     cfg = config or RuntimeConfig.from_env()
     _assert_secure_profile_preconditions(cfg)
     secure = _secure_profile_enabled()
-    comp: dict[str, dict[str, str]] = {
+    comp: dict[str, dict[str, Any]] = {
         "secure_profile": _secure_profile_manifest(secure),
     }
 
@@ -430,15 +449,37 @@ def build_production_runtime(
         "detail": "behavioral invariants require a trained per-agent "
         "profile; none configured",
     }
+    baseline_caps = parse_baseline_capabilities()
+    if baseline_caps:
+        drift_detail = (
+            "CALIBRATION CAVEAT: scorer trained on synthetic traces "
+            "until a real execution trace is wired -- the openly stated "
+            "binding constraint; PV_BASELINE_CAPABILITIES override "
+            f"active: {','.join(baseline_caps)}"
+        )
+    else:
+        drift_detail = (
+            "CALIBRATION CAVEAT: scorer trained on synthetic "
+            "traces until a real execution trace is wired -- the "
+            "openly stated binding constraint"
+        )
     comp["drift"] = {
         "status": "attached",
-        "detail": "CALIBRATION CAVEAT: scorer trained on synthetic "
-        "traces until a real execution trace is wired -- the "
-        "openly stated binding constraint",
+        "detail": drift_detail,
+    }
+    comp["baseline_capabilities"] = {
+        "status": "attached" if baseline_caps else "not_configured",
+        "capabilities": list(baseline_caps),
+        "override": "true" if baseline_caps else "false",
+        "detail": (
+            "PV_BASELINE_CAPABILITIES trained into the synthetic drift scorer"
+            if baseline_caps
+            else "PV_BASELINE_CAPABILITIES unset; synthetic baseline unchanged"
+        ),
     }
 
     engine_core = DecisionEngine(
-        scorer=_train_scorer(_baseline_capabilities()),
+        scorer=_train_scorer(baseline_caps),
         uaal=uaal,
         consensus=consensus,
         economics=economics,
@@ -618,7 +659,7 @@ def _compose_egress_sidecar(
     cfg: RuntimeConfig,
     store: SQLiteDecisionStore,
     secure: bool,
-    comp: dict[str, dict[str, str]],
+    comp: dict[str, dict[str, Any]],
 ) -> tuple[dict[str, Any] | None, ExactByteHttpDispatcher | None]:
     path = cfg.execution_trust_bundle_file or os.getenv(EXECUTION_TRUST_BUNDLE_ENV, "")
     if not path:

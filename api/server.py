@@ -301,6 +301,10 @@ class OutcomeRequest(BaseModel):
     status: str = Field(pattern="^(ok|error|refused|indeterminate)$")
     detail: str = ""
     response_digest: str = Field(default="", pattern=r"^$|^sha256:[0-9a-f]{64}$")
+    # Explicit False means the tool did not run. Combined with
+    # status=ok that is false execution evidence and is refused.
+    # Omit the field to keep legacy executor-attested outcomes.
+    dispatched: bool | None = None
 
 
 # ---------- enforcement surface ---------------------------------------------
@@ -467,6 +471,7 @@ def outcome(req: OutcomeRequest, principal: FullPrincipal):
             req.status,
             req.detail,
             response_digest=req.response_digest,
+            dispatched=req.dispatched,
         )
     except (KeyError, ValueError) as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
