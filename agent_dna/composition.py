@@ -67,6 +67,7 @@ from .signer_python import (
     parse_trusted_keys,
 )
 from .sqlite_store import SQLiteDecisionStore
+from .trace import AgentAction, ExecutionTrace
 from .uaal_layer import UAALConstraintChecker
 
 
@@ -195,10 +196,37 @@ class ProductionRuntime:
         )
 
 
-def _train_scorer() -> DriftScorer:
+def _baseline_capabilities() -> list[str]:
+    """Optional extra capabilities for the synthetic drift baseline.
+
+    Used by the Campfire evaluation so a granted sandbox write is not
+    novelty-escalated. Unset in production: an explicit grant still
+    leaves unknown capabilities subject to drift review.
+    """
+    raw = os.getenv("PV_BASELINE_CAPABILITIES", "")
+    return sorted({part.strip() for part in raw.split(",") if part.strip()})
+
+
+def _train_scorer(extra_capabilities: list[str] | None = None) -> DriftScorer:
     # Synthetic profile until a real trace replaces it -- the binding
     # constraint, stated openly in the composition manifest.
     training = [synthetic_normal_trace(seed=i, loops=6) for i in range(8)]
+    extras = extra_capabilities or []
+    if extras:
+        trace = ExecutionTrace(agent_id="grant-baseline")
+        ts = 1_700_000_000.0
+        for cap in extras:
+            for _ in range(6):
+                ts += 30.0
+                trace.add(
+                    AgentAction(
+                        agent_id="grant-baseline",
+                        capability=cap,
+                        timestamp=ts,
+                        arguments={},
+                    )
+                )
+        training.append(trace)
     manifold = CapabilityManifold().fit(training)
     dynamics = BehaviorDynamics().fit(training)
     return DriftScorer(manifold, dynamics)
@@ -410,7 +438,7 @@ def build_production_runtime(
     }
 
     engine_core = DecisionEngine(
-        scorer=_train_scorer(),
+        scorer=_train_scorer(_baseline_capabilities()),
         uaal=uaal,
         consensus=consensus,
         economics=economics,

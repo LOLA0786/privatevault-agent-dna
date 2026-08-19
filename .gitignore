@@ -39,6 +39,7 @@ proof-of-run.json
 !.env.example
 deploy/platform/keys.json
 deploy/platform/keys.secrets.txt
+deploy/partners/campfire-blackbox/runtime/
 
 # Archives
 *.tar.gz
