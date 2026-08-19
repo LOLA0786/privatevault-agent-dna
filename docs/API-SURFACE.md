@@ -132,10 +132,10 @@ enforcement divergence detectable.
 
 `status` is one of `ok`, `error`, `refused`, `indeterminate`. Optional
 `response_digest` (`sha256:` + 64 lowercase hex) binds the exact
-response bytes to that same execution event. Optional `dispatched`
-records whether the tool ran. `status=ok` with `dispatched=false` is
-refused: that would be false execution evidence. The resulting
-execution event is hash-anchored to the decision it references.
+response bytes to that same execution event. `status=ok` requires
+`dispatched=true`; false or omitted `dispatched` returns 409. The
+resulting execution event is hash-anchored to the decision it
+references.
 
 If a decision was `block` and its outcome reports `ok`, verification
 fails with ENFORCEMENT DIVERGENCE. Clients should report outcomes

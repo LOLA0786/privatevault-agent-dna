@@ -301,9 +301,7 @@ class OutcomeRequest(BaseModel):
     status: str = Field(pattern="^(ok|error|refused|indeterminate)$")
     detail: str = ""
     response_digest: str = Field(default="", pattern=r"^$|^sha256:[0-9a-f]{64}$")
-    # Explicit False means the tool did not run. Combined with
-    # status=ok that is false execution evidence and is refused.
-    # Omit the field to keep legacy executor-attested outcomes.
+    # status=ok requires dispatched=true. False or omitted fails closed.
     dispatched: bool | None = None
 
 
@@ -465,6 +463,11 @@ def decide(req: DecideRequest, principal: FullPrincipal):
 @app.post("/v1/outcome")
 def outcome(req: OutcomeRequest, principal: FullPrincipal):
     _owned_decision(principal, req.decision_id)
+    if req.status == "ok" and req.dispatched is not True:
+        raise HTTPException(
+            status_code=409,
+            detail="status=ok requires dispatched=true",
+        )
     try:
         event = state["recorder"].report_outcome(
             req.decision_id,

@@ -219,6 +219,6 @@ components:
           type: string
         dispatched:
           type: boolean
-          description: Explicit false plus status ok is refused as false execution evidence.
+          description: Required true when status is ok. False or omitted with ok is HTTP 409.
         response_digest:
           type: string

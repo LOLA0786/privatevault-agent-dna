@@ -41,7 +41,7 @@ These mint-time checks are executable against the hosted API:
 
 Replay of a consumed permit and refusal of mutated wire bytes are demonstrated by the reference exact-byte test. They are not a partner-executable live dispatch test unless Campfire routes its real tool execution through the PrivateVault dispatcher.
 
-`POST /v1/outcome` with `status=ok` is false evidence unless the tool actually ran. If it did not dispatch, record `refused` or omit the outcome. `ok` plus `dispatched=false` is refused.
+`POST /v1/outcome` with `status=ok` is false evidence unless the tool actually ran. If it did not dispatch, record `refused` or omit the outcome. `ok` with `dispatched=false` or omitted `dispatched` is refused with HTTP 409.
 
 ## Evidence
 

@@ -194,6 +194,30 @@ def test_undispatched_http_outcome_cannot_be_recorded_as_ok(
             },
         )
         assert false_ok.status_code == 409, false_ok.text
+        assert "dispatched=true" in false_ok.json()["detail"]
+        omitted = client.post(
+            "/v1/outcome",
+            headers={"X-API-Key": key},
+            json={
+                "decision_id": decision_id,
+                "status": "ok",
+                "detail": "tool was not dispatched",
+            },
+        )
+        assert omitted.status_code == 409, omitted.text
+        assert "dispatched=true" in omitted.json()["detail"]
+        null_ok = client.post(
+            "/v1/outcome",
+            headers={"X-API-Key": key},
+            json={
+                "decision_id": decision_id,
+                "status": "ok",
+                "dispatched": None,
+                "detail": "tool was not dispatched",
+            },
+        )
+        assert null_ok.status_code == 409, null_ok.text
+        assert "dispatched=true" in null_ok.json()["detail"]
         honest = client.post(
             "/v1/outcome",
             headers={"X-API-Key": key},

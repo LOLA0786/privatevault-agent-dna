@@ -59,6 +59,7 @@ def test_outcome_roundtrip_and_conflict(client):
         json={
             "decision_id": did,
             "status": "ok",
+            "dispatched": True,
             "response_digest": "sha256:" + ("ab" * 32),
         },
     )
@@ -98,6 +99,7 @@ def test_verify_and_audit_export(client, tmp_path):
         json={
             "decision_id": r.json()["record"]["decision_id"],
             "status": "ok",
+            "dispatched": True,
         },
     )
 
