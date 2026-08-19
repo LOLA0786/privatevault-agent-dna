@@ -4,12 +4,16 @@ Hosted PrivateVault interface for one sandbox write workflow. This zip is docume
 
 You do not change your model stack. Do not use production credentials or customer data. The key you were given is scoped to `campfire-agent` and to `campfire.files.write_sandbox`.
 
+The hosted evaluation must run with `PV_SECURE_PROFILE=1`. This zip does not enable that. `POST /v1/authorize` mints a signed permit. It does not dispatch a file and it does not prove live network delivery.
+
 ## 1. Set the host
 
 ```bash
 export BASE_URL="https://YOUR-HOSTED-PRIVATEVAULT-URL"
 export CAMPFIRE_API_KEY="the key delivered separately"
 ```
+
+Confirm `GET /health` and `GET /ready` return 200.
 
 ## 2. Send the three examples
 
@@ -34,13 +38,99 @@ curl -sS -D - "$BASE_URL/v1/decide" \
   --data-binary @examples/block.json
 ```
 
-Mint a permit only after a sealed ALLOW (`200` and `decision=allow`). `POST /v1/authorize` signs a single-use permit. It does not dispatch the write. Replay/byte-mutation refusal is the reference exact-byte test, not a live partner dispatch test, unless Campfire routes its real tool execution through the PrivateVault dispatcher. Do not report `/v1/outcome` as `ok` unless the tool actually ran.
+## 3. Mint a permit after ALLOW
 
-## 3. Evidence
+Do this only after a sealed ALLOW (`200` and `decision=allow`). Copy `record.decision_id` and `record.record_hash` from that response. `decision_receipt_digest` is `sha256:` plus the record hash. Copy `execution_action` from `examples/allow.json` as `action`. Do not send decide `dispatch_context` as `dispatch`. Authorize `dispatch` is the eleven fields below, not the five decide-time context fields.
+
+```bash
+python3 - <<'PY'
+import json, os, time, urllib.request
+
+base = os.environ["BASE_URL"].rstrip("/")
+key = os.environ["CAMPFIRE_API_KEY"]
+allow = json.load(open("examples/allow.json"))
+allow.pop("_timestamp_instruction", None)
+allow["timestamp"] = time.time()
+
+def call(method, path, body=None):
+    data = None if body is None else json.dumps(body).encode()
+    req = urllib.request.Request(base + path, data=data, method=method)
+    req.add_header("X-API-Key", key)
+    if data is not None:
+        req.add_header("Content-Type", "application/json")
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return resp.status, json.loads(resp.read().decode())
+    except urllib.error.HTTPError as exc:
+        return exc.code, json.loads(exc.read().decode())
+
+status, decided = call("POST", "/v1/decide", allow)
+assert status == 200 and decided["decision"] == "allow", decided
+record = decided["record"]
+z = "sha256:" + ("0" * 64)
+one = "sha256:" + ("1" * 64)
+action = dict(allow["execution_action"])
+dispatch = {
+    "transport": "https",
+    "destination": "sandbox.campfire.eval",
+    "operation": "PUT /sandbox/notes.txt",
+    "wire_content_type": "application/json",
+    "wire_content_encoding": "identity",
+    "tool_id": "campfire.files.write_sandbox.v1",
+    "tool_schema_digest": z,
+    "tool_artifact_digest": one,
+    "credential_audience": "sandbox.campfire.eval",
+    "idempotency_key_digest": z,
+    "retry_policy_digest": one,
+}
+body = {
+    "request_id": "campfire-auth-honest",
+    "agent_id": "campfire-agent",
+    "organisation_id": "campfire.eval",
+    "decision_id": record["decision_id"],
+    "action": action,
+    "dispatch": dispatch,
+    "expected_wire_bytes_digest": z,
+    "expected_wire_bytes_length": 0,
+    "expected_peer_identity_digest": one,
+    "decision_receipt_digest": "sha256:" + record["record_hash"],
+    "authority_receipt_digest": one,
+    "approval_artifact_digest": z,
+    "state_snapshot_digest": z,
+    "policy_bundle_digest": one,
+    "obligations_digest": z,
+}
+status, minted = call("POST", "/v1/authorize", body)
+assert status == 200, minted
+assert minted["authorization"]["signature"]
+print("honest authorize 200")
+
+path_body = json.loads(json.dumps(body))
+path_body["request_id"] = "campfire-auth-path"
+path_body["action"]["parameters"]["path"] = "/protected/secrets.txt"
+status, path = call("POST", "/v1/authorize", path_body)
+assert status == 403, path
+assert path["detail"]["reason_code"] == "AUTHORIZE_ARGUMENTS_DIGEST_MISMATCH"
+print("changed path 403 AUTHORIZE_ARGUMENTS_DIGEST_MISMATCH")
+
+dest_body = json.loads(json.dumps(body))
+dest_body["request_id"] = "campfire-auth-dest"
+dest_body["dispatch"]["destination"] = "evil.example"
+status, dest = call("POST", "/v1/authorize", dest_body)
+assert status == 403, dest
+assert dest["detail"]["reason_code"] == "AUTHORIZE_DISPATCH_CONTEXT_DIGEST_MISMATCH"
+print("changed destination 403 AUTHORIZE_DISPATCH_CONTEXT_DIGEST_MISMATCH")
+print("no file was dispatched")
+PY
+```
+
+The wire and peer digest placeholders are mint-time fields. They are not proof that bytes left the host. Replay and byte-mutation refusal remain the reference exact-byte test unless Campfire routes real tool execution through the PrivateVault dispatcher. Do not report `/v1/outcome` as `ok` unless the tool actually ran.
+
+## 4. Evidence
 
 Use the audit key (also delivered separately) on `GET /v1/verify` and `GET /v1/audit/export`. Detached envelopes are at `GET /v1/envelope/{record_hash}`. Verify with the public key you were given, not with a key from this zip.
 
-## 4. Tell us
+## 5. Tell us
 
 After the run, send:
 
