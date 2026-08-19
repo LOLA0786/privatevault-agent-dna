@@ -278,6 +278,110 @@ def test_examples_instruct_current_unix_timestamp():
         assert "timestamp" in instruction
 
 
+def _pack_postman_body(name: str) -> str:
+    collection = json.loads(
+        (PACK_SRC / "Campfire-PrivateVault.postman_collection.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    for item in collection["item"]:
+        if item["name"] == name:
+            return item["request"]["body"]["raw"]
+    raise AssertionError(f"missing Postman item {name}")
+
+
+def test_partner_pack_honest_authorize_returns_200(tmp_path, init_mod, monkeypatch):
+    """Follow only partner-pack files. No hidden in-repo dispatch fixtures."""
+    import importlib
+    import time
+
+    from fastapi.testclient import TestClient
+
+    readme = (PACK_SRC / "README.md").read_text(encoding="utf-8")
+    assert "PV_SECURE_PROFILE=1" in readme
+    assert "does not dispatch" in readme.lower() or "does not dispatch a file" in readme
+    assert "does not prove live network delivery" in readme
+    assert "wire_content_encoding" in readme
+    assert "Do not send decide `dispatch_context` as `dispatch`" in readme
+
+    out = tmp_path / "runtime"
+    _bootstrap(init_mod, out)
+    secrets = _parse_secrets(out / "keys.secrets.txt")
+    _apply_runtime_env(out, secrets, monkeypatch)
+    monkeypatch.delenv("PV_ALLOW_NO_AUTH", raising=False)
+    monkeypatch.setenv("PV_DB_PATH", str(tmp_path / "pv.db"))
+
+    import api.server as server
+
+    server._pv_signer_cache.clear()
+    importlib.reload(server)
+    server._pv_signer_cache.clear()
+
+    allow = _example("allow")
+    allow["timestamp"] = time.time()
+    key = secrets["CAMPFIRE_API_KEY"]
+
+    with TestClient(server.app) as client:
+        decided = client.post("/v1/decide", headers={"X-API-Key": key}, json=allow)
+        assert decided.status_code == 200, decided.text
+        record = decided.json()["record"]
+        decision_id = record["decision_id"]
+        record_hash = record["record_hash"]
+
+        def load_authorize(name: str) -> dict[str, Any]:
+            raw = _pack_postman_body(name)
+            filled = raw.replace("{{decision_id}}", decision_id).replace(
+                "{{record_hash}}", record_hash
+            )
+            body = json.loads(filled)
+            assert "adapter" not in body["dispatch"]
+            assert set(body["dispatch"]) == {
+                "transport",
+                "destination",
+                "operation",
+                "wire_content_type",
+                "wire_content_encoding",
+                "tool_id",
+                "tool_schema_digest",
+                "tool_artifact_digest",
+                "credential_audience",
+                "idempotency_key_digest",
+                "retry_policy_digest",
+            }
+            return body
+
+        honest = client.post(
+            "/v1/authorize",
+            headers={"X-API-Key": key},
+            json=load_authorize("POST authorize (honest)"),
+        )
+        assert honest.status_code == 200, honest.text
+        assert honest.json()["authorization"]["signature"]
+        assert honest.json()["authorization"]["max_uses"] == 1
+
+        changed_path = client.post(
+            "/v1/authorize",
+            headers={"X-API-Key": key},
+            json=load_authorize("POST authorize (changed path)"),
+        )
+        assert changed_path.status_code == 403, changed_path.text
+        assert (
+            changed_path.json()["detail"]["reason_code"]
+            == "AUTHORIZE_ARGUMENTS_DIGEST_MISMATCH"
+        )
+
+        changed_dest = client.post(
+            "/v1/authorize",
+            headers={"X-API-Key": key},
+            json=load_authorize("POST authorize (changed destination)"),
+        )
+        assert changed_dest.status_code == 403, changed_dest.text
+        assert (
+            changed_dest.json()["detail"]["reason_code"]
+            == "AUTHORIZE_DISPATCH_CONTEXT_DIGEST_MISMATCH"
+        )
+
+
 def test_generated_policy_is_deterministic_allow_review_block(
     tmp_path, init_mod, monkeypatch
 ):
