@@ -6,6 +6,31 @@ and a named test that runs in CI.
 ## Unreleased
 
 ### Security
+- **PV-01 amount required on budgeted/capped paths:** omitted, `None`,
+  and empty amounts on budgeted grants and amount-capped breakers
+  BLOCK with `INVALID_AMOUNT` before spend, reservation, or
+  observation mutation. Unbudgeted grants and uncapped breakers keep
+  their previous missing-amount behaviour. Excessive precision is
+  rejected on the shared Decimal coercer
+  (`tests/test_amount_requirement.py`).
+- **PV-02 one live permit per decision:** the first valid
+  `/v1/authorize` atomically stores one signed execution
+  authorization. Identical authenticated replay returns the stored
+  bytes (same id, nonce, signature). Changed bindings hard-refuse
+  with `AUTHORIZE_PERMIT_BINDING_CONFLICT`. Consumed, expired, and
+  INDETERMINATE permits are not replaced
+  (`tests/test_authorize_mint_claim.py`). Administrative remint
+  recovery is deferred and fail-closed.
+- **PV-06 UAAL monetary conservation:** action and invoice amounts use
+  the shared Decimal coercer. `+inf`/`-inf`/`NaN`/bool/negative/
+  malformed values fail closed as invalid evidence, not as an
+  ordinary mismatch (`tests/test_uaal_monetary_coercion.py`).
+- **PV-07 caller-provisioned key rotation:** `rotate_key` /
+  `rotate_and_record` require `new_seed_hex`, validate it, sign and
+  verify a deterministic challenge, then persist the rotation
+  envelope. The seed is never returned or logged. Omitted or invalid
+  seed fails before a successful rotation record
+  (`tests/test_key_rotation_provisioned.py`).
 - **Amount coercion:** grant budgets and circuit-breaker caps reject
   bool, NaN, ±inf, negative, non-numeric, and over-ceiling amounts
   with `INVALID_AMOUNT` before any spent or breaker-row mutation.

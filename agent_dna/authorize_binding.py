@@ -13,7 +13,7 @@ import json
 from typing import Any
 
 from agent_dna.action_v01 import execution_action_digest
-from agent_dna.authority_v01 import AuthorityFormatError
+from agent_dna.authority_v01 import AuthorityFormatError, sha256_digest
 from agent_dna.decision_record import DRP_V02
 from agent_dna.dispatch_context_v01 import (
     dispatch_context_digest,
@@ -38,6 +38,10 @@ AUTHORIZE_DISPATCH_CONTEXT_DIGEST_REQUIRED = (
     "AUTHORIZE_DISPATCH_CONTEXT_DIGEST_REQUIRED"
 )
 AUTHORIZE_PROTOCOL_NOT_AUTHORIZING = "AUTHORIZE_PROTOCOL_NOT_AUTHORIZING"
+AUTHORIZE_PERMIT_BINDING_CONFLICT = "AUTHORIZE_PERMIT_BINDING_CONFLICT"
+AUTHORIZE_PERMIT_ALREADY_CONSUMED = "AUTHORIZE_PERMIT_ALREADY_CONSUMED"
+AUTHORIZE_PERMIT_EXPIRED = "AUTHORIZE_PERMIT_EXPIRED"
+AUTHORIZE_PERMIT_INDETERMINATE = "AUTHORIZE_PERMIT_INDETERMINATE"
 
 EXECUTION_AUTHORIZATION_CONSUMED = "EXECUTION_AUTHORIZATION_CONSUMED"
 
@@ -218,3 +222,46 @@ def bind_authorize_to_sealed_allow(
         return receipt_reason
 
     return _action_binding_reason(record, action, dispatch)
+
+
+def mint_bindings_digest(
+    *,
+    organisation_id: str,
+    agent_id: str,
+    principal_id: str,
+    action: dict[str, Any],
+    dispatch: dict[str, Any],
+    expected_wire_bytes_digest: str,
+    expected_wire_bytes_length: int,
+    expected_peer_identity_digest: str,
+    decision_receipt_digest: str,
+    authority_receipt_digest: str,
+    approval_artifact_digest: str | None,
+    state_snapshot_digest: str,
+    policy_bundle_digest: str,
+    obligations_digest: str,
+) -> str:
+    """Digest of mint-time bindings. Changing any field is a new effect."""
+    return sha256_digest(
+        {
+            "organisation_id": organisation_id,
+            "agent_id": agent_id,
+            "principal_id": principal_id,
+            "action": action,
+            "dispatch": dispatch,
+            "expected_wire_bytes_digest": expected_wire_bytes_digest,
+            "expected_wire_bytes_length": expected_wire_bytes_length,
+            "expected_peer_identity_digest": expected_peer_identity_digest,
+            "decision_receipt_digest": decision_receipt_digest,
+            "authority_receipt_digest": authority_receipt_digest,
+            "approval_artifact_digest": approval_artifact_digest,
+            "state_snapshot_digest": state_snapshot_digest,
+            "policy_bundle_digest": policy_bundle_digest,
+            "obligations_digest": obligations_digest,
+        }
+    )
+
+
+def dump_stored_authorization(authorization: dict[str, Any]) -> str:
+    """Canonical JSON used for byte-identical mint replay."""
+    return json.dumps(authorization, sort_keys=True, separators=(",", ":"))

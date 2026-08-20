@@ -20,7 +20,7 @@ import uuid
 from dataclasses import dataclass, field
 from decimal import Decimal
 
-from agent_dna.amount import InvalidAmountError, coerce_amount
+from agent_dna.amount import INVALID_AMOUNT, InvalidAmountError, coerce_amount
 
 
 @dataclass
@@ -92,11 +92,11 @@ class GrantRegistry:
             if g.agent_id == agent_id and g.capability == capability
         ]
 
-    def explain(
+    def explain(  # noqa: C901 — ordered grant lifecycle checklist
         self,
         agent_id: str,
         capability: str,
-        amount: float | None = None,
+        amount: object | None = None,
         now: float | None = None,
     ) -> tuple[bool, str, str | None]:
         """(authorized, reason, grant_id). Reason names the specific
@@ -108,6 +108,7 @@ class GrantRegistry:
             return False, f"no grant exists for '{capability}'", None
 
         coerced_amount = None
+        invalid_amount_reason: str | None = None
         if amount is not None:
             try:
                 coerced_amount = coerce_amount(amount)
@@ -121,7 +122,13 @@ class GrantRegistry:
             if g.expires_at is not None and now >= g.expires_at:
                 reasons.append(f"grant {g.grant_id[:14]} expired")
                 continue
-            if g.budget is not None and coerced_amount is not None:
+            if g.budget is not None:
+                if coerced_amount is None:
+                    invalid_amount_reason = (
+                        f"{INVALID_AMOUNT}: amount required for budgeted grant"
+                    )
+                    reasons.append(invalid_amount_reason)
+                    continue
                 spent = coerce_amount(g.spent)
                 budget = coerce_amount(g.budget)
                 projected = spent + coerced_amount
@@ -133,6 +140,10 @@ class GrantRegistry:
                     continue
             return True, f"grant {g.grant_id[:14]} valid", g.grant_id
 
+        if invalid_amount_reason is not None and all(
+            INVALID_AMOUNT in item for item in reasons
+        ):
+            return False, invalid_amount_reason, None
         return False, "; ".join(reasons), None
 
     def record_spend(self, grant_id: str, amount: object) -> None:

@@ -17,7 +17,10 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
+from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from .decision_graph import DecisionGraph
 from .decision_record import DecisionRecord
@@ -73,7 +76,29 @@ CREATE TABLE IF NOT EXISTS execution_authorization_consume (
     organisation_id            TEXT NOT NULL,
     consumed_at                TEXT NOT NULL
 );
+-- One live signed permit per decision. UNIQUE(decision_id) is the
+-- mint claim: concurrent writers cannot persist different permits.
+CREATE TABLE IF NOT EXISTS execution_authorization_mint (
+    decision_id                  TEXT PRIMARY KEY NOT NULL,
+    organisation_id              TEXT NOT NULL,
+    agent_id                     TEXT NOT NULL,
+    principal_id                 TEXT NOT NULL,
+    bindings_digest              TEXT NOT NULL,
+    execution_authorization_id   TEXT NOT NULL UNIQUE,
+    authorization_json           TEXT NOT NULL,
+    expires_at                   TEXT NOT NULL,
+    minted_at                    TEXT NOT NULL
+);
 """
+
+
+def _rfc3339_expired(expires_at: str, now: datetime) -> bool:
+    parsed = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=UTC)
+    return parsed <= now
 
 
 class SQLiteDecisionStore:
@@ -276,6 +301,132 @@ class SQLiteDecisionStore:
             (execution_authorization_id,),
         ).fetchone()
         return row is not None
+
+    def decision_execution_status(self, decision_id: str) -> str | None:
+        row = self._conn.execute(
+            "SELECT body FROM records WHERE kind = 'execution' AND decision_ref = ?",
+            (decision_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        body = json.loads(row[0])
+        status = body.get("status")
+        return status if isinstance(status, str) else None
+
+    def _classify_mint_row(
+        self,
+        row: tuple[Any, ...],
+        *,
+        bindings_digest: str,
+        principal_id: str,
+        now: datetime,
+    ) -> tuple[str, dict[str, Any] | None]:
+        (
+            stored_decision_id,
+            _org,
+            _agent,
+            stored_principal,
+            stored_bindings,
+            auth_id,
+            authorization_json,
+            expires_at,
+            _minted_at,
+        ) = row
+        if self.decision_execution_status(stored_decision_id) == "indeterminate":
+            return "indeterminate", None
+        if self.is_execution_authorization_consumed(auth_id):
+            return "consumed", None
+        if _rfc3339_expired(expires_at, now):
+            return "expired", None
+        if stored_bindings != bindings_digest or stored_principal != principal_id:
+            return "conflict", None
+        return "replay", json.loads(authorization_json)
+
+    def claim_or_replay_mint(
+        self,
+        *,
+        decision_id: str,
+        organisation_id: str,
+        agent_id: str,
+        principal_id: str,
+        bindings_digest: str,
+        now: datetime,
+        expires_at: str,
+        minted_at: str,
+        authorization_factory: Callable[[], dict[str, Any]],
+    ) -> tuple[str, dict[str, Any] | None]:
+        """Atomically mint one stored authorization per decision.
+
+        authorization_factory is invoked only when this caller wins the
+        insert. IntegrityError losers re-read the winner's row.
+        """
+        from agent_dna.authorize_binding import dump_stored_authorization
+
+        if self.decision_execution_status(decision_id) == "indeterminate":
+            return "indeterminate", None
+
+        conn = self._conn
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            row = conn.execute(
+                "SELECT decision_id, organisation_id, agent_id, principal_id, "
+                "bindings_digest, execution_authorization_id, authorization_json, "
+                "expires_at, minted_at FROM execution_authorization_mint "
+                "WHERE decision_id = ?",
+                (decision_id,),
+            ).fetchone()
+            if row is not None:
+                status, auth = self._classify_mint_row(
+                    row,
+                    bindings_digest=bindings_digest,
+                    principal_id=principal_id,
+                    now=now,
+                )
+                conn.commit()
+                return status, auth
+
+            authorization = authorization_factory()
+            blob = dump_stored_authorization(authorization)
+            conn.execute(
+                "INSERT INTO execution_authorization_mint ("
+                "decision_id, organisation_id, agent_id, principal_id, "
+                "bindings_digest, execution_authorization_id, authorization_json, "
+                "expires_at, minted_at"
+                ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    decision_id,
+                    organisation_id,
+                    agent_id,
+                    principal_id,
+                    bindings_digest,
+                    authorization["execution_authorization_id"],
+                    blob,
+                    expires_at,
+                    minted_at,
+                ),
+            )
+            conn.commit()
+            return "created", json.loads(blob)
+        except sqlite3.IntegrityError:
+            conn.rollback()
+            row = conn.execute(
+                "SELECT decision_id, organisation_id, agent_id, principal_id, "
+                "bindings_digest, execution_authorization_id, authorization_json, "
+                "expires_at, minted_at FROM execution_authorization_mint "
+                "WHERE decision_id = ?",
+                (decision_id,),
+            ).fetchone()
+            if row is None:
+                raise
+            return self._classify_mint_row(
+                row,
+                bindings_digest=bindings_digest,
+                principal_id=principal_id,
+                now=now,
+            )
+        except Exception:
+            conn.rollback()
+            raise
 
     def append_atomic(self, record, envelope: dict | None = None) -> bool:
         """Multi-writer-safe append for decision records only. Returns

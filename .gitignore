@@ -43,3 +43,6 @@ deploy/partners/campfire-blackbox/runtime/
 
 # Archives
 *.tar.gz
+
+# Local gate evidence (not a committed proof format)
+.artifacts/

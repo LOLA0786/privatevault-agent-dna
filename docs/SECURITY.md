@@ -114,10 +114,11 @@ actions, plus a tamper-evident evidence layer. Two security goals:
 - Behavioral baselines are calibrated on synthetic traces until a
   customer pilot trace is wired; this bounds the advisory layer's
   value, not the deterministic layers' correctness.
-- Signing-key rotation is manual (`rotate_key` stub); compromise of
-  the current key allows forging *new* records until rotated —
-  historical chain segments verified against the old public key
-  remain intact.
+- Signing-key rotation records a caller-provisioned envelope; it does
+  not install the new private key as the active signer. Compromise of
+  the current key allows forging *new* records until the operator
+  installs a new key — historical chain segments verified against the
+  old public key remain intact.
 
 ## 5. Reporting a vulnerability
 

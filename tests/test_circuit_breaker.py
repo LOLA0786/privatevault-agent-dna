@@ -115,7 +115,7 @@ def test_salami_drain_volume_trip(db):
 
     # 17 * 60 = 1020 > 1000 -> trips on observe after 17th, blocks 18th call
     assert blocked is not None, "salami drain never tripped the breaker"
-    assert "volume_trip" in guarded.decide(FakeAction()).reason
+    assert "volume_trip" in guarded.decide(FakeAction(amount=60.0)).reason
     assert engine.calls <= 18  # engine never saw the drained tail
 
 

@@ -24,7 +24,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 1220+ automated tests, run in CI on every commit
+- 1280+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
@@ -88,9 +88,15 @@ by security@corp," "budget exceeded"). Amounts on the grant-budget and
 circuit-breaker paths are coerced to `Decimal` before any spent or
 breaker-row mutation; bool, NaN, ±inf, negative, non-numeric, and
 over-ceiling values BLOCK with `INVALID_AMOUNT`
-(`tests/test_amount_coercion.py`). Revocation history is
-reconstructable from the audit trail alone. Delegation and rescoping
-are the next build.
+(`tests/test_amount_coercion.py`). Budgeted grants and amount-capped
+breakers also reject omitted, `None`, and empty amounts with
+`INVALID_AMOUNT` before any mutation
+(`tests/test_amount_requirement.py`). **Grant `spent` is still
+in-process memory:** a restart reloads grants at zero spend. That is
+a release blocker for monetary/budget claims and is scheduled on
+`fix/durable-grant-budgets`, not claimed closed here. Revocation
+history is reconstructable from the audit trail alone. Delegation
+and rescoping are the next build.
 
 ## Behavioral accuracy
 
@@ -164,9 +170,13 @@ not terminate TLS. Deploying without TLS in front of it sends keys in
 plaintext. TLS is the deployment's responsibility and we say so
 rather than imply otherwise.
 
-**We do not claim live key rotation or revocation.** Key changes are
-registry-file reloads. No secrets-manager integration, no rotation
-mechanism (see PRODUCTION-HARDENING.md).
+**We do not claim live key installation, revocation, or a secrets
+manager.** Caller-provisioned `new_seed_hex` can produce a verified
+rotation envelope and public metadata
+(`tests/test_key_rotation_provisioned.py`). That does not install the
+new private key as the active signer, update trust roots, or store
+the seed. Omitted seed fails closed. No filesystem secret store,
+cloud KMS, or `secret_ref` is shipped.
 
 **Two private third-party SDK surfaces are load-bearing** in the MCP
 adapter (`FastMCP._tool_manager`, `mcp.shared._httpx_utils`), pinned
@@ -226,8 +236,9 @@ agent any other outbound path.
 - route every consequential egress through this sidecar (or another
   adapter that passes `tests/test_adapter_conformance.py`);
 - keep the witness signing key independent of the EA mint key;
-- treat `INDETERMINATE` as a burned permit (mint again — we do not
-  auto-retry);
+- treat `INDETERMINATE` as a burned permit (do not auto-retry, and
+  do not remint from the same decision; administrative recovery is
+  deferred);
 - pin `PV_EGRESS_ALLOWED_DESTINATIONS` and
   `PV_EGRESS_ALLOWED_AUDIENCES` before attaching upstream credentials;
 - enforce sole-egress + host network policy; this library cannot stop
@@ -257,7 +268,22 @@ mismatch, and digest/action mismatches
 (`tests/test_authorize_binding.py`). **Single-use consumption is
 recorded in a durable SQLite ledger** keyed by
 `execution_authorization_id`, claimed atomically on successful verify
-(`tests/test_consume_ledger.py`).
+(`tests/test_consume_ledger.py`). **One ALLOW mints at most one live
+stored permit:** the first valid `/v1/authorize` writes a SQLite mint
+claim keyed by `decision_id` (`UNIQUE` + `BEGIN IMMEDIATE`). Identical
+authenticated replay returns the stored authorization bytes (same
+`execution_authorization_id`, nonce, signature). Changed action,
+arguments, wire digest, destination, audience, peer, tenant, agent,
+or authenticated principal hard-refuse with
+`AUTHORIZE_PERMIT_BINDING_CONFLICT`. A consumed, expired, or
+INDETERMINATE permit is not replaced
+(`AUTHORIZE_PERMIT_ALREADY_CONSUMED`, `AUTHORIZE_PERMIT_EXPIRED`,
+`AUTHORIZE_PERMIT_INDETERMINATE`; `tests/test_authorize_mint_claim.py`).
+
+**Administrative remint recovery is deferred.** There is no
+`/v1/authorize/recover` (or equivalent) in this release. A burned,
+expired, or indeterminate mint claim stays fail-closed until a
+recovery authorization model is separately designed and reviewed.
 
 ## Caller-controlled enforcement residuals (F-03 / F-04 / F-05)
 
@@ -284,8 +310,9 @@ Residual gaps we still do not claim closed:
 - **Wire and peer digests are not sealed at decide time.**
 - **Library verify without a `consume_ledger` remains caller-attested**
   for consumption.
-- **One ALLOW may mint multiple permits** until each permit's id is
-  consumed (unless a later mint ledger is merged).
+- **Mint-claim recovery is not shipped.** Consumed, expired, and
+  INDETERMINATE permits cannot be replaced automatically. Operators
+  must fail closed until a reviewed recovery API exists.
 - **Complete mediation** remains unsolved: an agent that never calls
   `/v1/decide` is not controlled by these flags.
 - **The Campfire black-box pack is a hosted interface**, not source

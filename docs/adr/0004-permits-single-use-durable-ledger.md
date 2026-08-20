@@ -3,7 +3,8 @@
 Status:     accepted
 Date:       2026-08-09
 Commit:     a43e05485f88c7cd6e1aeb652f120517595dfc23
-Pinned by:  tests/test_consume_ledger.py::test_second_verify_refused_as_consumed
+Pinned by:  tests/test_consume_ledger.py::test_second_verify_refused_as_consumed;
+            tests/test_authorize_mint_claim.py::test_sequential_mint_returns_byte_identical_authorization
 
 ## What forced the decision
 In-process "already consumed" flags and caller-attested `already_consumed`
@@ -25,15 +26,21 @@ Caller `already_consumed` may only tighten, never relax. The claim
 survives process restart. Library verify without a ledger remains
 caller-attested for consumption and is not the production path.
 
+`POST /v1/authorize` additionally claims `decision_id` in
+`execution_authorization_mint` (`BEGIN IMMEDIATE` + UNIQUE). The first
+valid mint stores one signed authorization. Identical authenticated
+replay returns those stored bytes — it does not re-sign. See ADR 0016.
+
 ## What this costs us
 A crash after consume and before or during send burns the permit
-(see 0005). One ALLOW can still mint multiple distinct ids until a
-mint-claim ledger exists; we do not claim one-decision-one-effect.
-Omitting `consume_ledger` on a library caller silently returns to
-attestation.
+(see 0005). An INDETERMINATE, consumed, or expired mint claim is not
+replaced automatically. Administrative remint recovery is deferred;
+until a reviewed recovery authorization model exists, operators fail
+closed. Omitting `consume_ledger` on a library caller silently returns
+to attestation.
 
 ## What would make us revisit
-A mint-claim ledger that makes one ALLOW mint at most one live
-permit (PV-006), with an explicit recovery API for a burned unused
-id. Moving consumption to Redis/"eventually consistent" without
-the same atomic exclusive claim is not a trigger.
+An explicit recovery API for a burned unused id, with its own
+authorization model and adversarial tests. Moving consumption to
+Redis/"eventually consistent" without the same atomic exclusive claim
+is not a trigger.

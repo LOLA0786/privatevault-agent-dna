@@ -161,7 +161,8 @@ def main():  # noqa: C901 - linear executable acceptance scenario
             keys_file=str(tmp / "keys.json"),
             policy_file=str(tmp / "policy.json"),
             grants_file=str(tmp / "grants.json"),
-            breaker_max_amount=50000.0,  # per-window spending cap
+            breaker_max_amount=50000.0,  # per-window spending cap; omitted
+            # amounts fail closed (PV-01) even for non-payment tools.
             breaker_window_seconds=60.0,
             trusted_public_keys=frozenset({signing_public_key}),
         )
@@ -209,14 +210,14 @@ def main():  # noqa: C901 - linear executable acceptance scenario
     )
     expect(
         "routine CRM read (granted)",
-        call(key, "crm.read_contact"),
+        call(key, "crm.read_contact", arguments={"amount": 0}),
         "allow",
         "baseline",
         "a granted, low-drift routine action passes cleanly and is still recorded",
     )
     expect(
         "routine CRM update (granted)",
-        call(key, "crm.update_contact"),
+        call(key, "crm.update_contact", arguments={"amount": 0}),
         "allow",
         "baseline",
     )
@@ -227,7 +228,7 @@ def main():  # noqa: C901 - linear executable acceptance scenario
     )
     expect(
         "bulk export attempt",
-        call(key, "storage.bulk_export"),
+        call(key, "storage.bulk_export", arguments={"amount": 0}),
         "block",
         "policy",
         "DLP / data-residency",
@@ -277,7 +278,10 @@ def main():  # noqa: C901 - linear executable acceptance scenario
     expect(
         "settlement with open fraud dissent (vote replayed 3x)",
         call(
-            key, "payments.settle", arguments={"target": "9982"}, evidence=consensus_ev
+            key,
+            "payments.settle",
+            arguments={"target": "9982", "amount": 0},
+            evidence=consensus_ev,
         ),
         "require_approval",
         "consensus",

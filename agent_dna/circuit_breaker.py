@@ -162,6 +162,8 @@ class CircuitBreaker:
     ) -> str | None:
         """Record one verdict; trip if any threshold is crossed.
         Returns the trip reason if this observation tripped the breaker."""
+        if amount is None and self._max_cumulative_amount is not None:
+            raise InvalidAmountError("amount required for amount-capped breaker")
         coerced = None if amount is None else coerce_amount(amount)
         stored = _serialize_amount(coerced)
         now = self._clock()
@@ -296,6 +298,8 @@ class CircuitBreaker:
         Returns (trip_reason, None) if blocked, else
         (None, reservation_id) -- pass the id to finalize() with the
         verdict."""
+        if amount is None and self._max_cumulative_amount is not None:
+            raise InvalidAmountError("amount required for amount-capped breaker")
         if amount is not None:
             amount = coerce_amount(amount)
         stored = _serialize_amount(amount)
