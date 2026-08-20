@@ -114,7 +114,8 @@ actions, plus a tamper-evident evidence layer. Two security goals:
 - Behavioral baselines are calibrated on synthetic traces until a
   customer pilot trace is wired; this bounds the advisory layer's
   value, not the deterministic layers' correctness.
-- Signing-key rotation records a caller-provisioned envelope; it does
+- Signing-key rotation records a caller-provisioned envelope and binds
+  the non-secret new public key into the authorized action; it does
   not install the new private key as the active signer. Compromise of
   the current key allows forging *new* records until the operator
   installs a new key — historical chain segments verified against the

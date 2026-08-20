@@ -36,8 +36,7 @@ def _canonical(auth: dict) -> str:
     return json.dumps(auth, sort_keys=True, separators=(",", ":"))
 
 
-@pytest.fixture()
-def mint_env(tmp_path, monkeypatch):
+def build_mint_env(tmp_path, monkeypatch):
     op = generate_key(AGENT, "full")
     other = generate_key(AGENT, "full")
     keys_path = tmp_path / "keys.json"
@@ -109,6 +108,11 @@ def mint_env(tmp_path, monkeypatch):
             "bundle_path": bundle_path,
             "grants_path": grants_path,
         }
+
+
+@pytest.fixture()
+def mint_env(tmp_path, monkeypatch):
+    yield from build_mint_env(tmp_path, monkeypatch)
 
 
 def _ea_action(parameters: dict | None = None):

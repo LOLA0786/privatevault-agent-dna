@@ -26,6 +26,7 @@ an authorised action with an error outcome rather than vanishing.
 
 from __future__ import annotations
 
+import json
 import time
 from typing import Any
 
@@ -43,11 +44,12 @@ class RotationRefused(PermissionError):  # noqa: N818 — refusal, not a fault
     """The precedence ladder did not authorise the rotation."""
 
 
-def _require_seed_material(seed_hex: str) -> None:
+def _public_key_from_seed(seed_hex: str) -> str:
     try:
-        SigningKey(seed_hex.encode("ascii"), encoder=HexEncoder)
+        key = SigningKey(seed_hex.encode("ascii"), encoder=HexEncoder)
     except Exception as exc:
         raise ValueError("invalid rotation seed") from exc
+    return key.verify_key.encode(encoder=HexEncoder).decode()
 
 
 def rotate_and_record(
@@ -62,26 +64,31 @@ def rotate_and_record(
 ) -> dict[str, Any]:
     """Authorise, seal, then perform a signing-key rotation.
 
-    ``new_seed_hex`` is required. Validation happens before any rotation
-    record is written. Returns public metadata, the rotation envelope,
-    and key identifier — never the seed.
+    ``new_seed_hex`` is required. Validation and public-key derivation
+    happen before any rotation record is written. Returns public
+    metadata, the rotation envelope, and key identifier — never the seed.
     """
     if new_seed_hex is None or new_seed_hex == "":
         raise ValueError("new_seed_hex is required")
-    _require_seed_material(old_seed_hex)
-    _require_seed_material(new_seed_hex)
+    old_public_key = _public_key_from_seed(old_seed_hex)
+    new_public_key = _public_key_from_seed(new_seed_hex)
+
+    arguments: dict[str, Any] = {
+        "old_public_key": old_public_key,
+        "new_public_key": new_public_key,
+    }
+    if reason:
+        arguments["reason"] = reason
 
     action = AgentAction(
         agent_id=agent_id,
         capability=ROTATION_CAPABILITY,
         timestamp=time.time() if timestamp is None else timestamp,
-        arguments={"reason": reason} if reason else {},
+        arguments=arguments,
     )
 
     result = engine.decide(action)
     if result.decision is not Decision.ALLOW:
-        # Refusals are recorded too: an attempted rotation that was
-        # denied is exactly the event a security review wants to see.
         recorder.record(action, result)
         raise RotationRefused(
             f"key rotation refused: {result.decision.value} "
@@ -92,14 +99,23 @@ def rotate_and_record(
 
     try:
         rotation = rotate_key(old_seed_hex, new_seed_hex)
-    except Exception as exc:
-        recorder.report_outcome(record.decision_id, "error", f"rotation failed: {exc}")
+        if rotation["new_public_key"] != new_public_key:
+            raise ValueError("rotation public key mismatch")
+    except Exception:
+        recorder.report_outcome(record.decision_id, "error", "rotation failed")
         raise
 
-    recorder.report_outcome(
-        record.decision_id,
-        "ok",
-        f"new_public_key={rotation['new_public_key']}",
+    detail = json.dumps(
+        {
+            "decision_id": record.decision_id,
+            "old_public_key": old_public_key,
+            "new_public_key": rotation["new_public_key"],
+            "key_id": rotation["key_id"],
+            "rotation_envelope": rotation["rotation_envelope"],
+        },
+        sort_keys=True,
+        separators=(",", ":"),
     )
+    recorder.report_outcome(record.decision_id, "ok", detail)
     rotation["decision_id"] = record.decision_id
     return rotation

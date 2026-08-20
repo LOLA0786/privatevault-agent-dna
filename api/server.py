@@ -19,6 +19,7 @@ from __future__ import annotations
 import hashlib
 import json as _pv_json
 import os
+import sqlite3
 import sys
 import tempfile
 import time as _time
@@ -47,6 +48,9 @@ from agent_dna.authorize_binding import (
     AUTHORIZE_PERMIT_BINDING_CONFLICT,
     AUTHORIZE_PERMIT_EXPIRED,
     AUTHORIZE_PERMIT_INDETERMINATE,
+    AUTHORIZE_PERMIT_TRUST_BUNDLE_DIGEST_MISMATCH,
+    AUTHORIZE_PERMIT_TRUST_BUNDLE_MISSING,
+    AUTHORIZE_STORE_UNAVAILABLE,
     bind_authorize_to_sealed_allow,
     mint_bindings_digest,
 )
@@ -1026,7 +1030,7 @@ def authorize(req: AuthorizeRequest, principal: FullPrincipal):  # noqa: C901
         return _pv_sign_ea(unsigned, signer["signing_key"])
 
     try:
-        mint_status, authorization = store.claim_or_replay_mint(
+        mint_result = store.claim_or_replay_mint(
             decision_id=record["decision_id"],
             organisation_id=req.organisation_id,
             agent_id=req.agent_id,
@@ -1036,12 +1040,34 @@ def authorize(req: AuthorizeRequest, principal: FullPrincipal):  # noqa: C901
             expires_at=expires_at,
             minted_at=minted_at,
             authorization_factory=_mint_authorization,
+            trust_bundle=trust_bundle,
         )
-    except Exception as exc:
+    except sqlite3.OperationalError:
+        _authorize_refusal(
+            503,
+            AUTHORIZE_STORE_UNAVAILABLE,
+            "mint claim ledger is unavailable",
+        )
+    except sqlite3.DatabaseError:
+        _authorize_refusal(
+            503,
+            AUTHORIZE_STORE_UNAVAILABLE,
+            "mint claim ledger is unavailable",
+        )
+    except (ValueError, TypeError):
         raise HTTPException(
             status_code=422,
-            detail=f"execution authorization rejected: {type(exc).__name__}",
-        ) from exc
+            detail="execution authorization rejected",
+        ) from None
+    except Exception:
+        raise HTTPException(
+            status_code=500,
+            detail="internal mint failure",
+        ) from None
+
+    mint_status = mint_result[0]
+    authorization = mint_result[1]
+    stored_bundle = mint_result[2] if len(mint_result) > 2 else None
 
     if mint_status == "conflict":
         _authorize_refusal(
@@ -1067,6 +1093,18 @@ def authorize(req: AuthorizeRequest, principal: FullPrincipal):  # noqa: C901
             AUTHORIZE_PERMIT_INDETERMINATE,
             "an indeterminate outcome forbids another mint for this decision",
         )
+    if mint_status == "missing_trust_bundle":
+        _authorize_refusal(
+            409,
+            AUTHORIZE_PERMIT_TRUST_BUNDLE_MISSING,
+            "stored permit is missing its original trust bundle",
+        )
+    if mint_status == "trust_bundle_digest_mismatch":
+        _authorize_refusal(
+            409,
+            AUTHORIZE_PERMIT_TRUST_BUNDLE_DIGEST_MISMATCH,
+            "stored trust bundle does not match the authorization digest",
+        )
     if authorization is None:
         raise HTTPException(
             status_code=500,
@@ -1075,7 +1113,7 @@ def authorize(req: AuthorizeRequest, principal: FullPrincipal):  # noqa: C901
 
     body: dict[str, Any] = {
         "authorization": authorization,
-        "trust_bundle": trust_bundle,
+        "trust_bundle": stored_bundle if stored_bundle is not None else trust_bundle,
         "at_time": _pv_rfc3339(now),
         # Operator posture: whether loop discovery ran (EA schema is closed;
         # this sits beside the permit for adapter retention).
