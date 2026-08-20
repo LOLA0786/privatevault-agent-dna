@@ -6,6 +6,24 @@ and a named test that runs in CI.
 ## Unreleased
 
 ### Security
+- **Mint INDETERMINATE race:** `claim_or_replay_mint` re-reads execution
+  status inside `BEGIN IMMEDIATE`, so an indeterminate outcome that
+  commits first cannot create a permit
+  (`tests/test_authorize_indeterminate_race.py`).
+- **Stored trust-bundle replay:** the mint ledger stores the canonical
+  original trust bundle and digest with the authorization. Replay
+  returns that pair and never substitutes the current process bundle.
+  Legacy rows without a bundle fail closed
+  (`AUTHORIZE_PERMIT_TRUST_BUNDLE_MISSING`;
+  `tests/test_authorize_trust_bundle_replay.py`).
+- **Rotation action binding:** `rotate_and_record` derives the new
+  public key before decide and binds `new_public_key` into
+  `AgentAction.arguments`. A mismatched returned key cannot reuse the
+  earlier decision (`tests/test_key_rotation_provisioned.py`).
+- **Authorize storage failures:** SQLite operational/database errors on
+  mint return HTTP 503 with `AUTHORIZE_STORE_UNAVAILABLE`; unexpected
+  faults return 500; clients never see paths, SQL, or exception text
+  (`tests/test_authorize_mint_storage_errors.py`).
 - **PV-01 amount required on budgeted/capped paths:** omitted, `None`,
   and empty amounts on budgeted grants and amount-capped breakers
   BLOCK with `INVALID_AMOUNT` before spend, reservation, or

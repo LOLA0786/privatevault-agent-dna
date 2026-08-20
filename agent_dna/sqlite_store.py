@@ -87,7 +87,9 @@ CREATE TABLE IF NOT EXISTS execution_authorization_mint (
     execution_authorization_id   TEXT NOT NULL UNIQUE,
     authorization_json           TEXT NOT NULL,
     expires_at                   TEXT NOT NULL,
-    minted_at                    TEXT NOT NULL
+    minted_at                    TEXT NOT NULL,
+    trust_bundle_json            TEXT,
+    trust_bundle_digest          TEXT
 );
 """
 
@@ -116,6 +118,7 @@ class SQLiteDecisionStore:
         self._local = threading.local()
         self._migrate_add_prev_hash_column()
         self._conn.executescript(_SCHEMA)
+        self._migrate_mint_trust_bundle_columns()
         self._conn.commit()
 
     @property
@@ -142,6 +145,36 @@ class SQLiteDecisionStore:
         if "prev_hash" not in cols:
             self._conn.execute("ALTER TABLE records ADD COLUMN prev_hash TEXT")
             self._conn.commit()
+
+    def _migrate_mint_trust_bundle_columns(self) -> None:
+        """Add stored trust-bundle columns to a pre-existing mint table.
+
+        Existing databases are never deleted. New columns are nullable so
+        legacy rows remain readable and fail closed on replay.
+        """
+        cur = self._conn.execute(
+            "SELECT name FROM sqlite_master "
+            "WHERE type='table' AND name='execution_authorization_mint'"
+        )
+        if cur.fetchone() is None:
+            return
+        cols = [
+            r[1]
+            for r in self._conn.execute(
+                "PRAGMA table_info(execution_authorization_mint)"
+            )
+        ]
+        if "trust_bundle_json" not in cols:
+            self._conn.execute(
+                "ALTER TABLE execution_authorization_mint "
+                "ADD COLUMN trust_bundle_json TEXT"
+            )
+        if "trust_bundle_digest" not in cols:
+            self._conn.execute(
+                "ALTER TABLE execution_authorization_mint "
+                "ADD COLUMN trust_bundle_digest TEXT"
+            )
+        self._conn.commit()
 
     # ---- write ----------------------------------------------------------
 
@@ -320,7 +353,9 @@ class SQLiteDecisionStore:
         bindings_digest: str,
         principal_id: str,
         now: datetime,
-    ) -> tuple[str, dict[str, Any] | None]:
+    ) -> tuple[str, dict[str, Any] | None, dict[str, Any] | None]:
+        from agent_dna.authority_v01 import sha256_digest
+
         (
             stored_decision_id,
             _org,
@@ -331,18 +366,31 @@ class SQLiteDecisionStore:
             authorization_json,
             expires_at,
             _minted_at,
+            trust_bundle_json,
+            trust_bundle_digest,
         ) = row
         if self.decision_execution_status(stored_decision_id) == "indeterminate":
-            return "indeterminate", None
+            return "indeterminate", None, None
         if self.is_execution_authorization_consumed(auth_id):
-            return "consumed", None
+            return "consumed", None, None
         if _rfc3339_expired(expires_at, now):
-            return "expired", None
+            return "expired", None, None
         if stored_bindings != bindings_digest or stored_principal != principal_id:
-            return "conflict", None
-        return "replay", json.loads(authorization_json)
+            return "conflict", None, None
+        authorization = json.loads(authorization_json)
+        if not trust_bundle_json or not trust_bundle_digest:
+            return "missing_trust_bundle", None, None
+        try:
+            stored_bundle = json.loads(trust_bundle_json)
+        except json.JSONDecodeError:
+            return "missing_trust_bundle", None, None
+        actual_digest = sha256_digest(stored_bundle)
+        auth_digest = authorization.get("trust_bundle_digest")
+        if actual_digest != trust_bundle_digest or actual_digest != auth_digest:
+            return "trust_bundle_digest_mismatch", None, None
+        return "replay", authorization, stored_bundle
 
-    def claim_or_replay_mint(
+    def claim_or_replay_mint(  # noqa: C901
         self,
         *,
         decision_id: str,
@@ -354,45 +402,65 @@ class SQLiteDecisionStore:
         expires_at: str,
         minted_at: str,
         authorization_factory: Callable[[], dict[str, Any]],
-    ) -> tuple[str, dict[str, Any] | None]:
+        trust_bundle: dict[str, Any] | None = None,
+    ) -> tuple[str, dict[str, Any] | None, dict[str, Any] | None]:
         """Atomically mint one stored authorization per decision.
 
         authorization_factory is invoked only when this caller wins the
         insert. IntegrityError losers re-read the winner's row.
+        Execution status is re-read inside BEGIN IMMEDIATE so an
+        indeterminate outcome that commits first cannot mint.
         """
+        from agent_dna.authority_v01 import canonicalize, sha256_digest
         from agent_dna.authorize_binding import dump_stored_authorization
 
         if self.decision_execution_status(decision_id) == "indeterminate":
-            return "indeterminate", None
+            return "indeterminate", None, None
 
         conn = self._conn
         conn.execute("BEGIN IMMEDIATE")
         try:
+            if self.decision_execution_status(decision_id) == "indeterminate":
+                conn.commit()
+                return "indeterminate", None, None
+
             row = conn.execute(
                 "SELECT decision_id, organisation_id, agent_id, principal_id, "
                 "bindings_digest, execution_authorization_id, authorization_json, "
-                "expires_at, minted_at FROM execution_authorization_mint "
-                "WHERE decision_id = ?",
+                "expires_at, minted_at, trust_bundle_json, trust_bundle_digest "
+                "FROM execution_authorization_mint WHERE decision_id = ?",
                 (decision_id,),
             ).fetchone()
             if row is not None:
-                status, auth = self._classify_mint_row(
+                status, auth, bundle = self._classify_mint_row(
                     row,
                     bindings_digest=bindings_digest,
                     principal_id=principal_id,
                     now=now,
                 )
                 conn.commit()
-                return status, auth
+                return status, auth, bundle
 
             authorization = authorization_factory()
             blob = dump_stored_authorization(authorization)
+            if trust_bundle is None:
+                bundle_json = None
+                bundle_digest = None
+                stored_bundle = None
+            else:
+                bundle_json = canonicalize(trust_bundle).decode("utf-8")
+                bundle_digest = sha256_digest(trust_bundle)
+                stored_bundle = json.loads(bundle_json)
+                auth_digest = authorization.get("trust_bundle_digest")
+                if bundle_digest != auth_digest:
+                    conn.rollback()
+                    return "trust_bundle_digest_mismatch", None, None
             conn.execute(
                 "INSERT INTO execution_authorization_mint ("
                 "decision_id, organisation_id, agent_id, principal_id, "
                 "bindings_digest, execution_authorization_id, authorization_json, "
-                "expires_at, minted_at"
-                ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "expires_at, minted_at, trust_bundle_json, trust_bundle_digest"
+                ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     decision_id,
                     organisation_id,
@@ -403,17 +471,19 @@ class SQLiteDecisionStore:
                     blob,
                     expires_at,
                     minted_at,
+                    bundle_json,
+                    bundle_digest,
                 ),
             )
             conn.commit()
-            return "created", json.loads(blob)
+            return "created", json.loads(blob), stored_bundle
         except sqlite3.IntegrityError:
             conn.rollback()
             row = conn.execute(
                 "SELECT decision_id, organisation_id, agent_id, principal_id, "
                 "bindings_digest, execution_authorization_id, authorization_json, "
-                "expires_at, minted_at FROM execution_authorization_mint "
-                "WHERE decision_id = ?",
+                "expires_at, minted_at, trust_bundle_json, trust_bundle_digest "
+                "FROM execution_authorization_mint WHERE decision_id = ?",
                 (decision_id,),
             ).fetchone()
             if row is None:
