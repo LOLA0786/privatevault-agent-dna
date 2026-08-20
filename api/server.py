@@ -16,6 +16,7 @@ Audit surface:
 
 from __future__ import annotations
 
+import hashlib
 import json as _pv_json
 import os
 import sys
@@ -42,7 +43,12 @@ from agent_dna.authority_v01 import sha256_digest as _pv_sha256_digest
 from agent_dna.authorize_binding import (
     AUTHORIZE_DECISION_NOT_FOUND,
     AUTHORIZE_DECISION_REQUIRED,
+    AUTHORIZE_PERMIT_ALREADY_CONSUMED,
+    AUTHORIZE_PERMIT_BINDING_CONFLICT,
+    AUTHORIZE_PERMIT_EXPIRED,
+    AUTHORIZE_PERMIT_INDETERMINATE,
     bind_authorize_to_sealed_allow,
+    mint_bindings_digest,
 )
 from agent_dna.connector.cross_agent import escalate_with_cross_agent
 from agent_dna.control_posture import (
@@ -86,6 +92,7 @@ class Principal:
     agent_id: str | None
     scope: str
     authentication_disabled: bool = False
+    credential_fingerprint: str = ""
 
     def owns(self, agent_id: str) -> bool:
         return self.authentication_disabled or self.agent_id == agent_id
@@ -95,6 +102,7 @@ AUTH_DISABLED_PRINCIPAL = Principal(
     agent_id=None,
     scope="development",
     authentication_disabled=True,
+    credential_fingerprint="disabled",
 )
 
 
@@ -117,7 +125,8 @@ def require_api_key(
     name = reg.verify_scope(x_api_key, required_scope="full")
     if name is None:
         raise HTTPException(status_code=401, detail="invalid or missing API key")
-    return Principal(agent_id=name, scope="full")
+    fingerprint = hashlib.sha256((x_api_key or "").encode("utf-8")).hexdigest()
+    return Principal(agent_id=name, scope="full", credential_fingerprint=fingerprint)
 
 
 def require_audit_or_full_key(
@@ -925,11 +934,11 @@ def _authorize_loop_gate(
 
 
 @app.post("/v1/authorize")
-def authorize(req: AuthorizeRequest, principal: FullPrincipal):
+def authorize(req: AuthorizeRequest, principal: FullPrincipal):  # noqa: C901
     """Issue execution authority bound to a sealed ALLOW and exact bytes."""
 
     _enforce_identity(principal, req.agent_id)
-    _require_sealed_allow_for_authorize(req)
+    record = _require_sealed_allow_for_authorize(req)
 
     signer = _pv_load_signer()
     trust_bundle = signer["trust_bundle"]
@@ -959,44 +968,110 @@ def authorize(req: AuthorizeRequest, principal: FullPrincipal):
             },
         )
 
+    store = state.get("store")
+    if store is None or not hasattr(store, "claim_or_replay_mint"):
+        raise HTTPException(
+            status_code=503,
+            detail="mint claim ledger is not available",
+        )
+
     ttl = int(os.environ.get("PV_AUTHORIZATION_TTL_SECONDS", "60"))
     now = _datetime.now(UTC)
+    expires_at = _pv_rfc3339(now + _timedelta(seconds=ttl))
+    minted_at = _pv_rfc3339(now)
+    bindings = mint_bindings_digest(
+        organisation_id=req.organisation_id,
+        agent_id=req.agent_id,
+        principal_id=principal.credential_fingerprint,
+        action=req.action,
+        dispatch=req.dispatch,
+        expected_wire_bytes_digest=req.expected_wire_bytes_digest,
+        expected_wire_bytes_length=req.expected_wire_bytes_length,
+        expected_peer_identity_digest=req.expected_peer_identity_digest,
+        decision_receipt_digest=req.decision_receipt_digest,
+        authority_receipt_digest=req.authority_receipt_digest,
+        approval_artifact_digest=req.approval_artifact_digest,
+        state_snapshot_digest=req.state_snapshot_digest,
+        policy_bundle_digest=req.policy_bundle_digest,
+        obligations_digest=req.obligations_digest,
+    )
 
-    unsigned = {
-        "spec": _PV_EA_SPEC,
-        "canonicalization": _PV_CANON,
-        "execution_authorization_id": f"eauth-{_uuid.uuid4()}",
-        "organisation_id": req.organisation_id,
-        "request_id": req.request_id,
-        "issued_at": _pv_rfc3339(now),
-        "not_before": _pv_rfc3339(now),
-        "expires_at": _pv_rfc3339(now + _timedelta(seconds=ttl)),
-        "nonce": _uuid.uuid4().hex,
-        "decision_receipt_digest": req.decision_receipt_digest,
-        "authority_receipt_digest": req.authority_receipt_digest,
-        "approval_artifact_digest": req.approval_artifact_digest,
-        "action": req.action,
-        "action_digest": _pv_sha256_digest(req.action),
-        "expected_wire_bytes_digest": req.expected_wire_bytes_digest,
-        "expected_wire_bytes_length": req.expected_wire_bytes_length,
-        "expected_peer_identity_digest": req.expected_peer_identity_digest,
-        "dispatch": req.dispatch,
-        "state_snapshot_digest": req.state_snapshot_digest,
-        "policy_bundle_digest": req.policy_bundle_digest,
-        "trust_bundle_digest": _pv_sha256_digest(trust_bundle),
-        "obligations_digest": req.obligations_digest,
-        "max_uses": 1,
-        "signer_key_id": signer["key_id"],
-    }
+    def _mint_authorization() -> dict[str, Any]:
+        unsigned = {
+            "spec": _PV_EA_SPEC,
+            "canonicalization": _PV_CANON,
+            "execution_authorization_id": f"eauth-{_uuid.uuid4()}",
+            "organisation_id": req.organisation_id,
+            "request_id": req.request_id,
+            "issued_at": minted_at,
+            "not_before": minted_at,
+            "expires_at": expires_at,
+            "nonce": _uuid.uuid4().hex,
+            "decision_receipt_digest": req.decision_receipt_digest,
+            "authority_receipt_digest": req.authority_receipt_digest,
+            "approval_artifact_digest": req.approval_artifact_digest,
+            "action": req.action,
+            "action_digest": _pv_sha256_digest(req.action),
+            "expected_wire_bytes_digest": req.expected_wire_bytes_digest,
+            "expected_wire_bytes_length": req.expected_wire_bytes_length,
+            "expected_peer_identity_digest": req.expected_peer_identity_digest,
+            "dispatch": req.dispatch,
+            "state_snapshot_digest": req.state_snapshot_digest,
+            "policy_bundle_digest": req.policy_bundle_digest,
+            "trust_bundle_digest": _pv_sha256_digest(trust_bundle),
+            "obligations_digest": req.obligations_digest,
+            "max_uses": 1,
+            "signer_key_id": signer["key_id"],
+        }
+        return _pv_sign_ea(unsigned, signer["signing_key"])
 
     try:
-        authorization = _pv_sign_ea(unsigned, signer["signing_key"])
+        mint_status, authorization = store.claim_or_replay_mint(
+            decision_id=record["decision_id"],
+            organisation_id=req.organisation_id,
+            agent_id=req.agent_id,
+            principal_id=principal.credential_fingerprint,
+            bindings_digest=bindings,
+            now=now,
+            expires_at=expires_at,
+            minted_at=minted_at,
+            authorization_factory=_mint_authorization,
+        )
     except Exception as exc:
-        # A malformed permit fails here, not in front of an auditor.
         raise HTTPException(
             status_code=422,
             detail=f"execution authorization rejected: {type(exc).__name__}",
         ) from exc
+
+    if mint_status == "conflict":
+        _authorize_refusal(
+            403,
+            AUTHORIZE_PERMIT_BINDING_CONFLICT,
+            "mint bindings do not match the live permit for this decision",
+        )
+    if mint_status == "consumed":
+        _authorize_refusal(
+            409,
+            AUTHORIZE_PERMIT_ALREADY_CONSUMED,
+            "the live permit for this decision has already been consumed",
+        )
+    if mint_status == "expired":
+        _authorize_refusal(
+            409,
+            AUTHORIZE_PERMIT_EXPIRED,
+            "the live permit for this decision has expired; recovery is deferred",
+        )
+    if mint_status == "indeterminate":
+        _authorize_refusal(
+            409,
+            AUTHORIZE_PERMIT_INDETERMINATE,
+            "an indeterminate outcome forbids another mint for this decision",
+        )
+    if authorization is None:
+        raise HTTPException(
+            status_code=500,
+            detail="mint claim returned no authorization",
+        )
 
     body: dict[str, Any] = {
         "authorization": authorization,

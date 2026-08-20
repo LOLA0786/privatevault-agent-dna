@@ -29,6 +29,9 @@ from __future__ import annotations
 import time
 from typing import Any
 
+from nacl.encoding import HexEncoder
+from nacl.signing import SigningKey
+
 from .decision import Decision
 from .signer import rotate_key
 from .trace import AgentAction
@@ -38,6 +41,13 @@ ROTATION_CAPABILITY = "security.rotate_signing_key"
 
 class RotationRefused(PermissionError):  # noqa: N818 — refusal, not a fault
     """The precedence ladder did not authorise the rotation."""
+
+
+def _require_seed_material(seed_hex: str) -> None:
+    try:
+        SigningKey(seed_hex.encode("ascii"), encoder=HexEncoder)
+    except Exception as exc:
+        raise ValueError("invalid rotation seed") from exc
 
 
 def rotate_and_record(
@@ -52,11 +62,15 @@ def rotate_and_record(
 ) -> dict[str, Any]:
     """Authorise, seal, then perform a signing-key rotation.
 
-    Returns the rotation result from ``rotate_key`` with the sealed
-    ``decision_id`` attached. Raises ``RotationRefused`` if the ladder
-    did not return ALLOW -- rotation is capability-gated like any
-    other privileged action, never a side door.
+    ``new_seed_hex`` is required. Validation happens before any rotation
+    record is written. Returns public metadata, the rotation envelope,
+    and key identifier — never the seed.
     """
+    if new_seed_hex is None or new_seed_hex == "":
+        raise ValueError("new_seed_hex is required")
+    _require_seed_material(old_seed_hex)
+    _require_seed_material(new_seed_hex)
+
     action = AgentAction(
         agent_id=agent_id,
         capability=ROTATION_CAPABILITY,

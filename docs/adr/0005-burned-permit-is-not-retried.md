@@ -15,15 +15,18 @@ Consume-then-send without a crash state is how you get a double
 effect: the first attempt may have reached the peer; the second
 will. Consume-after-success-only is how you get unbounded retries
 of a permit that already moved money. Neither is acceptable.
+Reminting the same `decision_id` after INDETERMINATE is the same
+class of mistake: the first send may have taken effect.
 
 ## The decision
 Once the sidecar has invoked transport write, the permit is already
 claimed and the outcome is not retryable (`retryable=False`). A
 timeout, reset, or substituted body after write has begun is
 INDETERMINATE, not a signal to present the same id again. Recovery
-is mint a new permit from a new (or explicitly recovered) decision
-— never auto-retry the burned one. Handshake failure before write
-does not consume.
+is a new decision — never auto-retry the burned permit, and never
+remint from the same `decision_id`. Administrative remint recovery
+is deferred (ADR 0016). Handshake failure before write does not
+consume.
 
 ## What this costs us
 Operators eat a burned permit on every ambiguous send. Throughput

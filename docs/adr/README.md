@@ -26,7 +26,9 @@ explicit statement that no such test exists.
 | [0013](0013-open-core-split.md) | Open-core split: drp-spec Apache-2.0, runtime commercial | accepted | no pinning test for the commercial license (verifier independence is pinned; see ADR) |
 | [0014](0014-peer-identity-format.md) | Peer identity format for the production TLS sidecar | open | no pinning test |
 | [0015](0015-loop-discovery-at-authority-boundary.md) | Loop discovery sits at the authority boundary | accepted | predates this series; see that file |
+| [0016](0016-one-live-permit-per-decision.md) | One live stored permit per decision | accepted | `tests/test_authorize_mint_claim.py::test_sequential_mint_returns_byte_identical_authorization` |
 
 0001–0014 are the enforcement-spine decisions. 0015 is the earlier
 loop-discovery placement record, renumbered so the spine could own
-0001.
+0001. 0016 is the mint-claim ledger that makes one ALLOW mint at most
+one live stored permit.

@@ -112,23 +112,43 @@ class ReceiptSigner:
 
 def rotate_key(old_seed_hex: str, new_seed_hex: str | None = None) -> dict[str, Any]:
     """Explicit key rotation: produces a new envelope binding old->new.
-    Industrial standard requires rotation events to be audit-logged."""
-    old_sk = SigningKey(old_seed_hex.encode("ascii"), encoder=HexEncoder)
-    new_seed = new_seed_hex or SigningKey.generate().encode(encoder=HexEncoder).decode()
-    new_sk = SigningKey(new_seed.encode("ascii"), encoder=HexEncoder)
-    rotation_hash = hashlib.sha256((old_seed_hex + new_seed).encode()).hexdigest()
+
+    The caller MUST provision ``new_seed_hex``. Generated seeds are not
+    returned, logged, or persisted by this function.
+    """
+    if new_seed_hex is None or new_seed_hex == "":
+        raise ValueError("new_seed_hex is required")
+    try:
+        old_sk = SigningKey(old_seed_hex.encode("ascii"), encoder=HexEncoder)
+        new_sk = SigningKey(new_seed_hex.encode("ascii"), encoder=HexEncoder)
+    except (ValueError, TypeError) as exc:
+        raise ValueError("invalid rotation seed") from exc
+
+    old_public = old_sk.verify_key.encode(encoder=HexEncoder).decode()
+    new_public = new_sk.verify_key.encode(encoder=HexEncoder).decode()
+    challenge = b"privatevault-key-rotation-v1:" + bytes.fromhex(new_public)
+    challenge_sig = new_sk.sign(challenge).signature
+    try:
+        VerifyKey(new_public.encode("ascii"), encoder=HexEncoder).verify(
+            challenge, challenge_sig
+        )
+    except BadSignatureError as exc:
+        raise ValueError("rotation challenge verification failed") from exc
+
+    rotation_hash = hashlib.sha256((old_public + new_public).encode()).hexdigest()
     envelope = SignatureEnvelope(
         envelope_id=f"rotate-{uuid.uuid4()}",
         algorithm="Ed25519-key-rotation",
         signed_hash=rotation_hash,
         signature=old_sk.sign(rotation_hash.encode()).signature.hex(),
-        public_key=old_sk.verify_key.encode(encoder=HexEncoder).decode(),
-        key_id=f"rotated-to-{new_sk.verify_key.encode(encoder=HexEncoder).decode()[:16]}",
+        public_key=old_public,
+        key_id=f"rotated-to-{new_public[:16]}",
     )
     return {
         "rotation_envelope": envelope.to_dict(),
-        "new_public_key": new_sk.verify_key.encode(encoder=HexEncoder).decode(),
-        "new_seed_hint": "store securely; not in logs",
+        "new_public_key": new_public,
+        "key_id": envelope.key_id,
+        "challenge_verified": True,
     }
 
 

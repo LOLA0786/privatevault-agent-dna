@@ -12,6 +12,8 @@ from decimal import Decimal, InvalidOperation
 
 INVALID_AMOUNT = "INVALID_AMOUNT"
 DEFAULT_AMOUNT_CEILING = Decimal("1000000000")
+MAX_AMOUNT_FRACTIONAL_PLACES = 8
+MAX_AMOUNT_DIGITS = 18
 _CEILING_ENV = "PV_AMOUNT_ABSOLUTE_CEILING"
 
 
@@ -64,14 +66,28 @@ def coerce_amount(raw: object) -> Decimal:
     """Return a finite, non-negative Decimal at or under the absolute ceiling.
 
     Rejects bool (bool is an int subclass), None, NaN, ±inf, negatives,
-    non-numeric values, and values above PV_AMOUNT_ABSOLUTE_CEILING.
+    non-numeric values, excessive fractional precision, oversized digit
+    strings, and values above PV_AMOUNT_ABSOLUTE_CEILING.
     """
     value = _parse_to_decimal(raw)
     if not value.is_finite():
         raise InvalidAmountError(f"non-finite {raw!r}")
     if value < 0:
         raise InvalidAmountError(f"negative {raw!r}")
+    _reject_excessive_precision(value)
     ceiling = amount_ceiling()
     if value > ceiling:
         raise InvalidAmountError(f"{value} exceeds absolute ceiling {ceiling}")
     return value
+
+
+def _reject_excessive_precision(value: Decimal) -> None:
+    exponent = value.as_tuple().exponent
+    if not isinstance(exponent, int):
+        raise InvalidAmountError(f"non-finite {value!r}")
+    if exponent < -MAX_AMOUNT_FRACTIONAL_PLACES:
+        raise InvalidAmountError(
+            f"more than {MAX_AMOUNT_FRACTIONAL_PLACES} fractional digits"
+        )
+    if len(value.as_tuple().digits) > MAX_AMOUNT_DIGITS:
+        raise InvalidAmountError(f"more than {MAX_AMOUNT_DIGITS} significant digits")

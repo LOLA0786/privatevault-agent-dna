@@ -9,7 +9,7 @@ from enum import StrEnum
 from typing import Protocol, runtime_checkable
 
 from .advisory import AdvisorySignal, Severity
-from .amount import InvalidAmountError, coerce_amount
+from .amount import INVALID_AMOUNT, InvalidAmountError, coerce_amount
 from .evidence import EvidenceEngine, EvidenceReport
 from .trace import AgentAction
 
@@ -399,6 +399,27 @@ class DecisionEngine:
                 action.capability,
                 amount=amount,
             )
+            if (
+                not authorized
+                and auth_reason is not None
+                and INVALID_AMOUNT in auth_reason
+            ):
+                return DecisionResult(
+                    decision=Decision.BLOCK,
+                    triggered_by="authorization",
+                    reason=auth_reason,
+                    capability=action.capability,
+                    agent_id=action.agent_id,
+                    drift_score=signal.drift_score,
+                    severity=Severity.CRITICAL,
+                    invariant_message="",
+                    advisory_reasons=list(signal.reasons),
+                    evidence=self.evidence_engine.build(
+                        drift_score=signal.drift_score,
+                        invariant=True,
+                        authorized=False,
+                    ),
+                )
         else:
             authorized = self.authorizer.is_authorized(
                 action.agent_id, action.capability

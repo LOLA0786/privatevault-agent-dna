@@ -27,8 +27,10 @@ attacker suppressing evidence delivery defeated the identity check.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import Any
 
+from .amount import InvalidAmountError, coerce_amount
 from .eav import InvariantEngine
 from .trace import AgentAction
 
@@ -39,7 +41,7 @@ class _CEA:
 
     verb: str
     object_id: str | None
-    amount: float | None
+    amount: Decimal | None
     capability: str
     # P0-7: distinguishes MALFORMED (present but not a number ->
     # fail closed) from ABSENT (None -> skip honestly)
@@ -108,8 +110,8 @@ class UAALConstraintChecker:
         amount_malformed = False
         if raw_amount is not None:
             try:
-                amount = float(raw_amount)
-            except (TypeError, ValueError):
+                amount = coerce_amount(raw_amount)
+            except (InvalidAmountError, TypeError, ValueError):
                 # P0-7: previously coerced to None, which the monetary
                 # invariant then counted as "amount conserved" --
                 # garbage laundered into a passed check. Malformed is

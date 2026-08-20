@@ -45,11 +45,13 @@ def _runtime(tmp):
 def test_allowed_rotation_is_sealed_into_the_chain(tmp_path):
     rt = _runtime(tmp_path)
     old = generate_keypair()["signing_key"]
+    new = generate_keypair()["signing_key"]
     out = rotate_and_record(
         engine=_Ladder(Decision.ALLOW),
         recorder=rt.recorder,
         agent_id="sec-officer-01",
         old_seed_hex=old,
+        new_seed_hex=new,
         reason="scheduled 90-day rotation",
     )
     assert out["new_public_key"]
@@ -69,12 +71,14 @@ def test_allowed_rotation_is_sealed_into_the_chain(tmp_path):
 def test_refused_rotation_raises_and_is_still_recorded(tmp_path):
     rt = _runtime(tmp_path)
     old = generate_keypair()["signing_key"]
+    new = generate_keypair()["signing_key"]
     with pytest.raises(RotationRefused, match="block"):
         rotate_and_record(
             engine=_Ladder(Decision.BLOCK),
             recorder=rt.recorder,
             agent_id="unauthorised-agent",
             old_seed_hex=old,
+            new_seed_hex=new,
         )
     export = rt.store.export_jsonl(tmp_path / "audit.jsonl")
     assert ROTATION_CAPABILITY in export.read_text(), (
@@ -87,12 +91,14 @@ def test_rotation_is_capability_gated_not_a_side_door(tmp_path):
     """require_approval is not allow: only an explicit ALLOW rotates."""
     rt = _runtime(tmp_path)
     old = generate_keypair()["signing_key"]
+    new = generate_keypair()["signing_key"]
     with pytest.raises(RotationRefused):
         rotate_and_record(
             engine=_Ladder(Decision.REQUIRE_APPROVAL),
             recorder=rt.recorder,
             agent_id="sec-officer-01",
             old_seed_hex=old,
+            new_seed_hex=new,
         )
     rt.store.close()
 
@@ -105,11 +111,13 @@ def test_rotated_chain_still_verifies(tmp_path):
 
     rt = _runtime(tmp_path)
     old = generate_keypair()["signing_key"]
+    new = generate_keypair()["signing_key"]
     rotate_and_record(
         engine=_Ladder(Decision.ALLOW),
         recorder=rt.recorder,
         agent_id="sec-officer-01",
         old_seed_hex=old,
+        new_seed_hex=new,
         reason="rotation",
     )
     export = rt.store.export_jsonl(tmp_path / "audit.jsonl")

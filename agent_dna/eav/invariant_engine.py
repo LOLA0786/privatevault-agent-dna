@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from agent_dna.amount import InvalidAmountError, coerce_amount
+
 
 @dataclass
 class Invariant:
@@ -87,7 +89,7 @@ class InvariantEngine:
                 Invariant(
                     "monetary_conservation",
                     False,
-                    "malformed action amount: not a number (fail-closed)",
+                    "malformed action amount: INVALID_AMOUNT (fail-closed)",
                 )
             )
         elif invoice.get("invoice_amount") is None or cea.amount is None:
@@ -100,18 +102,19 @@ class InvariantEngine:
             )
         else:
             try:
-                invoice_amount = float(invoice["invoice_amount"])
-            except (TypeError, ValueError):
+                invoice_amount = coerce_amount(invoice["invoice_amount"])
+                action_amount = coerce_amount(cea.amount)
+            except (InvalidAmountError, TypeError, ValueError):
                 results.append(
                     Invariant(
                         "monetary_conservation",
                         False,
                         "malformed invoice_amount in enterprise_state "
-                        "evidence (fail-closed)",
+                        "evidence (INVALID_AMOUNT, fail-closed)",
                     )
                 )
             else:
-                conserved = invoice_amount == float(cea.amount)
+                conserved = invoice_amount == action_amount
                 results.append(
                     Invariant(
                         "monetary_conservation",
