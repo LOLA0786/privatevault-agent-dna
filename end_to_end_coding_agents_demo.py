@@ -33,7 +33,6 @@ def demo():
     metrics = MetricsExporter()
     engine = DecisionEngine(
         drift_threshold=0.8,
-        policy="local",  # loads profiles/code-agent-01/v1.json if exists
     )
 
     # Scenario: Coding agent attempts 4 actions
