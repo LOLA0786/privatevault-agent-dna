@@ -321,10 +321,30 @@ class DecisionEngine:
         evidence: dict | None = None,
     ) -> DecisionResult:
 
-        signal = self.scorer.score(
-            action,
-            prev_capability,
-        )
+        if self.scorer is not None:
+            signal = self.scorer.score(
+                action,
+                prev_capability,
+            )
+        else:
+            # Drift (L5) is inert when no scorer is attached. This is a
+            # supported configuration -- decide_from() callers supply their
+            # own signal, and scan/replay deliberately constructs with
+            # scorer=None -- but an unattached layer must never read as
+            # "no drift detected". The inertness travels with every
+            # decision through advisory_reasons, so no record can imply
+            # drift was evaluated when it was not.
+            from .advisory import AdvisorySignal, Posture
+
+            signal = AdvisorySignal(
+                agent_id=action.agent_id,
+                capability=action.capability,
+                drift_score=0.0,
+                severity=Severity.INFO,
+                components={},
+                reasons=["drift inert: no scorer attached (L5 not evaluated)"],
+                recommended_posture=Posture.LOG,
+            )
 
         #
         # 0. UAAL enterprise constraints — above everything.
