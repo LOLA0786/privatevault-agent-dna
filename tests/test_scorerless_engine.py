@@ -11,6 +11,7 @@ The suite missed it because test_request_id_propagation.py builds a
 bare engine, calls decide(), and only asserts request_id reaches the
 record -- which an engine_fault record still satisfies.
 """
+
 from agent_dna import AgentAction, DecisionEngine
 
 
