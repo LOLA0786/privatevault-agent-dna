@@ -15,6 +15,7 @@ engine stops demonstrating them this script exits non-zero. A demo
 that can quietly stop demonstrating its own claims is worse than no
 demo, so this one fails loudly instead.
 """
+
 import sys
 
 from agent_dna import AgentAction, DecisionEngine
@@ -55,8 +56,12 @@ class BulkExportInvariant:
 def build_engine():
     """The full composed line -- not a stripped-down fast path."""
     grants = GrantRegistry()
-    grants.grant(agent_id="code-agent-01", capability="git.read_repo", granted_by="demo")
-    grants.grant(agent_id="code-agent-01", capability="git.create_pr", granted_by="demo")
+    grants.grant(
+        agent_id="code-agent-01", capability="git.read_repo", granted_by="demo"
+    )
+    grants.grant(
+        agent_id="code-agent-01", capability="git.create_pr", granted_by="demo"
+    )
     # deploy.production and storage.bulk_export are deliberately NOT granted.
 
     return DecisionEngine(
@@ -92,13 +97,17 @@ def demo():
                             {
                                 "agent_id": "security-agent",
                                 "vote": "APPROVE",
-                                "signature": sign_message("security-agent", "hash-deploy"),
+                                "signature": sign_message(
+                                    "security-agent", "hash-deploy"
+                                ),
                                 "message_hash": "hash-deploy",
                             },
                             {
                                 "agent_id": "finance-agent",
                                 "vote": "REJECT",
-                                "signature": sign_message("finance-agent", "hash-deploy"),
+                                "signature": sign_message(
+                                    "finance-agent", "hash-deploy"
+                                ),
                                 "message_hash": "hash-deploy",
                             },
                         ],
@@ -108,7 +117,10 @@ def demo():
                 },
             ),
         ),
-        ("4. Bulk source export", AgentAction("code-agent-01", "storage.bulk_export", 4.0)),
+        (
+            "4. Bulk source export",
+            AgentAction("code-agent-01", "storage.bulk_export", 4.0),
+        ),
         # Ungranted, trips no invariant, carries no consensus evidence --
         # so only the authorization layer can stop it. Proves L3 in
         # isolation rather than letting a higher layer take the credit.
@@ -164,16 +176,20 @@ def demo():
     if len({r.triggered_by for _, r in results}) < 2:
         failures.append("every action resolved through the same layer")
     if any(r.triggered_by == "engine_fault" for _, r in results):
-        failures.append("an action hit engine_fault -- the engine crashed, it did not enforce")
+        failures.append(
+            "an action hit engine_fault -- the engine crashed, it did not enforce"
+        )
 
     print("\nDemonstrated (asserted by this script, not just claimed):")
     crm = verdicts["5. Read CRM contacts"]
-    print(f"  1. Capability grants scope the agent (L3) — ungranted crm.read_contact: {crm.triggered_by}")
+    print(
+        f"  1. Capability grants scope the agent (L3) — ungranted crm.read_contact: {crm.triggered_by}"
+    )
     print(f"  2. Byzantine quorum on signed votes (L2) — deploy: {deploy.triggered_by}")
     print(f"  3. Behavioural invariant blocks bulk export (L1) — {export.triggered_by}")
     print(f"  4. Drift scored against a declared baseline (L5) — {BASELINE}")
-    print(f"  5. Every verdict carries triggered_by, reason, drift_score")
-    print(f"  6. Metrics + structured JSON logs emitted in real time")
+    print("  5. Every verdict carries triggered_by, reason, drift_score")
+    print("  6. Metrics + structured JSON logs emitted in real time")
 
     if failures:
         print("\n!! DEMO DID NOT DEMONSTRATE ITS CLAIMS:")
