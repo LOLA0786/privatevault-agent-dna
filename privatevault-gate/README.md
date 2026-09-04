@@ -13,15 +13,18 @@ pv_exec -> POST /v1/decide -> require_approval -> command NEVER runs
 ### 1. Start the enforcement engine
 
 ```bash
-docker compose build
 docker run --rm -d -p 8000:8000 \
   -e PV_ALLOW_NO_AUTH=1 \
   -e PV_BASELINE_CAPABILITIES=fs.write \
   -e PV_DB_PATH=/tmp/pv.db \
-  --name pv-demo privatevault-agent-dna-privatevault:latest
+  --name pv-demo ghcr.io/lola0786/privatevault:latest
 
 curl -s http://localhost:8000/ready
 ```
+
+The engine reports its own limitations at `GET /` -- calibration status,
+whether signing is enabled, and what it is not certified for. Read it
+before trusting it with anything.
 
 `PV_BASELINE_CAPABILITIES` declares what your agent normally does. Declared
 capabilities pass; anything outside is treated as behavioral drift and stopped

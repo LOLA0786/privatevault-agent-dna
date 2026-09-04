@@ -1,19 +1,26 @@
 {
   "name": "privatevault-gate",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Pre-execution runtime gate for AI coding agents — routes tool calls through PrivateVault's enforcement engine over MCP before they execute.",
   "type": "module",
-  "bin": {
-    "privatevault-gate": "./dist/bin/cli.js"
-  },
   "main": "./dist/index.js",
   "files": [
-    "dist"
+    "dist",
+    "dist",
+    "README.md",
+    "LICENSE",
+    "dist",
+    "README.md",
+    "LICENSE",
+    "dist",
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "node dist/bin/cli.js",
-    "dev": "tsc -w -p tsconfig.json"
+    "dev": "tsc -w -p tsconfig.json",
+    "prepublishOnly": "npm run build"
   },
   "engines": {
     "node": ">=18"
@@ -23,9 +30,18 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "typescript": "^5.6.0",
-    "@types/node": "^22.0.0"
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
   },
   "license": "MIT",
-  "keywords": ["mcp", "privatevault", "ai-agent", "runtime-security", "model-context-protocol"]
+  "keywords": [
+    "mcp",
+    "privatevault",
+    "ai-agent",
+    "runtime-security",
+    "model-context-protocol"
+  ],
+  "bin": {
+    "privatevault-gate": "dist/bin/cli.js"
+  }
 }
