@@ -42,7 +42,15 @@ An INDETERMINATE outcome does not unlock another mint
 (`AUTHORIZE_PERMIT_INDETERMINATE`).
 
 The uniqueness constraint and transaction are the authority. An
-in-process lock is not sufficient.
+in-process lock is not sufficient. `decision_execution_status` is
+re-read inside the same `BEGIN IMMEDIATE` transaction that selects or
+inserts the mint row, so an INDETERMINATE outcome that commits first
+cannot mint.
+
+The mint row stores the canonical original trust bundle and its
+digest with the authorization. Replay returns that stored pair and
+never substitutes the process's current bundle. Legacy rows without a
+stored bundle fail closed (`AUTHORIZE_PERMIT_TRUST_BUNDLE_MISSING`).
 
 ## What this costs us
 Administrative remint recovery is deferred. There is no recovery

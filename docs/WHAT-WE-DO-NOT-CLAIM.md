@@ -172,7 +172,8 @@ rather than imply otherwise.
 
 **We do not claim live key installation, revocation, or a secrets
 manager.** Caller-provisioned `new_seed_hex` can produce a verified
-rotation envelope and public metadata
+rotation envelope and public metadata. The non-secret new public key
+is bound into the authorized action before the rotation is performed
 (`tests/test_key_rotation_provisioned.py`). That does not install the
 new private key as the active signer, update trust roots, or store
 the seed. Omitted seed fails closed. No filesystem secret store,
@@ -278,7 +279,12 @@ or authenticated principal hard-refuse with
 `AUTHORIZE_PERMIT_BINDING_CONFLICT`. A consumed, expired, or
 INDETERMINATE permit is not replaced
 (`AUTHORIZE_PERMIT_ALREADY_CONSUMED`, `AUTHORIZE_PERMIT_EXPIRED`,
-`AUTHORIZE_PERMIT_INDETERMINATE`; `tests/test_authorize_mint_claim.py`).
+`AUTHORIZE_PERMIT_INDETERMINATE`; `tests/test_authorize_mint_claim.py`,
+`tests/test_authorize_indeterminate_race.py`). Replay returns the
+stored authorization together with the stored original trust bundle;
+legacy rows missing that bundle fail closed
+(`AUTHORIZE_PERMIT_TRUST_BUNDLE_MISSING`;
+`tests/test_authorize_trust_bundle_replay.py`).
 
 **Administrative remint recovery is deferred.** There is no
 `/v1/authorize/recover` (or equivalent) in this release. A burned,
