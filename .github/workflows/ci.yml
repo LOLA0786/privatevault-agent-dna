@@ -41,6 +41,9 @@ jobs:
           uv run mypy agent_dna api
           uv run mypy --strict --follow-imports=skip agent_dna/security
 
+      - name: Demo demonstrates its own claims
+        run: uv run python end_to_end_coding_agents_demo.py
+
       - name: Full claim gate (suite + adversarial + verifiers, sealed)
         run: uv run python tools/prove.py -o /tmp/proof-of-run.json
 
