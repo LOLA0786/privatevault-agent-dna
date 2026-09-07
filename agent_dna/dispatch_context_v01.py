@@ -1,9 +1,13 @@
-"""Versioned dispatch-context digest (D1 / Phase 1).
+"""Versioned dispatch-context digest (D1 / Phase 1, extended for wire binding).
 
 Sealed separately from ``action_v01``. Does **not** widen
-``EXECUTION_ACTION_FIELDS``. Does **not** claim exact wire-byte
-enforcement — only the decide-time intent for adapter/transport,
-operation, destination, and content type.
+``EXECUTION_ACTION_FIELDS``. ``serialization`` names the trusted contract
+that maps ``action.parameters`` onto wire bytes so authorize can refuse a
+permit whose body is not the sealed action.
+
+``pv-dispatch-context/0.1`` (five fields, no serialization) remains
+readable for audit of historical records but is not accepted for new
+mintable decide requests.
 """
 
 from __future__ import annotations
@@ -15,8 +19,10 @@ from agent_dna.authority_v01 import (
     AuthorityFormatError,
     sha256_digest,
 )
+from agent_dna.wire_serialization_v01 import require_wire_serialization
 
-DISPATCH_CONTEXT_SPEC = "pv-dispatch-context/0.1"
+DISPATCH_CONTEXT_SPEC = "pv-dispatch-context/0.2"
+DISPATCH_CONTEXT_SPEC_V01 = "pv-dispatch-context/0.1"
 
 DISPATCH_CONTEXT_FIELDS = frozenset(
     {
@@ -25,6 +31,7 @@ DISPATCH_CONTEXT_FIELDS = frozenset(
         "operation",
         "destination",
         "wire_content_type",
+        "serialization",
     }
 )
 
@@ -34,6 +41,7 @@ _STRING_FIELDS = (
     "operation",
     "destination",
     "wire_content_type",
+    "serialization",
 )
 
 
@@ -41,7 +49,7 @@ def validate_dispatch_context(
     context: Any,
     path: str = "dispatch_context",
 ) -> dict[str, Any]:
-    """Strictly validate the five-field dispatch context."""
+    """Strictly validate the six-field dispatch context (0.2)."""
     if not isinstance(context, Mapping):
         raise AuthorityFormatError(f"{path}: expected object")
 
@@ -59,6 +67,10 @@ def validate_dispatch_context(
         if not isinstance(value, str) or not value:
             raise AuthorityFormatError(f"{path}.{field}: expected non-empty string")
         out[field] = value
+    out["serialization"] = require_wire_serialization(
+        out["serialization"],
+        path=f"{path}.serialization",
+    )
     return out
 
 
@@ -76,6 +88,7 @@ def dispatch_context_digest(
             "operation": validated["operation"],
             "destination": validated["destination"],
             "wire_content_type": validated["wire_content_type"],
+            "serialization": validated["serialization"],
         }
     )
 
@@ -87,9 +100,9 @@ def dispatch_context_from_ea_dispatch(
     """Project an EA-shaped dispatch object onto the sealed context fields.
 
     ``adapter`` may be omitted on legacy EA dispatch objects; in that case
-    it defaults to ``transport`` (still validated as a non-empty string).
-    Extra EA fields (tool digests, encodings, etc.) are ignored for the
-    decide-time digest — wire-byte binding remains authorize/dispatch-time.
+    it defaults to ``transport``. ``serialization`` is required on mintable
+    EA dispatch objects so authorize can re-derive wire bytes from the
+    sealed action.
     """
     if not isinstance(dispatch, Mapping):
         raise AuthorityFormatError(f"{path}: expected object")
@@ -112,6 +125,7 @@ def dispatch_context_from_ea_dispatch(
             "operation": dispatch.get("operation"),
             "destination": dispatch.get("destination"),
             "wire_content_type": dispatch.get("wire_content_type"),
+            "serialization": dispatch.get("serialization"),
         },
         path=path,
     )

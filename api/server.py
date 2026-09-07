@@ -307,6 +307,14 @@ class DecideRequest(BaseModel):
     # dispatch_context_digest.
     execution_action: dict[str, Any] | None = None
     dispatch_context: dict[str, Any] | None = None
+    # Optional first-request wire binding. When supplied with a mintable
+    # decide, these must equal the named serialization of
+    # execution_action.parameters — otherwise decide refuses rather than
+    # sealing an inconsistent pair.
+    expected_wire_bytes_digest: str | None = Field(
+        default=None, pattern=r"^sha256:[0-9a-f]{64}$"
+    )
+    expected_wire_bytes_length: int | None = Field(default=None, ge=0)
 
 
 class OutcomeRequest(BaseModel):
@@ -355,10 +363,29 @@ def _validate_decide_binding(
     from agent_dna.action_v01 import validate_execution_action
     from agent_dna.authority_v01 import AuthorityFormatError
     from agent_dna.dispatch_context_v01 import validate_dispatch_context
+    from agent_dna.wire_serialization_v01 import wire_bytes_digest_from_action
 
     has_action = req.execution_action is not None
     has_dispatch = req.dispatch_context is not None
+    has_wire_digest = req.expected_wire_bytes_digest is not None
+    has_wire_length = req.expected_wire_bytes_length is not None
+    if has_wire_digest ^ has_wire_length:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "expected_wire_bytes_digest and expected_wire_bytes_length "
+                "must both be provided or both omitted"
+            ),
+        )
     if not has_action and not has_dispatch:
+        if has_wire_digest:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "wire binding requires a mintable decide "
+                    "(execution_action and dispatch_context)"
+                ),
+            )
         # Audit-only decision. Unbound records are non-mintable by
         # construction; authorize refuses drp/0.1.
         return None, None
@@ -403,6 +430,33 @@ def _validate_decide_binding(
             status_code=422,
             detail="execution_action.parameters must match arguments",
         )
+
+    try:
+        derived_digest, derived_length, _ = wire_bytes_digest_from_action(
+            execution_action,
+            serialization=dispatch_context["serialization"],
+        )
+    except (AuthorityFormatError, TypeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    if has_wire_digest:
+        if req.expected_wire_bytes_digest != derived_digest:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "expected_wire_bytes_digest does not match the named "
+                    "serialization of execution_action.parameters"
+                ),
+            )
+        if req.expected_wire_bytes_length != derived_length:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "expected_wire_bytes_length does not match the named "
+                    "serialization of execution_action.parameters"
+                ),
+            )
+
     return execution_action, dispatch_context
 
 
@@ -900,6 +954,8 @@ def _require_sealed_allow_for_authorize(req: AuthorizeRequest) -> dict[str, Any]
         decision_receipt_digest=req.decision_receipt_digest,
         action=req.action,
         dispatch=req.dispatch,
+        expected_wire_bytes_digest=req.expected_wire_bytes_digest,
+        expected_wire_bytes_length=req.expected_wire_bytes_length,
         record_hash=req.record_hash,
     )
     if bind_reason is not None:

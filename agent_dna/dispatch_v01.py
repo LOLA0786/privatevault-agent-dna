@@ -72,6 +72,7 @@ _OBSERVED_DISPATCH_FIELDS = frozenset(
         "credential_audience",
         "idempotency_key_digest",
         "retry_policy_digest",
+        "serialization",
     }
 )
 
@@ -163,6 +164,7 @@ def _validate_observed_dispatch(
         "wire_content_encoding",
         "tool_id",
         "credential_audience",
+        "serialization",
     ):
         _require_string(
             value[field],

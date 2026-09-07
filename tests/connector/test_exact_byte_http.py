@@ -131,6 +131,7 @@ def _world(tmp_path, *, expires_at: str = "2099-01-01T00:00:00Z"):
         "credential_audience": "payments.store.example",
         "idempotency_key_digest": Z,
         "retry_policy_digest": ONE,
+        "serialization": "pv-json-parameters/0.1",
     }
     ea_id = f"eauth-{uuid.uuid4()}"
     authorization = sign_execution_authorization(

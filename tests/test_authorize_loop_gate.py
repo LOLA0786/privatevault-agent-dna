@@ -21,7 +21,7 @@ from tests.decide_binding import decide_json, dispatch_context_for
 
 Z = "sha256:" + ("0" * 64)
 ONE = "sha256:" + ("1" * 64)
-WIRE = b'{"account":"4471","amount":400000,"currency":"INR"}'
+WIRE = b'{"note":"loop-gate"}'
 PEER = b"tls-spki:payments.store.example:v3"
 ORG = "org-demo"
 AGENT = "treasury-agent"
@@ -114,6 +114,7 @@ def _base_body(decision_id: str, receipt: str):
             "credential_audience": "crm.store.example",
             "idempotency_key_digest": Z,
             "retry_policy_digest": ONE,
+            "serialization": "pv-json-parameters/0.1",
         },
         "expected_wire_bytes_digest": sha256_bytes_digest(WIRE),
         "expected_wire_bytes_length": len(WIRE),
