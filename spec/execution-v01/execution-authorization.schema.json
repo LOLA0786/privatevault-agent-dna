@@ -181,7 +181,8 @@
         "tool_artifact_digest",
         "credential_audience",
         "idempotency_key_digest",
-        "retry_policy_digest"
+        "retry_policy_digest",
+        "serialization"
       ],
       "properties": {
         "transport": {
@@ -223,6 +224,11 @@
         },
         "retry_policy_digest": {
           "$ref": "#/$defs/sha256Digest"
+        },
+        "serialization": {
+          "type": "string",
+          "minLength": 1,
+          "const": "pv-json-parameters/0.1"
         }
       }
     }

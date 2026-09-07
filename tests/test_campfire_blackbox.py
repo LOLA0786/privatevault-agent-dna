@@ -853,6 +853,7 @@ def _ea_dispatch(context: dict[str, str]) -> dict[str, Any]:
         "credential_audience": context["destination"],
         "idempotency_key_digest": z,
         "retry_policy_digest": one,
+        "serialization": "pv-json-parameters/0.1",
     }
 
 

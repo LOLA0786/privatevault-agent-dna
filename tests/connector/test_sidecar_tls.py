@@ -240,6 +240,7 @@ def _tls_world(
         "credential_audience": audience,
         "idempotency_key_digest": Z,
         "retry_policy_digest": ONE,
+        "serialization": "pv-json-parameters/0.1",
     }
     ea_id = f"eauth-{uuid.uuid4()}"
     authorization = sign_execution_authorization(

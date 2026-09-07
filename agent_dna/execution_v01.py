@@ -78,6 +78,7 @@ _DISPATCH_FIELDS = frozenset(
         "credential_audience",
         "idempotency_key_digest",
         "retry_policy_digest",
+        "serialization",
     }
 )
 
@@ -269,6 +270,7 @@ def validate_execution_authorization(  # noqa: C901
         "wire_content_encoding",
         "tool_id",
         "credential_audience",
+        "serialization",
     ):
         _require_string(
             dispatch[field],

@@ -32,7 +32,7 @@ from agent_dna.trace import AgentAction
 
 Z = "sha256:" + ("0" * 64)
 ONE = "sha256:" + ("1" * 64)
-WIRE = b'{"account":"4471","amount":400000,"currency":"INR"}'
+WIRE = b'{"note":"pv001"}'
 PEER = b"tls-spki:payments.store.example:v3"
 ORG = "org-demo"
 AGENT = "treasury-agent"
@@ -112,6 +112,7 @@ def _dispatch_context(**overrides):
         "operation": "GET /v1/contacts",
         "destination": "crm.store.example",
         "wire_content_type": "application/json",
+        "serialization": "pv-json-parameters/0.1",
     }
     base.update(overrides)
     return base
@@ -132,6 +133,7 @@ def _ea_dispatch(**overrides):
         "credential_audience": ctx["destination"],
         "idempotency_key_digest": Z,
         "retry_policy_digest": ONE,
+        "serialization": "pv-json-parameters/0.1",
     }
     # adapter is not an EA field; handled only via decide dispatch_context
     # or via transport default at authorize projection time.
@@ -281,6 +283,8 @@ def test_missing_action_digest_on_record_refuses_mint(env):
         decision_receipt_digest="sha256:" + record["record_hash"],
         action=_execution_action(),
         dispatch=_ea_dispatch(),
+        expected_wire_bytes_digest=sha256_bytes_digest(WIRE),
+        expected_wire_bytes_length=len(WIRE),
     )
     assert reason == AUTHORIZE_ACTION_DIGEST_REQUIRED
     # Ensure live mint still only for intact record.
@@ -301,6 +305,8 @@ def test_missing_dispatch_context_digest_on_record_refuses_mint(env):
         decision_receipt_digest="sha256:" + record["record_hash"],
         action=_execution_action(),
         dispatch=_ea_dispatch(),
+        expected_wire_bytes_digest=sha256_bytes_digest(WIRE),
+        expected_wire_bytes_length=len(WIRE),
     )
     assert reason == AUTHORIZE_DISPATCH_CONTEXT_DIGEST_REQUIRED
 

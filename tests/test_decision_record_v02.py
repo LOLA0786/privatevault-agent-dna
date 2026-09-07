@@ -46,6 +46,7 @@ DISPATCH = {
     "operation": "POST /v2/refunds",
     "destination": "refunds.cardnetwork.example",
     "wire_content_type": "application/json",
+    "serialization": "pv-json-parameters/0.1",
 }
 
 

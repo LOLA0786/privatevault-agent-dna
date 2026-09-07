@@ -175,6 +175,7 @@ def _dispatch_context() -> dict[str, Any]:
         "operation": _OPERATION,
         "destination": _DESTINATION,
         "wire_content_type": "application/json",
+        "serialization": "pv-json-parameters/0.1",
     }
 
 
@@ -191,6 +192,7 @@ def _ea_dispatch() -> dict[str, Any]:
         "credential_audience": _DESTINATION,
         "idempotency_key_digest": _Z,
         "retry_policy_digest": _ONE,
+        "serialization": "pv-json-parameters/0.1",
     }
 
 
@@ -314,6 +316,8 @@ def test_payload_mutated_after_allow(
         decision_receipt_digest=receipt,
         action=authorized_action,
         dispatch=ea_dispatch,
+        expected_wire_bytes_digest=sha256_bytes_digest(authorized_wire),
+        expected_wire_bytes_length=len(authorized_wire),
         record_hash=record.record_hash,
     )
     assert bind_reason is None
@@ -481,6 +485,8 @@ def _mint_kit(
         decision_receipt_digest=receipt,
         action=action,
         dispatch=ea_dispatch,
+        expected_wire_bytes_digest=sha256_bytes_digest(wire),
+        expected_wire_bytes_length=len(wire),
         record_hash=record.record_hash,
     )
     assert bind_reason is None
