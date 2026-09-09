@@ -31,6 +31,7 @@ from agent_dna.execution_v01 import (
     sha256_bytes_digest,
     validate_execution_authorization,
 )
+from agent_dna.wire_serialization_v01 import require_wire_serialization
 
 DISPATCH_WITNESS_SPEC = "pv-dispatch-witness/0.1-experimental"
 
@@ -72,6 +73,7 @@ _OBSERVED_DISPATCH_FIELDS = frozenset(
         "credential_audience",
         "idempotency_key_digest",
         "retry_policy_digest",
+        "serialization",
     }
 )
 
@@ -163,6 +165,7 @@ def _validate_observed_dispatch(
         "wire_content_encoding",
         "tool_id",
         "credential_audience",
+        "serialization",
     ):
         _require_string(
             value[field],
@@ -180,6 +183,7 @@ def _validate_observed_dispatch(
             f"{path}.{field}",
         )
 
+    require_wire_serialization(value["serialization"], path=f"{path}.serialization")
     canonicalize(value)
     return value
 

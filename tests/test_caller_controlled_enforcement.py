@@ -262,6 +262,7 @@ def test_f04_authorize_without_events_refused_when_required(production_api):
                 "operation": "GET /v1/contacts",
                 "destination": "crm.example",
                 "wire_content_type": "application/json",
+                "serialization": "pv-json-parameters/0.1",
             },
         },
     )
@@ -274,7 +275,11 @@ def test_f04_authorize_without_events_refused_when_required(production_api):
     digest = "sha256:" + ("ab" * 32)
     z = "sha256:" + ("0" * 64)
     one = "sha256:" + ("1" * 64)
-    wire = b'{"ok":true}'
+    # Wire must be the trusted serialization of sealed action.parameters so
+    # the loop-events gate is reached (not AUTHORIZE_WIRE_ACTION_MISMATCH).
+    from agent_dna.connector.adapters.exact_byte_http import serialize_json_payload
+
+    wire = serialize_json_payload({"note": "loop"})
     body = {
         "request_id": "req-1",
         "agent_id": "maker-1",
@@ -299,6 +304,7 @@ def test_f04_authorize_without_events_refused_when_required(production_api):
             "credential_audience": "crm.example",
             "idempotency_key_digest": z,
             "retry_policy_digest": one,
+            "serialization": "pv-json-parameters/0.1",
         },
         "expected_wire_bytes_digest": sha256_bytes_digest(wire),
         "expected_wire_bytes_length": len(wire),

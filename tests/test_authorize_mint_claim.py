@@ -20,7 +20,7 @@ from tests.decide_binding import decide_json, dispatch_context_for
 
 Z = "sha256:" + ("0" * 64)
 ONE = "sha256:" + ("1" * 64)
-WIRE = b'{"account":"4471","amount":400000,"currency":"INR"}'
+WIRE = b'{"note":"mint-claim"}'
 PEER = b"tls-spki:payments.store.example:v3"
 ORG = "org-demo"
 AGENT = "treasury-agent"
@@ -138,6 +138,7 @@ def _dispatch(**overrides):
         "credential_audience": "crm.store.example",
         "idempotency_key_digest": Z,
         "retry_policy_digest": ONE,
+        "serialization": "pv-json-parameters/0.1",
     }
     body.update(overrides)
     return body
@@ -203,7 +204,10 @@ def test_sequential_mint_returns_byte_identical_authorization(mint_env) -> None:
     assert _canonical(a1) == _canonical(a2)
 
 
-def test_changed_wire_digest_is_binding_conflict(mint_env) -> None:
+def test_changed_wire_digest_is_wire_action_mismatch(mint_env) -> None:
+    """A body that is not the sealed action cannot mint — refused before claim."""
+    from agent_dna.authorize_binding import AUTHORIZE_WIRE_ACTION_MISMATCH
+
     client, key = mint_env["client"], mint_env["key"]
     record = _decide_allow(client, key)
     first = client.post(
@@ -218,7 +222,7 @@ def test_changed_wire_digest_is_binding_conflict(mint_env) -> None:
         json=_authorize_body(record, wire=b'{"account":"0000"}'),
     )
     assert tampered.status_code == 403, tampered.text
-    assert tampered.json()["detail"]["reason_code"] == AUTHORIZE_PERMIT_BINDING_CONFLICT
+    assert tampered.json()["detail"]["reason_code"] == AUTHORIZE_WIRE_ACTION_MISMATCH
     assert "authorization" not in tampered.json()
 
 

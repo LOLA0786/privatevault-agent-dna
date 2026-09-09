@@ -5,11 +5,26 @@
     "description": "Hosted black-box subset. 403 on decide is a BLOCK verdict. 202 must not execute. Authorize mints; it does not dispatch a file or prove live network delivery. Hosted evaluation must run with PV_SECURE_PROFILE=1."
   },
   "variable": [
-    { "key": "BASE_URL", "value": "https://YOUR-HOSTED-PRIVATEVAULT-URL" },
-    { "key": "CAMPFIRE_API_KEY", "value": "" },
-    { "key": "CAMPFIRE_AUDIT_KEY", "value": "" },
-    { "key": "decision_id", "value": "" },
-    { "key": "record_hash", "value": "" }
+    {
+      "key": "BASE_URL",
+      "value": "https://YOUR-HOSTED-PRIVATEVAULT-URL"
+    },
+    {
+      "key": "CAMPFIRE_API_KEY",
+      "value": ""
+    },
+    {
+      "key": "CAMPFIRE_AUDIT_KEY",
+      "value": ""
+    },
+    {
+      "key": "decision_id",
+      "value": ""
+    },
+    {
+      "key": "record_hash",
+      "value": ""
+    }
   ],
   "item": [
     {
@@ -44,12 +59,18 @@
       "request": {
         "method": "POST",
         "header": [
-          { "key": "X-API-Key", "value": "{{CAMPFIRE_API_KEY}}" },
-          { "key": "Content-Type", "value": "application/json" }
+          {
+            "key": "X-API-Key",
+            "value": "{{CAMPFIRE_API_KEY}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"agent_id\": \"campfire-agent\",\n  \"capability\": \"campfire.files.write_sandbox\",\n  \"timestamp\": {{$timestamp}},\n  \"arguments\": {\"path\": \"/sandbox/notes.txt\", \"content\": \"hello from the evaluation sandbox\"},\n  \"request_id\": \"campfire-allow-001\",\n  \"execution_action\": {\n    \"subject_principal\": \"campfire-agent@campfire.eval\",\n    \"subject_key_id\": \"campfire-agent\",\n    \"action\": \"campfire.files.write_sandbox\",\n    \"resource\": \"files:sandbox\",\n    \"parameters\": {\"path\": \"/sandbox/notes.txt\", \"content\": \"hello from the evaluation sandbox\"}\n  },\n  \"dispatch_context\": {\n    \"adapter\": \"https\",\n    \"transport\": \"https\",\n    \"operation\": \"PUT /sandbox/notes.txt\",\n    \"destination\": \"sandbox.campfire.eval\",\n    \"wire_content_type\": \"application/json\"\n  }\n}"
+          "raw": "{\n  \"agent_id\": \"campfire-agent\",\n  \"capability\": \"campfire.files.write_sandbox\",\n  \"timestamp\": {{$timestamp}},\n  \"arguments\": {\n    \"path\": \"/sandbox/notes.txt\",\n    \"content\": \"hello from the evaluation sandbox\"\n  },\n  \"request_id\": \"campfire-allow-001\",\n  \"execution_action\": {\n    \"subject_principal\": \"campfire-agent@campfire.eval\",\n    \"subject_key_id\": \"campfire-agent\",\n    \"action\": \"campfire.files.write_sandbox\",\n    \"resource\": \"files:sandbox\",\n    \"parameters\": {\n      \"path\": \"/sandbox/notes.txt\",\n      \"content\": \"hello from the evaluation sandbox\"\n    }\n  },\n  \"dispatch_context\": {\n    \"adapter\": \"https\",\n    \"transport\": \"https\",\n    \"operation\": \"PUT /sandbox/notes.txt\",\n    \"destination\": \"sandbox.campfire.eval\",\n    \"wire_content_type\": \"application/json\",\n    \"serialization\": \"pv-json-parameters/0.1\"\n  }\n}"
         },
         "url": "{{BASE_URL}}/v1/decide"
       }
@@ -59,12 +80,18 @@
       "request": {
         "method": "POST",
         "header": [
-          { "key": "X-API-Key", "value": "{{CAMPFIRE_API_KEY}}" },
-          { "key": "Content-Type", "value": "application/json" }
+          {
+            "key": "X-API-Key",
+            "value": "{{CAMPFIRE_API_KEY}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"agent_id\": \"campfire-agent\",\n  \"capability\": \"campfire.files.write_sandbox\",\n  \"timestamp\": {{$timestamp}},\n  \"arguments\": {\"path\": \"/sandbox/notes.txt\", \"content\": \"needs a human look\", \"review\": true},\n  \"request_id\": \"campfire-review-001\",\n  \"execution_action\": {\n    \"subject_principal\": \"campfire-agent@campfire.eval\",\n    \"subject_key_id\": \"campfire-agent\",\n    \"action\": \"campfire.files.write_sandbox\",\n    \"resource\": \"files:sandbox\",\n    \"parameters\": {\"path\": \"/sandbox/notes.txt\", \"content\": \"needs a human look\", \"review\": true}\n  },\n  \"dispatch_context\": {\n    \"adapter\": \"https\",\n    \"transport\": \"https\",\n    \"operation\": \"PUT /sandbox/notes.txt\",\n    \"destination\": \"sandbox.campfire.eval\",\n    \"wire_content_type\": \"application/json\"\n  }\n}"
+          "raw": "{\n  \"agent_id\": \"campfire-agent\",\n  \"capability\": \"campfire.files.write_sandbox\",\n  \"timestamp\": {{$timestamp}},\n  \"arguments\": {\n    \"path\": \"/sandbox/notes.txt\",\n    \"content\": \"needs a human look\",\n    \"review\": true\n  },\n  \"request_id\": \"campfire-review-001\",\n  \"execution_action\": {\n    \"subject_principal\": \"campfire-agent@campfire.eval\",\n    \"subject_key_id\": \"campfire-agent\",\n    \"action\": \"campfire.files.write_sandbox\",\n    \"resource\": \"files:sandbox\",\n    \"parameters\": {\n      \"path\": \"/sandbox/notes.txt\",\n      \"content\": \"needs a human look\",\n      \"review\": true\n    }\n  },\n  \"dispatch_context\": {\n    \"adapter\": \"https\",\n    \"transport\": \"https\",\n    \"operation\": \"PUT /sandbox/notes.txt\",\n    \"destination\": \"sandbox.campfire.eval\",\n    \"wire_content_type\": \"application/json\",\n    \"serialization\": \"pv-json-parameters/0.1\"\n  }\n}"
         },
         "url": "{{BASE_URL}}/v1/decide"
       }
@@ -74,12 +101,18 @@
       "request": {
         "method": "POST",
         "header": [
-          { "key": "X-API-Key", "value": "{{CAMPFIRE_API_KEY}}" },
-          { "key": "Content-Type", "value": "application/json" }
+          {
+            "key": "X-API-Key",
+            "value": "{{CAMPFIRE_API_KEY}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"agent_id\": \"campfire-agent\",\n  \"capability\": \"campfire.files.write_sandbox\",\n  \"timestamp\": {{$timestamp}},\n  \"arguments\": {\"path\": \"/protected/secrets.txt\", \"content\": \"should never write\"},\n  \"request_id\": \"campfire-block-001\",\n  \"execution_action\": {\n    \"subject_principal\": \"campfire-agent@campfire.eval\",\n    \"subject_key_id\": \"campfire-agent\",\n    \"action\": \"campfire.files.write_sandbox\",\n    \"resource\": \"files:sandbox\",\n    \"parameters\": {\"path\": \"/protected/secrets.txt\", \"content\": \"should never write\"}\n  },\n  \"dispatch_context\": {\n    \"adapter\": \"https\",\n    \"transport\": \"https\",\n    \"operation\": \"PUT /protected/secrets.txt\",\n    \"destination\": \"sandbox.campfire.eval\",\n    \"wire_content_type\": \"application/json\"\n  }\n}"
+          "raw": "{\n  \"agent_id\": \"campfire-agent\",\n  \"capability\": \"campfire.files.write_sandbox\",\n  \"timestamp\": {{$timestamp}},\n  \"arguments\": {\n    \"path\": \"/protected/secrets.txt\",\n    \"content\": \"should never write\"\n  },\n  \"request_id\": \"campfire-block-001\",\n  \"execution_action\": {\n    \"subject_principal\": \"campfire-agent@campfire.eval\",\n    \"subject_key_id\": \"campfire-agent\",\n    \"action\": \"campfire.files.write_sandbox\",\n    \"resource\": \"files:sandbox\",\n    \"parameters\": {\n      \"path\": \"/protected/secrets.txt\",\n      \"content\": \"should never write\"\n    }\n  },\n  \"dispatch_context\": {\n    \"adapter\": \"https\",\n    \"transport\": \"https\",\n    \"operation\": \"PUT /protected/secrets.txt\",\n    \"destination\": \"sandbox.campfire.eval\",\n    \"wire_content_type\": \"application/json\",\n    \"serialization\": \"pv-json-parameters/0.1\"\n  }\n}"
         },
         "url": "{{BASE_URL}}/v1/decide"
       }
@@ -89,12 +122,18 @@
       "request": {
         "method": "POST",
         "header": [
-          { "key": "X-API-Key", "value": "{{CAMPFIRE_API_KEY}}" },
-          { "key": "Content-Type", "value": "application/json" }
+          {
+            "key": "X-API-Key",
+            "value": "{{CAMPFIRE_API_KEY}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"request_id\": \"campfire-auth-honest\",\n  \"agent_id\": \"campfire-agent\",\n  \"organisation_id\": \"campfire.eval\",\n  \"decision_id\": \"{{decision_id}}\",\n  \"action\": {\n    \"subject_principal\": \"campfire-agent@campfire.eval\",\n    \"subject_key_id\": \"campfire-agent\",\n    \"action\": \"campfire.files.write_sandbox\",\n    \"resource\": \"files:sandbox\",\n    \"parameters\": {\"path\": \"/sandbox/notes.txt\", \"content\": \"hello from the evaluation sandbox\"}\n  },\n  \"dispatch\": {\n    \"transport\": \"https\",\n    \"destination\": \"sandbox.campfire.eval\",\n    \"operation\": \"PUT /sandbox/notes.txt\",\n    \"wire_content_type\": \"application/json\",\n    \"wire_content_encoding\": \"identity\",\n    \"tool_id\": \"campfire.files.write_sandbox.v1\",\n    \"tool_schema_digest\": \"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\n    \"tool_artifact_digest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\n    \"credential_audience\": \"sandbox.campfire.eval\",\n    \"idempotency_key_digest\": \"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\n    \"retry_policy_digest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\"\n  },\n  \"expected_wire_bytes_digest\": \"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\n  \"expected_wire_bytes_length\": 0,\n  \"expected_peer_identity_digest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\n  \"decision_receipt_digest\": \"sha256:{{record_hash}}\",\n  \"authority_receipt_digest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\n  \"approval_artifact_digest\": \"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\n  \"state_snapshot_digest\": \"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\n  \"policy_bundle_digest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\n  \"obligations_digest\": \"sha256:0000000000000000000000000000000000000000000000000000000000000000\"\n}"
+          "raw": "{\n  \"request_id\": \"campfire-auth-honest\",\n  \"agent_id\": \"campfire-agent\",\n  \"organisation_id\": \"campfire.eval\",\n  \"decision_id\": \"{{decision_id}}\",\n  \"action\": {\n    \"subject_principal\": \"campfire-agent@campfire.eval\",\n    \"subject_key_id\": \"campfire-agent\",\n    \"action\": \"campfire.files.write_sandbox\",\n    \"resource\": \"files:sandbox\",\n    \"parameters\": {\n      \"path\": \"/sandbox/notes.txt\",\n      \"content\": \"hello from the evaluation sandbox\"\n    }\n  },\n  \"dispatch\": {\n    \"transport\": \"https\",\n    \"destination\": \"sandbox.campfire.eval\",\n    \"operation\": \"PUT /sandbox/notes.txt\",\n    \"wire_content_type\": \"application/json\",\n    \"wire_content_encoding\": \"identity\",\n    \"tool_id\": \"campfire.files.write_sandbox.v1\",\n    \"tool_schema_digest\": \"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\n    \"tool_artifact_digest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\n    \"credential_audience\": \"sandbox.campfire.eval\",\n    \"idempotency_key_digest\": \"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\n    \"retry_policy_digest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\n    \"serialization\": \"pv-json-parameters/0.1\"\n  },\n  \"expected_wire_bytes_digest\": \"sha256:9ddee370520dc7713c198743b83f2806b0bc870505948bd695812651c2ed0641\",\n  \"expected_wire_bytes_length\": 75,\n  \"expected_peer_identity_digest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\n  \"decision_receipt_digest\": \"sha256:{{record_hash}}\",\n  \"authority_receipt_digest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\n  \"approval_artifact_digest\": \"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\n  \"state_snapshot_digest\": \"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\n  \"policy_bundle_digest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\n  \"obligations_digest\": \"sha256:0000000000000000000000000000000000000000000000000000000000000000\"\n}"
         },
         "url": "{{BASE_URL}}/v1/authorize"
       }
@@ -104,12 +143,18 @@
       "request": {
         "method": "POST",
         "header": [
-          { "key": "X-API-Key", "value": "{{CAMPFIRE_API_KEY}}" },
-          { "key": "Content-Type", "value": "application/json" }
+          {
+            "key": "X-API-Key",
+            "value": "{{CAMPFIRE_API_KEY}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"request_id\": \"campfire-auth-path\",\n  \"agent_id\": \"campfire-agent\",\n  \"organisation_id\": \"campfire.eval\",\n  \"decision_id\": \"{{decision_id}}\",\n  \"action\": {\n    \"subject_principal\": \"campfire-agent@campfire.eval\",\n    \"subject_key_id\": \"campfire-agent\",\n    \"action\": \"campfire.files.write_sandbox\",\n    \"resource\": \"files:sandbox\",\n    \"parameters\": {\"path\": \"/protected/secrets.txt\", \"content\": \"hello from the evaluation sandbox\"}\n  },\n  \"dispatch\": {\n    \"transport\": \"https\",\n    \"destination\": \"sandbox.campfire.eval\",\n    \"operation\": \"PUT /sandbox/notes.txt\",\n    \"wire_content_type\": \"application/json\",\n    \"wire_content_encoding\": \"identity\",\n    \"tool_id\": \"campfire.files.write_sandbox.v1\",\n    \"tool_schema_digest\": \"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\n    \"tool_artifact_digest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\n    \"credential_audience\": \"sandbox.campfire.eval\",\n    \"idempotency_key_digest\": \"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\n    \"retry_policy_digest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\"\n  },\n  \"expected_wire_bytes_digest\": \"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\n  \"expected_wire_bytes_length\": 0,\n  \"expected_peer_identity_digest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\n  \"decision_receipt_digest\": \"sha256:{{record_hash}}\",\n  \"authority_receipt_digest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\n  \"approval_artifact_digest\": \"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\n  \"state_snapshot_digest\": \"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\n  \"policy_bundle_digest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\n  \"obligations_digest\": \"sha256:0000000000000000000000000000000000000000000000000000000000000000\"\n}"
+          "raw": "{\n  \"request_id\": \"campfire-auth-path\",\n  \"agent_id\": \"campfire-agent\",\n  \"organisation_id\": \"campfire.eval\",\n  \"decision_id\": \"{{decision_id}}\",\n  \"action\": {\n    \"subject_principal\": \"campfire-agent@campfire.eval\",\n    \"subject_key_id\": \"campfire-agent\",\n    \"action\": \"campfire.files.write_sandbox\",\n    \"resource\": \"files:sandbox\",\n    \"parameters\": {\n      \"path\": \"/protected/secrets.txt\",\n      \"content\": \"hello from the evaluation sandbox\"\n    }\n  },\n  \"dispatch\": {\n    \"transport\": \"https\",\n    \"destination\": \"sandbox.campfire.eval\",\n    \"operation\": \"PUT /sandbox/notes.txt\",\n    \"wire_content_type\": \"application/json\",\n    \"wire_content_encoding\": \"identity\",\n    \"tool_id\": \"campfire.files.write_sandbox.v1\",\n    \"tool_schema_digest\": \"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\n    \"tool_artifact_digest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\n    \"credential_audience\": \"sandbox.campfire.eval\",\n    \"idempotency_key_digest\": \"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\n    \"retry_policy_digest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\n    \"serialization\": \"pv-json-parameters/0.1\"\n  },\n  \"expected_wire_bytes_digest\": \"sha256:4044b4de4a3503fb5827543bc9b33460496a13ef11f4993e10787f334024d0c1\",\n  \"expected_wire_bytes_length\": 79,\n  \"expected_peer_identity_digest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\n  \"decision_receipt_digest\": \"sha256:{{record_hash}}\",\n  \"authority_receipt_digest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\n  \"approval_artifact_digest\": \"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\n  \"state_snapshot_digest\": \"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\n  \"policy_bundle_digest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\n  \"obligations_digest\": \"sha256:0000000000000000000000000000000000000000000000000000000000000000\"\n}"
         },
         "url": "{{BASE_URL}}/v1/authorize"
       }
@@ -119,12 +164,18 @@
       "request": {
         "method": "POST",
         "header": [
-          { "key": "X-API-Key", "value": "{{CAMPFIRE_API_KEY}}" },
-          { "key": "Content-Type", "value": "application/json" }
+          {
+            "key": "X-API-Key",
+            "value": "{{CAMPFIRE_API_KEY}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"request_id\": \"campfire-auth-dest\",\n  \"agent_id\": \"campfire-agent\",\n  \"organisation_id\": \"campfire.eval\",\n  \"decision_id\": \"{{decision_id}}\",\n  \"action\": {\n    \"subject_principal\": \"campfire-agent@campfire.eval\",\n    \"subject_key_id\": \"campfire-agent\",\n    \"action\": \"campfire.files.write_sandbox\",\n    \"resource\": \"files:sandbox\",\n    \"parameters\": {\"path\": \"/sandbox/notes.txt\", \"content\": \"hello from the evaluation sandbox\"}\n  },\n  \"dispatch\": {\n    \"transport\": \"https\",\n    \"destination\": \"evil.example\",\n    \"operation\": \"PUT /sandbox/notes.txt\",\n    \"wire_content_type\": \"application/json\",\n    \"wire_content_encoding\": \"identity\",\n    \"tool_id\": \"campfire.files.write_sandbox.v1\",\n    \"tool_schema_digest\": \"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\n    \"tool_artifact_digest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\n    \"credential_audience\": \"sandbox.campfire.eval\",\n    \"idempotency_key_digest\": \"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\n    \"retry_policy_digest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\"\n  },\n  \"expected_wire_bytes_digest\": \"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\n  \"expected_wire_bytes_length\": 0,\n  \"expected_peer_identity_digest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\n  \"decision_receipt_digest\": \"sha256:{{record_hash}}\",\n  \"authority_receipt_digest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\n  \"approval_artifact_digest\": \"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\n  \"state_snapshot_digest\": \"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\n  \"policy_bundle_digest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\n  \"obligations_digest\": \"sha256:0000000000000000000000000000000000000000000000000000000000000000\"\n}"
+          "raw": "{\n  \"request_id\": \"campfire-auth-dest\",\n  \"agent_id\": \"campfire-agent\",\n  \"organisation_id\": \"campfire.eval\",\n  \"decision_id\": \"{{decision_id}}\",\n  \"action\": {\n    \"subject_principal\": \"campfire-agent@campfire.eval\",\n    \"subject_key_id\": \"campfire-agent\",\n    \"action\": \"campfire.files.write_sandbox\",\n    \"resource\": \"files:sandbox\",\n    \"parameters\": {\n      \"path\": \"/sandbox/notes.txt\",\n      \"content\": \"hello from the evaluation sandbox\"\n    }\n  },\n  \"dispatch\": {\n    \"transport\": \"https\",\n    \"destination\": \"evil.example\",\n    \"operation\": \"PUT /sandbox/notes.txt\",\n    \"wire_content_type\": \"application/json\",\n    \"wire_content_encoding\": \"identity\",\n    \"tool_id\": \"campfire.files.write_sandbox.v1\",\n    \"tool_schema_digest\": \"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\n    \"tool_artifact_digest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\n    \"credential_audience\": \"sandbox.campfire.eval\",\n    \"idempotency_key_digest\": \"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\n    \"retry_policy_digest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\n    \"serialization\": \"pv-json-parameters/0.1\"\n  },\n  \"expected_wire_bytes_digest\": \"sha256:9ddee370520dc7713c198743b83f2806b0bc870505948bd695812651c2ed0641\",\n  \"expected_wire_bytes_length\": 75,\n  \"expected_peer_identity_digest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\n  \"decision_receipt_digest\": \"sha256:{{record_hash}}\",\n  \"authority_receipt_digest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\n  \"approval_artifact_digest\": \"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\n  \"state_snapshot_digest\": \"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\n  \"policy_bundle_digest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\n  \"obligations_digest\": \"sha256:0000000000000000000000000000000000000000000000000000000000000000\"\n}"
         },
         "url": "{{BASE_URL}}/v1/authorize"
       }
@@ -134,8 +185,14 @@
       "request": {
         "method": "POST",
         "header": [
-          { "key": "X-API-Key", "value": "{{CAMPFIRE_API_KEY}}" },
-          { "key": "Content-Type", "value": "application/json" }
+          {
+            "key": "X-API-Key",
+            "value": "{{CAMPFIRE_API_KEY}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
         ],
         "body": {
           "mode": "raw",
@@ -149,7 +206,10 @@
       "request": {
         "method": "GET",
         "header": [
-          { "key": "X-API-Key", "value": "{{CAMPFIRE_AUDIT_KEY}}" }
+          {
+            "key": "X-API-Key",
+            "value": "{{CAMPFIRE_AUDIT_KEY}}"
+          }
         ],
         "url": "{{BASE_URL}}/v1/verify"
       }
@@ -159,7 +219,10 @@
       "request": {
         "method": "GET",
         "header": [
-          { "key": "X-API-Key", "value": "{{CAMPFIRE_AUDIT_KEY}}" }
+          {
+            "key": "X-API-Key",
+            "value": "{{CAMPFIRE_AUDIT_KEY}}"
+          }
         ],
         "url": "{{BASE_URL}}/v1/audit/export"
       }
@@ -169,7 +232,10 @@
       "request": {
         "method": "GET",
         "header": [
-          { "key": "X-API-Key", "value": "{{CAMPFIRE_API_KEY}}" }
+          {
+            "key": "X-API-Key",
+            "value": "{{CAMPFIRE_API_KEY}}"
+          }
         ],
         "url": "{{BASE_URL}}/v1/envelope/{{record_hash}}"
       }

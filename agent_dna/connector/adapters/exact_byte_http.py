@@ -94,13 +94,18 @@ OUTCOME_INDETERMINATE = "INDETERMINATE"
 
 
 def serialize_json_payload(payload: Any) -> bytes:
-    """Serialize a JSON-compatible payload to the exact bytes that will be sent."""
+    """Serialize a JSON-compatible payload to the exact bytes that will be sent.
+
+    Matches ``pv-json-parameters/0.1``: sorted keys, compact separators, UTF-8,
+    no NaN. Authorize re-derives these bytes from ``action.parameters``.
+    """
     try:
         return json.dumps(
             payload,
             separators=(",", ":"),
             ensure_ascii=False,
             allow_nan=False,
+            sort_keys=True,
         ).encode("utf-8")
     except (TypeError, ValueError) as exc:
         raise ValueError(f"payload is not JSON-serializable: {exc}") from exc

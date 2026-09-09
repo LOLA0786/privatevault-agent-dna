@@ -58,6 +58,7 @@ def _unsigned_authorization():
         "credential_audience": ("payments.store.example"),
         "idempotency_key_digest": ZERO_DIGEST,
         "retry_policy_digest": ONE_DIGEST,
+        "serialization": "pv-json-parameters/0.1",
     }
 
     return {

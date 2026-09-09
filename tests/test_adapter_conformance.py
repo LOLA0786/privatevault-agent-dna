@@ -115,6 +115,7 @@ class ExactByteHarness:
             "credential_audience": "crm.example",
             "idempotency_key_digest": Z,
             "retry_policy_digest": ONE,
+            "serialization": "pv-json-parameters/0.1",
         }
         self._runtime_key = runtime_key
         self._witness_key = witness_key

@@ -36,7 +36,7 @@ from agent_dna.trace import AgentAction
 
 Z = "sha256:" + ("0" * 64)
 ONE = "sha256:" + ("1" * 64)
-WIRE = b'{"account":"4471","amount":400000,"currency":"INR"}'
+WIRE = b'{"note":"binding-test"}'
 PEER = b"tls-spki:payments.store.example:v3"
 ORG = "org-demo"
 AGENT = "treasury-agent"
@@ -145,6 +145,7 @@ def _dispatch_context():
         "operation": "GET /v1/contacts",
         "destination": "crm.store.example",
         "wire_content_type": "application/json",
+        "serialization": "pv-json-parameters/0.1",
     }
 
 
@@ -162,6 +163,7 @@ def _dispatch():
         "credential_audience": "crm.store.example",
         "idempotency_key_digest": Z,
         "retry_policy_digest": ONE,
+        "serialization": "pv-json-parameters/0.1",
     }
 
 

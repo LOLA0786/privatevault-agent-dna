@@ -25,6 +25,7 @@
     "transport": "https",
     "operation": "PUT /sandbox/notes.txt",
     "destination": "sandbox.campfire.eval",
-    "wire_content_type": "application/json"
+    "wire_content_type": "application/json",
+    "serialization": "pv-json-parameters/0.1"
   }
 }

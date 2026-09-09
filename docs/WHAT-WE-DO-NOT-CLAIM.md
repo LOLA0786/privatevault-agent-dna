@@ -7,6 +7,20 @@ its cryptography. Where we can't back a claim with a test, a public
 artifact, or a third-party attestation, we say so directly here
 rather than leave it ambiguous.
 
+## Wire-binding scope
+
+`pv-json-parameters/0.1` binds an authorized action to a deterministic JSON
+request body. Generic connector and gateway contexts use
+`pv-audit-only/0.1`; they preserve policy decisions and audit evidence but
+cannot mint execution permits. Caller-supplied context cannot upgrade
+that marker. MCP envelopes/framing and the HTTPS gateway's request frame
+need their own transport contracts before claiming this permit path.
+
+Historical five-field context digests are reproducible for audit. Their
+original bytes remain unchanged and they cannot authorize new execution.
+This does not make legacy permits or witnesses executable under the new
+serializer contract. See ADR 0017 and `tests/test_wire_action_binding.py`.
+
 ## Certification
 
 **We have not applied for SOC 2 Type II or ISO/IEC 27001
@@ -24,7 +38,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 1280+ automated tests, run in CI on every commit
+- 1300+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).

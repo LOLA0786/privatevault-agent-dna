@@ -18,6 +18,7 @@ Run it, then read the attack section: the same refund, one field changed.
 from __future__ import annotations
 
 import copy
+import json
 import sys
 from pathlib import Path
 
@@ -61,6 +62,14 @@ WIRE_BYTES = (
     b'{"type":"refund","case":"CASE-40218","account":"CUST-88213",'
     b'"amount_minor":240000,"currency":"USD","reason":"order_cancelled"}'
 )
+WIRE_BYTES = json.dumps(
+    json.loads(WIRE_BYTES),
+    allow_nan=False,
+    ensure_ascii=False,
+    sort_keys=True,
+    separators=(",", ":"),
+).encode("utf-8")
+
 PEER_BYTES = b"refunds.cardnetwork.example:443"
 
 GRANT_CAP_MINOR = 500000  # 5,000.00 USD standing authority for this agent
@@ -116,11 +125,7 @@ def world() -> dict:
         "subject_key_id": "service-agent-07",
         "action": "refunds.issue",
         "resource": "account:CUST-88213",
-        "parameters": {
-            "amount": {"minor_units": REFUND_MINOR, "currency": "USD"},
-            "case": "CASE-40218",
-            "reason": "order_cancelled",
-        },
+        "parameters": json.loads(WIRE_BYTES),
     }
 
     dispatch = {
@@ -128,6 +133,7 @@ def world() -> dict:
         "destination": "refunds.cardnetwork.example",
         "operation": "POST /v2/refunds",
         "wire_content_type": "application/json",
+        "serialization": "pv-json-parameters/0.1",
         "wire_content_encoding": "identity",
         "tool_id": "refunds.cardnetwork.v2",
         "tool_schema_digest": ZERO,
@@ -331,7 +337,7 @@ def main() -> int:
 
     # 1. The agent inflates the amount after authorisation.
     inflated = copy.deepcopy(w["action"])
-    inflated["parameters"]["amount"]["minor_units"] = 2400000  # 24,000.00
+    inflated["parameters"]["amount_minor"] = 2400000  # 24,000.00
     outcomes["inflated"] = report(
         f"amount raised to {usd(2400000)} after authorisation",
         w,

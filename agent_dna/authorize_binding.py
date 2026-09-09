@@ -19,6 +19,22 @@ from agent_dna.dispatch_context_v01 import (
     dispatch_context_digest,
     dispatch_context_from_ea_dispatch,
 )
+from agent_dna.wire_serialization_v01 import (
+    AUTHORIZE_WIRE_ACTION_MISMATCH as AUTHORIZE_WIRE_ACTION_MISMATCH,
+)
+from agent_dna.wire_serialization_v01 import (
+    AUTHORIZE_WIRE_SERIALIZATION_REQUIRED as AUTHORIZE_WIRE_SERIALIZATION_REQUIRED,
+)
+from agent_dna.wire_serialization_v01 import (
+    AUTHORIZE_WIRE_SERIALIZATION_UNKNOWN as AUTHORIZE_WIRE_SERIALIZATION_UNKNOWN,
+)
+from agent_dna.wire_serialization_v01 import (
+    wire_action_binding_reason,
+)
+
+# Re-export wire refusal codes with the authorize_* family.
+# (Imported above; listed here so `from authorize_binding import *` callers
+# and grep-based audits see them next to the other AUTHORIZE_* constants.)
 
 # Distinct reason codes — auditors must distinguish failure modes.
 AUTHORIZE_DECISION_REQUIRED = "AUTHORIZE_DECISION_REQUIRED"
@@ -171,10 +187,33 @@ def _dispatch_digest_binding_reason(
     return None
 
 
+def _wire_binding_reason(
+    action: dict[str, Any],
+    dispatch: dict[str, Any],
+    *,
+    expected_wire_bytes_digest: str,
+    expected_wire_bytes_length: int,
+) -> str | None:
+    """Refuse a wire digest that is not the sealed action under its serializer."""
+    try:
+        context = dispatch_context_from_ea_dispatch(dispatch)
+    except (AuthorityFormatError, TypeError, ValueError):
+        return AUTHORIZE_DISPATCH_CONTEXT_DIGEST_MISMATCH
+    return wire_action_binding_reason(
+        action=action,
+        serialization=context.get("serialization"),
+        expected_wire_bytes_digest=expected_wire_bytes_digest,
+        expected_wire_bytes_length=expected_wire_bytes_length,
+    )
+
+
 def _action_binding_reason(
     record: dict[str, Any],
     action: dict[str, Any],
     dispatch: dict[str, Any],
+    *,
+    expected_wire_bytes_digest: str,
+    expected_wire_bytes_length: int,
 ) -> str | None:
     protocol_reason = _protocol_authorizing(record)
     if protocol_reason is not None:
@@ -188,6 +227,12 @@ def _action_binding_reason(
         _arguments_binding_reason(record, action),
         _action_digest_binding_reason(record, action),
         _dispatch_digest_binding_reason(record, dispatch),
+        _wire_binding_reason(
+            action,
+            dispatch,
+            expected_wire_bytes_digest=expected_wire_bytes_digest,
+            expected_wire_bytes_length=expected_wire_bytes_length,
+        ),
     ):
         if reason is not None:
             return reason
@@ -201,13 +246,16 @@ def bind_authorize_to_sealed_allow(
     decision_receipt_digest: str,
     action: dict[str, Any],
     dispatch: dict[str, Any],
+    expected_wire_bytes_digest: str,
+    expected_wire_bytes_length: int,
     record_hash: str | None = None,
 ) -> str | None:
     """Return a reason_code on refusal, or None when mint may proceed.
 
     Organisation is not a DecisionRecord field; callers must continue to
-    bind organisation_id to the trust bundle separately. Wire/peer byte
-    digests are not sealed at decide time (Phase 1 / D1).
+    bind organisation_id to the trust bundle separately. Wire bytes are
+    not sealed as an independent caller hash at decide time: they must
+    equal the named serialization of the sealed action parameters.
     """
     if record is None:
         return AUTHORIZE_DECISION_NOT_FOUND
@@ -226,7 +274,13 @@ def bind_authorize_to_sealed_allow(
     if receipt_reason is not None:
         return receipt_reason
 
-    return _action_binding_reason(record, action, dispatch)
+    return _action_binding_reason(
+        record,
+        action,
+        dispatch,
+        expected_wire_bytes_digest=expected_wire_bytes_digest,
+        expected_wire_bytes_length=expected_wire_bytes_length,
+    )
 
 
 def mint_bindings_digest(

@@ -108,7 +108,8 @@ class DecisionRecorder:
         """Persist a sealed decision.
 
         When both ``execution_action`` and ``dispatch_context`` are
-        supplied, emits DRP 0.2 (mintable). Otherwise emits DRP 0.1
+        supplied, emits bound DRP 0.2; audit-only serializers cannot mint.
+        Otherwise emits DRP 0.1
         (audit-only; cannot authorize). Partial binding is refused.
         """
         if (execution_action is None) ^ (dispatch_context is None):
