@@ -93,12 +93,12 @@ def run_pytest() -> dict:
     out = proc.stdout
     passed = re.findall(r"^PASSED\s+(\S+)", out, re.M)
     failed = re.findall(r"^FAILED\s+(\S+)", out, re.M)
-    skipped = re.findall(r"^SKIPPED\s+\[\d+\]\s+(\S+)", out, re.M)
+    skipped = re.findall(r"^SKIPPED\s+\[(\d+)\]", out, re.M)
     tail = out.strip().splitlines()[-1] if out.strip() else ""
     return {
         "passed": len(passed),
         "failed": len(failed),
-        "skipped": len(skipped),
+        "skipped": sum(int(n) for n in skipped),
         "summary_line": tail,
         "duration_s": round(time.time() - t0, 2),
         "failed_tests": failed,  # empty on a green run
@@ -190,13 +190,9 @@ def run_audit_verifier() -> dict:
         [sys.executable, "-c", gen], cwd=ROOT, text=True, capture_output=True
     )
     if g.returncode != 0 or not export.exists():
-        # composition API differs across branches; report, don't fail
-        # the whole proof over the demo generator itself
         return {
-            "ok": None,
-            "note": "live export generator unavailable on this "
-            "branch; run examples/composed_line_demo.py and "
-            "verify its export manually",
+            "ok": False,
+            "note": "mandatory live audit export generation failed",
             "generator_error": (g.stderr or "").strip()[-300:],
         }
     proc = subprocess.run(
@@ -244,7 +240,7 @@ def main() -> int:
             adv["ok"],
             val["ok"],
             discovery["ok"],
-            audit["ok"] is not False,  # None (unavailable) is reported, not fatal
+            audit["ok"] is True,  # Mandatory evidence must explicitly pass.
         ]
     )
 

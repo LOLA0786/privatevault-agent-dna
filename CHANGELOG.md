@@ -5,6 +5,11 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Proof reporting
+- Missing live audit evidence now fails the mandatory proof gate.
+- Grouped pytest skips count every case. Regression coverage:
+  `tests/test_prove_manifest.py`.
+
 ### Security
 - **Mint INDETERMINATE race:** `claim_or_replay_mint` re-reads execution
   status inside `BEGIN IMMEDIATE`, so an indeterminate outcome that
