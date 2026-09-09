@@ -23,6 +23,7 @@ from agent_dna.wire_serialization_v01 import require_wire_serialization
 
 DISPATCH_CONTEXT_SPEC = "pv-dispatch-context/0.2"
 DISPATCH_CONTEXT_SPEC_V01 = "pv-dispatch-context/0.1"
+AUDIT_ONLY_SERIALIZATION = "pv-audit-only/0.1"
 
 DISPATCH_CONTEXT_FIELDS = frozenset(
     {
@@ -67,11 +68,21 @@ def validate_dispatch_context(
         if not isinstance(value, str) or not value:
             raise AuthorityFormatError(f"{path}.{field}: expected non-empty string")
         out[field] = value
-    out["serialization"] = require_wire_serialization(
-        out["serialization"],
-        path=f"{path}.serialization",
-    )
+    if out["serialization"] != AUDIT_ONLY_SERIALIZATION:
+        require_wire_serialization(out["serialization"], path=f"{path}.serialization")
     return out
+
+
+def legacy_dispatch_context_digest(context: Any) -> str:
+    """Read-only v0.1 digest; never inserts a serializer or upgrades authority."""
+    fields = DISPATCH_CONTEXT_FIELDS - {"serialization"}
+    if not isinstance(context, Mapping) or set(context) != fields:
+        raise AuthorityFormatError("legacy dispatch_context: expected five fields")
+    if any(not isinstance(v, str) or not v for v in context.values()):
+        raise AuthorityFormatError(
+            "legacy dispatch_context: expected non-empty strings"
+        )
+    return sha256_digest({"spec": DISPATCH_CONTEXT_SPEC_V01, **context})
 
 
 def dispatch_context_digest(

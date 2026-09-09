@@ -5,6 +5,15 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Wire-binding integration
+- Integrate first-mint action/body consistency checks from the existing
+  wire-action-binding branch and migrate the JSON-body examples.
+- Preserve generic connector/gateway policy and audit behavior using an
+  explicit non-mintable context marker. Historical context digest reading
+  does not upgrade authority (`tests/test_wire_action_binding.py`).
+- Match runtime serializer validation to the permit/witness schemas;
+  restore full connector, gateway, shadow, Campfire and demo integration.
+
 ### Proof reporting
 - Missing live audit evidence now fails the mandatory proof gate.
 - Grouped pytest skips count every case. Regression coverage:

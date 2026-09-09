@@ -351,6 +351,55 @@ def _owned_decision(principal: Principal, decision_id: str):
     return record
 
 
+def _validate_decide_wire_inputs(req: DecideRequest) -> None:
+    has_digest = req.expected_wire_bytes_digest is not None
+    has_length = req.expected_wire_bytes_length is not None
+    if has_digest != has_length:
+        raise HTTPException(
+            422,
+            "expected_wire_bytes_digest and expected_wire_bytes_length must both be provided or both omitted",
+        )
+    if has_digest and (req.execution_action is None or req.dispatch_context is None):
+        raise HTTPException(
+            422, "wire binding requires execution_action and dispatch_context"
+        )
+
+
+def _validate_decide_wire_body(
+    req: DecideRequest,
+    execution_action: dict[str, Any],
+    dispatch_context: dict[str, Any],
+) -> None:
+    from agent_dna.authority_v01 import AuthorityFormatError
+    from agent_dna.wire_serialization_v01 import wire_bytes_digest_from_action
+
+    try:
+        derived_digest, derived_length, _ = wire_bytes_digest_from_action(
+            execution_action,
+            serialization=dispatch_context["serialization"],
+        )
+    except (AuthorityFormatError, TypeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    if req.expected_wire_bytes_digest is not None:
+        if req.expected_wire_bytes_digest != derived_digest:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "expected_wire_bytes_digest does not match the named "
+                    "serialization of execution_action.parameters"
+                ),
+            )
+        if req.expected_wire_bytes_length != derived_length:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "expected_wire_bytes_length does not match the named "
+                    "serialization of execution_action.parameters"
+                ),
+            )
+
+
 def _validate_decide_binding(
     req: DecideRequest,
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
@@ -363,31 +412,11 @@ def _validate_decide_binding(
     from agent_dna.action_v01 import validate_execution_action
     from agent_dna.authority_v01 import AuthorityFormatError
     from agent_dna.dispatch_context_v01 import validate_dispatch_context
-    from agent_dna.wire_serialization_v01 import wire_bytes_digest_from_action
 
     has_action = req.execution_action is not None
     has_dispatch = req.dispatch_context is not None
-    has_wire_digest = req.expected_wire_bytes_digest is not None
-    has_wire_length = req.expected_wire_bytes_length is not None
-    if has_wire_digest ^ has_wire_length:
-        raise HTTPException(
-            status_code=422,
-            detail=(
-                "expected_wire_bytes_digest and expected_wire_bytes_length "
-                "must both be provided or both omitted"
-            ),
-        )
+    _validate_decide_wire_inputs(req)
     if not has_action and not has_dispatch:
-        if has_wire_digest:
-            raise HTTPException(
-                status_code=422,
-                detail=(
-                    "wire binding requires a mintable decide "
-                    "(execution_action and dispatch_context)"
-                ),
-            )
-        # Audit-only decision. Unbound records are non-mintable by
-        # construction; authorize refuses drp/0.1.
         return None, None
     if has_action ^ has_dispatch:
         raise HTTPException(
@@ -431,31 +460,7 @@ def _validate_decide_binding(
             detail="execution_action.parameters must match arguments",
         )
 
-    try:
-        derived_digest, derived_length, _ = wire_bytes_digest_from_action(
-            execution_action,
-            serialization=dispatch_context["serialization"],
-        )
-    except (AuthorityFormatError, TypeError, ValueError) as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-
-    if has_wire_digest:
-        if req.expected_wire_bytes_digest != derived_digest:
-            raise HTTPException(
-                status_code=422,
-                detail=(
-                    "expected_wire_bytes_digest does not match the named "
-                    "serialization of execution_action.parameters"
-                ),
-            )
-        if req.expected_wire_bytes_length != derived_length:
-            raise HTTPException(
-                status_code=422,
-                detail=(
-                    "expected_wire_bytes_length does not match the named "
-                    "serialization of execution_action.parameters"
-                ),
-            )
+    _validate_decide_wire_body(req, execution_action, dispatch_context)
 
     return execution_action, dispatch_context
 

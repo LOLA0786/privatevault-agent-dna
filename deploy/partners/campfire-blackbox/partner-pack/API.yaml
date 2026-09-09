@@ -154,7 +154,7 @@ components:
           description: Five canonical fields. Do not include a digest.
         dispatch_context:
           type: object
-          description: Five context fields. Do not include a digest.
+          description: Six context fields, including serialization pv-json-parameters/0.1. Do not include a digest.
     AuthorizeRequest:
       type: object
       required:

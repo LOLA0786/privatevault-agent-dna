@@ -42,3 +42,26 @@ did not cover first-mint inconsistency.
 - Closed schemas widen with a required field — callers/tests must send
   `serialization`.
 - No validation disablement; unknown serialization names refuse.
+
+## Integration scope
+- Generic connector and gateway decisions use `pv-audit-only/0.1` in
+  their sealed context. The middleware sets it independently of caller
+  context. It is not a request-body serializer and cannot mint a permit.
+  Existing policy gates and audit records remain functional.
+- Mintable JSON-body requests use `pv-json-parameters/0.1`. A raw MCP
+  envelope, framing bytes, or the HTTPS gateway's method/URL/body frame
+  is not this format. Supporting their signed permits requires distinct
+  transport contracts; this change does not claim that integration.
+- `legacy_dispatch_context_digest` reproduces the original five-field
+  digest for historical audit only. It does not insert a serializer,
+  rewrite signed artifacts, or authorize a new request. Normal context
+  validation still requires six fields. This is not a migration of old
+  execution permits or witness artifacts into executable authority.
+- Runtime permit and witness validators reject unknown and audit-only
+  serializer names, matching the existing JSON schemas.
+- Campfire examples, Postman payloads, README and smoke tests derive
+  wire hashes and lengths from their actual action parameters. They no
+  longer use arbitrary zero digests for supposedly valid request bodies.
+
+Regressions: `tests/test_wire_action_binding.py`, connector/gateway/shadow
+suites, Campfire pack tests, and executive/refund acceptance demos.

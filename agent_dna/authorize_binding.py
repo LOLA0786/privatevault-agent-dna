@@ -20,9 +20,15 @@ from agent_dna.dispatch_context_v01 import (
     dispatch_context_from_ea_dispatch,
 )
 from agent_dna.wire_serialization_v01 import (
-    AUTHORIZE_WIRE_ACTION_MISMATCH,
-    AUTHORIZE_WIRE_SERIALIZATION_REQUIRED,
-    AUTHORIZE_WIRE_SERIALIZATION_UNKNOWN,
+    AUTHORIZE_WIRE_ACTION_MISMATCH as AUTHORIZE_WIRE_ACTION_MISMATCH,
+)
+from agent_dna.wire_serialization_v01 import (
+    AUTHORIZE_WIRE_SERIALIZATION_REQUIRED as AUTHORIZE_WIRE_SERIALIZATION_REQUIRED,
+)
+from agent_dna.wire_serialization_v01 import (
+    AUTHORIZE_WIRE_SERIALIZATION_UNKNOWN as AUTHORIZE_WIRE_SERIALIZATION_UNKNOWN,
+)
+from agent_dna.wire_serialization_v01 import (
     wire_action_binding_reason,
 )
 

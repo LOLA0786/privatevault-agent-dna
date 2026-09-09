@@ -347,6 +347,7 @@ def test_partner_pack_honest_authorize_returns_200(tmp_path, init_mod, monkeypat
                 "credential_audience",
                 "idempotency_key_digest",
                 "retry_policy_digest",
+                "serialization",
             }
             return body
 
@@ -520,7 +521,9 @@ def test_examples_match_decide_schema():
             "operation",
             "destination",
             "wire_content_type",
+            "serialization",
         }
+        assert ctx["serialization"] == "pv-json-parameters/0.1"
 
 
 def test_adversarial_symlink_injection(tmp_path, build_mod):
@@ -633,7 +636,13 @@ def test_mutating_action_and_dispatch_refuses_mint(tmp_path, init_mod, monkeypat
 
     z = "sha256:" + ("0" * 64)
     one = "sha256:" + ("1" * 64)
-    wire = b'{"path":"/sandbox/notes.txt","content":"ok"}'
+    wire = json.dumps(
+        _example("allow")["arguments"],
+        allow_nan=False,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
     peer = b"tls-spki:sandbox.campfire.eval:v1"
     key = secrets["CAMPFIRE_API_KEY"]
 
@@ -724,7 +733,13 @@ def test_replayed_authorization_is_refused(tmp_path, init_mod, monkeypatch):
 
     z = "sha256:" + ("0" * 64)
     one = "sha256:" + ("1" * 64)
-    wire = b'{"path":"/sandbox/notes.txt","content":"ok"}'
+    wire = json.dumps(
+        _example("allow")["arguments"],
+        allow_nan=False,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
     peer = b"tls-spki:sandbox.campfire.eval:v1"
     key = secrets["CAMPFIRE_API_KEY"]
 

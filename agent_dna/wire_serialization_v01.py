@@ -65,9 +65,7 @@ def serialize_parameters_wire(
                 sort_keys=True,
             ).encode("utf-8")
         except (TypeError, ValueError) as exc:
-            raise AuthorityFormatError(
-                f"{path}: not encodable under {spec}"
-            ) from exc
+            raise AuthorityFormatError(f"{path}: not encodable under {spec}") from exc
 
     raise AuthorityFormatError(f"unhandled wire serialization {spec!r}")
 

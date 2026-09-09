@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import time
 
 import pytest
 from fastapi.testclient import TestClient
@@ -18,7 +17,7 @@ from agent_dna.authority_v01 import (
 from agent_dna.authorize_binding import AUTHORIZE_WIRE_ACTION_MISMATCH
 from agent_dna.execution_v01 import sha256_bytes_digest
 from agent_dna.wire_serialization_v01 import WIRE_SERIALIZATION_JSON_PARAMETERS_V01
-from decide_binding import decide_json, dispatch_context_for, execution_action_for
+from tests.decide_binding import decide_json, dispatch_context_for, execution_action_for
 
 Z = "sha256:" + ("0" * 64)
 ONE = "sha256:" + ("1" * 64)
@@ -81,6 +80,7 @@ def env(tmp_path, monkeypatch):
     monkeypatch.delenv("PV_ALLOW_NO_AUTH", raising=False)
 
     import importlib
+
     import api.server as server
 
     server._pv_signer_cache.clear()
@@ -93,7 +93,7 @@ def env(tmp_path, monkeypatch):
         reg.authorization_mode = "grants_file"
         reg.grant(agent_id=AGENT, capability=CAP, granted_by="test")
         server.state["engine"].authorizer = reg
-        yield {"client": client, "key": op["key"]}
+        yield {"client": client, "key": op["key"], "server": server}
 
 
 def _dispatch():
@@ -118,15 +118,17 @@ def _dispatch():
     }
 
 
-def _authorize(client, key, record, *, action=None, wire=WIRE40):
+def _authorize(client, key, record, *, action=None, wire=WIRE40, dispatch=None):
     body = {
         "request_id": "req-wire-1",
         "agent_id": AGENT,
         "organisation_id": ORG,
         "decision_id": record["decision_id"],
         "action": action
-        or execution_action_for(AGENT, CAP, ARGS40, resource="erp-sandbox.example", org=ORG),
-        "dispatch": _dispatch(),
+        or execution_action_for(
+            AGENT, CAP, ARGS40, resource="erp-sandbox.example", org=ORG
+        ),
+        "dispatch": _dispatch() if dispatch is None else dispatch,
         "expected_wire_bytes_digest": sha256_bytes_digest(wire),
         "expected_wire_bytes_length": len(wire),
         "expected_peer_identity_digest": sha256_bytes_digest(PEER),
@@ -214,3 +216,107 @@ def test_consistent_action_and_wire_still_mints(env):
     minted = _authorize(client, key, record, wire=WIRE40)
     assert minted.status_code == 200, minted.text
     assert minted.json()["authorization"]["execution_authorization_id"]
+
+
+@pytest.mark.parametrize("serialization", ["pv-audit-only/0.1", "unknown/0.1", None])
+def test_decide_rejects_non_mintable_serialization(env, serialization):
+    context = dispatch_context_for()
+    if serialization is None:
+        del context["serialization"]
+    else:
+        context["serialization"] = serialization
+    response = env["client"].post(
+        "/v1/decide",
+        headers={"X-API-Key": env["key"]},
+        json=decide_json(AGENT, CAP, arguments=ARGS40, dispatch_context=context),
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize(
+    ("serialization", "reason"),
+    [
+        ("pv-audit-only/0.1", "AUTHORIZE_WIRE_SERIALIZATION_UNKNOWN"),
+        ("pv-json-parameters/0.1", "AUTHORIZE_DISPATCH_CONTEXT_DIGEST_MISMATCH"),
+    ],
+)
+def test_connector_record_cannot_be_upgraded_to_a_permit(env, serialization, reason):
+    from agent_dna.connector import ToolCallRequest
+    from agent_dna.dispatch_context_v01 import (
+        AUDIT_ONLY_SERIALIZATION,
+        dispatch_context_digest,
+    )
+
+    runtime = env["server"].state["runtime"]
+    verdict = runtime.middleware().handle(
+        ToolCallRequest(
+            adapter="https",
+            tool=CAP,
+            api_key=env["key"],
+            arguments=ARGS40,
+            context={
+                "subject_principal": f"{AGENT}@{ORG}",
+                "resource": "erp-sandbox.example",
+                "destination": "erp-sandbox.example",
+                "serialization": "pv-json-parameters/0.1",
+            },
+        )
+    )
+    assert verdict.decision == "allow"
+    record = next(
+        r for r in runtime.recorder.graph if r.record_hash == verdict.record_hash
+    )
+    assert record.verify()
+    assert record.dispatch_context_digest == dispatch_context_digest(
+        dispatch_context_for(
+            operation=CAP,
+            destination="erp-sandbox.example",
+            serialization=AUDIT_ONLY_SERIALIZATION,
+        )
+    )
+    dispatch = {**_dispatch(), "operation": CAP, "serialization": serialization}
+    response = _authorize(
+        env["client"], env["key"], record.to_dict(), dispatch=dispatch
+    )
+    assert response.status_code == 403, response.text
+    assert response.json()["detail"]["reason_code"] == reason
+    assert "execution_authorization_id" not in response.text
+
+
+def test_legacy_context_digest_is_read_only_and_byte_stable():
+    from agent_dna.authority_v01 import AuthorityFormatError
+    from agent_dna.dispatch_context_v01 import (
+        dispatch_context_digest,
+        legacy_dispatch_context_digest,
+        validate_dispatch_context,
+    )
+
+    context = dispatch_context_for()
+    del context["serialization"]
+    digest = "sha256:38b95de2bff01a824554f7502473af13f55673ccbb1304a6c804e0de4b50bdf1"
+    assert legacy_dispatch_context_digest(context) == digest
+    assert "serialization" not in context
+    with pytest.raises(AuthorityFormatError):
+        validate_dispatch_context(context)
+    with pytest.raises(AuthorityFormatError):
+        dispatch_context_digest(context)
+    with pytest.raises(AuthorityFormatError):
+        legacy_dispatch_context_digest(
+            {**context, "serialization": "pv-json-parameters/0.1"}
+        )
+    assert dispatch_context_digest(dispatch_context_for()) != digest
+
+
+@pytest.mark.parametrize("serialization", ["pv-audit-only/0.1", "unknown/0.1"])
+def test_runtime_validators_match_serializer_schema(serialization):
+    from agent_dna.authority_v01 import AuthorityFormatError
+    from agent_dna.dispatch_v01 import _validate_observed_dispatch
+    from agent_dna.execution_v01 import sign_execution_authorization
+    from tests.test_execution_v01 import _unsigned_authorization
+
+    authorization = _unsigned_authorization()
+    authorization["dispatch"]["serialization"] = serialization
+    with pytest.raises(AuthorityFormatError, match="unknown wire serialization"):
+        sign_execution_authorization(authorization, SigningKey.generate())
+    with pytest.raises(AuthorityFormatError, match="unknown wire serialization"):
+        _validate_observed_dispatch(authorization["dispatch"])
