@@ -5,6 +5,11 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Dashboard dependencies
+- Pin nanoid 3.3.18 to fix GHSA-2v37-7h3g-55p8. CI runs the
+  bounded zero-size regression in `dashboard/tests/dependencies.test.cjs`
+  and fails on high or critical npm advisories.
+
 ### Wire-binding integration
 - Integrate first-mint action/body consistency checks from the existing
   wire-action-binding branch and migrate the JSON-body examples.

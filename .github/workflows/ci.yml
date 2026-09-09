@@ -81,6 +81,8 @@ jobs:
           cache: npm
           cache-dependency-path: dashboard/package-lock.json
       - run: npm ci
+      - run: npm run test:deps
+      - run: npm audit --audit-level=high
       - run: npm run lint
       - run: npm run build
 
