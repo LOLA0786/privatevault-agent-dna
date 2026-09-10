@@ -21,7 +21,7 @@ const server = createServer((req, res) => {
         JSON.stringify({
           decision,
           triggered_by: isDangerous ? "L0.invariant" : "none",
-          reason: isDangerous ? "writes to /etc are forbidden by invariant" : "no level objected",
+          reason: isDangerous ? "path forbidden by invariant" : "no level objected",
           execution_id: null,
           record: {
             decision_id: "dec_mock_0001",
