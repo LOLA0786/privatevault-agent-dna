@@ -28,11 +28,11 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 VERIFIER_PATH = Path(__file__).resolve().parent.parent / "tools" / "verify_records.py"
 
-mcp = FastMCP("privatevault-drp-verifier")
+mcp = MCPServer("privatevault-drp-verifier")
 
 
 @mcp.tool()

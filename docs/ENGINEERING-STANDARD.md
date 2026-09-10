@@ -50,8 +50,8 @@ Silent sed against drifted files is prohibited on enforcement code.
 *Caught by:* the patcher itself failing loudly.
 
 ## 7. Private-surface dependencies are declared
-Any binding to a third-party private API (e.g. FastMCP
-`_tool_manager`, `mcp.shared._httpx_utils`) is listed in
+Any binding to a third-party private API (e.g. MCPServer
+`_tool_manager`) is listed in
 PRODUCTION-HARDENING.md with its version pin and the integration
 test that fails loudly if the surface changes.
 *Caught by:* the listed test breaking on SDK bumps.

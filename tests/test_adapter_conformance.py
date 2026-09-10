@@ -15,8 +15,8 @@ import uuid
 from typing import Any
 
 import pytest
-from mcp.server.fastmcp import FastMCP
-from mcp.shared.memory import create_connected_server_and_client_session
+from mcp import Client
+from mcp.server.mcpserver import MCPServer
 from nacl.signing import SigningKey
 
 from agent_dna.apikeys import ApiKeyRegistry, generate_key
@@ -259,7 +259,7 @@ class McpHarness:
             recorder=recorder,
             keys=ApiKeyRegistry(str(keys_path)),
         )
-        self._server = FastMCP("conformance-mcp")
+        self._server = MCPServer("conformance-mcp")
         harness = self
 
         @self._server.tool()
@@ -287,7 +287,7 @@ class McpHarness:
         self._mode = "allow"
 
     async def _call(self, args: dict[str, Any]):
-        async with create_connected_server_and_client_session(self._server) as client:
+        async with Client(self._server, mode="legacy") as client:
             return await client.call_tool("read_contact", args)
 
     def attempt(self) -> ConformanceOutcome:
@@ -295,7 +295,7 @@ class McpHarness:
 
         args = dict(self._checked)
         result = anyio.run(self._call, args)
-        if result.isError:
+        if result.is_error:
             return ConformanceOutcome(refused=True, detail="mcp tool error")
         return ConformanceOutcome(refused=False)
 

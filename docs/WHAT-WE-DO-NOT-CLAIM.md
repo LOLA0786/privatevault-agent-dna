@@ -38,7 +38,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 1300+ automated tests, run in CI on every commit
+- 1310+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
@@ -48,7 +48,7 @@ What exists today, verifiable directly:
 - MCP support, two distinct layers: (1) 6 advisory tools over the
   composed decision line (pv_decide, pv_report_outcome, pv_verify,
   pv_lineage, pv_blocked, pv_divergent); (2) transport-level
-  enforcement — any FastMCP server wrapped by our connector routes
+  enforcement — any MCPServer wrapped by our connector routes
   EVERY tools/call through the full precedence line before the tool
   executes, with per-session agent identity over streamable HTTP
   (Authorization bearer) and signed refusals in-band
@@ -193,12 +193,19 @@ new private key as the active signer, update trust roots, or store
 the seed. Omitted seed fails closed. No filesystem secret store,
 cloud KMS, or `secret_ref` is shipped.
 
-**Two private third-party SDK surfaces are load-bearing** in the MCP
-adapter (`FastMCP._tool_manager`, `mcp.shared._httpx_utils`), pinned
-to mcp>=1.0 and guarded by integration tests that fail loudly on an
-SDK surface change (`tests/connector/test_mcp_adapter.py`,
-`tests/connector/test_mcp_http_identity.py`). A future SDK major
-version will break tests, not enforcement.
+**The MCP adapter uses a private SDK dispatch surface**:
+`MCPServer._tool_manager`. The supported range is `mcp>=2.2,<3`, with
+SDK 2.2.0 locked and tested. SDK private APIs can change; the integration
+tests cover allowed calls, signed refusals, and identity isolation in
+legacy and modern protocol modes (`tests/connector/test_mcp_adapter.py`,
+`tests/connector/test_mcp_http_identity.py`). Future SDK compatibility
+requires those tests to pass.
+
+The public `guard_fastmcp` function name is retained, but callers now pass
+an SDK 2.2+ `MCPServer`. SDK 1.x servers are not supported. HTTP calls require
+their own bearer key; an anonymous HTTP request cannot inherit the static
+key reserved for stdio or in-memory calls. HTTP tests use the public
+`httpx2.AsyncClient` API rather than an SDK-private HTTP client factory.
 
 ## Exact-byte egress (what the sidecar guarantees)
 

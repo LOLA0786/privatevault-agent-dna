@@ -5,6 +5,15 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### MCP SDK 2
+- Require `mcp>=2.2,<3` in both dependency manifests and refresh `uv.lock`.
+  Migrate servers, clients, result fields, and HTTP setup to the SDK 2 APIs.
+- Read MCP identity from the explicit request context. HTTP requests without
+  a bearer key cannot inherit a privileged static/stdio key. Legacy and modern
+  protocol modes, concurrent identities, signed refusals, and late-registered
+  tools are covered by `tests/connector/test_mcp_adapter.py` and
+  `tests/connector/test_mcp_http_identity.py`.
+
 ### Dashboard dependencies
 - Pin nanoid 3.3.18 to fix GHSA-2v37-7h3g-55p8. CI runs the
   bounded zero-size regression in `dashboard/tests/dependencies.test.cjs`

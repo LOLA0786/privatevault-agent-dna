@@ -82,7 +82,7 @@ points at the test file that proves it.
 | Group (swarm) circuit breaker | **SHIPPED** | `tests/test_group_breaker.py` — distributed drain across declared groups, group-atomic gated reset |
 | Cross-agent invariants at the transport | **SHIPPED** | `tests/connector/test_cross_agent.py` — escalation-only, declared execution windows |
 | No-mocks-on-enforcement-path CI guard | **SHIPPED** | `tests/connector/test_standard_no_mocks.py` (docs/ENGINEERING-STANDARD.md rule 1) |
-| Private SDK surface pins | **DECLARED** | `FastMCP._tool_manager`, `mcp.shared._httpx_utils` — mcp>=1.0, integration tests fail loudly on surface change |
+| Private SDK surface bounds | **DECLARED** | `MCPServer._tool_manager` — mcp>=2.2,<3, locked to 2.2.0; integration tests cover legacy and modern protocol modes |
 | TLS termination | **NOT STARTED** | Deployment responsibility; bearer keys require TLS in front of the connector |
 | Framework adapters beyond MCP (OpenAI SDK, LangGraph, CrewAI) | **SCOPED** | Same middleware, thin per-framework translation (~40-line adapters); built when a pilot names one |
 
