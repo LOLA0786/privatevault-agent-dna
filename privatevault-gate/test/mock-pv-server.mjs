@@ -12,7 +12,7 @@ const server = createServer((req, res) => {
 
     if (req.url === "/v1/decide") {
       const args = JSON.stringify(body.arguments ?? {});
-      const isDangerous = args.includes("/etc/");
+      const isDangerous = args.includes("/etc/") || args.includes("MUST-NOT-WRITE");
       const decision = isDangerous ? "block" : "allow";
       const status = isDangerous ? 403 : 200;
 

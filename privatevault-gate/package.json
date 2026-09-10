@@ -10,6 +10,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node test/run.mjs",
     "start": "node dist/bin/cli.js",
     "dev": "tsc -w -p tsconfig.json",
     "prepublishOnly": "npm run build"
@@ -35,5 +36,6 @@
   ],
   "bin": {
     "privatevault-gate": "dist/bin/cli.js"
-  }
+  },
+  "homepage": "https://privatevault.ai"
 }

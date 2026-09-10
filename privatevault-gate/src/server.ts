@@ -179,6 +179,7 @@ export function buildServer(client: PrivateVaultClient = new PrivateVaultClient(
       try {
         const res = await fetch(`${config.enforceUrl}/v1/blocked`, {
           headers: config.apiKey ? { "x-api-key": config.apiKey } : {},
+          signal: AbortSignal.timeout(config.timeoutMs),
         });
         const text = await res.text();
         return { content: [{ type: "text" as const, text: `HTTP ${res.status}\n${text.slice(0, 4000)}` }] };

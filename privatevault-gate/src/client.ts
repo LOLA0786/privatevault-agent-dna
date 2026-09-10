@@ -102,6 +102,7 @@ export class PrivateVaultClient {
           ...(this.config.apiKey ? { "x-api-key": this.config.apiKey } : {}),
         },
         body: JSON.stringify(body),
+        signal: AbortSignal.timeout(this.config.timeoutMs),
       });
       if (!res.ok) {
         const text = await res.text().catch(() => "");
