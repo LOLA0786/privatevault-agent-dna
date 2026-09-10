@@ -1,6 +1,6 @@
 {
   "name": "privatevault-gate",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Pre-execution runtime gate for AI coding agents — routes tool calls through PrivateVault's enforcement engine over MCP before they execute.",
   "type": "module",
   "files": [
@@ -37,5 +37,12 @@
   "bin": {
     "privatevault-gate": "dist/bin/cli.js"
   },
-  "homepage": "https://privatevault.ai"
+  "homepage": "https://privatevault.ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LOLA0786/privatevault-gate.git"
+  },
+  "bugs": {
+    "url": "https://github.com/LOLA0786/privatevault-gate/issues"
+  }
 }
