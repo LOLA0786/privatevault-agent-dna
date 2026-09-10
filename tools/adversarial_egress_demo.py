@@ -17,6 +17,7 @@ Uses the reference ExactByteHttpDispatcher and a recording transport
 from __future__ import annotations
 
 import copy
+import json
 import sys
 import tempfile
 import uuid
@@ -98,13 +99,14 @@ def main() -> None:
             "subject_key_id": "treasury",
             "action": "payments.initiate_wire",
             "resource": "payments:wire",
-            "parameters": {"amount": 400000},
+            "parameters": json.loads(WIRE),
         }
         dispatch = {
             "transport": "https",
             "destination": "payments.demo.example",
             "operation": "POST /v1/wires",
             "wire_content_type": "application/json",
+            "serialization": "pv-json-parameters/0.1",
             "wire_content_encoding": "identity",
             "tool_id": "payments.initiate_wire.v1",
             "tool_schema_digest": Z,

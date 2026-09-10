@@ -45,6 +45,14 @@ PACK = ROOT / "deploy" / "partners" / "campfire-blackbox" / "partner-pack"
 Z = "sha256:" + ("0" * 64)
 ONE = "sha256:" + ("1" * 64)
 WIRE = b'{"path":"/sandbox/notes.txt","content":"hello from the evaluation sandbox"}'
+WIRE = json.dumps(
+    json.loads(WIRE),
+    allow_nan=False,
+    ensure_ascii=False,
+    sort_keys=True,
+    separators=(",", ":"),
+).encode("utf-8")
+
 PEER = b"tls-spki:sandbox.campfire.eval:v1"
 
 
@@ -98,6 +106,7 @@ def _ea_dispatch(context: dict[str, str]) -> dict:
         "destination": context["destination"],
         "operation": context["operation"],
         "wire_content_type": context["wire_content_type"],
+        "serialization": context["serialization"],
         "wire_content_encoding": "identity",
         "tool_id": f"{CAPABILITY}.v1",
         "tool_schema_digest": Z,

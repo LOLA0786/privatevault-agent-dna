@@ -98,6 +98,7 @@ def main() -> None:
             "credential_audience": "crm.store.example",
             "idempotency_key_digest": Z,
             "retry_policy_digest": ONE,
+            "serialization": "pv-json-parameters/0.1",
         }
 
         with TestClient(server.app) as client:

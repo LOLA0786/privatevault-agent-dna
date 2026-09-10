@@ -40,11 +40,11 @@ curl -sS -D - "$BASE_URL/v1/decide" \
 
 ## 3. Mint a permit after ALLOW
 
-Do this only after a sealed ALLOW (`200` and `decision=allow`). Copy `record.decision_id` and `record.record_hash` from that response. `decision_receipt_digest` is `sha256:` plus the record hash. Copy `execution_action` from `examples/allow.json` as `action`. Do not send decide `dispatch_context` as `dispatch`. Authorize `dispatch` is the eleven fields below, not the five decide-time context fields.
+Do this only after a sealed ALLOW (`200` and `decision=allow`). Copy `record.decision_id` and `record.record_hash` from that response. `decision_receipt_digest` is `sha256:` plus the record hash. Copy `execution_action` from `examples/allow.json` as `action`. Do not send decide `dispatch_context` as `dispatch`. Authorize `dispatch` is the twelve fields below; decide uses six context fields.
 
 ```bash
 python3 - <<'PY'
-import json, os, time, urllib.request
+import hashlib, json, os, time, urllib.request
 
 base = os.environ["BASE_URL"].rstrip("/")
 key = os.environ["CAMPFIRE_API_KEY"]
@@ -75,6 +75,7 @@ dispatch = {
     "destination": "sandbox.campfire.eval",
     "operation": "PUT /sandbox/notes.txt",
     "wire_content_type": "application/json",
+    "serialization": "pv-json-parameters/0.1",
     "wire_content_encoding": "identity",
     "tool_id": "campfire.files.write_sandbox.v1",
     "tool_schema_digest": z,
@@ -83,6 +84,7 @@ dispatch = {
     "idempotency_key_digest": z,
     "retry_policy_digest": one,
 }
+wire = json.dumps(action["parameters"], allow_nan=False, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
 body = {
     "request_id": "campfire-auth-honest",
     "agent_id": "campfire-agent",
@@ -90,8 +92,8 @@ body = {
     "decision_id": record["decision_id"],
     "action": action,
     "dispatch": dispatch,
-    "expected_wire_bytes_digest": z,
-    "expected_wire_bytes_length": 0,
+    "expected_wire_bytes_digest": "sha256:" + hashlib.sha256(wire).hexdigest(),
+    "expected_wire_bytes_length": len(wire),
     "expected_peer_identity_digest": one,
     "decision_receipt_digest": "sha256:" + record["record_hash"],
     "authority_receipt_digest": one,
@@ -124,7 +126,7 @@ print("no file was dispatched")
 PY
 ```
 
-The wire and peer digest placeholders are mint-time fields. They are not proof that bytes left the host. Replay and byte-mutation refusal remain the reference exact-byte test unless Campfire routes real tool execution through the PrivateVault dispatcher. Do not report `/v1/outcome` as `ok` unless the tool actually ran.
+The wire digest and length must match the named JSON serialization of the action parameters. The peer digest remains an evaluation placeholder. They are not proof that bytes left the host. Replay and byte-mutation refusal remain the reference exact-byte test unless Campfire routes real tool execution through the PrivateVault dispatcher. Do not report `/v1/outcome` as `ok` unless the tool actually ran.
 
 ## 4. Evidence
 

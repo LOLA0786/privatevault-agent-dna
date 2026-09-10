@@ -32,6 +32,7 @@ from agent_dna.authority_v01 import (
     verify_document_signature,
 )
 from agent_dna.authorize_binding import EXECUTION_AUTHORIZATION_CONSUMED
+from agent_dna.wire_serialization_v01 import require_wire_serialization
 
 EXECUTION_AUTHORIZATION_SPEC = "pv-execution-authorization/0.1-experimental"
 
@@ -78,6 +79,7 @@ _DISPATCH_FIELDS = frozenset(
         "credential_audience",
         "idempotency_key_digest",
         "retry_policy_digest",
+        "serialization",
     }
 )
 
@@ -269,6 +271,7 @@ def validate_execution_authorization(  # noqa: C901
         "wire_content_encoding",
         "tool_id",
         "credential_audience",
+        "serialization",
     ):
         _require_string(
             dispatch[field],
@@ -287,6 +290,9 @@ def validate_execution_authorization(  # noqa: C901
         )
 
     expected_wire_bytes_length = value["expected_wire_bytes_length"]
+    require_wire_serialization(
+        dispatch["serialization"], path=f"{path}.dispatch.serialization"
+    )
     if (
         isinstance(expected_wire_bytes_length, bool)
         or not isinstance(expected_wire_bytes_length, int)

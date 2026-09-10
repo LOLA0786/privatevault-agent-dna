@@ -7,6 +7,20 @@ its cryptography. Where we can't back a claim with a test, a public
 artifact, or a third-party attestation, we say so directly here
 rather than leave it ambiguous.
 
+## Wire-binding scope
+
+`pv-json-parameters/0.1` binds an authorized action to a deterministic JSON
+request body. Generic connector and gateway contexts use
+`pv-audit-only/0.1`; they preserve policy decisions and audit evidence but
+cannot mint execution permits. Caller-supplied context cannot upgrade
+that marker. MCP envelopes/framing and the HTTPS gateway's request frame
+need their own transport contracts before claiming this permit path.
+
+Historical five-field context digests are reproducible for audit. Their
+original bytes remain unchanged and they cannot authorize new execution.
+This does not make legacy permits or witnesses executable under the new
+serializer contract. See ADR 0017 and `tests/test_wire_action_binding.py`.
+
 ## Certification
 
 **We have not applied for SOC 2 Type II or ISO/IEC 27001
@@ -24,7 +38,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 1280+ automated tests, run in CI on every commit
+- 1300+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
@@ -34,7 +48,7 @@ What exists today, verifiable directly:
 - MCP support, two distinct layers: (1) 6 advisory tools over the
   composed decision line (pv_decide, pv_report_outcome, pv_verify,
   pv_lineage, pv_blocked, pv_divergent); (2) transport-level
-  enforcement — any FastMCP server wrapped by our connector routes
+  enforcement — any MCPServer wrapped by our connector routes
   EVERY tools/call through the full precedence line before the tool
   executes, with per-session agent identity over streamable HTTP
   (Authorization bearer) and signed refusals in-band
@@ -179,12 +193,19 @@ new private key as the active signer, update trust roots, or store
 the seed. Omitted seed fails closed. No filesystem secret store,
 cloud KMS, or `secret_ref` is shipped.
 
-**Two private third-party SDK surfaces are load-bearing** in the MCP
-adapter (`FastMCP._tool_manager`, `mcp.shared._httpx_utils`), pinned
-to mcp>=1.0 and guarded by integration tests that fail loudly on an
-SDK surface change (`tests/connector/test_mcp_adapter.py`,
-`tests/connector/test_mcp_http_identity.py`). A future SDK major
-version will break tests, not enforcement.
+**The MCP adapter uses a private SDK dispatch surface**:
+`MCPServer._tool_manager`. The supported range is `mcp>=2.2,<3`, with
+SDK 2.2.0 locked and tested. SDK private APIs can change; the integration
+tests cover allowed calls, signed refusals, and identity isolation in
+legacy and modern protocol modes (`tests/connector/test_mcp_adapter.py`,
+`tests/connector/test_mcp_http_identity.py`). Future SDK compatibility
+requires those tests to pass.
+
+The public `guard_fastmcp` function name is retained, but callers now pass
+an SDK 2.2+ `MCPServer`. SDK 1.x servers are not supported. HTTP calls require
+their own bearer key; an anonymous HTTP request cannot inherit the static
+key reserved for stdio or in-memory calls. HTTP tests use the public
+`httpx2.AsyncClient` API rather than an SDK-private HTTP client factory.
 
 ## Exact-byte egress (what the sidecar guarantees)
 

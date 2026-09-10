@@ -16,9 +16,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
 
@@ -40,6 +40,9 @@ jobs:
         run: |
           uv run mypy agent_dna api
           uv run mypy --strict --follow-imports=skip agent_dna/security
+
+      - name: Demo demonstrates its own claims
+        run: uv run python end_to_end_coding_agents_demo.py
 
       - name: Full claim gate (suite + adversarial + verifiers, sealed)
         run: uv run python tools/prove.py -o /tmp/proof-of-run.json
@@ -71,13 +74,15 @@ jobs:
       run:
         working-directory: dashboard
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: dashboard/package-lock.json
       - run: npm ci
+      - run: npm run test:deps
+      - run: npm audit --audit-level=high
       - run: npm run lint
       - run: npm run build
 
@@ -85,7 +90,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build image
         run: docker build -t privatevault-agent-dna .
       - name: Container smoke test

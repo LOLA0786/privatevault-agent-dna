@@ -16,6 +16,7 @@ DEFAULT_DISPATCH_CONTEXT: dict[str, str] = {
     "operation": "GET /v1/resource",
     "destination": "example.test",
     "wire_content_type": "application/json",
+    "serialization": "pv-json-parameters/0.1",
 }
 
 

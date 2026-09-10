@@ -27,6 +27,7 @@ import time
 
 from ..apikeys import ApiKeyRegistry
 from ..authority_v01 import AuthorityFormatError, canonicalize
+from ..dispatch_context_v01 import AUDIT_ONLY_SERIALIZATION
 from ..runtime import RuntimeMonitor
 from ..trace import AgentAction
 from .models import ToolCallRequest, ToolCallVerdict
@@ -135,7 +136,7 @@ class ConnectorMiddleware:
             arguments=dict(request.arguments),
             context={"adapter": request.adapter, **ctx},
         )
-        # Mintable DRP 0.2 binding for connector decisions.
+        # Auditable context only; generic connectors cannot attest to a wire format.
         execution_action = {
             "subject_principal": str(ctx.get("subject_principal") or agent_id),
             "subject_key_id": agent_id,
@@ -144,6 +145,7 @@ class ConnectorMiddleware:
             "parameters": _authority_safe_parameters(dict(request.arguments)),
         }
         dispatch_context = {
+            "serialization": AUDIT_ONLY_SERIALIZATION,
             "adapter": request.adapter,
             "transport": str(ctx.get("transport") or request.adapter),
             "operation": request.tool,

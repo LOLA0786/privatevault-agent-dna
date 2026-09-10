@@ -5,6 +5,34 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### MCP SDK 2
+- Require `mcp>=2.2,<3` in both dependency manifests and refresh `uv.lock`.
+  Migrate servers, clients, result fields, and HTTP setup to the SDK 2 APIs.
+- Read MCP identity from the explicit request context. HTTP requests without
+  a bearer key cannot inherit a privileged static/stdio key. Legacy and modern
+  protocol modes, concurrent identities, signed refusals, and late-registered
+  tools are covered by `tests/connector/test_mcp_adapter.py` and
+  `tests/connector/test_mcp_http_identity.py`.
+
+### Dashboard dependencies
+- Pin nanoid 3.3.18 to fix GHSA-2v37-7h3g-55p8. CI runs the
+  bounded zero-size regression in `dashboard/tests/dependencies.test.cjs`
+  and fails on high or critical npm advisories.
+
+### Wire-binding integration
+- Integrate first-mint action/body consistency checks from the existing
+  wire-action-binding branch and migrate the JSON-body examples.
+- Preserve generic connector/gateway policy and audit behavior using an
+  explicit non-mintable context marker. Historical context digest reading
+  does not upgrade authority (`tests/test_wire_action_binding.py`).
+- Match runtime serializer validation to the permit/witness schemas;
+  restore full connector, gateway, shadow, Campfire and demo integration.
+
+### Proof reporting
+- Missing live audit evidence now fails the mandatory proof gate.
+- Grouped pytest skips count every case. Regression coverage:
+  `tests/test_prove_manifest.py`.
+
 ### Security
 - **Mint INDETERMINATE race:** `claim_or_replay_mint` re-reads execution
   status inside `BEGIN IMMEDIATE`, so an indeterminate outcome that

@@ -1,5 +1,5 @@
 """
-MCP adapter — wraps a FastMCP server so EVERY tools/call routes
+MCP adapter — wraps an MCPServer so EVERY tools/call routes
 through the ConnectorMiddleware before the tool executes.
 
 Identity is connection-level: the harness supplies the agent's key
@@ -9,9 +9,9 @@ explicit api_key argument.
 
 Interception point is ToolManager.call_tool — the single dispatch
 path for all tools, including tools registered after guarding.
-NOTE: touches FastMCP._tool_manager (private surface); pinned by
-requirements to mcp>=1.0 and covered by an in-memory integration
-test that fails loudly if the SDK surface changes.
+NOTE: touches MCPServer._tool_manager (private surface); bounded by
+requirements to mcp>=2.2,<3 and covered by integration tests for both
+legacy and modern protocol modes. Request context is passed explicitly.
 
 Verdict mapping:
   ALLOW            -> original tool executes, result returned
@@ -26,12 +26,14 @@ from __future__ import annotations
 import os
 from typing import Any
 
+from mcp.server.mcpserver.exceptions import ToolError
+
 from ..models import ToolCallRequest
 
 PV_KEY_ENV = "PV_AGENT_KEY"
 
 
-class EnforcementBlockedError(Exception):
+class EnforcementBlockedError(ToolError):
     def __init__(self, verdict):
         self.verdict = verdict
         prefix = (
@@ -57,8 +59,11 @@ def guard_fastmcp(server, middleware, api_key: str | None = None):
          'Authorization: Bearer <key>' header — true per-session
          identity; different sessions on one server are different
          agents.
-      2. Explicit api_key argument.
-      3. PV_AGENT_KEY env var (stdio: one process = one agent).
+      2. Without an HTTP request: explicit api_key argument, then
+         PV_AGENT_KEY env var (stdio: one process = one agent).
+    An HTTP request without a bearer key never inherits a static key.
+    The guard_fastmcp name is retained for existing connector callers;
+    the server instance must use the MCP 2.2+ MCPServer API.
     Bearer keys in headers require TLS in deployment — noted in
     WHAT-WE-DO-NOT-CLAIM.md; the connector does not terminate TLS.
     """
@@ -66,37 +71,38 @@ def guard_fastmcp(server, middleware, api_key: str | None = None):
     tm = server._tool_manager
     original_call_tool = tm.call_tool
 
-    def _resolve_key() -> str | None:
+    def _resolve_key(context: Any) -> str | None:
         try:
-            ctx = server._mcp_server.request_context
-            req = getattr(ctx, "request", None)
-            if req is not None:
-                auth = req.headers.get("authorization", "")
-                if auth.lower().startswith("bearer "):
-                    return auth[7:]
-        except LookupError:
-            pass  # no request context bound (stdio / in-memory)
-        return static_key
+            req = context.request_context.request
+        except ValueError:
+            # MCPServer.call_tool() can create a context outside a request.
+            return static_key
+        if req is None:
+            return static_key  # stdio / in-memory transport
+        auth = req.headers.get("authorization", "")
+        return auth[7:] if auth.lower().startswith("bearer ") else None
 
-    async def enforced_call_tool(name: str, arguments: dict[str, Any], *args, **kwargs):
+    async def enforced_call_tool(
+        name: str, arguments: dict[str, Any], context: Any, *args, **kwargs
+    ):
         raw = dict(arguments or {})
         # Reserved correlation key: consumed by CABI, not forwarded as tool input.
         execution_id = raw.pop("_pv_execution_id", None)
-        context: dict[str, Any] = {}
+        decision_context: dict[str, Any] = {}
         if execution_id:
-            context["execution_id"] = str(execution_id)
+            decision_context["execution_id"] = str(execution_id)
         verdict = middleware.handle(
             ToolCallRequest(
                 adapter="mcp",
                 tool=name,
-                api_key=_resolve_key(),
+                api_key=_resolve_key(context),
                 arguments=raw,
-                context=context,
+                context=decision_context,
             )
         )
         if verdict.decision == "allow":
             return await original_call_tool(
-                name, raw if execution_id else arguments, *args, **kwargs
+                name, raw if execution_id else arguments, context, *args, **kwargs
             )
         raise EnforcementBlocked(verdict)
 
