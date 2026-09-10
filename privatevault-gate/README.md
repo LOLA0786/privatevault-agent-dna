@@ -133,7 +133,10 @@ evidence, and compliance packages live.
 
 ```bash
 npm install
-npm test                       # builds, runs mock enforcement test, tears down
+npm run build
+
+node test/mock-pv-server.mjs &   # mock engine, no docker needed
+node test/gate-test.mjs
 
 node test/real-engine-test.mjs   # against a real engine on :8000
 ```
