@@ -3,15 +3,7 @@
   "version": "0.1.1",
   "description": "Pre-execution runtime gate for AI coding agents — routes tool calls through PrivateVault's enforcement engine over MCP before they execute.",
   "type": "module",
-  "main": "./dist/index.js",
   "files": [
-    "dist",
-    "dist",
-    "README.md",
-    "LICENSE",
-    "dist",
-    "README.md",
-    "LICENSE",
     "dist",
     "README.md",
     "LICENSE"
