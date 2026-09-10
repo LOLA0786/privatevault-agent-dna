@@ -3,7 +3,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { existsSync, rmSync } from "node:fs";
 
 const ALLOWED_PATH = "/tmp/pv-allowed.txt";
-const BLOCKED_PATH = "/etc/pv-should-never-exist.txt";
+const BLOCKED_PATH = "/tmp/pv-MUST-NOT-WRITE.txt";
 
 for (const p of [ALLOWED_PATH, BLOCKED_PATH]) if (existsSync(p)) rmSync(p);
 

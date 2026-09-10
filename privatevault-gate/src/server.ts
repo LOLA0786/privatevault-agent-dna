@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 import { writeFile } from "node:fs/promises";
 import { PrivateVaultClient, EnforceResult, DecideResponse } from "./client.js";
 import { loadConfig } from "./config.js";
+import { VERSION } from "./version.js";
 
 const execAsync = promisify(exec);
 
@@ -49,7 +50,7 @@ function blockedMessage(result: EnforceResult): string {
 
 export function buildServer(client: PrivateVaultClient = new PrivateVaultClient()): McpServer {
   const config = loadConfig();
-  const server = new McpServer({ name: "privatevault-gate", version: "0.1.0" });
+  const server = new McpServer({ name: "privatevault-gate", version: VERSION });
 
   async function gated<T>(
     capability: string,
@@ -179,6 +180,7 @@ export function buildServer(client: PrivateVaultClient = new PrivateVaultClient(
       try {
         const res = await fetch(`${config.enforceUrl}/v1/blocked`, {
           headers: config.apiKey ? { "x-api-key": config.apiKey } : {},
+          signal: AbortSignal.timeout(config.timeoutMs),
         });
         const text = await res.text();
         return { content: [{ type: "text" as const, text: `HTTP ${res.status}\n${text.slice(0, 4000)}` }] };

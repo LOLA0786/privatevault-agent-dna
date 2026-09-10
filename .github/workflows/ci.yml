@@ -107,3 +107,19 @@ jobs:
           test "$code" = "200"
           test "$(docker inspect --format '{{.Config.User}}' pv)" = "10001:10001"
           docker stop pv
+
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: privatevault-gate
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: privatevault-gate/package-lock.json
+      - run: npm ci
+      - run: npm test
