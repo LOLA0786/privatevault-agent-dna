@@ -123,6 +123,22 @@ hiccup provides no guarantee at all. `PV_FAIL_OPEN=1` affects transport
 failures only — a real `block` or `require_approval` is always honored. Never
 set it in production.
 
+## What is bound, and what is not
+
+Each decision is bound to a digest of the exact content or body, inside a
+canonical five-field execution action sealed by the engine. Two different
+payloads of the same length no longer share one approval.
+
+The decision is **not** bound to the transport bytes, and **no signed permit
+is minted, verified, or consumed**. Approve-once is therefore not enforced:
+nothing stops the same ALLOW from being acted on twice, and nothing
+cryptographically ties a decision to the execution that followed it. The
+engine has that machinery; this gate does not yet call it.
+
+The dispatch context declares `pv-audit-only/0.1` for that reason — per
+ADR-0017 an audit-only context cannot mint a permit, which is an accurate
+description of this gate rather than a limitation being worked around.
+
 ## Local vs hosted
 
 The local sandbox is free. `PV_ENFORCE_URL` is the only thing that changes to
