@@ -329,6 +329,30 @@ class OPAPolicyAdapter:
             return result
 
     def _normalize(self, result: dict) -> PolicyResult:
+        # The verdict contract is "fired" and/or "outcome". A result
+        # carrying neither is not a verdict, whatever else it holds.
+        # Rego written in the conventional allow/deny idiom returns a
+        # non-empty dict with no contract key, which was read as
+        # fired=False -- the engine skips that, so a denial became
+        # silence on the enforcement path.
+        if "fired" not in result and "outcome" not in result:
+            foreign = [
+                k
+                for k in ("allow", "deny", "denied", "decision", "result")
+                if k in result
+            ]
+            hint = (
+                f" It carries {foreign!r}, which looks like a different Rego "
+                f"convention; this adapter expects "
+                f"{{'fired': bool, 'outcome': 'block'|'require_approval'}}."
+                if foreign
+                else ""
+            )
+            raise PolicyUnavailableError(
+                "policy backend returned a result with no verdict key "
+                f"('fired' or 'outcome') -- refusing to read it as no "
+                f"objection.{hint}"
+            )
         fired = bool(result.get("fired", False))
         outcome = result.get("outcome", "allow")
         reason = result.get("reason", "opa_evaluated")
