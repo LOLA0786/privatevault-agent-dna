@@ -38,6 +38,7 @@ const server = createServer((req, res) => {
     if (req.url === "/v1/decide") {
       decisions.push({
         capability: body.capability,
+        arguments: body.arguments ?? null,
         execution_action: body.execution_action ?? null,
         dispatch_context: body.dispatch_context ?? null,
       });

@@ -123,3 +123,40 @@ jobs:
           cache-dependency-path: privatevault-gate/package-lock.json
       - run: npm ci
       - run: npm test
+
+  contract:
+    # The published gate against a real engine. Every schema-contract
+    # violation found on 11 Sep 2026 passed both existing pipelines
+    # because each half was only ever tested against a fake of the other.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: privatevault-gate/package-lock.json
+      - name: Install the engine
+        run: uv sync --locked --extra dev
+      - name: Start the enforcement engine
+        run: |
+          PV_ALLOW_NO_AUTH=1 PV_BASELINE_CAPABILITIES=fs.write PV_DB_PATH=/tmp/pv-ci.db \
+            uv run python -m uvicorn api.server:app --host 127.0.0.1 --port 8000 \
+            > /tmp/pv-engine.log 2>&1 &
+          for _ in $(seq 1 40); do
+            curl -sf http://127.0.0.1:8000/ready >/dev/null && break
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:8000/ready || { cat /tmp/pv-engine.log; exit 1; }
+      - name: Drive the gate against it
+        working-directory: privatevault-gate
+        run: |
+          npm ci
+          npm run test:contract
+      - name: Engine log on failure
+        if: failure()
+        run: tail -n 80 /tmp/pv-engine.log
