@@ -11,6 +11,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "npm run build && node test/run.mjs",
+    "test:contract": "npm run build && node test/contract-test.mjs",
     "start": "node dist/bin/cli.js",
     "dev": "tsc -w -p tsconfig.json",
     "prepublishOnly": "npm run build"

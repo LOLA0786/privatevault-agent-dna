@@ -76,10 +76,10 @@ function check(name, ok, detail) {
   await client.callTool({ name: "pv_write_file", arguments: { path: DIGEST_PATH, content: "BBBB" } });
   const recorded = await (await fetch("http://127.0.0.1:8931/debug/decisions")).json();
   const writes = recorded.filter(
-    (d) => d.capability === "fs.write" && d.execution_action?.parameters?.path === DIGEST_PATH
+    (d) => d.capability === "fs.write" && d.arguments?.path === DIGEST_PATH
   );
-  const digests = new Set(writes.map((d) => d.execution_action.parameters.content_sha256));
-  const lengths = new Set(writes.map((d) => d.execution_action.parameters.bytes));
+  const digests = new Set(writes.map((d) => d.arguments.content_sha256));
+  const lengths = new Set(writes.map((d) => d.arguments.bytes));
   check(
     "equal-length different content yields different decision inputs",
     writes.length === 2 && digests.size === 2 && lengths.size === 1,
@@ -87,25 +87,22 @@ function check(name, ok, detail) {
   );
 }
 
-// 5. Every decision carries a well-formed action and context.
+// 5. The gate must not ask for a mintable record it cannot honour.
+//    Sending a dispatch context requests DRP 0.2. Audit-only is refused
+//    there by design, and naming pv-json-parameters/0.1 would assert a
+//    wire format a file write does not have. Until a transport contract
+//    exists per capability, the gate sends neither and relies on
+//    arguments_digest for content binding.
 {
   const recorded = await (await fetch("http://127.0.0.1:8931/debug/decisions")).json();
-  const bound = recorded.filter((d) => d.execution_action && d.dispatch_context);
-  const actionOk = bound.every(
-    (d) =>
-      Object.keys(d.execution_action).sort().join(",") ===
-      "action,parameters,resource,subject_key_id,subject_principal"
-  );
-  const ctxOk = bound.every(
-    (d) =>
-      Object.keys(d.dispatch_context).sort().join(",") ===
-      "adapter,destination,operation,serialization,transport,wire_content_type"
-  );
-  const matchesCapability = bound.every((d) => d.execution_action.action === d.capability);
+  const unbound = recorded.every((d) => d.execution_action === null && d.dispatch_context === null);
+  const carriesDigest = recorded
+    .filter((d) => d.capability === "fs.write")
+    .every((d) => typeof d.arguments?.content_sha256 === "string");
   check(
-    "sealed action and context match the engine's closed schemas",
-    bound.length > 0 && actionOk && ctxOk && matchesCapability,
-    `bound=${bound.length} actionOk=${actionOk} ctxOk=${ctxOk} capabilityOk=${matchesCapability}`
+    "no mintable binding is requested, and the content digest still travels",
+    recorded.length > 0 && unbound && carriesDigest,
+    `decisions=${recorded.length} unbound=${unbound} carriesDigest=${carriesDigest}`
   );
 }
 

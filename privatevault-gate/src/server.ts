@@ -77,7 +77,7 @@ export function buildServer(client: PrivateVaultClient = new PrivateVaultClient(
   function action(capability: string, resource: string, parameters: Record<string, unknown>) {
     return {
       subject_principal: config.agentId,
-      subject_key_id: subjectKeyId,
+      subject_key_id: config.agentId,
       action: capability,
       resource,
       parameters,
@@ -102,12 +102,20 @@ export function buildServer(client: PrivateVaultClient = new PrivateVaultClient(
     run: () => Promise<T>,
     describe: (result: T) => string
   ) {
-    const verdict = await client.decide({
-      capability,
-      arguments: args,
-      executionAction: bind.action,
-      dispatchContext: bind.dispatch,
-    });
+    // No execution_action / dispatch_context. Supplying them asks the
+    // engine for a mintable DRP 0.2 record, and audit-only is refused
+    // there on purpose (tests/test_wire_action_binding.py::
+    // test_decide_rejects_non_mintable_serialization). Declaring
+    // pv-json-parameters/0.1 instead would assert that the wire form of a
+    // file write is sorted-keys JSON of its parameters, which is false,
+    // and would leave a record upgradeable to a permit for bytes that were
+    // never sent.
+    //
+    // The content digest is still bound: it lives in the arguments, and
+    // the sealed record commits to arguments_digest. What is missing is
+    // the action-to-wire binding, which needs a named transport contract
+    // per capability before this gate can honestly ask for one.
+    const verdict = await client.decide({ capability, arguments: args });
     if (verdict.decision !== "allow") {
       return { content: [{ type: "text" as const, text: blockedMessage(verdict) }], isError: true };
     }
@@ -169,11 +177,12 @@ export function buildServer(client: PrivateVaultClient = new PrivateVaultClient(
     },
     async ({ command, cwd }) => {
       const workdir = cwd ?? process.cwd();
+      const params = { command, command_sha256: sha256(command), cwd: workdir };
       return gated(
         "shell.exec",
-        { command, cwd: cwd ?? null },
+        params,
         {
-          action: action("shell.exec", workdir, { command, command_sha256: sha256(command), cwd: workdir }),
+          action: action("shell.exec", workdir, params),
           dispatch: dispatch("process", "pv_exec", workdir, "text/plain"),
         },
         () => execAsync(command, { cwd, timeout: 60000, env: scrubbedEnv() }),
@@ -195,11 +204,12 @@ export function buildServer(client: PrivateVaultClient = new PrivateVaultClient(
     async ({ path, content }) => {
       const target = resolvePath(path);
       const bytes = Buffer.byteLength(content, "utf8");
+      const params = { path: target, bytes, content_sha256: sha256(content) };
       return gated(
         "fs.write",
-        { path, bytes },
+        params,
         {
-          action: action("fs.write", target, { path: target, bytes, content_sha256: sha256(content) }),
+          action: action("fs.write", target, params),
           dispatch: dispatch("file", "pv_write_file", target, "application/octet-stream"),
         },
         async () => {
@@ -229,16 +239,17 @@ export function buildServer(client: PrivateVaultClient = new PrivateVaultClient(
       } catch {
         /* decide on the raw string; the engine can refuse it */
       }
+      const params = {
+        url,
+        method,
+        body_bytes: body === undefined ? 0 : Buffer.byteLength(body, "utf8"),
+        body_sha256: body === undefined ? sha256("") : sha256(body),
+      };
       return gated(
         "net.http",
-        { url, method, has_body: body !== undefined },
+        params,
         {
-          action: action("net.http", url, {
-            url,
-            method,
-            body_bytes: body === undefined ? 0 : Buffer.byteLength(body, "utf8"),
-            body_sha256: body === undefined ? sha256("") : sha256(body),
-          }),
+          action: action("net.http", url, params),
           dispatch: dispatch("http", "pv_http_request", origin, "application/octet-stream"),
         },
         async () => {
