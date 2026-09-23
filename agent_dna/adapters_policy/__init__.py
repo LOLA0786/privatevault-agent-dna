@@ -9,10 +9,9 @@ Adapters:
 - azure_iam / aws_iam (future)
 """
 
-from .git_bundle import GitBundleAdapter
 from .local import LocalPolicyAdapter
 from .opa import OPAPolicyAdapter
 
-__all__ = ["LocalPolicyAdapter", "GitBundleAdapter", "OPAPolicyAdapter", "SkillAdapter"]
+__all__ = ["LocalPolicyAdapter", "OPAPolicyAdapter", "SkillAdapter"]
 
 from .skill_adapter import SkillAdapter
