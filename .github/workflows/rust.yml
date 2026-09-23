@@ -2,7 +2,19 @@ name: rust
 
 on:
   push:
+    branches: [master]
   pull_request:
+    paths:
+      - 'rust/**'
+      - 'agent_dna/decision_record.py'
+      - 'agent_dna/execution_record.py'
+      - 'agent_dna/signer*.py'
+      - 'tools/rust_parity_check.py'
+      - 'tests/test_rust_*.py'
+      - 'tests/test_nonfinite_guard.py'
+      - 'spec/test-vectors/**'
+      - '.github/workflows/rust.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
