@@ -32,6 +32,7 @@ binding constraint). GET /v1/runtime serves it.
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 from dataclasses import dataclass, field
@@ -114,6 +115,7 @@ class RuntimeConfig:
     breaker_window_seconds: float = 60.0
     breaker_max_amount: float | None = None
     breaker_max_refusals: int | None = None
+    breaker_groups_file: str | None = None  # JSON {groups, group_volume_caps}
     trusted_public_keys: frozenset[str] = field(default_factory=frozenset)
     execution_trust_bundle_file: str | None = None
     egress_allowed_destinations: frozenset[str] = field(default_factory=frozenset)
@@ -151,6 +153,7 @@ class RuntimeConfig:
             breaker_window_seconds=_env_float("PV_BREAKER_WINDOW_SECONDS") or 60.0,
             breaker_max_amount=_env_float("PV_BREAKER_MAX_AMOUNT"),
             breaker_max_refusals=_env_int("PV_BREAKER_MAX_REFUSALS"),
+            breaker_groups_file=os.getenv("PV_BREAKER_GROUPS_FILE"),
             trusted_public_keys=parse_trusted_keys(os.getenv(TRUSTED_KEYS_ENV)),
             execution_trust_bundle_file=os.getenv(EXECUTION_TRUST_BUNDLE_ENV),
             egress_allowed_destinations=_csv_frozenset(
@@ -365,6 +368,89 @@ def _compose_authorizer(
     }
 
 
+def _read_strict_json(path: str) -> object:
+    """JSON that refuses duplicate keys and NaN/Infinity."""
+
+    def _no_dupes(pairs):
+        keys = [k for k, _ in pairs]
+        if len(keys) != len(set(keys)):
+            raise ValueError(f"{path}: duplicate JSON key")
+        return dict(pairs)
+
+    def _no_nonfinite(tok):
+        raise ValueError(f"{path}: non-finite number {tok}")
+
+    try:
+        with open(path, encoding="utf-8") as fh:
+            return json.load(
+                fh, object_pairs_hook=_no_dupes, parse_constant=_no_nonfinite
+            )
+    except OSError as exc:
+        raise ValueError(f"{path}: cannot read breaker groups file: {exc}") from exc
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"{path}: invalid JSON: {exc}") from exc
+
+
+def _check_breaker_group(path: str, gid: object, members: object, cap: object) -> None:
+    if not isinstance(gid, str) or not gid.strip():
+        raise ValueError(f"{path}: group id must be a non-empty string")
+    members_ok = (
+        isinstance(members, list)
+        and bool(members)
+        and all(isinstance(m, str) and m.strip() for m in members)
+        and len(set(members)) == len(members)
+    )
+    if not members_ok:
+        raise ValueError(
+            f"{path}: group {gid!r} needs a non-empty list of unique agent ids"
+        )
+    cap_ok = (
+        not isinstance(cap, bool)
+        and isinstance(cap, (int, float))
+        and math.isfinite(cap)
+        and cap > 0
+    )
+    if not cap_ok:
+        raise ValueError(f"{path}: cap for {gid!r} must be a finite number > 0")
+
+
+def _load_breaker_groups(
+    path: str,
+) -> tuple[dict[str, list[str]], dict[str, float]]:
+    """Load declared swarm groups for the circuit breaker (ADR-0018 PR-A).
+
+    File: {"groups": {gid: [agent_id, ...]}, "group_volume_caps": {gid: cap}}.
+    Fails closed: any malformed input raises at startup rather than
+    running with a partially applied swarm limit.
+    """
+    data = _read_strict_json(path)
+    if not isinstance(data, dict) or set(data) != {"groups", "group_volume_caps"}:
+        raise ValueError(
+            f"{path}: expected exactly the keys 'groups' and 'group_volume_caps'"
+        )
+    groups, caps = data["groups"], data["group_volume_caps"]
+    if not isinstance(groups, dict) or not groups:
+        raise ValueError(f"{path}: 'groups' must be a non-empty object")
+    if not isinstance(caps, dict) or set(caps) != set(groups):
+        raise ValueError(
+            f"{path}: every group needs exactly one cap and every cap a group"
+        )
+    for gid, members in groups.items():
+        _check_breaker_group(path, gid, members, caps[gid])
+    return (
+        {gid: list(m) for gid, m in groups.items()},
+        {gid: float(caps[gid]) for gid in groups},
+    )
+
+
+def _breaker_groups_from(
+    path: str | None,
+) -> tuple[dict[str, list[str]] | None, dict[str, float] | None]:
+    if not path:
+        return None, None
+    return _load_breaker_groups(path)
+
+
 def build_production_runtime(
     config: RuntimeConfig | None = None,
 ) -> ProductionRuntime:
@@ -489,6 +575,7 @@ def build_production_runtime(
 
     # ---- breaker: always attached; unconfigured thresholds are inert ----
     breaker_db = cfg.breaker_db or f"{cfg.db_path}.breaker.db"
+    groups, group_caps = _breaker_groups_from(cfg.breaker_groups_file)
     breaker = CircuitBreaker(
         breaker_db,
         BreakerConfig(
@@ -496,12 +583,15 @@ def build_production_runtime(
             window_seconds=cfg.breaker_window_seconds,
             max_cumulative_amount=cfg.breaker_max_amount,
             max_consecutive_refusals=cfg.breaker_max_refusals,
+            groups=groups,
+            group_volume_caps=group_caps,
         ),
     )
     thresholds = {
         "max_decisions": cfg.breaker_max_decisions,
         "max_cumulative_amount": cfg.breaker_max_amount,
         "max_consecutive_refusals": cfg.breaker_max_refusals,
+        "group_volume_caps": group_caps,
     }
     active = {k: v for k, v in thresholds.items() if v is not None}
     comp["circuit_breaker"] = {
