@@ -91,6 +91,16 @@ CREATE TABLE IF NOT EXISTS execution_authorization_mint (
     trust_bundle_json            TEXT,
     trust_bundle_digest          TEXT
 );
+-- ADR-0018 PR-J: suspensions checked inside the consume transaction.
+-- A claim ordered after a committed suspension is refused.
+CREATE TABLE IF NOT EXISTS suspensions (
+    scope_kind   TEXT NOT NULL,
+    scope_id     TEXT NOT NULL,
+    reason       TEXT NOT NULL,
+    suspended_by TEXT NOT NULL,
+    suspended_at TEXT NOT NULL,
+    PRIMARY KEY (scope_kind, scope_id)
+);
 """
 
 
@@ -101,6 +111,19 @@ def _rfc3339_expired(expires_at: str, now: datetime) -> bool:
     if now.tzinfo is None:
         now = now.replace(tzinfo=UTC)
     return parsed <= now
+
+
+SUSPENSION_SCOPES = frozenset({"agent", "organisation", "authorization"})
+
+
+def _check_scopes(scopes: tuple[tuple[str, str], ...]) -> None:
+    if not scopes:
+        raise ValueError("at least one suspension scope is required")
+    for kind, sid in scopes:
+        if kind not in SUSPENSION_SCOPES:
+            raise ValueError(f"unknown suspension scope {kind!r}")
+        if not isinstance(sid, str) or not sid:
+            raise ValueError(f"suspension scope {kind!r} needs a non-empty id")
 
 
 class SQLiteDecisionStore:
@@ -334,6 +357,89 @@ class SQLiteDecisionStore:
             (execution_authorization_id,),
         ).fetchone()
         return row is not None
+
+    def suspend(
+        self,
+        scope_kind: str,
+        scope_id: str,
+        *,
+        reason: str,
+        suspended_by: str,
+        suspended_at: str,
+    ) -> bool:
+        """Durably suspend an agent, organisation or single authorization.
+
+        Returns True if newly suspended, False if already suspended (the
+        first reason is kept). Lifting is deliberately not offered here;
+        it belongs behind dual control.
+        """
+        _check_scopes(((scope_kind, scope_id),))
+        if not reason or not suspended_by:
+            raise ValueError("reason and suspended_by are required")
+        conn = self._conn
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            cur = conn.execute(
+                "INSERT OR IGNORE INTO suspensions "
+                "(scope_kind, scope_id, reason, suspended_by, suspended_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (scope_kind, scope_id, reason, suspended_by, suspended_at),
+            )
+            conn.commit()
+            return cur.rowcount == 1
+        except Exception:
+            conn.rollback()
+            raise
+
+    @staticmethod
+    def _suspension_in(conn, scopes: tuple[tuple[str, str], ...]) -> str | None:
+        for kind, sid in scopes:
+            row = conn.execute(
+                "SELECT scope_kind, scope_id, reason FROM suspensions "
+                "WHERE scope_kind = ? AND scope_id = ?",
+                (kind, sid),
+            ).fetchone()
+            if row is not None:
+                return f"{row[0]}:{row[1]} suspended ({row[2]})"
+        return None
+
+    def try_consume_unless_suspended(
+        self,
+        execution_authorization_id: str,
+        *,
+        organisation_id: str,
+        consumed_at: str,
+        scopes: tuple[tuple[str, str], ...],
+    ) -> tuple[str, str | None]:
+        """Check suspensions and claim the authorization in ONE transaction.
+
+        Returns ("consumed", None), ("already_consumed", None) or
+        ("suspended", detail). A suspended claim burns nothing.
+        """
+        if not execution_authorization_id:
+            raise ValueError("execution_authorization_id is required")
+        _check_scopes(scopes)
+        conn = self._conn
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            hit = self._suspension_in(conn, scopes)
+            if hit is not None:
+                conn.rollback()
+                return "suspended", hit
+            conn.execute(
+                "INSERT INTO execution_authorization_consume "
+                "(execution_authorization_id, organisation_id, consumed_at) "
+                "VALUES (?, ?, ?)",
+                (execution_authorization_id, organisation_id, consumed_at),
+            )
+            conn.commit()
+            return "consumed", None
+        except sqlite3.IntegrityError:
+            conn.rollback()
+            return "already_consumed", None
+        except Exception:
+            conn.rollback()
+            raise
 
     def decision_execution_status(self, decision_id: str) -> str | None:
         row = self._conn.execute(
