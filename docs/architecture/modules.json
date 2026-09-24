@@ -136,11 +136,6 @@
   ],
   [
    "agent_dna.adapters_policy",
-   "agent_dna.adapters_policy.git_bundle",
-   "top"
-  ],
-  [
-   "agent_dna.adapters_policy",
    "agent_dna.adapters_policy.local",
    "top"
   ],
@@ -2590,7 +2585,6 @@
   "agent_dna.action_v01": 4,
   "agent_dna.adapters": 11,
   "agent_dna.adapters_framework.base": 1,
-  "agent_dna.adapters_policy.git_bundle": 1,
   "agent_dna.adapters_policy.local": 2,
   "agent_dna.adapters_policy.opa": 2,
   "agent_dna.adapters_policy.skill_adapter": 1,
@@ -2732,7 +2726,7 @@
   "agent_dna.adapters": 1,
   "agent_dna.adapters_framework": 1,
   "agent_dna.adapters_framework.base": 2,
-  "agent_dna.adapters_policy": 4,
+  "agent_dna.adapters_policy": 3,
   "agent_dna.adapters_policy.git_bundle": 1,
   "agent_dna.adapters_policy.local": 2,
   "agent_dna.adapters_policy.skill_adapter": 2,
