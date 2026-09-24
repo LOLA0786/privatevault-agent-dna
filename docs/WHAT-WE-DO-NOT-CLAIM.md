@@ -148,7 +148,11 @@ proven through the connector). Honest scope of that claim:
   behavioral inference.** The distributed-drain trip (N agents
   jointly exceeding a group volume cap, each individually under its
   per-agent cap — `tests/test_group_breaker.py`) enforces stated
-  swarm structure. Detecting undeclared coordination is a
+  swarm structure. Groups are declared in `PV_BREAKER_GROUPS_FILE`; a
+  malformed file refuses startup, and the trip is proven through the
+  production decision path
+  (`tests/test_breaker_groups_config.py::test_swarm_under_per_agent_cap_is_blocked_through_production_engine`).
+  An agent not listed in any group is not aggregated. Detecting undeclared coordination is a
   drift/anomaly problem, and we do not claim the deterministic
   breaker solves it.
 - **Agent roles and tool targets are declared config.**
