@@ -390,7 +390,14 @@ class ExactByteHttpDispatcher:
             return ids
         ea_id, organisation_id = ids
         consume_at = _rfc3339_now()
-        consumed = self._consume(ea_id, organisation_id, consume_at, report, wire)
+        consumed = self._consume(
+            ea_id,
+            organisation_id,
+            consume_at,
+            report,
+            wire,
+            authorization=authorization,
+        )
         if consumed is not None:
             return consumed
         return self._transmit_and_attest(
@@ -514,13 +521,32 @@ class ExactByteHttpDispatcher:
         consumed_at: str,
         report: VerificationReport,
         wire: bytes,
+        *,
+        authorization: Mapping[str, Any] | None = None,
     ) -> ExactByteDispatchResult | None:
+        gated = getattr(self.consume_ledger, "try_consume_unless_suspended", None)
         try:
-            claimed = self.consume_ledger.try_consume_execution_authorization(
-                ea_id,
-                organisation_id=organisation_id,
-                consumed_at=consumed_at,
-            )
+            if gated is not None:
+                status, detail = gated(
+                    ea_id,
+                    organisation_id=organisation_id,
+                    consumed_at=consumed_at,
+                    scopes=_suspension_scopes(ea_id, organisation_id, authorization),
+                )
+                if status == "suspended":
+                    return _not_sent(
+                        reason_code=DISPATCH_SUSPENDED,
+                        detail=detail,
+                        verification=report,
+                        wire_bytes=wire,
+                    )
+                claimed = status == "consumed"
+            else:
+                claimed = self.consume_ledger.try_consume_execution_authorization(
+                    ea_id,
+                    organisation_id=organisation_id,
+                    consumed_at=consumed_at,
+                )
         except Exception as exc:
             return _not_sent(
                 reason_code=CONSUME_LEDGER_UNAVAILABLE,
@@ -831,3 +857,20 @@ __all__ = [
     "recording_send",
     "serialize_json_payload",
 ]
+
+
+# ADR-0018 PR-J: dispatch refused because the agent, organisation or
+# authorization is suspended. Checked inside the consume transaction,
+# before any byte is written.
+DISPATCH_SUSPENDED = "DISPATCH_SUSPENDED"
+
+
+def _suspension_scopes(
+    ea_id: str, organisation_id: str, authorization: Mapping[str, Any] | None
+) -> tuple[tuple[str, str], ...]:
+    scopes = [("authorization", ea_id), ("organisation", organisation_id)]
+    action = (authorization or {}).get("action")
+    agent = action.get("subject_key_id") if isinstance(action, Mapping) else None
+    if isinstance(agent, str) and agent:
+        scopes.append(("agent", agent))
+    return tuple(scopes)

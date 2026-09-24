@@ -67,3 +67,22 @@ the operator who issues keys; model-level collusion detection.
 Single-controller deployments see no change. Multi-controller
 deployments must declare controllers in the key file under the secure
 profile; a key without one fails startup rather than defaulting.
+
+## Addendum 2026-09-24: containment brief, verified against the code
+
+- F9  Nothing at consume or dispatch time checked suspension or grant
+      revocation: a permit minted before its agent was suspended could
+      still be dispatched until expiry. Closed by PR-J (this change).
+- F10 An observed 401/403 from the target is recorded as closure
+      `REJECTED` (exact_byte_http.py) but nothing latches on it.
+- F11 Grant revocation is in-memory (`GrantRegistry.revoke`) and not
+      reachable through the API.
+- F12 No reference containment deployment in `deploy/`.
+
+| PR | Control | Closes |
+|----|---------|--------|
+| J  | Suspension (agent, organisation, authorization) checked inside the consume transaction; refused as DISPATCH_SUSPENDED before any byte is sent | F9 |
+| J2 | /v1/suspend; lifting requires dual control | F9 |
+| I  | Target deny-latch: policy denial or observed 401/403 suspends (root workflow, target) for every child and tool | F10 |
+| K  | Reference containment deployment: agent container egress only via the gateway; bypass test script | F12 |
+| L  | Inbound Envoy ext_authz adapter at the customer edge | - |
