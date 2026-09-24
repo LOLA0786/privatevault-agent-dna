@@ -1,0 +1,3932 @@
+{
+ "core_to_experimental": [
+  "agent_dna.adapters_policy.git_bundle -> experimental.adapters.git_bundle (top)"
+ ],
+ "cycles": [],
+ "edges": [
+  [
+   "agent_dna",
+   "agent_dna.advisory",
+   "top"
+  ],
+  [
+   "agent_dna",
+   "agent_dna.allowlist",
+   "top"
+  ],
+  [
+   "agent_dna",
+   "agent_dna.authorization",
+   "top"
+  ],
+  [
+   "agent_dna",
+   "agent_dna.change_management",
+   "top"
+  ],
+  [
+   "agent_dna",
+   "agent_dna.confidence",
+   "top"
+  ],
+  [
+   "agent_dna",
+   "agent_dna.decision",
+   "top"
+  ],
+  [
+   "agent_dna",
+   "agent_dna.diff",
+   "top"
+  ],
+  [
+   "agent_dna",
+   "agent_dna.discovery",
+   "top"
+  ],
+  [
+   "agent_dna",
+   "agent_dna.dynamics",
+   "top"
+  ],
+  [
+   "agent_dna",
+   "agent_dna.fingerprint",
+   "top"
+  ],
+  [
+   "agent_dna",
+   "agent_dna.invariant_engine",
+   "top"
+  ],
+  [
+   "agent_dna",
+   "agent_dna.invariants",
+   "top"
+  ],
+  [
+   "agent_dna",
+   "agent_dna.manifold",
+   "top"
+  ],
+  [
+   "agent_dna",
+   "agent_dna.profile_store",
+   "top"
+  ],
+  [
+   "agent_dna",
+   "agent_dna.reference_policies",
+   "top"
+  ],
+  [
+   "agent_dna",
+   "agent_dna.runtime",
+   "top"
+  ],
+  [
+   "agent_dna",
+   "agent_dna.scorer",
+   "top"
+  ],
+  [
+   "agent_dna",
+   "agent_dna.security",
+   "top"
+  ],
+  [
+   "agent_dna",
+   "agent_dna.similarity",
+   "top"
+  ],
+  [
+   "agent_dna",
+   "agent_dna.timeline",
+   "top"
+  ],
+  [
+   "agent_dna",
+   "agent_dna.trace",
+   "top"
+  ],
+  [
+   "agent_dna.action_v01",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "agent_dna.adapters",
+   "agent_dna.trace",
+   "top"
+  ],
+  [
+   "agent_dna.adapters_framework",
+   "agent_dna.adapters_framework.base",
+   "top"
+  ],
+  [
+   "agent_dna.adapters_framework.base",
+   "agent_dna.decision",
+   "top"
+  ],
+  [
+   "agent_dna.adapters_framework.base",
+   "agent_dna.trace",
+   "top"
+  ],
+  [
+   "agent_dna.adapters_policy",
+   "agent_dna.adapters_policy.git_bundle",
+   "top"
+  ],
+  [
+   "agent_dna.adapters_policy",
+   "agent_dna.adapters_policy.local",
+   "top"
+  ],
+  [
+   "agent_dna.adapters_policy",
+   "agent_dna.adapters_policy.opa",
+   "top"
+  ],
+  [
+   "agent_dna.adapters_policy",
+   "agent_dna.adapters_policy.skill_adapter",
+   "top"
+  ],
+  [
+   "agent_dna.adapters_policy.git_bundle",
+   "experimental.adapters.git_bundle",
+   "top"
+  ],
+  [
+   "agent_dna.adapters_policy.local",
+   "agent_dna.policy.checker",
+   "top"
+  ],
+  [
+   "agent_dna.adapters_policy.local",
+   "agent_dna.policy.loader",
+   "top"
+  ],
+  [
+   "agent_dna.adapters_policy.skill_adapter",
+   "agent_dna.adapters_policy.local",
+   "top"
+  ],
+  [
+   "agent_dna.adapters_policy.skill_adapter",
+   "agent_dna.policy.checker",
+   "top"
+  ],
+  [
+   "agent_dna.approval_v01",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "agent_dna.authorization",
+   "agent_dna.store.grants",
+   "top"
+  ],
+  [
+   "agent_dna.authorize_binding",
+   "agent_dna.action_v01",
+   "top"
+  ],
+  [
+   "agent_dna.authorize_binding",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "agent_dna.authorize_binding",
+   "agent_dna.decision_record",
+   "top"
+  ],
+  [
+   "agent_dna.authorize_binding",
+   "agent_dna.dispatch_context_v01",
+   "top"
+  ],
+  [
+   "agent_dna.authorize_binding",
+   "agent_dna.wire_serialization_v01",
+   "top"
+  ],
+  [
+   "agent_dna.change_management",
+   "agent_dna.authorization",
+   "top"
+  ],
+  [
+   "agent_dna.circuit_breaker",
+   "agent_dna.amount",
+   "top"
+  ],
+  [
+   "agent_dna.circuit_breaker",
+   "agent_dna.decision",
+   "top"
+  ],
+  [
+   "agent_dna.cli",
+   "agent_dna.authority_v01",
+   "lazy"
+  ],
+  [
+   "agent_dna.cli",
+   "agent_dna.discovery",
+   "lazy"
+  ],
+  [
+   "agent_dna.cli",
+   "agent_dna.policy_gate",
+   "lazy"
+  ],
+  [
+   "agent_dna.cli",
+   "agent_dna.policy_miner",
+   "lazy"
+  ],
+  [
+   "agent_dna.cli",
+   "agent_dna.policy_replay",
+   "lazy"
+  ],
+  [
+   "agent_dna.cli",
+   "agent_dna.security.loop_discovery",
+   "lazy"
+  ],
+  [
+   "agent_dna.cli",
+   "agent_dna.sqlite_store",
+   "lazy"
+  ],
+  [
+   "agent_dna.closure_v01",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "agent_dna.closure_v01",
+   "agent_dna.dispatch_v01",
+   "top"
+  ],
+  [
+   "agent_dna.closure_v01",
+   "agent_dna.execution_v01",
+   "top"
+  ],
+  [
+   "agent_dna.composition",
+   "agent_dna.adapters",
+   "top"
+  ],
+  [
+   "agent_dna.composition",
+   "agent_dna.adapters_policy.opa",
+   "lazy"
+  ],
+  [
+   "agent_dna.composition",
+   "agent_dna.apikeys",
+   "top"
+  ],
+  [
+   "agent_dna.composition",
+   "agent_dna.authority_v01",
+   "lazy"
+  ],
+  [
+   "agent_dna.composition",
+   "agent_dna.circuit_breaker",
+   "top"
+  ],
+  [
+   "agent_dna.composition",
+   "agent_dna.connector",
+   "lazy"
+  ],
+  [
+   "agent_dna.composition",
+   "agent_dna.connector.adapters.exact_byte_http",
+   "top"
+  ],
+  [
+   "agent_dna.composition",
+   "agent_dna.connector.adapters.execution_trust",
+   "top"
+  ],
+  [
+   "agent_dna.composition",
+   "agent_dna.connector.adapters.sidecar_transport",
+   "top"
+  ],
+  [
+   "agent_dna.composition",
+   "agent_dna.connector.cross_agent",
+   "lazy"
+  ],
+  [
+   "agent_dna.composition",
+   "agent_dna.consensus",
+   "top"
+  ],
+  [
+   "agent_dna.composition",
+   "agent_dna.decision",
+   "top"
+  ],
+  [
+   "agent_dna.composition",
+   "agent_dna.decision_recorder",
+   "top"
+  ],
+  [
+   "agent_dna.composition",
+   "agent_dna.dynamics",
+   "top"
+  ],
+  [
+   "agent_dna.composition",
+   "agent_dna.economics",
+   "top"
+  ],
+  [
+   "agent_dna.composition",
+   "agent_dna.grants",
+   "top"
+  ],
+  [
+   "agent_dna.composition",
+   "agent_dna.manifold",
+   "top"
+  ],
+  [
+   "agent_dna.composition",
+   "agent_dna.open_authorizer",
+   "top"
+  ],
+  [
+   "agent_dna.composition",
+   "agent_dna.policy.checker",
+   "lazy"
+  ],
+  [
+   "agent_dna.composition",
+   "agent_dna.policy.loader",
+   "lazy"
+  ],
+  [
+   "agent_dna.composition",
+   "agent_dna.policy_replay",
+   "lazy"
+  ],
+  [
+   "agent_dna.composition",
+   "agent_dna.runtime",
+   "top"
+  ],
+  [
+   "agent_dna.composition",
+   "agent_dna.scorer",
+   "top"
+  ],
+  [
+   "agent_dna.composition",
+   "agent_dna.signer_python",
+   "top"
+  ],
+  [
+   "agent_dna.composition",
+   "agent_dna.sqlite_store",
+   "top"
+  ],
+  [
+   "agent_dna.composition",
+   "agent_dna.trace",
+   "top"
+  ],
+  [
+   "agent_dna.composition",
+   "agent_dna.uaal_layer",
+   "top"
+  ],
+  [
+   "agent_dna.confidence",
+   "agent_dna.manifold",
+   "top"
+  ],
+  [
+   "agent_dna.connector",
+   "agent_dna.connector.middleware",
+   "top"
+  ],
+  [
+   "agent_dna.connector",
+   "agent_dna.connector.models",
+   "top"
+  ],
+  [
+   "agent_dna.connector.adapters",
+   "agent_dna.connector.adapters.exact_byte_http",
+   "top"
+  ],
+  [
+   "agent_dna.connector.adapters",
+   "agent_dna.connector.adapters.mcp",
+   "top"
+  ],
+  [
+   "agent_dna.connector.adapters.exact_byte_http",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "agent_dna.connector.adapters.exact_byte_http",
+   "agent_dna.authorize_binding",
+   "top"
+  ],
+  [
+   "agent_dna.connector.adapters.exact_byte_http",
+   "agent_dna.closure_v01",
+   "top"
+  ],
+  [
+   "agent_dna.connector.adapters.exact_byte_http",
+   "agent_dna.connector.adapters.execution_trust",
+   "top"
+  ],
+  [
+   "agent_dna.connector.adapters.exact_byte_http",
+   "agent_dna.connector.adapters.sidecar_transport",
+   "top"
+  ],
+  [
+   "agent_dna.connector.adapters.exact_byte_http",
+   "agent_dna.dispatch_v01",
+   "top"
+  ],
+  [
+   "agent_dna.connector.adapters.exact_byte_http",
+   "agent_dna.execution_v01",
+   "top"
+  ],
+  [
+   "agent_dna.connector.adapters.execution_trust",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "agent_dna.connector.adapters.mcp",
+   "agent_dna.connector.models",
+   "top"
+  ],
+  [
+   "agent_dna.connector.cross_agent",
+   "agent_dna.advisory",
+   "top"
+  ],
+  [
+   "agent_dna.connector.cross_agent",
+   "agent_dna.control_posture",
+   "top"
+  ],
+  [
+   "agent_dna.connector.cross_agent",
+   "agent_dna.decision",
+   "top"
+  ],
+  [
+   "agent_dna.connector.cross_agent",
+   "agent_dna.multi_agent",
+   "top"
+  ],
+  [
+   "agent_dna.connector.cross_agent",
+   "agent_dna.multi_agent.base",
+   "top"
+  ],
+  [
+   "agent_dna.connector.cross_agent",
+   "agent_dna.multi_agent.dual_control",
+   "top"
+  ],
+  [
+   "agent_dna.connector.cross_agent",
+   "agent_dna.multi_agent.invariant_engine",
+   "top"
+  ],
+  [
+   "agent_dna.connector.cross_agent",
+   "agent_dna.multi_agent.runtime_validator",
+   "top"
+  ],
+  [
+   "agent_dna.connector.middleware",
+   "agent_dna.apikeys",
+   "top"
+  ],
+  [
+   "agent_dna.connector.middleware",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "agent_dna.connector.middleware",
+   "agent_dna.connector.cross_agent",
+   "lazy"
+  ],
+  [
+   "agent_dna.connector.middleware",
+   "agent_dna.connector.models",
+   "top"
+  ],
+  [
+   "agent_dna.connector.middleware",
+   "agent_dna.control_posture",
+   "lazy"
+  ],
+  [
+   "agent_dna.connector.middleware",
+   "agent_dna.dispatch_context_v01",
+   "top"
+  ],
+  [
+   "agent_dna.connector.middleware",
+   "agent_dna.runtime",
+   "top"
+  ],
+  [
+   "agent_dna.connector.middleware",
+   "agent_dna.trace",
+   "top"
+  ],
+  [
+   "agent_dna.consensus",
+   "agent_dna.consensus.byzantine",
+   "top"
+  ],
+  [
+   "agent_dna.consensus",
+   "agent_dna.consensus.checker",
+   "top"
+  ],
+  [
+   "agent_dna.consensus",
+   "agent_dna.consensus.weighted_quorum",
+   "top"
+  ],
+  [
+   "agent_dna.consensus.byzantine",
+   "agent_dna.consensus.secure_quorum",
+   "top"
+  ],
+  [
+   "agent_dna.consensus.byzantine",
+   "agent_dna.consensus.signing",
+   "top"
+  ],
+  [
+   "agent_dna.consensus.checker",
+   "agent_dna.consensus.secure_quorum",
+   "top"
+  ],
+  [
+   "agent_dna.consensus.secure_quorum",
+   "agent_dna.consensus.signing",
+   "top"
+  ],
+  [
+   "agent_dna.control_posture",
+   "agent_dna.decision",
+   "top"
+  ],
+  [
+   "agent_dna.control_posture",
+   "agent_dna.evidence",
+   "top"
+  ],
+  [
+   "agent_dna.decision",
+   "agent_dna.advisory",
+   "top"
+  ],
+  [
+   "agent_dna.decision",
+   "agent_dna.amount",
+   "top"
+  ],
+  [
+   "agent_dna.decision",
+   "agent_dna.control_posture",
+   "lazy"
+  ],
+  [
+   "agent_dna.decision",
+   "agent_dna.evidence",
+   "top"
+  ],
+  [
+   "agent_dna.decision",
+   "agent_dna.trace",
+   "top"
+  ],
+  [
+   "agent_dna.decision_graph",
+   "agent_dna.decision_record",
+   "top"
+  ],
+  [
+   "agent_dna.decision_graph",
+   "agent_dna.execution_record",
+   "top"
+  ],
+  [
+   "agent_dna.decision_record",
+   "agent_dna.action_v01",
+   "top"
+  ],
+  [
+   "agent_dna.decision_record",
+   "agent_dna.decision",
+   "top"
+  ],
+  [
+   "agent_dna.decision_record",
+   "agent_dna.dispatch_context_v01",
+   "top"
+  ],
+  [
+   "agent_dna.decision_record",
+   "agent_dna.trace",
+   "top"
+  ],
+  [
+   "agent_dna.decision_recorder",
+   "agent_dna.decision",
+   "top"
+  ],
+  [
+   "agent_dna.decision_recorder",
+   "agent_dna.decision_graph",
+   "top"
+  ],
+  [
+   "agent_dna.decision_recorder",
+   "agent_dna.decision_record",
+   "top"
+  ],
+  [
+   "agent_dna.decision_recorder",
+   "agent_dna.execution_record",
+   "top"
+  ],
+  [
+   "agent_dna.decision_recorder",
+   "agent_dna.trace",
+   "top"
+  ],
+  [
+   "agent_dna.decision_store",
+   "agent_dna.decision_graph",
+   "top"
+  ],
+  [
+   "agent_dna.decision_store",
+   "agent_dna.decision_record",
+   "top"
+  ],
+  [
+   "agent_dna.decision_store",
+   "agent_dna.execution_record",
+   "top"
+  ],
+  [
+   "agent_dna.diff",
+   "agent_dna.authorization",
+   "top"
+  ],
+  [
+   "agent_dna.diff",
+   "agent_dna.fingerprint",
+   "top"
+  ],
+  [
+   "agent_dna.diff",
+   "agent_dna.similarity",
+   "top"
+  ],
+  [
+   "agent_dna.discovery",
+   "agent_dna.policy.checker",
+   "top"
+  ],
+  [
+   "agent_dna.discovery",
+   "agent_dna.policy.schema",
+   "top"
+  ],
+  [
+   "agent_dna.discovery",
+   "agent_dna.policy_gate",
+   "top"
+  ],
+  [
+   "agent_dna.discovery",
+   "agent_dna.policy_miner",
+   "top"
+  ],
+  [
+   "agent_dna.discovery",
+   "agent_dna.security.loop_discovery",
+   "top"
+  ],
+  [
+   "agent_dna.discovery",
+   "agent_dna.validation.metrics",
+   "top"
+  ],
+  [
+   "agent_dna.dispatch_context_v01",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "agent_dna.dispatch_context_v01",
+   "agent_dna.wire_serialization_v01",
+   "top"
+  ],
+  [
+   "agent_dna.dispatch_v01",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "agent_dna.dispatch_v01",
+   "agent_dna.execution_v01",
+   "top"
+  ],
+  [
+   "agent_dna.dispatch_v01",
+   "agent_dna.wire_serialization_v01",
+   "top"
+  ],
+  [
+   "agent_dna.dynamics",
+   "agent_dna.trace",
+   "top"
+  ],
+  [
+   "agent_dna.eav",
+   "agent_dna.eav.invariant_engine",
+   "top"
+  ],
+  [
+   "agent_dna.eav.invariant_engine",
+   "agent_dna.amount",
+   "top"
+  ],
+  [
+   "agent_dna.economics",
+   "agent_dna.economics.cost_check",
+   "top"
+  ],
+  [
+   "agent_dna.execution_v01",
+   "agent_dna.action_v01",
+   "top"
+  ],
+  [
+   "agent_dna.execution_v01",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "agent_dna.execution_v01",
+   "agent_dna.authorize_binding",
+   "top"
+  ],
+  [
+   "agent_dna.execution_v01",
+   "agent_dna.wire_serialization_v01",
+   "top"
+  ],
+  [
+   "agent_dna.export_manifest",
+   "agent_dna.signer",
+   "lazy"
+  ],
+  [
+   "agent_dna.fingerprint",
+   "agent_dna.dynamics",
+   "top"
+  ],
+  [
+   "agent_dna.fingerprint",
+   "agent_dna.manifold",
+   "top"
+  ],
+  [
+   "agent_dna.gateway",
+   "agent_dna.gateway.errors",
+   "top"
+  ],
+  [
+   "agent_dna.gateway",
+   "agent_dna.gateway.framing",
+   "top"
+  ],
+  [
+   "agent_dna.gateway",
+   "agent_dna.gateway.runtime",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.__main__",
+   "agent_dna.composition",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.__main__",
+   "agent_dna.gateway.credentials",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.__main__",
+   "agent_dna.gateway.errors",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.__main__",
+   "agent_dna.gateway.http_sse_proxy",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.__main__",
+   "agent_dna.gateway.https_egress",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.__main__",
+   "agent_dna.gateway.runtime",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.__main__",
+   "agent_dna.gateway.stdio_proxy",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.credentials",
+   "agent_dna.gateway.errors",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.framing",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.framing",
+   "agent_dna.execution_v01",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.framing",
+   "agent_dna.gateway.errors",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.framing",
+   "agent_dna.gateway.protocol",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.http_sse_proxy",
+   "agent_dna.gateway.errors",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.http_sse_proxy",
+   "agent_dna.gateway.framing",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.http_sse_proxy",
+   "agent_dna.gateway.mediator",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.http_sse_proxy",
+   "agent_dna.gateway.runtime",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.https_egress",
+   "agent_dna.connector.middleware",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.https_egress",
+   "agent_dna.connector.models",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.https_egress",
+   "agent_dna.execution_v01",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.https_egress",
+   "agent_dna.gateway.credentials",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.https_egress",
+   "agent_dna.gateway.errors",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.https_egress",
+   "agent_dna.gateway.framing",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.https_egress",
+   "agent_dna.gateway.upstream",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.mediator",
+   "agent_dna.connector.middleware",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.mediator",
+   "agent_dna.connector.models",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.mediator",
+   "agent_dna.execution_v01",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.mediator",
+   "agent_dna.gateway.credentials",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.mediator",
+   "agent_dna.gateway.errors",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.mediator",
+   "agent_dna.gateway.framing",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.mediator",
+   "agent_dna.gateway.metrics",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.mediator",
+   "agent_dna.gateway.protocol",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.mediator",
+   "agent_dna.gateway.session",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.mediator",
+   "agent_dna.gateway.upstream",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.protocol",
+   "agent_dna.gateway.errors",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.runtime",
+   "agent_dna.composition",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.runtime",
+   "agent_dna.gateway.credentials",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.runtime",
+   "agent_dna.gateway.errors",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.runtime",
+   "agent_dna.gateway.framing",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.runtime",
+   "agent_dna.gateway.https_egress",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.runtime",
+   "agent_dna.gateway.mediator",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.runtime",
+   "agent_dna.gateway.metrics",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.runtime",
+   "agent_dna.gateway.session",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.runtime",
+   "agent_dna.gateway.upstream",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.stdio_proxy",
+   "agent_dna.gateway.errors",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.stdio_proxy",
+   "agent_dna.gateway.framing",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.stdio_proxy",
+   "agent_dna.gateway.runtime",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.upstream",
+   "agent_dna.gateway.credentials",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.upstream",
+   "agent_dna.gateway.errors",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.upstream",
+   "agent_dna.gateway.framing",
+   "top"
+  ],
+  [
+   "agent_dna.governance.evaluate",
+   "agent_dna.governance.pack",
+   "top"
+  ],
+  [
+   "agent_dna.grants",
+   "agent_dna.amount",
+   "top"
+  ],
+  [
+   "agent_dna.intent_adapter",
+   "agent_dna.trace",
+   "top"
+  ],
+  [
+   "agent_dna.invariant_engine",
+   "agent_dna.invariants",
+   "top"
+  ],
+  [
+   "agent_dna.invariants",
+   "agent_dna.trace",
+   "top"
+  ],
+  [
+   "agent_dna.key_lifecycle",
+   "agent_dna.decision",
+   "top"
+  ],
+  [
+   "agent_dna.key_lifecycle",
+   "agent_dna.signer",
+   "top"
+  ],
+  [
+   "agent_dna.key_lifecycle",
+   "agent_dna.trace",
+   "top"
+  ],
+  [
+   "agent_dna.manifold",
+   "agent_dna.trace",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent",
+   "agent_dna.multi_agent.authority",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent",
+   "agent_dna.multi_agent.base",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent",
+   "agent_dna.multi_agent.consensus",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent",
+   "agent_dna.multi_agent.dual_control",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent",
+   "agent_dna.multi_agent.events",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent",
+   "agent_dna.multi_agent.graph_builder",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent",
+   "agent_dna.multi_agent.intent",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent",
+   "agent_dna.multi_agent.interaction_graph",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent",
+   "agent_dna.multi_agent.invariant_engine",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent",
+   "agent_dna.multi_agent.runtime_validator",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent",
+   "agent_dna.multi_agent.structure",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent",
+   "agent_dna.multi_agent.temporal",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent",
+   "agent_dna.multi_agent.topology",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent",
+   "agent_dna.multi_agent.trust",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent",
+   "agent_dna.multi_agent.world_state",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent.authority",
+   "agent_dna.multi_agent.base",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent.authority",
+   "agent_dna.multi_agent.interaction_graph",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent.base",
+   "agent_dna.multi_agent.interaction_graph",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent.consensus",
+   "agent_dna.multi_agent.base",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent.consensus",
+   "agent_dna.multi_agent.interaction_graph",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent.dual_control",
+   "agent_dna.multi_agent.base",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent.dual_control",
+   "agent_dna.multi_agent.interaction_graph",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent.graph_builder",
+   "agent_dna.multi_agent.events",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent.graph_builder",
+   "agent_dna.multi_agent.interaction_graph",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent.intent",
+   "agent_dna.multi_agent.base",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent.intent",
+   "agent_dna.multi_agent.interaction_graph",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent.interaction_graph",
+   "agent_dna.multi_agent.events",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent.invariant_engine",
+   "agent_dna.multi_agent.base",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent.invariant_engine",
+   "agent_dna.multi_agent.interaction_graph",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent.runtime_validator",
+   "agent_dna.multi_agent.authority",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent.runtime_validator",
+   "agent_dna.multi_agent.base",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent.runtime_validator",
+   "agent_dna.multi_agent.consensus",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent.runtime_validator",
+   "agent_dna.multi_agent.dual_control",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent.runtime_validator",
+   "agent_dna.multi_agent.events",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent.runtime_validator",
+   "agent_dna.multi_agent.graph_builder",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent.runtime_validator",
+   "agent_dna.multi_agent.intent",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent.runtime_validator",
+   "agent_dna.multi_agent.interaction_graph",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent.runtime_validator",
+   "agent_dna.multi_agent.invariant_engine",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent.runtime_validator",
+   "agent_dna.multi_agent.structure",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent.runtime_validator",
+   "agent_dna.multi_agent.temporal",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent.runtime_validator",
+   "agent_dna.multi_agent.topology",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent.runtime_validator",
+   "agent_dna.multi_agent.trust",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent.runtime_validator",
+   "agent_dna.multi_agent.world_state",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent.structure",
+   "agent_dna.multi_agent.base",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent.structure",
+   "agent_dna.multi_agent.interaction_graph",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent.temporal",
+   "agent_dna.multi_agent.base",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent.temporal",
+   "agent_dna.multi_agent.interaction_graph",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent.topology",
+   "agent_dna.multi_agent.base",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent.topology",
+   "agent_dna.multi_agent.interaction_graph",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent.trust",
+   "agent_dna.multi_agent.base",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent.trust",
+   "agent_dna.multi_agent.interaction_graph",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent.world_state",
+   "agent_dna.multi_agent.base",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent.world_state",
+   "agent_dna.multi_agent.interaction_graph",
+   "top"
+  ],
+  [
+   "agent_dna.observability.metrics",
+   "agent_dna.observability.prometheus_bridge",
+   "top"
+  ],
+  [
+   "agent_dna.policy",
+   "agent_dna.policy.checker",
+   "top"
+  ],
+  [
+   "agent_dna.policy",
+   "agent_dna.policy.loader",
+   "top"
+  ],
+  [
+   "agent_dna.policy",
+   "agent_dna.policy.schema",
+   "top"
+  ],
+  [
+   "agent_dna.policy.checker",
+   "agent_dna.policy.schema",
+   "top"
+  ],
+  [
+   "agent_dna.policy.loader",
+   "agent_dna.policy.schema",
+   "top"
+  ],
+  [
+   "agent_dna.policy_gate",
+   "agent_dna.policy.checker",
+   "lazy"
+  ],
+  [
+   "agent_dna.policy_gate",
+   "agent_dna.policy.schema",
+   "lazy"
+  ],
+  [
+   "agent_dna.policy_gate",
+   "agent_dna.policy_replay",
+   "lazy"
+  ],
+  [
+   "agent_dna.policy_gate",
+   "agent_dna.sqlite_store",
+   "lazy"
+  ],
+  [
+   "agent_dna.profile_store",
+   "agent_dna.fingerprint",
+   "top"
+  ],
+  [
+   "agent_dna.rate",
+   "agent_dna.manifold",
+   "top"
+  ],
+  [
+   "agent_dna.runtime",
+   "agent_dna.advisory",
+   "top"
+  ],
+  [
+   "agent_dna.runtime",
+   "agent_dna.circuit_breaker",
+   "top"
+  ],
+  [
+   "agent_dna.runtime",
+   "agent_dna.decision",
+   "top"
+  ],
+  [
+   "agent_dna.runtime",
+   "agent_dna.observability.metrics",
+   "top"
+  ],
+  [
+   "agent_dna.runtime",
+   "agent_dna.trace",
+   "top"
+  ],
+  [
+   "agent_dna.scan",
+   "agent_dna.scan.ingest",
+   "top"
+  ],
+  [
+   "agent_dna.scan",
+   "agent_dna.scan.replay",
+   "top"
+  ],
+  [
+   "agent_dna.scan.ingest",
+   "agent_dna.trace",
+   "top"
+  ],
+  [
+   "agent_dna.scan.inventory",
+   "agent_dna.trace",
+   "top"
+  ],
+  [
+   "agent_dna.scan.replay",
+   "agent_dna.decision",
+   "top"
+  ],
+  [
+   "agent_dna.scan.replay",
+   "agent_dna.dynamics",
+   "top"
+  ],
+  [
+   "agent_dna.scan.replay",
+   "agent_dna.manifold",
+   "top"
+  ],
+  [
+   "agent_dna.scan.replay",
+   "agent_dna.open_authorizer",
+   "top"
+  ],
+  [
+   "agent_dna.scan.replay",
+   "agent_dna.scan.ingest",
+   "top"
+  ],
+  [
+   "agent_dna.scan.replay",
+   "agent_dna.scorer",
+   "top"
+  ],
+  [
+   "agent_dna.scan.replay",
+   "agent_dna.trace",
+   "top"
+  ],
+  [
+   "agent_dna.scorer",
+   "agent_dna.advisory",
+   "top"
+  ],
+  [
+   "agent_dna.scorer",
+   "agent_dna.dynamics",
+   "top"
+  ],
+  [
+   "agent_dna.scorer",
+   "agent_dna.invariant_engine",
+   "top"
+  ],
+  [
+   "agent_dna.scorer",
+   "agent_dna.manifold",
+   "top"
+  ],
+  [
+   "agent_dna.scorer",
+   "agent_dna.rate",
+   "top"
+  ],
+  [
+   "agent_dna.scorer",
+   "agent_dna.trace",
+   "top"
+  ],
+  [
+   "agent_dna.security",
+   "agent_dna.security.loop_discovery",
+   "top"
+  ],
+  [
+   "agent_dna.security.loop_discovery",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "agent_dna.signer",
+   "agent_dna.signer_bridge",
+   "top"
+  ],
+  [
+   "agent_dna.signer",
+   "agent_dna.signer_python",
+   "top"
+  ],
+  [
+   "agent_dna.signer_bridge",
+   "agent_dna.signer_python",
+   "top"
+  ],
+  [
+   "agent_dna.similarity",
+   "agent_dna.fingerprint",
+   "top"
+  ],
+  [
+   "agent_dna.sqlite_store",
+   "agent_dna.authority_v01",
+   "lazy"
+  ],
+  [
+   "agent_dna.sqlite_store",
+   "agent_dna.authorize_binding",
+   "lazy"
+  ],
+  [
+   "agent_dna.sqlite_store",
+   "agent_dna.decision_graph",
+   "top"
+  ],
+  [
+   "agent_dna.sqlite_store",
+   "agent_dna.decision_record",
+   "top"
+  ],
+  [
+   "agent_dna.sqlite_store",
+   "agent_dna.execution_record",
+   "top"
+  ],
+  [
+   "agent_dna.timeline",
+   "agent_dna.fingerprint",
+   "top"
+  ],
+  [
+   "agent_dna.timeline",
+   "agent_dna.similarity",
+   "top"
+  ],
+  [
+   "agent_dna.uaal_layer",
+   "agent_dna.amount",
+   "top"
+  ],
+  [
+   "agent_dna.uaal_layer",
+   "agent_dna.eav",
+   "top"
+  ],
+  [
+   "agent_dna.uaal_layer",
+   "agent_dna.trace",
+   "top"
+  ],
+  [
+   "agent_dna.validation",
+   "agent_dna.validation.drift",
+   "top"
+  ],
+  [
+   "agent_dna.validation",
+   "agent_dna.validation.guard",
+   "top"
+  ],
+  [
+   "agent_dna.validation",
+   "agent_dna.validation.metrics",
+   "top"
+  ],
+  [
+   "agent_dna.validation",
+   "agent_dna.validation.report",
+   "top"
+  ],
+  [
+   "agent_dna.validation.drift",
+   "agent_dna.validation.metrics",
+   "top"
+  ],
+  [
+   "agent_dna.validation.report",
+   "agent_dna.validation.drift",
+   "top"
+  ],
+  [
+   "agent_dna.validation.report",
+   "agent_dna.validation.metrics",
+   "top"
+  ],
+  [
+   "agent_dna.wire_serialization_v01",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "api.server",
+   "agent_dna.action_v01",
+   "lazy"
+  ],
+  [
+   "api.server",
+   "agent_dna.apikeys",
+   "top"
+  ],
+  [
+   "api.server",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "api.server",
+   "agent_dna.authorize_binding",
+   "top"
+  ],
+  [
+   "api.server",
+   "agent_dna.composition",
+   "top"
+  ],
+  [
+   "api.server",
+   "agent_dna.connector.cross_agent",
+   "top"
+  ],
+  [
+   "api.server",
+   "agent_dna.control_posture",
+   "top"
+  ],
+  [
+   "api.server",
+   "agent_dna.decision",
+   "top"
+  ],
+  [
+   "api.server",
+   "agent_dna.dispatch_context_v01",
+   "lazy"
+  ],
+  [
+   "api.server",
+   "agent_dna.execution_v01",
+   "top"
+  ],
+  [
+   "api.server",
+   "agent_dna.observability.logger",
+   "top"
+  ],
+  [
+   "api.server",
+   "agent_dna.observability.metrics",
+   "top"
+  ],
+  [
+   "api.server",
+   "agent_dna.observability.prometheus_bridge",
+   "top"
+  ],
+  [
+   "api.server",
+   "agent_dna.runtime",
+   "top"
+  ],
+  [
+   "api.server",
+   "agent_dna.security.loop_discovery",
+   "top"
+  ],
+  [
+   "api.server",
+   "agent_dna.signer",
+   "top"
+  ],
+  [
+   "api.server",
+   "agent_dna.trace",
+   "top"
+  ],
+  [
+   "api.server",
+   "agent_dna.wire_serialization_v01",
+   "lazy"
+  ],
+  [
+   "examples.amlsim.run_amlsim_sample",
+   "agent_dna.advisory",
+   "lazy"
+  ],
+  [
+   "examples.amlsim.run_amlsim_sample",
+   "agent_dna.decision",
+   "top"
+  ],
+  [
+   "examples.amlsim.run_amlsim_sample",
+   "agent_dna.economics",
+   "top"
+  ],
+  [
+   "examples.amlsim.run_amlsim_sample",
+   "agent_dna.grants",
+   "top"
+  ],
+  [
+   "examples.amlsim.run_amlsim_sample",
+   "agent_dna.trace",
+   "top"
+  ],
+  [
+   "examples.amlsim.run_amlsim_sample",
+   "agent_dna.uaal_layer",
+   "top"
+  ],
+  [
+   "examples.authority_blast_radius_demo",
+   "experimental.authority_reachability_v01",
+   "top"
+  ],
+  [
+   "examples.authority_derivation_demo",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "examples.authorized_evolution_demo",
+   "agent_dna",
+   "top"
+  ],
+  [
+   "examples.authorized_evolution_demo",
+   "agent_dna.adapters",
+   "top"
+  ],
+  [
+   "examples.bfsi_payment_swarm_demo",
+   "agent_dna.multi_agent",
+   "top"
+  ],
+  [
+   "examples.change_management_demo",
+   "agent_dna",
+   "top"
+  ],
+  [
+   "examples.composed_line_demo",
+   "agent_dna.circuit_breaker",
+   "top"
+  ],
+  [
+   "examples.composed_line_demo",
+   "agent_dna.consensus",
+   "top"
+  ],
+  [
+   "examples.composed_line_demo",
+   "agent_dna.consensus.signing",
+   "top"
+  ],
+  [
+   "examples.composed_line_demo",
+   "agent_dna.decision",
+   "top"
+  ],
+  [
+   "examples.composed_line_demo",
+   "agent_dna.decision_recorder",
+   "top"
+  ],
+  [
+   "examples.composed_line_demo",
+   "agent_dna.decision_store",
+   "top"
+  ],
+  [
+   "examples.composed_line_demo",
+   "agent_dna.economics",
+   "top"
+  ],
+  [
+   "examples.composed_line_demo",
+   "agent_dna.intent_adapter",
+   "top"
+  ],
+  [
+   "examples.composed_line_demo",
+   "agent_dna.runtime",
+   "top"
+  ],
+  [
+   "examples.composed_line_demo",
+   "agent_dna.signer",
+   "top"
+  ],
+  [
+   "examples.composed_line_demo",
+   "agent_dna.uaal_layer",
+   "top"
+  ],
+  [
+   "examples.confidence_demo",
+   "agent_dna",
+   "top"
+  ],
+  [
+   "examples.confidence_demo",
+   "agent_dna.adapters",
+   "top"
+  ],
+  [
+   "examples.decision_demo",
+   "agent_dna",
+   "top"
+  ],
+  [
+   "examples.decision_demo",
+   "agent_dna.adapters",
+   "top"
+  ],
+  [
+   "examples.decision_graph_demo",
+   "agent_dna.decision",
+   "top"
+  ],
+  [
+   "examples.decision_graph_demo",
+   "agent_dna.decision_recorder",
+   "top"
+  ],
+  [
+   "examples.decision_graph_demo",
+   "agent_dna.runtime",
+   "top"
+  ],
+  [
+   "examples.demo",
+   "agent_dna",
+   "top"
+  ],
+  [
+   "examples.demo",
+   "agent_dna.adapters",
+   "top"
+  ],
+  [
+   "examples.diff_demo",
+   "agent_dna",
+   "top"
+  ],
+  [
+   "examples.diff_demo",
+   "agent_dna.adapters",
+   "top"
+  ],
+  [
+   "examples.end_to_end_demo",
+   "agent_dna.decision",
+   "top"
+  ],
+  [
+   "examples.end_to_end_demo",
+   "agent_dna.decision_recorder",
+   "top"
+  ],
+  [
+   "examples.end_to_end_demo",
+   "agent_dna.decision_store",
+   "top"
+  ],
+  [
+   "examples.end_to_end_demo",
+   "agent_dna.runtime",
+   "top"
+  ],
+  [
+   "examples.enterprise_payment_closure_demo",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "examples.enterprise_payment_closure_demo",
+   "agent_dna.closure_v01",
+   "top"
+  ],
+  [
+   "examples.enterprise_payment_closure_demo",
+   "agent_dna.dispatch_v01",
+   "top"
+  ],
+  [
+   "examples.enterprise_payment_closure_demo",
+   "agent_dna.execution_v01",
+   "top"
+  ],
+  [
+   "examples.executive_acceptance_demo",
+   "agent_dna.advisory",
+   "lazy"
+  ],
+  [
+   "examples.executive_acceptance_demo",
+   "agent_dna.apikeys",
+   "top"
+  ],
+  [
+   "examples.executive_acceptance_demo",
+   "agent_dna.circuit_breaker",
+   "lazy"
+  ],
+  [
+   "examples.executive_acceptance_demo",
+   "agent_dna.composition",
+   "top"
+  ],
+  [
+   "examples.executive_acceptance_demo",
+   "agent_dna.connector",
+   "top"
+  ],
+  [
+   "examples.executive_acceptance_demo",
+   "agent_dna.consensus.signing",
+   "top"
+  ],
+  [
+   "examples.executive_acceptance_demo",
+   "agent_dna.decision",
+   "top"
+  ],
+  [
+   "examples.executive_acceptance_demo",
+   "agent_dna.decision_recorder",
+   "top"
+  ],
+  [
+   "examples.executive_acceptance_demo",
+   "agent_dna.grants",
+   "top"
+  ],
+  [
+   "examples.executive_acceptance_demo",
+   "agent_dna.signer",
+   "top"
+  ],
+  [
+   "examples.executive_acceptance_demo",
+   "agent_dna.sqlite_store",
+   "top"
+  ],
+  [
+   "examples.executive_acceptance_demo",
+   "agent_dna.trace",
+   "top"
+  ],
+  [
+   "examples.fingerprint_demo",
+   "agent_dna",
+   "top"
+  ],
+  [
+   "examples.fingerprint_demo",
+   "agent_dna.adapters",
+   "top"
+  ],
+  [
+   "examples.governance_market_entry_demo",
+   "agent_dna.governance.evaluate",
+   "top"
+  ],
+  [
+   "examples.governance_market_entry_demo",
+   "agent_dna.governance.pack",
+   "top"
+  ],
+  [
+   "examples.invariant_demo",
+   "agent_dna",
+   "top"
+  ],
+  [
+   "examples.invariant_runtime_demo",
+   "agent_dna",
+   "top"
+  ],
+  [
+   "examples.multi_agent_consensus_demo",
+   "agent_dna.consensus.secure_quorum",
+   "top"
+  ],
+  [
+   "examples.multi_agent_consensus_demo",
+   "agent_dna.consensus.signing",
+   "top"
+  ],
+  [
+   "examples.multi_agent_procurement_demo",
+   "agent_dna.multi_agent",
+   "top"
+  ],
+  [
+   "examples.profile_versioning_demo",
+   "agent_dna",
+   "top"
+  ],
+  [
+   "examples.profile_versioning_demo",
+   "agent_dna.adapters",
+   "top"
+  ],
+  [
+   "examples.refund_authorization_demo",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "examples.refund_authorization_demo",
+   "agent_dna.closure_v01",
+   "top"
+  ],
+  [
+   "examples.refund_authorization_demo",
+   "agent_dna.dispatch_v01",
+   "top"
+  ],
+  [
+   "examples.refund_authorization_demo",
+   "agent_dna.execution_v01",
+   "top"
+  ],
+  [
+   "examples.runtime_demo",
+   "agent_dna",
+   "top"
+  ],
+  [
+   "examples.runtime_demo",
+   "agent_dna.adapters",
+   "top"
+  ],
+  [
+   "examples.runtime_demo",
+   "agent_dna.decision",
+   "lazy"
+  ],
+  [
+   "examples.runtime_demo",
+   "agent_dna.observability.logger",
+   "top"
+  ],
+  [
+   "examples.similarity_demo",
+   "agent_dna",
+   "top"
+  ],
+  [
+   "examples.similarity_demo",
+   "agent_dna.adapters",
+   "top"
+  ],
+  [
+   "examples.timeline_demo",
+   "agent_dna",
+   "top"
+  ],
+  [
+   "examples.timeline_demo",
+   "agent_dna.adapters",
+   "top"
+  ],
+  [
+   "experimental.authority_reachability_v01",
+   "experimental.authority_reachability_v01.adapters",
+   "top"
+  ],
+  [
+   "experimental.authority_reachability_v01",
+   "experimental.authority_reachability_v01.engine",
+   "top"
+  ],
+  [
+   "experimental.authority_reachability_v01",
+   "experimental.authority_reachability_v01.model",
+   "top"
+  ],
+  [
+   "experimental.authority_reachability_v01",
+   "experimental.authority_reachability_v01.signing",
+   "top"
+  ],
+  [
+   "experimental.authority_reachability_v01.adapters",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "experimental.authority_reachability_v01.adapters",
+   "experimental.authority_reachability_v01.model",
+   "top"
+  ],
+  [
+   "experimental.authority_reachability_v01.engine",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "experimental.authority_reachability_v01.engine",
+   "experimental.authority_reachability_v01.model",
+   "top"
+  ],
+  [
+   "experimental.authority_reachability_v01.model",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "experimental.authority_reachability_v01.signing",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "experimental.authority_reachability_v01.signing",
+   "experimental.authority_reachability_v01.model",
+   "top"
+  ],
+  [
+   "experimental.hodge",
+   "experimental.hodge.hodge",
+   "top"
+  ],
+  [
+   "experimental.legacy_mcp.mcp_server",
+   "experimental.legacy_mcp.mcp_gateway",
+   "top"
+  ],
+  [
+   "experimental.legacy_mcp.test_mcp_gateway",
+   "agent_dna",
+   "top"
+  ],
+  [
+   "experimental.legacy_mcp.test_mcp_gateway",
+   "agent_dna.advisory",
+   "top"
+  ],
+  [
+   "experimental.legacy_mcp.test_mcp_gateway",
+   "agent_dna.decision",
+   "top"
+  ],
+  [
+   "experimental.legacy_mcp.test_mcp_gateway",
+   "agent_dna.decision_recorder",
+   "top"
+  ],
+  [
+   "experimental.marketplace",
+   "experimental.marketplace.analytics",
+   "top"
+  ],
+  [
+   "experimental.marketplace",
+   "experimental.marketplace.profile_export",
+   "top"
+  ],
+  [
+   "experimental.marketplace",
+   "experimental.marketplace.shared_invariants",
+   "top"
+  ],
+  [
+   "experimental.run_security_suite",
+   "agent_dna",
+   "top"
+  ],
+  [
+   "experimental.security_validation.adversaries.collusion_agent",
+   "agent_dna.consensus.signing",
+   "top"
+  ],
+  [
+   "experimental.security_validation.adversaries.collusion_agent",
+   "experimental.security_validation.adversaries.base",
+   "top"
+  ],
+  [
+   "experimental.security_validation.adversaries.jailbreak_agent",
+   "agent_dna",
+   "top"
+  ],
+  [
+   "experimental.security_validation.adversaries.jailbreak_agent",
+   "experimental.security_validation.adversaries.base",
+   "top"
+  ],
+  [
+   "experimental.security_validation.adversaries.replay_agent",
+   "experimental.security_validation.adversaries.base",
+   "top"
+  ],
+  [
+   "experimental.security_validation.adversaries.rogue_mcp",
+   "experimental.security_validation.adversaries.base",
+   "top"
+  ],
+  [
+   "experimental.security_validation.base",
+   "experimental.security_validation.results",
+   "top"
+  ],
+  [
+   "experimental.security_validation.framework.benchmark_runner",
+   "agent_dna",
+   "top"
+  ],
+  [
+   "experimental.security_validation.framework.discovery.loader",
+   "agent_dna",
+   "top"
+  ],
+  [
+   "experimental.security_validation.framework.pipeline",
+   "agent_dna",
+   "top"
+  ],
+  [
+   "experimental.security_validation.framework.registry",
+   "agent_dna",
+   "top"
+  ],
+  [
+   "experimental.security_validation.framework.report_builder",
+   "agent_dna",
+   "top"
+  ],
+  [
+   "experimental.security_validation.metrics",
+   "experimental.security_validation.results",
+   "top"
+  ],
+  [
+   "experimental.security_validation.orchestrator",
+   "experimental.security_validation.adversaries.base",
+   "top"
+  ],
+  [
+   "experimental.security_validation.orchestrator",
+   "experimental.security_validation.framework.discovery.loader",
+   "top"
+  ],
+  [
+   "experimental.security_validation.orchestrator",
+   "experimental.security_validation.scoring",
+   "top"
+  ],
+  [
+   "tools.adversarial_egress_demo",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "tools.adversarial_egress_demo",
+   "agent_dna.authorize_binding",
+   "top"
+  ],
+  [
+   "tools.adversarial_egress_demo",
+   "agent_dna.connector.adapters.exact_byte_http",
+   "top"
+  ],
+  [
+   "tools.adversarial_egress_demo",
+   "agent_dna.dispatch_v01",
+   "top"
+  ],
+  [
+   "tools.adversarial_egress_demo",
+   "agent_dna.execution_v01",
+   "top"
+  ],
+  [
+   "tools.adversarial_egress_demo",
+   "agent_dna.sqlite_store",
+   "top"
+  ],
+  [
+   "tools.benchmark",
+   "agent_dna.decision",
+   "top"
+  ],
+  [
+   "tools.benchmark",
+   "agent_dna.grants",
+   "top"
+  ],
+  [
+   "tools.benchmark",
+   "agent_dna.trace",
+   "top"
+  ],
+  [
+   "tools.benchmark",
+   "agent_dna.uaal_layer",
+   "top"
+  ],
+  [
+   "tools.generate_api_key",
+   "agent_dna.apikeys",
+   "top"
+  ],
+  [
+   "tools.generate_authority_reachability_vectors",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "tools.generate_authority_vectors",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "tools.generate_test_vectors",
+   "agent_dna.advisory",
+   "top"
+  ],
+  [
+   "tools.generate_test_vectors",
+   "agent_dna.decision",
+   "top"
+  ],
+  [
+   "tools.generate_test_vectors",
+   "agent_dna.decision_recorder",
+   "top"
+  ],
+  [
+   "tools.generate_test_vectors",
+   "agent_dna.decision_store",
+   "top"
+  ],
+  [
+   "tools.generate_test_vectors",
+   "agent_dna.trace",
+   "top"
+  ],
+  [
+   "tools.init_campfire_blackbox",
+   "agent_dna.apikeys",
+   "top"
+  ],
+  [
+   "tools.init_campfire_blackbox",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "tools.init_campfire_blackbox",
+   "agent_dna.connector.adapters.execution_trust",
+   "top"
+  ],
+  [
+   "tools.init_campfire_blackbox",
+   "agent_dna.policy.loader",
+   "top"
+  ],
+  [
+   "tools.init_campfire_blackbox",
+   "agent_dna.signer_python",
+   "top"
+  ],
+  [
+   "tools.init_execution_signer",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "tools.init_platform_keys",
+   "agent_dna.apikeys",
+   "lazy"
+  ],
+  [
+   "tools.make_evidence_bundle",
+   "agent_dna.composition",
+   "top"
+  ],
+  [
+   "tools.make_evidence_bundle",
+   "agent_dna.trace",
+   "top"
+  ],
+  [
+   "tools.platform_demo",
+   "agent_dna.apikeys",
+   "lazy"
+  ],
+  [
+   "tools.platform_demo",
+   "api.server",
+   "lazy"
+  ],
+  [
+   "tools.pv_authority_cli",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "tools.pv_authority_reachability",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "tools.pv_authority_reachability",
+   "experimental.authority_reachability_v01",
+   "top"
+  ],
+  [
+   "tools.pvscan",
+   "agent_dna.scan",
+   "top"
+  ],
+  [
+   "tools.pvscan",
+   "agent_dna.scan.ingest",
+   "top"
+  ],
+  [
+   "tools.pvscan",
+   "agent_dna.scan.inventory",
+   "top"
+  ],
+  [
+   "tools.run_adversarial",
+   "agent_dna.decision",
+   "top"
+  ],
+  [
+   "tools.run_adversarial",
+   "agent_dna.grants",
+   "top"
+  ],
+  [
+   "tools.run_adversarial",
+   "agent_dna.uaal_layer",
+   "top"
+  ],
+  [
+   "tools.rust_parity_check",
+   "agent_dna.decision_record",
+   "top"
+  ],
+  [
+   "tools.rust_parity_check",
+   "agent_dna.execution_record",
+   "top"
+  ],
+  [
+   "tools.smoke_authorize",
+   "agent_dna.apikeys",
+   "top"
+  ],
+  [
+   "tools.smoke_authorize",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "tools.smoke_authorize",
+   "agent_dna.execution_v01",
+   "top"
+  ],
+  [
+   "tools.smoke_authorize",
+   "api.server",
+   "lazy"
+  ],
+  [
+   "tools.smoke_campfire_blackbox",
+   "agent_dna.execution_v01",
+   "top"
+  ],
+  [
+   "tools.smoke_campfire_blackbox",
+   "agent_dna.signer",
+   "top"
+  ],
+  [
+   "tools.smoke_campfire_blackbox",
+   "api.server",
+   "lazy"
+  ]
+ ],
+ "fan_in": {
+  "agent_dna": 21,
+  "agent_dna.action_v01": 4,
+  "agent_dna.adapters": 11,
+  "agent_dna.adapters_framework.base": 1,
+  "agent_dna.adapters_policy.git_bundle": 1,
+  "agent_dna.adapters_policy.local": 2,
+  "agent_dna.adapters_policy.opa": 2,
+  "agent_dna.adapters_policy.skill_adapter": 1,
+  "agent_dna.advisory": 9,
+  "agent_dna.allowlist": 1,
+  "agent_dna.amount": 5,
+  "agent_dna.apikeys": 9,
+  "agent_dna.authority_v01": 32,
+  "agent_dna.authorization": 3,
+  "agent_dna.authorize_binding": 5,
+  "agent_dna.change_management": 1,
+  "agent_dna.circuit_breaker": 4,
+  "agent_dna.closure_v01": 3,
+  "agent_dna.composition": 5,
+  "agent_dna.confidence": 1,
+  "agent_dna.connector": 2,
+  "agent_dna.connector.adapters.exact_byte_http": 3,
+  "agent_dna.connector.adapters.execution_trust": 3,
+  "agent_dna.connector.adapters.mcp": 1,
+  "agent_dna.connector.adapters.sidecar_transport": 2,
+  "agent_dna.connector.cross_agent": 3,
+  "agent_dna.connector.middleware": 3,
+  "agent_dna.connector.models": 5,
+  "agent_dna.consensus": 2,
+  "agent_dna.consensus.byzantine": 1,
+  "agent_dna.consensus.checker": 1,
+  "agent_dna.consensus.secure_quorum": 3,
+  "agent_dna.consensus.signing": 6,
+  "agent_dna.consensus.weighted_quorum": 1,
+  "agent_dna.control_posture": 4,
+  "agent_dna.decision": 22,
+  "agent_dna.decision_graph": 3,
+  "agent_dna.decision_record": 6,
+  "agent_dna.decision_recorder": 7,
+  "agent_dna.decision_store": 3,
+  "agent_dna.diff": 1,
+  "agent_dna.discovery": 2,
+  "agent_dna.dispatch_context_v01": 4,
+  "agent_dna.dispatch_v01": 5,
+  "agent_dna.dynamics": 5,
+  "agent_dna.eav": 1,
+  "agent_dna.eav.invariant_engine": 1,
+  "agent_dna.economics": 3,
+  "agent_dna.economics.cost_check": 1,
+  "agent_dna.evidence": 2,
+  "agent_dna.execution_record": 5,
+  "agent_dna.execution_v01": 12,
+  "agent_dna.fingerprint": 5,
+  "agent_dna.gateway.credentials": 5,
+  "agent_dna.gateway.errors": 11,
+  "agent_dna.gateway.framing": 7,
+  "agent_dna.gateway.http_sse_proxy": 1,
+  "agent_dna.gateway.https_egress": 2,
+  "agent_dna.gateway.mediator": 2,
+  "agent_dna.gateway.metrics": 2,
+  "agent_dna.gateway.protocol": 2,
+  "agent_dna.gateway.runtime": 4,
+  "agent_dna.gateway.session": 2,
+  "agent_dna.gateway.stdio_proxy": 1,
+  "agent_dna.gateway.upstream": 3,
+  "agent_dna.governance.evaluate": 1,
+  "agent_dna.governance.pack": 2,
+  "agent_dna.grants": 5,
+  "agent_dna.intent_adapter": 1,
+  "agent_dna.invariant_engine": 2,
+  "agent_dna.invariants": 2,
+  "agent_dna.manifold": 7,
+  "agent_dna.multi_agent": 3,
+  "agent_dna.multi_agent.authority": 2,
+  "agent_dna.multi_agent.base": 13,
+  "agent_dna.multi_agent.consensus": 2,
+  "agent_dna.multi_agent.dual_control": 3,
+  "agent_dna.multi_agent.events": 4,
+  "agent_dna.multi_agent.graph_builder": 2,
+  "agent_dna.multi_agent.intent": 2,
+  "agent_dna.multi_agent.interaction_graph": 14,
+  "agent_dna.multi_agent.invariant_engine": 3,
+  "agent_dna.multi_agent.runtime_validator": 2,
+  "agent_dna.multi_agent.structure": 2,
+  "agent_dna.multi_agent.temporal": 2,
+  "agent_dna.multi_agent.topology": 2,
+  "agent_dna.multi_agent.trust": 2,
+  "agent_dna.multi_agent.world_state": 2,
+  "agent_dna.observability.logger": 2,
+  "agent_dna.observability.metrics": 2,
+  "agent_dna.observability.prometheus_bridge": 2,
+  "agent_dna.open_authorizer": 2,
+  "agent_dna.policy.checker": 6,
+  "agent_dna.policy.loader": 4,
+  "agent_dna.policy.schema": 5,
+  "agent_dna.policy_gate": 2,
+  "agent_dna.policy_miner": 2,
+  "agent_dna.policy_replay": 3,
+  "agent_dna.profile_store": 1,
+  "agent_dna.rate": 1,
+  "agent_dna.reference_policies": 1,
+  "agent_dna.runtime": 7,
+  "agent_dna.scan": 1,
+  "agent_dna.scan.ingest": 3,
+  "agent_dna.scan.inventory": 1,
+  "agent_dna.scan.replay": 1,
+  "agent_dna.scorer": 3,
+  "agent_dna.security": 1,
+  "agent_dna.security.loop_discovery": 4,
+  "agent_dna.signer": 6,
+  "agent_dna.signer_bridge": 1,
+  "agent_dna.signer_python": 4,
+  "agent_dna.similarity": 3,
+  "agent_dna.sqlite_store": 5,
+  "agent_dna.store.grants": 1,
+  "agent_dna.timeline": 1,
+  "agent_dna.trace": 25,
+  "agent_dna.uaal_layer": 5,
+  "agent_dna.validation.drift": 2,
+  "agent_dna.validation.guard": 1,
+  "agent_dna.validation.metrics": 4,
+  "agent_dna.validation.report": 1,
+  "agent_dna.wire_serialization_v01": 5,
+  "api.server": 3,
+  "experimental.adapters.git_bundle": 1,
+  "experimental.authority_reachability_v01": 2,
+  "experimental.authority_reachability_v01.adapters": 1,
+  "experimental.authority_reachability_v01.engine": 1,
+  "experimental.authority_reachability_v01.model": 4,
+  "experimental.authority_reachability_v01.signing": 1,
+  "experimental.hodge.hodge": 1,
+  "experimental.legacy_mcp.mcp_gateway": 1,
+  "experimental.marketplace.analytics": 1,
+  "experimental.marketplace.profile_export": 1,
+  "experimental.marketplace.shared_invariants": 1,
+  "experimental.security_validation.adversaries.base": 5,
+  "experimental.security_validation.framework.discovery.loader": 1,
+  "experimental.security_validation.results": 2,
+  "experimental.security_validation.scoring": 1
+ },
+ "fan_out": {
+  "agent_dna": 21,
+  "agent_dna.action_v01": 1,
+  "agent_dna.adapters": 1,
+  "agent_dna.adapters_framework": 1,
+  "agent_dna.adapters_framework.base": 2,
+  "agent_dna.adapters_policy": 4,
+  "agent_dna.adapters_policy.git_bundle": 1,
+  "agent_dna.adapters_policy.local": 2,
+  "agent_dna.adapters_policy.skill_adapter": 2,
+  "agent_dna.approval_v01": 1,
+  "agent_dna.authorization": 1,
+  "agent_dna.authorize_binding": 5,
+  "agent_dna.change_management": 1,
+  "agent_dna.circuit_breaker": 2,
+  "agent_dna.cli": 7,
+  "agent_dna.closure_v01": 3,
+  "agent_dna.composition": 27,
+  "agent_dna.confidence": 1,
+  "agent_dna.connector": 2,
+  "agent_dna.connector.adapters": 2,
+  "agent_dna.connector.adapters.exact_byte_http": 7,
+  "agent_dna.connector.adapters.execution_trust": 1,
+  "agent_dna.connector.adapters.mcp": 1,
+  "agent_dna.connector.cross_agent": 8,
+  "agent_dna.connector.middleware": 8,
+  "agent_dna.consensus": 3,
+  "agent_dna.consensus.byzantine": 2,
+  "agent_dna.consensus.checker": 1,
+  "agent_dna.consensus.secure_quorum": 1,
+  "agent_dna.control_posture": 2,
+  "agent_dna.decision": 5,
+  "agent_dna.decision_graph": 2,
+  "agent_dna.decision_record": 4,
+  "agent_dna.decision_recorder": 5,
+  "agent_dna.decision_store": 3,
+  "agent_dna.diff": 3,
+  "agent_dna.discovery": 6,
+  "agent_dna.dispatch_context_v01": 2,
+  "agent_dna.dispatch_v01": 3,
+  "agent_dna.dynamics": 1,
+  "agent_dna.eav": 1,
+  "agent_dna.eav.invariant_engine": 1,
+  "agent_dna.economics": 1,
+  "agent_dna.execution_v01": 4,
+  "agent_dna.export_manifest": 1,
+  "agent_dna.fingerprint": 2,
+  "agent_dna.gateway": 3,
+  "agent_dna.gateway.__main__": 7,
+  "agent_dna.gateway.credentials": 1,
+  "agent_dna.gateway.framing": 4,
+  "agent_dna.gateway.http_sse_proxy": 4,
+  "agent_dna.gateway.https_egress": 7,
+  "agent_dna.gateway.mediator": 10,
+  "agent_dna.gateway.protocol": 1,
+  "agent_dna.gateway.runtime": 9,
+  "agent_dna.gateway.stdio_proxy": 3,
+  "agent_dna.gateway.upstream": 3,
+  "agent_dna.governance.evaluate": 1,
+  "agent_dna.grants": 1,
+  "agent_dna.intent_adapter": 1,
+  "agent_dna.invariant_engine": 1,
+  "agent_dna.invariants": 1,
+  "agent_dna.key_lifecycle": 3,
+  "agent_dna.manifold": 1,
+  "agent_dna.multi_agent": 15,
+  "agent_dna.multi_agent.authority": 2,
+  "agent_dna.multi_agent.base": 1,
+  "agent_dna.multi_agent.consensus": 2,
+  "agent_dna.multi_agent.dual_control": 2,
+  "agent_dna.multi_agent.graph_builder": 2,
+  "agent_dna.multi_agent.intent": 2,
+  "agent_dna.multi_agent.interaction_graph": 1,
+  "agent_dna.multi_agent.invariant_engine": 2,
+  "agent_dna.multi_agent.runtime_validator": 14,
+  "agent_dna.multi_agent.structure": 2,
+  "agent_dna.multi_agent.temporal": 2,
+  "agent_dna.multi_agent.topology": 2,
+  "agent_dna.multi_agent.trust": 2,
+  "agent_dna.multi_agent.world_state": 2,
+  "agent_dna.observability.metrics": 1,
+  "agent_dna.policy": 3,
+  "agent_dna.policy.checker": 1,
+  "agent_dna.policy.loader": 1,
+  "agent_dna.policy_gate": 4,
+  "agent_dna.profile_store": 1,
+  "agent_dna.rate": 1,
+  "agent_dna.runtime": 5,
+  "agent_dna.scan": 2,
+  "agent_dna.scan.ingest": 1,
+  "agent_dna.scan.inventory": 1,
+  "agent_dna.scan.replay": 7,
+  "agent_dna.scorer": 6,
+  "agent_dna.security": 1,
+  "agent_dna.security.loop_discovery": 1,
+  "agent_dna.signer": 2,
+  "agent_dna.signer_bridge": 1,
+  "agent_dna.similarity": 1,
+  "agent_dna.sqlite_store": 5,
+  "agent_dna.timeline": 2,
+  "agent_dna.uaal_layer": 3,
+  "agent_dna.validation": 4,
+  "agent_dna.validation.drift": 1,
+  "agent_dna.validation.report": 2,
+  "agent_dna.wire_serialization_v01": 1,
+  "api.server": 18,
+  "examples.amlsim.run_amlsim_sample": 6,
+  "examples.authority_blast_radius_demo": 1,
+  "examples.authority_derivation_demo": 1,
+  "examples.authorized_evolution_demo": 2,
+  "examples.bfsi_payment_swarm_demo": 1,
+  "examples.change_management_demo": 1,
+  "examples.composed_line_demo": 11,
+  "examples.confidence_demo": 2,
+  "examples.decision_demo": 2,
+  "examples.decision_graph_demo": 3,
+  "examples.demo": 2,
+  "examples.diff_demo": 2,
+  "examples.end_to_end_demo": 4,
+  "examples.enterprise_payment_closure_demo": 4,
+  "examples.executive_acceptance_demo": 12,
+  "examples.fingerprint_demo": 2,
+  "examples.governance_market_entry_demo": 2,
+  "examples.invariant_demo": 1,
+  "examples.invariant_runtime_demo": 1,
+  "examples.multi_agent_consensus_demo": 2,
+  "examples.multi_agent_procurement_demo": 1,
+  "examples.profile_versioning_demo": 2,
+  "examples.refund_authorization_demo": 4,
+  "examples.runtime_demo": 4,
+  "examples.similarity_demo": 2,
+  "examples.timeline_demo": 2,
+  "experimental.authority_reachability_v01": 4,
+  "experimental.authority_reachability_v01.adapters": 2,
+  "experimental.authority_reachability_v01.engine": 2,
+  "experimental.authority_reachability_v01.model": 1,
+  "experimental.authority_reachability_v01.signing": 2,
+  "experimental.hodge": 1,
+  "experimental.legacy_mcp.mcp_server": 1,
+  "experimental.legacy_mcp.test_mcp_gateway": 4,
+  "experimental.marketplace": 3,
+  "experimental.run_security_suite": 1,
+  "experimental.security_validation.adversaries.collusion_agent": 2,
+  "experimental.security_validation.adversaries.jailbreak_agent": 2,
+  "experimental.security_validation.adversaries.replay_agent": 1,
+  "experimental.security_validation.adversaries.rogue_mcp": 1,
+  "experimental.security_validation.base": 1,
+  "experimental.security_validation.framework.benchmark_runner": 1,
+  "experimental.security_validation.framework.discovery.loader": 1,
+  "experimental.security_validation.framework.pipeline": 1,
+  "experimental.security_validation.framework.registry": 1,
+  "experimental.security_validation.framework.report_builder": 1,
+  "experimental.security_validation.metrics": 1,
+  "experimental.security_validation.orchestrator": 3,
+  "tools.adversarial_egress_demo": 6,
+  "tools.benchmark": 4,
+  "tools.generate_api_key": 1,
+  "tools.generate_authority_reachability_vectors": 1,
+  "tools.generate_authority_vectors": 1,
+  "tools.generate_test_vectors": 5,
+  "tools.init_campfire_blackbox": 5,
+  "tools.init_execution_signer": 1,
+  "tools.init_platform_keys": 1,
+  "tools.make_evidence_bundle": 2,
+  "tools.platform_demo": 2,
+  "tools.pv_authority_cli": 1,
+  "tools.pv_authority_reachability": 2,
+  "tools.pvscan": 3,
+  "tools.run_adversarial": 3,
+  "tools.rust_parity_check": 2,
+  "tools.smoke_authorize": 4,
+  "tools.smoke_campfire_blackbox": 3
+ },
+ "modules": {
+  "agent_dna": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/__init__.py"
+  },
+  "agent_dna.action_v01": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/action_v01.py"
+  },
+  "agent_dna.adapters": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/adapters.py"
+  },
+  "agent_dna.adapters_framework": {
+   "group": "agent_dna/adapters_framework",
+   "path": "agent_dna/adapters_framework/__init__.py"
+  },
+  "agent_dna.adapters_framework.base": {
+   "group": "agent_dna/adapters_framework",
+   "path": "agent_dna/adapters_framework/base.py"
+  },
+  "agent_dna.adapters_policy": {
+   "group": "agent_dna/adapters_policy",
+   "path": "agent_dna/adapters_policy/__init__.py"
+  },
+  "agent_dna.adapters_policy.git_bundle": {
+   "group": "agent_dna/adapters_policy",
+   "path": "agent_dna/adapters_policy/git_bundle.py"
+  },
+  "agent_dna.adapters_policy.local": {
+   "group": "agent_dna/adapters_policy",
+   "path": "agent_dna/adapters_policy/local.py"
+  },
+  "agent_dna.adapters_policy.opa": {
+   "group": "agent_dna/adapters_policy",
+   "path": "agent_dna/adapters_policy/opa.py"
+  },
+  "agent_dna.adapters_policy.skill_adapter": {
+   "group": "agent_dna/adapters_policy",
+   "path": "agent_dna/adapters_policy/skill_adapter.py"
+  },
+  "agent_dna.advisory": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/advisory.py"
+  },
+  "agent_dna.allowlist": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/allowlist.py"
+  },
+  "agent_dna.amount": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/amount.py"
+  },
+  "agent_dna.apikeys": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/apikeys.py"
+  },
+  "agent_dna.approval_v01": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/approval_v01.py"
+  },
+  "agent_dna.authority_v01": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/authority_v01.py"
+  },
+  "agent_dna.authorization": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/authorization.py"
+  },
+  "agent_dna.authorize_binding": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/authorize_binding.py"
+  },
+  "agent_dna.change_management": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/change_management.py"
+  },
+  "agent_dna.circuit_breaker": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/circuit_breaker.py"
+  },
+  "agent_dna.cli": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/cli.py"
+  },
+  "agent_dna.closure_v01": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/closure_v01.py"
+  },
+  "agent_dna.composition": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/composition.py"
+  },
+  "agent_dna.confidence": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/confidence.py"
+  },
+  "agent_dna.connector": {
+   "group": "agent_dna/connector",
+   "path": "agent_dna/connector/__init__.py"
+  },
+  "agent_dna.connector.adapters": {
+   "group": "agent_dna/connector",
+   "path": "agent_dna/connector/adapters/__init__.py"
+  },
+  "agent_dna.connector.adapters.conformance": {
+   "group": "agent_dna/connector",
+   "path": "agent_dna/connector/adapters/conformance.py"
+  },
+  "agent_dna.connector.adapters.exact_byte_http": {
+   "group": "agent_dna/connector",
+   "path": "agent_dna/connector/adapters/exact_byte_http.py"
+  },
+  "agent_dna.connector.adapters.execution_trust": {
+   "group": "agent_dna/connector",
+   "path": "agent_dna/connector/adapters/execution_trust.py"
+  },
+  "agent_dna.connector.adapters.mcp": {
+   "group": "agent_dna/connector",
+   "path": "agent_dna/connector/adapters/mcp.py"
+  },
+  "agent_dna.connector.adapters.sidecar_transport": {
+   "group": "agent_dna/connector",
+   "path": "agent_dna/connector/adapters/sidecar_transport.py"
+  },
+  "agent_dna.connector.cross_agent": {
+   "group": "agent_dna/connector",
+   "path": "agent_dna/connector/cross_agent.py"
+  },
+  "agent_dna.connector.middleware": {
+   "group": "agent_dna/connector",
+   "path": "agent_dna/connector/middleware.py"
+  },
+  "agent_dna.connector.models": {
+   "group": "agent_dna/connector",
+   "path": "agent_dna/connector/models.py"
+  },
+  "agent_dna.consensus": {
+   "group": "agent_dna/consensus",
+   "path": "agent_dna/consensus/__init__.py"
+  },
+  "agent_dna.consensus.byzantine": {
+   "group": "agent_dna/consensus",
+   "path": "agent_dna/consensus/byzantine.py"
+  },
+  "agent_dna.consensus.checker": {
+   "group": "agent_dna/consensus",
+   "path": "agent_dna/consensus/checker.py"
+  },
+  "agent_dna.consensus.secure_quorum": {
+   "group": "agent_dna/consensus",
+   "path": "agent_dna/consensus/secure_quorum.py"
+  },
+  "agent_dna.consensus.signing": {
+   "group": "agent_dna/consensus",
+   "path": "agent_dna/consensus/signing.py"
+  },
+  "agent_dna.consensus.weighted_quorum": {
+   "group": "agent_dna/consensus",
+   "path": "agent_dna/consensus/weighted_quorum.py"
+  },
+  "agent_dna.control_posture": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/control_posture.py"
+  },
+  "agent_dna.decision": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/decision.py"
+  },
+  "agent_dna.decision_graph": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/decision_graph.py"
+  },
+  "agent_dna.decision_record": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/decision_record.py"
+  },
+  "agent_dna.decision_recorder": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/decision_recorder.py"
+  },
+  "agent_dna.decision_store": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/decision_store.py"
+  },
+  "agent_dna.diff": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/diff.py"
+  },
+  "agent_dna.discovery": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/discovery.py"
+  },
+  "agent_dna.dispatch_context_v01": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/dispatch_context_v01.py"
+  },
+  "agent_dna.dispatch_v01": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/dispatch_v01.py"
+  },
+  "agent_dna.dynamics": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/dynamics.py"
+  },
+  "agent_dna.eav": {
+   "group": "agent_dna/eav",
+   "path": "agent_dna/eav/__init__.py"
+  },
+  "agent_dna.eav.invariant_engine": {
+   "group": "agent_dna/eav",
+   "path": "agent_dna/eav/invariant_engine.py"
+  },
+  "agent_dna.economics": {
+   "group": "agent_dna/economics",
+   "path": "agent_dna/economics/__init__.py"
+  },
+  "agent_dna.economics.cost_check": {
+   "group": "agent_dna/economics",
+   "path": "agent_dna/economics/cost_check.py"
+  },
+  "agent_dna.evidence": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/evidence.py"
+  },
+  "agent_dna.execution_record": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/execution_record.py"
+  },
+  "agent_dna.execution_v01": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/execution_v01.py"
+  },
+  "agent_dna.export_manifest": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/export_manifest.py"
+  },
+  "agent_dna.fingerprint": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/fingerprint.py"
+  },
+  "agent_dna.gateway": {
+   "group": "agent_dna/gateway",
+   "path": "agent_dna/gateway/__init__.py"
+  },
+  "agent_dna.gateway.__main__": {
+   "group": "agent_dna/gateway",
+   "path": "agent_dna/gateway/__main__.py"
+  },
+  "agent_dna.gateway.credentials": {
+   "group": "agent_dna/gateway",
+   "path": "agent_dna/gateway/credentials.py"
+  },
+  "agent_dna.gateway.errors": {
+   "group": "agent_dna/gateway",
+   "path": "agent_dna/gateway/errors.py"
+  },
+  "agent_dna.gateway.framing": {
+   "group": "agent_dna/gateway",
+   "path": "agent_dna/gateway/framing.py"
+  },
+  "agent_dna.gateway.http_sse_proxy": {
+   "group": "agent_dna/gateway",
+   "path": "agent_dna/gateway/http_sse_proxy.py"
+  },
+  "agent_dna.gateway.https_egress": {
+   "group": "agent_dna/gateway",
+   "path": "agent_dna/gateway/https_egress.py"
+  },
+  "agent_dna.gateway.mediator": {
+   "group": "agent_dna/gateway",
+   "path": "agent_dna/gateway/mediator.py"
+  },
+  "agent_dna.gateway.metrics": {
+   "group": "agent_dna/gateway",
+   "path": "agent_dna/gateway/metrics.py"
+  },
+  "agent_dna.gateway.protocol": {
+   "group": "agent_dna/gateway",
+   "path": "agent_dna/gateway/protocol.py"
+  },
+  "agent_dna.gateway.runtime": {
+   "group": "agent_dna/gateway",
+   "path": "agent_dna/gateway/runtime.py"
+  },
+  "agent_dna.gateway.session": {
+   "group": "agent_dna/gateway",
+   "path": "agent_dna/gateway/session.py"
+  },
+  "agent_dna.gateway.stdio_proxy": {
+   "group": "agent_dna/gateway",
+   "path": "agent_dna/gateway/stdio_proxy.py"
+  },
+  "agent_dna.gateway.upstream": {
+   "group": "agent_dna/gateway",
+   "path": "agent_dna/gateway/upstream.py"
+  },
+  "agent_dna.governance": {
+   "group": "agent_dna/governance",
+   "path": "agent_dna/governance/__init__.py"
+  },
+  "agent_dna.governance.evaluate": {
+   "group": "agent_dna/governance",
+   "path": "agent_dna/governance/evaluate.py"
+  },
+  "agent_dna.governance.pack": {
+   "group": "agent_dna/governance",
+   "path": "agent_dna/governance/pack.py"
+  },
+  "agent_dna.grants": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/grants.py"
+  },
+  "agent_dna.intent_adapter": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/intent_adapter.py"
+  },
+  "agent_dna.invariant_engine": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/invariant_engine.py"
+  },
+  "agent_dna.invariants": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/invariants.py"
+  },
+  "agent_dna.key_lifecycle": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/key_lifecycle.py"
+  },
+  "agent_dna.manifold": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/manifold.py"
+  },
+  "agent_dna.mcp_public_verifier": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/mcp_public_verifier.py"
+  },
+  "agent_dna.multi_agent": {
+   "group": "agent_dna/multi_agent",
+   "path": "agent_dna/multi_agent/__init__.py"
+  },
+  "agent_dna.multi_agent.authority": {
+   "group": "agent_dna/multi_agent",
+   "path": "agent_dna/multi_agent/authority.py"
+  },
+  "agent_dna.multi_agent.base": {
+   "group": "agent_dna/multi_agent",
+   "path": "agent_dna/multi_agent/base.py"
+  },
+  "agent_dna.multi_agent.consensus": {
+   "group": "agent_dna/multi_agent",
+   "path": "agent_dna/multi_agent/consensus.py"
+  },
+  "agent_dna.multi_agent.dual_control": {
+   "group": "agent_dna/multi_agent",
+   "path": "agent_dna/multi_agent/dual_control.py"
+  },
+  "agent_dna.multi_agent.events": {
+   "group": "agent_dna/multi_agent",
+   "path": "agent_dna/multi_agent/events.py"
+  },
+  "agent_dna.multi_agent.graph_builder": {
+   "group": "agent_dna/multi_agent",
+   "path": "agent_dna/multi_agent/graph_builder.py"
+  },
+  "agent_dna.multi_agent.intent": {
+   "group": "agent_dna/multi_agent",
+   "path": "agent_dna/multi_agent/intent.py"
+  },
+  "agent_dna.multi_agent.interaction_graph": {
+   "group": "agent_dna/multi_agent",
+   "path": "agent_dna/multi_agent/interaction_graph.py"
+  },
+  "agent_dna.multi_agent.invariant_engine": {
+   "group": "agent_dna/multi_agent",
+   "path": "agent_dna/multi_agent/invariant_engine.py"
+  },
+  "agent_dna.multi_agent.runtime_validator": {
+   "group": "agent_dna/multi_agent",
+   "path": "agent_dna/multi_agent/runtime_validator.py"
+  },
+  "agent_dna.multi_agent.structure": {
+   "group": "agent_dna/multi_agent",
+   "path": "agent_dna/multi_agent/structure.py"
+  },
+  "agent_dna.multi_agent.temporal": {
+   "group": "agent_dna/multi_agent",
+   "path": "agent_dna/multi_agent/temporal.py"
+  },
+  "agent_dna.multi_agent.topology": {
+   "group": "agent_dna/multi_agent",
+   "path": "agent_dna/multi_agent/topology.py"
+  },
+  "agent_dna.multi_agent.trust": {
+   "group": "agent_dna/multi_agent",
+   "path": "agent_dna/multi_agent/trust.py"
+  },
+  "agent_dna.multi_agent.world_state": {
+   "group": "agent_dna/multi_agent",
+   "path": "agent_dna/multi_agent/world_state.py"
+  },
+  "agent_dna.observability.logger": {
+   "group": "agent_dna/observability",
+   "path": "agent_dna/observability/logger.py"
+  },
+  "agent_dna.observability.metrics": {
+   "group": "agent_dna/observability",
+   "path": "agent_dna/observability/metrics.py"
+  },
+  "agent_dna.observability.prometheus_bridge": {
+   "group": "agent_dna/observability",
+   "path": "agent_dna/observability/prometheus_bridge.py"
+  },
+  "agent_dna.open_authorizer": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/open_authorizer.py"
+  },
+  "agent_dna.policy": {
+   "group": "agent_dna/policy",
+   "path": "agent_dna/policy/__init__.py"
+  },
+  "agent_dna.policy.checker": {
+   "group": "agent_dna/policy",
+   "path": "agent_dna/policy/checker.py"
+  },
+  "agent_dna.policy.loader": {
+   "group": "agent_dna/policy",
+   "path": "agent_dna/policy/loader.py"
+  },
+  "agent_dna.policy.schema": {
+   "group": "agent_dna/policy",
+   "path": "agent_dna/policy/schema.py"
+  },
+  "agent_dna.policy_gate": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/policy_gate.py"
+  },
+  "agent_dna.policy_miner": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/policy_miner.py"
+  },
+  "agent_dna.policy_replay": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/policy_replay.py"
+  },
+  "agent_dna.profile_store": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/profile_store.py"
+  },
+  "agent_dna.rate": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/rate.py"
+  },
+  "agent_dna.reference_policies": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/reference_policies.py"
+  },
+  "agent_dna.runtime": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/runtime.py"
+  },
+  "agent_dna.scan": {
+   "group": "agent_dna/scan",
+   "path": "agent_dna/scan/__init__.py"
+  },
+  "agent_dna.scan.ingest": {
+   "group": "agent_dna/scan",
+   "path": "agent_dna/scan/ingest.py"
+  },
+  "agent_dna.scan.inventory": {
+   "group": "agent_dna/scan",
+   "path": "agent_dna/scan/inventory.py"
+  },
+  "agent_dna.scan.replay": {
+   "group": "agent_dna/scan",
+   "path": "agent_dna/scan/replay.py"
+  },
+  "agent_dna.scorer": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/scorer.py"
+  },
+  "agent_dna.security": {
+   "group": "agent_dna/security",
+   "path": "agent_dna/security/__init__.py"
+  },
+  "agent_dna.security.loop_discovery": {
+   "group": "agent_dna/security",
+   "path": "agent_dna/security/loop_discovery.py"
+  },
+  "agent_dna.shadow": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/shadow.py"
+  },
+  "agent_dna.signer": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/signer.py"
+  },
+  "agent_dna.signer_bridge": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/signer_bridge.py"
+  },
+  "agent_dna.signer_python": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/signer_python.py"
+  },
+  "agent_dna.similarity": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/similarity.py"
+  },
+  "agent_dna.sqlite_store": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/sqlite_store.py"
+  },
+  "agent_dna.store.grants": {
+   "group": "agent_dna/store",
+   "path": "agent_dna/store/grants.py"
+  },
+  "agent_dna.timeline": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/timeline.py"
+  },
+  "agent_dna.trace": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/trace.py"
+  },
+  "agent_dna.uaal_layer": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/uaal_layer.py"
+  },
+  "agent_dna.validation": {
+   "group": "agent_dna/validation",
+   "path": "agent_dna/validation/__init__.py"
+  },
+  "agent_dna.validation.drift": {
+   "group": "agent_dna/validation",
+   "path": "agent_dna/validation/drift.py"
+  },
+  "agent_dna.validation.guard": {
+   "group": "agent_dna/validation",
+   "path": "agent_dna/validation/guard.py"
+  },
+  "agent_dna.validation.metrics": {
+   "group": "agent_dna/validation",
+   "path": "agent_dna/validation/metrics.py"
+  },
+  "agent_dna.validation.report": {
+   "group": "agent_dna/validation",
+   "path": "agent_dna/validation/report.py"
+  },
+  "agent_dna.wire_serialization_v01": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/wire_serialization_v01.py"
+  },
+  "api.server": {
+   "group": "api",
+   "path": "api/server.py"
+  },
+  "examples.amlsim.run_amlsim_sample": {
+   "group": "examples",
+   "path": "examples/amlsim/run_amlsim_sample.py"
+  },
+  "examples.authority_blast_radius_demo": {
+   "group": "examples",
+   "path": "examples/authority_blast_radius_demo.py"
+  },
+  "examples.authority_derivation_demo": {
+   "group": "examples",
+   "path": "examples/authority_derivation_demo.py"
+  },
+  "examples.authorized_evolution_demo": {
+   "group": "examples",
+   "path": "examples/authorized_evolution_demo.py"
+  },
+  "examples.bfsi_payment_swarm_demo": {
+   "group": "examples",
+   "path": "examples/bfsi_payment_swarm_demo.py"
+  },
+  "examples.change_management_demo": {
+   "group": "examples",
+   "path": "examples/change_management_demo.py"
+  },
+  "examples.composed_line_demo": {
+   "group": "examples",
+   "path": "examples/composed_line_demo.py"
+  },
+  "examples.confidence_demo": {
+   "group": "examples",
+   "path": "examples/confidence_demo.py"
+  },
+  "examples.decision_demo": {
+   "group": "examples",
+   "path": "examples/decision_demo.py"
+  },
+  "examples.decision_graph_demo": {
+   "group": "examples",
+   "path": "examples/decision_graph_demo.py"
+  },
+  "examples.demo": {
+   "group": "examples",
+   "path": "examples/demo.py"
+  },
+  "examples.diff_demo": {
+   "group": "examples",
+   "path": "examples/diff_demo.py"
+  },
+  "examples.end_to_end_demo": {
+   "group": "examples",
+   "path": "examples/end_to_end_demo.py"
+  },
+  "examples.enterprise_payment_closure_demo": {
+   "group": "examples",
+   "path": "examples/enterprise_payment_closure_demo.py"
+  },
+  "examples.executive_acceptance_demo": {
+   "group": "examples",
+   "path": "examples/executive_acceptance_demo.py"
+  },
+  "examples.fingerprint_demo": {
+   "group": "examples",
+   "path": "examples/fingerprint_demo.py"
+  },
+  "examples.governance_market_entry_demo": {
+   "group": "examples",
+   "path": "examples/governance_market_entry_demo.py"
+  },
+  "examples.invariant_demo": {
+   "group": "examples",
+   "path": "examples/invariant_demo.py"
+  },
+  "examples.invariant_runtime_demo": {
+   "group": "examples",
+   "path": "examples/invariant_runtime_demo.py"
+  },
+  "examples.multi_agent_consensus_demo": {
+   "group": "examples",
+   "path": "examples/multi_agent_consensus_demo.py"
+  },
+  "examples.multi_agent_procurement_demo": {
+   "group": "examples",
+   "path": "examples/multi_agent_procurement_demo.py"
+  },
+  "examples.profile_versioning_demo": {
+   "group": "examples",
+   "path": "examples/profile_versioning_demo.py"
+  },
+  "examples.refund_authorization_demo": {
+   "group": "examples",
+   "path": "examples/refund_authorization_demo.py"
+  },
+  "examples.runtime_demo": {
+   "group": "examples",
+   "path": "examples/runtime_demo.py"
+  },
+  "examples.similarity_demo": {
+   "group": "examples",
+   "path": "examples/similarity_demo.py"
+  },
+  "examples.timeline_demo": {
+   "group": "examples",
+   "path": "examples/timeline_demo.py"
+  },
+  "experimental.adapters": {
+   "group": "experimental",
+   "path": "experimental/adapters/__init__.py"
+  },
+  "experimental.adapters.git_bundle": {
+   "group": "experimental",
+   "path": "experimental/adapters/git_bundle.py"
+  },
+  "experimental.authority_reachability_v01": {
+   "group": "experimental",
+   "path": "experimental/authority_reachability_v01/__init__.py"
+  },
+  "experimental.authority_reachability_v01.adapters": {
+   "group": "experimental",
+   "path": "experimental/authority_reachability_v01/adapters.py"
+  },
+  "experimental.authority_reachability_v01.engine": {
+   "group": "experimental",
+   "path": "experimental/authority_reachability_v01/engine.py"
+  },
+  "experimental.authority_reachability_v01.model": {
+   "group": "experimental",
+   "path": "experimental/authority_reachability_v01/model.py"
+  },
+  "experimental.authority_reachability_v01.signing": {
+   "group": "experimental",
+   "path": "experimental/authority_reachability_v01/signing.py"
+  },
+  "experimental.hodge": {
+   "group": "experimental",
+   "path": "experimental/hodge/__init__.py"
+  },
+  "experimental.hodge.experiment": {
+   "group": "experimental",
+   "path": "experimental/hodge/experiment.py"
+  },
+  "experimental.hodge.hodge": {
+   "group": "experimental",
+   "path": "experimental/hodge/hodge.py"
+  },
+  "experimental.hodge.robustness": {
+   "group": "experimental",
+   "path": "experimental/hodge/robustness.py"
+  },
+  "experimental.hodge.tests": {
+   "group": "experimental",
+   "path": "experimental/hodge/tests/__init__.py"
+  },
+  "experimental.hodge.tests.conftest": {
+   "group": "experimental",
+   "path": "experimental/hodge/tests/conftest.py"
+  },
+  "experimental.hodge.tests.test_hodge": {
+   "group": "experimental",
+   "path": "experimental/hodge/tests/test_hodge.py"
+  },
+  "experimental.legacy_mcp.mcp_gateway": {
+   "group": "experimental",
+   "path": "experimental/legacy_mcp/mcp_gateway.py"
+  },
+  "experimental.legacy_mcp.mcp_server": {
+   "group": "experimental",
+   "path": "experimental/legacy_mcp/mcp_server.py"
+  },
+  "experimental.legacy_mcp.test_mcp_gateway": {
+   "group": "experimental",
+   "path": "experimental/legacy_mcp/test_mcp_gateway.py"
+  },
+  "experimental.marketplace": {
+   "group": "experimental",
+   "path": "experimental/marketplace/__init__.py"
+  },
+  "experimental.marketplace.analytics": {
+   "group": "experimental",
+   "path": "experimental/marketplace/analytics.py"
+  },
+  "experimental.marketplace.profile_export": {
+   "group": "experimental",
+   "path": "experimental/marketplace/profile_export.py"
+  },
+  "experimental.marketplace.shared_invariants": {
+   "group": "experimental",
+   "path": "experimental/marketplace/shared_invariants.py"
+  },
+  "experimental.opa_extensions.opa_audit": {
+   "group": "experimental",
+   "path": "experimental/opa_extensions/opa_audit.py"
+  },
+  "experimental.opa_extensions.opa_cluster": {
+   "group": "experimental",
+   "path": "experimental/opa_extensions/opa_cluster.py"
+  },
+  "experimental.opa_extensions.opa_tls": {
+   "group": "experimental",
+   "path": "experimental/opa_extensions/opa_tls.py"
+  },
+  "experimental.opa_extensions.opa_version": {
+   "group": "experimental",
+   "path": "experimental/opa_extensions/opa_version.py"
+  },
+  "experimental.opa_extensions.patch_opa": {
+   "group": "experimental",
+   "path": "experimental/opa_extensions/patch_opa.py"
+  },
+  "experimental.postgres_cluster": {
+   "group": "experimental",
+   "path": "experimental/postgres_cluster.py"
+  },
+  "experimental.run_security_suite": {
+   "group": "experimental",
+   "path": "experimental/run_security_suite.py"
+  },
+  "experimental.security_validation": {
+   "group": "experimental",
+   "path": "experimental/security_validation/__init__.py"
+  },
+  "experimental.security_validation.adversaries": {
+   "group": "experimental",
+   "path": "experimental/security_validation/adversaries/__init__.py"
+  },
+  "experimental.security_validation.adversaries.base": {
+   "group": "experimental",
+   "path": "experimental/security_validation/adversaries/base.py"
+  },
+  "experimental.security_validation.adversaries.collusion_agent": {
+   "group": "experimental",
+   "path": "experimental/security_validation/adversaries/collusion_agent.py"
+  },
+  "experimental.security_validation.adversaries.jailbreak_agent": {
+   "group": "experimental",
+   "path": "experimental/security_validation/adversaries/jailbreak_agent.py"
+  },
+  "experimental.security_validation.adversaries.replay_agent": {
+   "group": "experimental",
+   "path": "experimental/security_validation/adversaries/replay_agent.py"
+  },
+  "experimental.security_validation.adversaries.rogue_mcp": {
+   "group": "experimental",
+   "path": "experimental/security_validation/adversaries/rogue_mcp.py"
+  },
+  "experimental.security_validation.attack_library": {
+   "group": "experimental",
+   "path": "experimental/security_validation/attack_library/__init__.py"
+  },
+  "experimental.security_validation.base": {
+   "group": "experimental",
+   "path": "experimental/security_validation/base.py"
+  },
+  "experimental.security_validation.framework": {
+   "group": "experimental",
+   "path": "experimental/security_validation/framework/__init__.py"
+  },
+  "experimental.security_validation.framework.attack_result": {
+   "group": "experimental",
+   "path": "experimental/security_validation/framework/attack_result.py"
+  },
+  "experimental.security_validation.framework.benchmark_runner": {
+   "group": "experimental",
+   "path": "experimental/security_validation/framework/benchmark_runner.py"
+  },
+  "experimental.security_validation.framework.discovery": {
+   "group": "experimental",
+   "path": "experimental/security_validation/framework/discovery/__init__.py"
+  },
+  "experimental.security_validation.framework.discovery.loader": {
+   "group": "experimental",
+   "path": "experimental/security_validation/framework/discovery/loader.py"
+  },
+  "experimental.security_validation.framework.evidence": {
+   "group": "experimental",
+   "path": "experimental/security_validation/framework/evidence/__init__.py"
+  },
+  "experimental.security_validation.framework.exporters": {
+   "group": "experimental",
+   "path": "experimental/security_validation/framework/exporters/__init__.py"
+  },
+  "experimental.security_validation.framework.interfaces": {
+   "group": "experimental",
+   "path": "experimental/security_validation/framework/interfaces/__init__.py"
+  },
+  "experimental.security_validation.framework.loaders": {
+   "group": "experimental",
+   "path": "experimental/security_validation/framework/loaders/__init__.py"
+  },
+  "experimental.security_validation.framework.models": {
+   "group": "experimental",
+   "path": "experimental/security_validation/framework/models/__init__.py"
+  },
+  "experimental.security_validation.framework.pipeline": {
+   "group": "experimental",
+   "path": "experimental/security_validation/framework/pipeline.py"
+  },
+  "experimental.security_validation.framework.registry": {
+   "group": "experimental",
+   "path": "experimental/security_validation/framework/registry.py"
+  },
+  "experimental.security_validation.framework.report_builder": {
+   "group": "experimental",
+   "path": "experimental/security_validation/framework/report_builder.py"
+  },
+  "experimental.security_validation.framework.reporting": {
+   "group": "experimental",
+   "path": "experimental/security_validation/framework/reporting/__init__.py"
+  },
+  "experimental.security_validation.framework.utils": {
+   "group": "experimental",
+   "path": "experimental/security_validation/framework/utils/__init__.py"
+  },
+  "experimental.security_validation.framework.verifiers": {
+   "group": "experimental",
+   "path": "experimental/security_validation/framework/verifiers/__init__.py"
+  },
+  "experimental.security_validation.metrics": {
+   "group": "experimental",
+   "path": "experimental/security_validation/metrics.py"
+  },
+  "experimental.security_validation.orchestrator": {
+   "group": "experimental",
+   "path": "experimental/security_validation/orchestrator.py"
+  },
+  "experimental.security_validation.registry": {
+   "group": "experimental",
+   "path": "experimental/security_validation/registry.py"
+  },
+  "experimental.security_validation.results": {
+   "group": "experimental",
+   "path": "experimental/security_validation/results.py"
+  },
+  "experimental.security_validation.schema": {
+   "group": "experimental",
+   "path": "experimental/security_validation/schema/__init__.py"
+  },
+  "experimental.security_validation.schema.evidence": {
+   "group": "experimental",
+   "path": "experimental/security_validation/schema/evidence.py"
+  },
+  "experimental.security_validation.schema.metrics": {
+   "group": "experimental",
+   "path": "experimental/security_validation/schema/metrics.py"
+  },
+  "experimental.security_validation.schema.report_v1_1": {
+   "group": "experimental",
+   "path": "experimental/security_validation/schema/report_v1_1.py"
+  },
+  "experimental.security_validation.scoring": {
+   "group": "experimental",
+   "path": "experimental/security_validation/scoring.py"
+  },
+  "tools.adversarial_egress_demo": {
+   "group": "tools",
+   "path": "tools/adversarial_egress_demo.py"
+  },
+  "tools.archmap": {
+   "group": "tools",
+   "path": "tools/archmap.py"
+  },
+  "tools.benchmark": {
+   "group": "tools",
+   "path": "tools/benchmark.py"
+  },
+  "tools.build_campfire_partner_pack": {
+   "group": "tools",
+   "path": "tools/build_campfire_partner_pack.py"
+  },
+  "tools.build_pvscan_standalone": {
+   "group": "tools",
+   "path": "tools/build_pvscan_standalone.py"
+  },
+  "tools.gen_architecture": {
+   "group": "tools",
+   "path": "tools/gen_architecture.py"
+  },
+  "tools.gen_meeting_dashboard": {
+   "group": "tools",
+   "path": "tools/gen_meeting_dashboard.py"
+  },
+  "tools.gen_scenarios": {
+   "group": "tools",
+   "path": "tools/gen_scenarios.py"
+  },
+  "tools.generate_api_key": {
+   "group": "tools",
+   "path": "tools/generate_api_key.py"
+  },
+  "tools.generate_authority_reachability_vectors": {
+   "group": "tools",
+   "path": "tools/generate_authority_reachability_vectors.py"
+  },
+  "tools.generate_authority_vectors": {
+   "group": "tools",
+   "path": "tools/generate_authority_vectors.py"
+  },
+  "tools.generate_test_vectors": {
+   "group": "tools",
+   "path": "tools/generate_test_vectors.py"
+  },
+  "tools.init_campfire_blackbox": {
+   "group": "tools",
+   "path": "tools/init_campfire_blackbox.py"
+  },
+  "tools.init_execution_signer": {
+   "group": "tools",
+   "path": "tools/init_execution_signer.py"
+  },
+  "tools.init_platform_keys": {
+   "group": "tools",
+   "path": "tools/init_platform_keys.py"
+  },
+  "tools.make_evidence_bundle": {
+   "group": "tools",
+   "path": "tools/make_evidence_bundle.py"
+  },
+  "tools.platform_demo": {
+   "group": "tools",
+   "path": "tools/platform_demo.py"
+  },
+  "tools.prove": {
+   "group": "tools",
+   "path": "tools/prove.py"
+  },
+  "tools.pv_authority_cli": {
+   "group": "tools",
+   "path": "tools/pv_authority_cli.py"
+  },
+  "tools.pv_authority_reachability": {
+   "group": "tools",
+   "path": "tools/pv_authority_reachability.py"
+  },
+  "tools.pvscan": {
+   "group": "tools",
+   "path": "tools/pvscan.py"
+  },
+  "tools.reconcile_effects": {
+   "group": "tools",
+   "path": "tools/reconcile_effects.py"
+  },
+  "tools.run_adversarial": {
+   "group": "tools",
+   "path": "tools/run_adversarial.py"
+  },
+  "tools.rust_parity_check": {
+   "group": "tools",
+   "path": "tools/rust_parity_check.py"
+  },
+  "tools.smoke_authorize": {
+   "group": "tools",
+   "path": "tools/smoke_authorize.py"
+  },
+  "tools.smoke_campfire_blackbox": {
+   "group": "tools",
+   "path": "tools/smoke_campfire_blackbox.py"
+  },
+  "tools.verify_discovery": {
+   "group": "tools",
+   "path": "tools/verify_discovery.py"
+  },
+  "tools.verify_records": {
+   "group": "tools",
+   "path": "tools/verify_records.py"
+  },
+  "tools.verify_validation": {
+   "group": "tools",
+   "path": "tools/verify_validation.py"
+  }
+ },
+ "rust_bridge": [
+  "agent_dna.signer_bridge",
+  "tools.rust_parity_check"
+ ]
+}
