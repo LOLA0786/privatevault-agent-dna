@@ -105,6 +105,7 @@ and can only tighten a verdict.
 | Capability grants | `agent_dna/grants.py::GrantRegistry` | require_approval |
 | Maker is not checker | `agent_dna/multi_agent/dual_control.py::is_initiate_intent`, `agent_dna/connector/cross_agent.py::escalate_with_cross_agent` | escalate only |
 | Execution permit | `api/server.py::authorize` (POST /v1/authorize) | refuses mint without a stored, bound ALLOW |
+| Suspension at dispatch | `agent_dna/sqlite_store.py::SQLiteDecisionStore.try_consume_unless_suspended`, `agent_dna/connector/adapters/exact_byte_http.py::ExactByteHttpDispatcher._consume` | DISPATCH_SUSPENDED; nothing sent, permit not burned |
 | Evidence integrity | `agent_dna/decision_recorder.py::DecisionRecorder.record` | record and envelope commit together or not at all |
 | Independent verification | `tools/verify_records.py` (stdlib; never imports `agent_dna`) | tamper, deletion, divergence reported |
 | Python to Rust | only `agent_dna/signer_bridge.py` imports `pv_runtime` | enforced by `tests/test_architecture.py` |
