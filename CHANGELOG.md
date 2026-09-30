@@ -5,6 +5,18 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### LangGraph human-in-the-loop example
+- Add `examples/langgraph_hitl/`: a LangGraph propose -> approve (`interrupt()`)
+  -> execute agent that binds a human approval to the exact tool call with a
+  single-use execution permit. State edited while paused is refused at
+  execute time, recorded as a BLOCK, and the permit is burned.
+  Covered by `examples/langgraph_hitl/test_hitl_binding.py` (edit while
+  paused, replay, parallel calls, reviewer edit, expiry). This is an example
+  and is not collected by the default CI test run. It re-implements the
+  `/v1/authorize` mint sequence in process and uses a throwaway grant as the
+  approval-to-ALLOW bridge; it does not change any PrivateVault behaviour.
+  `bench_latency.py` measures the added latency of the check.
+
 ### MCP SDK 2
 - Require `mcp>=2.2,<3` in both dependency manifests and refresh `uv.lock`.
   Migrate servers, clients, result fields, and HTTP setup to the SDK 2 APIs.
