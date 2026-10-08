@@ -470,6 +470,11 @@
    "top"
   ],
   [
+   "agent_dna.connector.adapters.exact_byte_http",
+   "agent_dna.receiver.permit_header",
+   "top"
+  ],
+  [
    "agent_dna.connector.adapters.execution_trust",
    "agent_dna.authority_v01",
    "top"
@@ -1452,6 +1457,96 @@
   [
    "agent_dna.rate",
    "agent_dna.manifold",
+   "top"
+  ],
+  [
+   "agent_dna.receiver",
+   "agent_dna.receiver.asgi",
+   "top"
+  ],
+  [
+   "agent_dna.receiver",
+   "agent_dna.receiver.gate",
+   "top"
+  ],
+  [
+   "agent_dna.receiver",
+   "agent_dna.receiver.ledger",
+   "top"
+  ],
+  [
+   "agent_dna.receiver",
+   "agent_dna.receiver.permit_header",
+   "top"
+  ],
+  [
+   "agent_dna.receiver",
+   "agent_dna.receiver.receipts",
+   "top"
+  ],
+  [
+   "agent_dna.receiver.asgi",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "agent_dna.receiver.asgi",
+   "agent_dna.receiver.gate",
+   "top"
+  ],
+  [
+   "agent_dna.receiver.asgi",
+   "agent_dna.receiver.permit_header",
+   "top"
+  ],
+  [
+   "agent_dna.receiver.gate",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "agent_dna.receiver.gate",
+   "agent_dna.execution_v01",
+   "top"
+  ],
+  [
+   "agent_dna.receiver.gate",
+   "agent_dna.receiver.ledger",
+   "top"
+  ],
+  [
+   "agent_dna.receiver.gate",
+   "agent_dna.receiver.permit_header",
+   "top"
+  ],
+  [
+   "agent_dna.receiver.gate",
+   "agent_dna.receiver.receipts",
+   "top"
+  ],
+  [
+   "agent_dna.receiver.gate",
+   "agent_dna.wire_serialization_v01",
+   "top"
+  ],
+  [
+   "agent_dna.receiver.ledger",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "agent_dna.receiver.ledger",
+   "agent_dna.receiver.receipts",
+   "top"
+  ],
+  [
+   "agent_dna.receiver.permit_header",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "agent_dna.receiver.receipts",
+   "agent_dna.authority_v01",
    "top"
   ],
   [
@@ -2592,7 +2687,7 @@
   "agent_dna.allowlist": 1,
   "agent_dna.amount": 5,
   "agent_dna.apikeys": 9,
-  "agent_dna.authority_v01": 32,
+  "agent_dna.authority_v01": 37,
   "agent_dna.authorization": 3,
   "agent_dna.authorize_binding": 5,
   "agent_dna.change_management": 1,
@@ -2631,7 +2726,7 @@
   "agent_dna.economics.cost_check": 1,
   "agent_dna.evidence": 2,
   "agent_dna.execution_record": 5,
-  "agent_dna.execution_v01": 12,
+  "agent_dna.execution_v01": 13,
   "agent_dna.fingerprint": 5,
   "agent_dna.gateway.credentials": 5,
   "agent_dna.gateway.errors": 11,
@@ -2680,6 +2775,11 @@
   "agent_dna.policy_replay": 3,
   "agent_dna.profile_store": 1,
   "agent_dna.rate": 1,
+  "agent_dna.receiver.asgi": 1,
+  "agent_dna.receiver.gate": 2,
+  "agent_dna.receiver.ledger": 2,
+  "agent_dna.receiver.permit_header": 4,
+  "agent_dna.receiver.receipts": 3,
   "agent_dna.reference_policies": 1,
   "agent_dna.runtime": 7,
   "agent_dna.scan": 1,
@@ -2702,7 +2802,7 @@
   "agent_dna.validation.guard": 1,
   "agent_dna.validation.metrics": 4,
   "agent_dna.validation.report": 1,
-  "agent_dna.wire_serialization_v01": 5,
+  "agent_dna.wire_serialization_v01": 6,
   "api.server": 3,
   "experimental.adapters.git_bundle": 1,
   "experimental.authority_reachability_v01": 2,
@@ -2741,7 +2841,7 @@
   "agent_dna.confidence": 1,
   "agent_dna.connector": 2,
   "agent_dna.connector.adapters": 2,
-  "agent_dna.connector.adapters.exact_byte_http": 7,
+  "agent_dna.connector.adapters.exact_byte_http": 8,
   "agent_dna.connector.adapters.execution_trust": 1,
   "agent_dna.connector.adapters.mcp": 1,
   "agent_dna.connector.cross_agent": 8,
@@ -2807,6 +2907,12 @@
   "agent_dna.policy_gate": 4,
   "agent_dna.profile_store": 1,
   "agent_dna.rate": 1,
+  "agent_dna.receiver": 5,
+  "agent_dna.receiver.asgi": 3,
+  "agent_dna.receiver.gate": 6,
+  "agent_dna.receiver.ledger": 2,
+  "agent_dna.receiver.permit_header": 1,
+  "agent_dna.receiver.receipts": 1,
   "agent_dna.runtime": 5,
   "agent_dna.scan": 2,
   "agent_dna.scan.ingest": 1,
@@ -3345,6 +3451,30 @@
   "agent_dna.rate": {
    "group": "agent_dna (core modules)",
    "path": "agent_dna/rate.py"
+  },
+  "agent_dna.receiver": {
+   "group": "agent_dna/receiver",
+   "path": "agent_dna/receiver/__init__.py"
+  },
+  "agent_dna.receiver.asgi": {
+   "group": "agent_dna/receiver",
+   "path": "agent_dna/receiver/asgi.py"
+  },
+  "agent_dna.receiver.gate": {
+   "group": "agent_dna/receiver",
+   "path": "agent_dna/receiver/gate.py"
+  },
+  "agent_dna.receiver.ledger": {
+   "group": "agent_dna/receiver",
+   "path": "agent_dna/receiver/ledger.py"
+  },
+  "agent_dna.receiver.permit_header": {
+   "group": "agent_dna/receiver",
+   "path": "agent_dna/receiver/permit_header.py"
+  },
+  "agent_dna.receiver.receipts": {
+   "group": "agent_dna/receiver",
+   "path": "agent_dna/receiver/receipts.py"
   },
   "agent_dna.reference_policies": {
    "group": "agent_dna (core modules)",
@@ -3909,6 +4039,10 @@
   "tools.verify_discovery": {
    "group": "tools",
    "path": "tools/verify_discovery.py"
+  },
+  "tools.verify_receiver_receipts": {
+   "group": "tools",
+   "path": "tools/verify_receiver_receipts.py"
   },
   "tools.verify_records": {
    "group": "tools",
