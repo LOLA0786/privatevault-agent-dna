@@ -5,6 +5,24 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Receiver gate (ADR 0019)
+- `agent_dna/receiver/`: the system of record verifies and consumes the
+  permit. `ReceiverGate` admits a request only if it carries a permit
+  signed under the operator-pinned trust bundle that binds this receiver,
+  the exact `METHOD path`, the exact body (which must be the signed
+  action parameters), the validity window, and a receiver-owned
+  single-use claim. Direct calls that skip the sidecar are refused
+  (`tests/receiver/test_receiver_gate.py`).
+- Signed, hash-chained receiver receipts for every admitted and refused
+  request, keyed by the receiver operator (independent of PrivateVault
+  keys). `tools/verify_receiver_receipts.py` verifies them without
+  importing `agent_dna`
+  (`tests/receiver/test_receiver_independent_verifier.py`).
+- `ReceiverGateMiddleware` (ASGI) and `ReceiverGateProxy` (reverse proxy
+  for unmodified upstreams); `ExactByteHttpDispatcher(attach_permit_header=True)`
+  presents the permit without changing bound bytes
+  (`tests/receiver/test_receiver_http.py`).
+
 ### MCP SDK 2
 - Require `mcp>=2.2,<3` in both dependency manifests and refresh `uv.lock`.
   Migrate servers, clients, result fields, and HTTP setup to the SDK 2 APIs.

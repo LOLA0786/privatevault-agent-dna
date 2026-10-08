@@ -72,12 +72,14 @@ from agent_dna.execution_v01 import (
     sha256_bytes_digest,
     verify_execution_authorization,
 )
+from agent_dna.receiver.permit_header import PERMIT_HEADER, encode_permit_header
 
 DISPATCH_WITNESS_CREATE_FAILED = "DISPATCH_WITNESS_CREATE_FAILED"
 DISPATCH_TRANSPORT_REFUSED = "DISPATCH_TRANSPORT_REFUSED"
 DISPATCH_WIRE_BYTES_INVALID = "DISPATCH_WIRE_BYTES_INVALID"
 DISPATCH_PAYLOAD_INVALID = "DISPATCH_PAYLOAD_INVALID"
 CONSUME_LEDGER_UNAVAILABLE = "CONSUME_LEDGER_UNAVAILABLE"
+DISPATCH_PERMIT_HEADER_INVALID = "DISPATCH_PERMIT_HEADER_INVALID"
 DISPATCH_HANDSHAKE_FAILED = "DISPATCH_HANDSHAKE_FAILED"
 DISPATCH_BYTES_MISMATCH = "DISPATCH_BYTES_MISMATCH"
 DISPATCH_CALLER_PEER_REFUSED = "DISPATCH_CALLER_PEER_REFUSED"
@@ -207,6 +209,11 @@ class ExactByteHttpDispatcher:
     witness: WitnessSigner
     trust_bundle: Mapping[str, Any]
     transport: SidecarTransport
+    # When True, the signed authorization travels with the request in
+    # ``X-PV-Execution-Authorization`` so a receiver gate at the system of
+    # record can verify and consume it independently (ADR 0019). The header
+    # does not change the bound wire bytes.
+    attach_permit_header: bool = False
     _test_allow_callback_transport: bool = False
 
     def __post_init__(self) -> None:
@@ -389,6 +396,17 @@ class ExactByteHttpDispatcher:
         if isinstance(ids, ExactByteDispatchResult):
             return ids
         ea_id, organisation_id = ids
+        extra_headers: dict[str, str] | None = None
+        if self.attach_permit_header:
+            try:
+                extra_headers = {PERMIT_HEADER: encode_permit_header(authorization)}
+            except (AuthorityFormatError, TypeError, ValueError) as exc:
+                return _not_sent(
+                    reason_code=DISPATCH_PERMIT_HEADER_INVALID,
+                    detail=str(exc),
+                    verification=report,
+                    wire_bytes=wire,
+                )
         consume_at = _rfc3339_now()
         consumed = self._consume(ea_id, organisation_id, consume_at, report, wire)
         if consumed is not None:
@@ -403,6 +421,7 @@ class ExactByteHttpDispatcher:
             attempt=attempt,
             dispatch_witness_id=dispatch_witness_id,
             session=session,
+            extra_headers=extra_headers,
         )
 
     def _sealed_destination(
@@ -549,9 +568,15 @@ class ExactByteHttpDispatcher:
         attempt: int,
         dispatch_witness_id: str | None,
         session: SidecarSession,
+        extra_headers: Mapping[str, str] | None = None,
     ) -> ExactByteDispatchResult:
         try:
-            sent = session.write(wire, operation=operation)
+            if extra_headers:
+                sent = session.write(
+                    wire, operation=operation, extra_headers=extra_headers
+                )
+            else:
+                sent = session.write(wire, operation=operation)
         except SidecarResponseError as exc:
             return _indeterminate(
                 reason_code=DISPATCH_TRANSPORT_REFUSED,

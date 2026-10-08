@@ -28,6 +28,7 @@ explicit statement that no such test exists.
 | [0015](0015-loop-discovery-at-authority-boundary.md) | Loop discovery sits at the authority boundary | accepted | predates this series; see that file |
 | [0016](0016-one-live-permit-per-decision.md) | One live stored permit per decision | accepted | `tests/test_authorize_mint_claim.py::test_sequential_mint_returns_byte_identical_authorization` |
 | [0017](0017-wire-action-binding.md) | Trusted action↔wire binding at authorize | accepted | `tests/test_wire_action_binding.py` |
+| [0019](0019-receiver-gate.md) | The system of record verifies the permit (receiver gate) | accepted | `tests/receiver/test_receiver_gate.py::test_direct_call_without_permit_is_refused` |
 
 0001–0014 are the enforcement-spine decisions. 0015 is the earlier
 loop-discovery placement record, renumbered so the spine could own
@@ -35,3 +36,7 @@ loop-discovery placement record, renumbered so the spine could own
 one live stored permit. 0017 closes the first-mint action≠wire gap
 by binding expected wire bytes to a named serialization of the sealed
 action.
+0019 moves permit verification and single-use consumption to the
+system of record, so an agent that calls a gated API directly is refused
+by the API's own front door. 0018 is the separately proposed swarm-controls
+plan.
