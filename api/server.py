@@ -187,6 +187,67 @@ def _assert_auth_configured(auth_enabled: bool) -> None:
     )
 
 
+AUTHORIZATION_TTL_SECONDS_DEFAULT = 60
+AUTHORIZATION_TTL_SECONDS_MIN = 1
+AUTHORIZATION_TTL_SECONDS_MAX = 300
+AUTHORIZATION_NOT_BEFORE_LEEWAY_SECONDS_MAX = 30
+
+
+@dataclass(frozen=True)
+class AuthorizationWindow:
+    """How long a minted permit lives, and how far back ``not_before`` sits.
+
+    Validated once at startup (R1 #5). The sidecar judges the window
+    strictly by its own clock, so ``not_before_leeway_seconds`` is the one
+    sanctioned place to absorb a small clock difference between the mint
+    host and the dispatching host. It never moves ``expires_at``.
+    """
+
+    ttl_seconds: int
+    not_before_leeway_seconds: int
+
+
+def _env_int_bounded(
+    env: Any, name: str, default: int, minimum: int, maximum: int
+) -> int:
+    raw = str(env.get(name, "") or "").strip()
+    if raw == "":
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        raise RuntimeError(
+            f"{name} must be an integer between {minimum} and {maximum}; got {raw!r}"
+        ) from None
+    if not minimum <= value <= maximum:
+        raise RuntimeError(
+            f"{name} must be between {minimum} and {maximum}; got {value}"
+        )
+    return value
+
+
+def _authorization_window(env: Any = None) -> AuthorizationWindow:
+    """Parse and bound the mint window. Raises RuntimeError on misconfiguration
+    so the server refuses to start rather than failing every authorize."""
+    source = os.environ if env is None else env
+    return AuthorizationWindow(
+        ttl_seconds=_env_int_bounded(
+            source,
+            "PV_AUTHORIZATION_TTL_SECONDS",
+            AUTHORIZATION_TTL_SECONDS_DEFAULT,
+            AUTHORIZATION_TTL_SECONDS_MIN,
+            AUTHORIZATION_TTL_SECONDS_MAX,
+        ),
+        not_before_leeway_seconds=_env_int_bounded(
+            source,
+            "PV_AUTHORIZATION_NOT_BEFORE_LEEWAY_SECONDS",
+            0,
+            0,
+            AUTHORIZATION_NOT_BEFORE_LEEWAY_SECONDS_MAX,
+        ),
+    )
+
+
 def _assert_secure_authorize_material() -> None:
     """Under PV_SECURE_PROFILE, refuse to start without mint material."""
     secure = os.getenv("PV_SECURE_PROFILE", "").lower() in (
@@ -246,6 +307,7 @@ async def lifespan(app: FastAPI):
 
     _assert_auth_configured(runtime.apikeys.enabled)
     _assert_secure_authorize_material()
+    state["authorization_window"] = _authorization_window()
     state["store"] = runtime.store
     state["recorder"] = runtime.recorder
     state["engine"] = runtime.engine
@@ -1040,10 +1102,17 @@ def authorize(req: AuthorizeRequest, principal: FullPrincipal):  # noqa: C901
             detail="mint claim ledger is not available",
         )
 
-    ttl = int(os.environ.get("PV_AUTHORIZATION_TTL_SECONDS", "60"))
+    window = state.get("authorization_window")
+    if not isinstance(window, AuthorizationWindow):
+        # Only reachable if the lifespan did not run; refuse rather than guess.
+        raise HTTPException(
+            status_code=503,
+            detail="authorization window is not configured",
+        )
     now = _datetime.now(UTC)
-    expires_at = _pv_rfc3339(now + _timedelta(seconds=ttl))
+    expires_at = _pv_rfc3339(now + _timedelta(seconds=window.ttl_seconds))
     minted_at = _pv_rfc3339(now)
+    not_before = _pv_rfc3339(now - _timedelta(seconds=window.not_before_leeway_seconds))
     bindings = mint_bindings_digest(
         organisation_id=req.organisation_id,
         agent_id=req.agent_id,
@@ -1068,8 +1137,8 @@ def authorize(req: AuthorizeRequest, principal: FullPrincipal):  # noqa: C901
             "execution_authorization_id": f"eauth-{_uuid.uuid4()}",
             "organisation_id": req.organisation_id,
             "request_id": req.request_id,
-            "issued_at": minted_at,
-            "not_before": minted_at,
+            "issued_at": not_before,
+            "not_before": not_before,
             "expires_at": expires_at,
             "nonce": _uuid.uuid4().hex,
             "decision_receipt_digest": req.decision_receipt_digest,

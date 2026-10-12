@@ -5,6 +5,18 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Hardening: authorization window validated at startup
+- `/v1/authorize` parsed `PV_AUTHORIZATION_TTL_SECONDS` with a bare `int()`
+  on every request: a non-integer value made every mint a 500, zero or a
+  negative value minted a permit that failed its own schema, and a large
+  value silently minted long-lived permits. The TTL (1 to 300 s, default
+  60) and the new `PV_AUTHORIZATION_NOT_BEFORE_LEEWAY_SECONDS` (0 to 30 s,
+  default 0) are now parsed once in the lifespan; a bad value refuses to
+  start. The leeway moves `not_before` and `issued_at` back from mint time
+  and never moves `expires_at`; it is the mint-side counterpart of the
+  sidecar's strict clock.
+  (`tests/test_authorize_window_config.py`)
+
 ### Hardening: sidecar validity window uses the sidecar's clock
 - `ExactByteHttpDispatcher` judged `not_before`/`expires_at` against the
   caller-supplied `ExactByteContext.at_time`, so a caller echoing the

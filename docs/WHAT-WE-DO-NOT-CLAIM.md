@@ -256,8 +256,11 @@ The permit's validity window is judged by the sidecar's own clock, which
 the caller cannot set (`ExactByteContext.at_time` is informational). There
 is no skew tolerance at the sidecar: a sidecar clock behind the mint host
 refuses a fresh permit as not yet valid until the clocks agree. Keep both
-hosts on NTP; any leeway must be granted at mint time, not at dispatch
-(`tests/connector/test_exact_byte_http.py::test_sidecar_clock_is_strict_and_stamps_the_evidence`).
+hosts on NTP; the only leeway is granted at mint time, bounded to 30 s via
+`PV_AUTHORIZATION_NOT_BEFORE_LEEWAY_SECONDS` (default 0), and it never
+extends `expires_at`
+(`tests/connector/test_exact_byte_http.py::test_sidecar_clock_is_strict_and_stamps_the_evidence`,
+`tests/test_authorize_window_config.py`).
 
 This class is an **in-process sidecar**. In-process is not complete
 mediation. Complete mediation requires deploying it as a separately

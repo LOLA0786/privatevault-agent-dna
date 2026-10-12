@@ -300,6 +300,15 @@ and authorize-time loop events are forced on. `PV_ALLOW_NO_AUTH=1` remains
 for local development and prints an explicit UNSAFE banner — it is
 incompatible with the secure profile.
 
+## Authorization window
+
+`PV_AUTHORIZATION_TTL_SECONDS` (default 60, allowed 1 to 300) is how long a
+minted permit lives. `PV_AUTHORIZATION_NOT_BEFORE_LEEWAY_SECONDS` (default 0,
+allowed 0 to 30) moves `not_before` that many seconds before mint time so a
+dispatching host whose clock is slightly behind does not refuse a fresh
+permit; it never moves `expires_at`. Both are validated at startup and a bad
+value refuses to start (`tests/test_authorize_window_config.py`).
+
 ## Limitations
 
 Read `docs/WHAT-WE-DO-NOT-CLAIM.md` before depending on this in
