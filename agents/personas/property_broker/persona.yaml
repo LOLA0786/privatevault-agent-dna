@@ -1,0 +1,62 @@
+# Persona 3: property broker. Listings, client follow-ups, token payment
+# requests. Amounts are INR. The only payee a token request may name is the
+# brokerage's escrow account; anything else is blocked. Rules compile to
+# PV_POLICY_FILE and PV_GRANTS_FILE; the agent evaluates nothing itself.
+
+name: property_broker
+agent_id: broker-agent-01
+organisation_id: brokerage.example
+description: >
+  Lists properties, follows up with clients, schedules viewings, and raises
+  token payment requests at the escrow partner. Every token request is
+  decided by PrivateVault; above the threshold it needs the principal
+  broker's approval; a payee other than the escrow account is blocked.
+
+tools:
+  - list_properties
+  - follow_up_client
+  - request_token_payment
+  - schedule_viewing
+
+grants:
+  - capability: payments.request_token
+    budget: 2000000
+  - capability: crm.follow_up
+  - capability: calendar.schedule_viewing
+
+policy:
+  - id: payee-not-escrow
+    capability: payments.request_token
+    outcome: block
+    reason: token payments may only be requested into the brokerage escrow account
+    condition:
+      field: arguments.payee_id
+      operator: not_in
+      value: [ESCROW-BRK-001]
+  - id: hard-cap
+    capability: payments.request_token
+    outcome: block
+    reason: token request above the hard cap of 500,000 INR
+    condition:
+      field: arguments.amount
+      operator: ">"
+      value: 500000
+  - id: token-above-threshold
+    capability: payments.request_token
+    outcome: require_approval
+    reason: token request above 100,000 INR needs the principal broker's approval
+    condition:
+      field: arguments.amount
+      operator: ">"
+      value: 100000
+
+approvers:
+  - principal: principal.broker@brokerage.example
+    key_id: approver-principal
+
+limits:
+  currency: INR
+  escrow_account: ESCROW-BRK-001
+  approval_threshold: 100000
+  hard_cap: 500000
+  budget: 2000000

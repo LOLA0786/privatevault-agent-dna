@@ -48,7 +48,11 @@ def _rfc3339(moment: datetime) -> str:
 
 
 class ApproverKit:
-    """One organisation's approver: root authority, approver key, receipt key."""
+    """One organisation's approver: root authority, approver key, receipt key.
+
+    The root principal is distinct from any approver on purpose: the authority
+    verifier refuses a grant chain whose issuer and subject share a principal.
+    """
 
     def __init__(self, organisation_id: str, *, principal: str, key_id: str) -> None:
         self.organisation_id = organisation_id
@@ -65,8 +69,8 @@ class ApproverKit:
             "pinned_at": "2026-01-01T00:00:00Z",
             "keys": [
                 {
-                    "key_id": "owner-root",
-                    "principal": f"owner@{organisation_id}",
+                    "key_id": "authority-root",
+                    "principal": f"authority-root@{organisation_id}",
                     "algorithm": "ed25519",
                     "public_key": encode_public_key(self.root_key),
                     "usages": ["root_authority", "grant_issuer"],
@@ -93,8 +97,8 @@ class ApproverKit:
                 "canonicalization": CANONICALIZATION,
                 "grant_id": f"g-{key_id}",
                 "organisation_id": organisation_id,
-                "issuer_principal": f"owner@{organisation_id}",
-                "issuer_key_id": "owner-root",
+                "issuer_principal": f"authority-root@{organisation_id}",
+                "issuer_key_id": "authority-root",
                 "subject_principal": principal,
                 "subject_key_id": key_id,
                 "parent_grant_digest": None,

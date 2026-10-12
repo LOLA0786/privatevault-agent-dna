@@ -1,0 +1,61 @@
+# Persona 2: interior design firm. Client quotes and vendor purchase orders.
+# Amounts are INR, whole rupees. Rules compile to PV_POLICY_FILE and
+# PV_GRANTS_FILE; the agent evaluates nothing itself.
+
+name: interior_design
+agent_id: design-ops-01
+organisation_id: studio.example
+description: >
+  Reads a project brief, sends the client a quote, issues purchase orders to
+  approved vendors through the procurement network, and keeps the client
+  informed. Every purchase order is decided by PrivateVault; above the
+  limit it needs the studio owner's approval and executes only through a
+  single-use permit the vendor network's gate verifies.
+
+tools:
+  - read_project_brief
+  - send_quote
+  - issue_vendor_po
+  - notify_client
+
+grants:
+  - capability: procurement.issue_po
+    budget: 1000000
+  - capability: quotes.send
+  - capability: comms.notify_client
+
+policy:
+  - id: unapproved-vendor
+    capability: procurement.issue_po
+    outcome: block
+    reason: vendor is not on the approved vendor list
+    condition:
+      field: arguments.vendor_id
+      operator: not_in
+      value: [VN-10, VN-20, VN-30]
+  - id: hard-cap
+    capability: procurement.issue_po
+    outcome: block
+    reason: purchase order above the hard cap of 200,000 INR
+    condition:
+      field: arguments.amount
+      operator: ">"
+      value: 200000
+  - id: po-above-limit
+    capability: procurement.issue_po
+    outcome: require_approval
+    reason: purchase order above 50,000 INR needs the studio owner's approval
+    condition:
+      field: arguments.amount
+      operator: ">"
+      value: 50000
+
+approvers:
+  - principal: owner@studio.example
+    key_id: approver-owner
+
+limits:
+  currency: INR
+  po_limit: 50000
+  hard_cap: 200000
+  budget: 1000000
