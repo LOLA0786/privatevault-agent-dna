@@ -5,6 +5,23 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Agents, phase A: personas 2 and 3
+- `agents/personas/interior_design/`: client quotes and vendor purchase
+  orders in INR. A PO up to 50,000 to an approved vendor is allowed under
+  a budgeted grant; above 50,000 needs the studio owner's approval; above
+  200,000 or to an unapproved vendor is blocked. The demo shows a vendor
+  swapped after approval refused by the sidecar and by the vendor
+  network's gate. (`tests/agents/test_interior_design.py`)
+- `agents/personas/property_broker/`: listings, follow-ups, viewings, and
+  token payment requests at the escrow partner. The only permitted payee
+  is the brokerage escrow account: any other payee is blocked at decide;
+  above 100,000 needs the principal broker's approval; above 500,000 is
+  blocked. The demo shows a payee changed after approval refused by the
+  sidecar and by the escrow gate, and a replay refused.
+  (`tests/agents/test_property_broker.py`)
+- Both are YAML plus a tool list on the unchanged template; no core
+  changes.
+
 ### Agents, phase A: template and persona 1 (finance ops)
 - `agents/core/`: a config-driven agent template where the model only
   proposes. Read tools run locally; external tools run under a single-use
