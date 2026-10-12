@@ -645,3 +645,30 @@ def test_witness_and_closure_timestamps_are_monotonic(tmp_path):
         observed.replace("Z", "+00:00")
     ) <= datetime.fromisoformat(closed.replace("Z", "+00:00"))
     assert observed != AT
+
+
+def test_suspended_agent_permit_is_refused_before_any_byte_is_sent(tmp_path):
+    """ADR-0018 PR-J: a valid permit minted before its agent was suspended
+    is refused at consume time; the target receives nothing and the
+    permit is not burned."""
+    from agent_dna.connector.adapters.exact_byte_http import DISPATCH_SUSPENDED
+
+    w = _world(tmp_path)
+    w["store"].suspend(
+        "agent",
+        w["action"]["subject_key_id"],
+        reason="group breaker trip",
+        suspended_by="operator",
+        suspended_at=AT,
+    )
+    transport = RecordingSidecarTransport(peer_identity=PEER)
+    result = _dispatcher(w, transport).dispatch(
+        authorization=w["authorization"],
+        payload=PAYLOAD,
+        context=_context(w),
+        observed_at=AT,
+    )
+    assert result.sent is False
+    assert result.reason_code == DISPATCH_SUSPENDED
+    assert transport.writes == []
+    assert not w["store"].is_execution_authorization_consumed(w["ea_id"])
