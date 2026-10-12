@@ -2170,6 +2170,71 @@
    "top"
   ],
   [
+   "examples.langgraph_hitl.agent",
+   "agent_dna.advisory",
+   "top"
+  ],
+  [
+   "examples.langgraph_hitl.agent",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "examples.langgraph_hitl.agent",
+   "agent_dna.authorize_binding",
+   "top"
+  ],
+  [
+   "examples.langgraph_hitl.agent",
+   "agent_dna.decision",
+   "top"
+  ],
+  [
+   "examples.langgraph_hitl.agent",
+   "agent_dna.decision_recorder",
+   "top"
+  ],
+  [
+   "examples.langgraph_hitl.agent",
+   "agent_dna.execution_v01",
+   "top"
+  ],
+  [
+   "examples.langgraph_hitl.agent",
+   "agent_dna.grants",
+   "top"
+  ],
+  [
+   "examples.langgraph_hitl.agent",
+   "agent_dna.sqlite_store",
+   "top"
+  ],
+  [
+   "examples.langgraph_hitl.agent",
+   "agent_dna.trace",
+   "top"
+  ],
+  [
+   "examples.langgraph_hitl.agent",
+   "agent_dna.wire_serialization_v01",
+   "top"
+  ],
+  [
+   "examples.langgraph_hitl.test_hitl_binding",
+   "agent_dna.decision",
+   "top"
+  ],
+  [
+   "examples.langgraph_hitl.test_hitl_binding",
+   "agent_dna.grants",
+   "top"
+  ],
+  [
+   "examples.langgraph_hitl.test_hitl_binding",
+   "agent_dna.trace",
+   "top"
+  ],
+  [
    "examples.multi_agent_consensus_demo",
    "agent_dna.consensus.secure_quorum",
    "top"
@@ -2683,13 +2748,13 @@
   "agent_dna.adapters_policy.local": 2,
   "agent_dna.adapters_policy.opa": 2,
   "agent_dna.adapters_policy.skill_adapter": 1,
-  "agent_dna.advisory": 9,
+  "agent_dna.advisory": 10,
   "agent_dna.allowlist": 1,
   "agent_dna.amount": 5,
   "agent_dna.apikeys": 9,
-  "agent_dna.authority_v01": 37,
+  "agent_dna.authority_v01": 38,
   "agent_dna.authorization": 3,
-  "agent_dna.authorize_binding": 5,
+  "agent_dna.authorize_binding": 6,
   "agent_dna.change_management": 1,
   "agent_dna.circuit_breaker": 4,
   "agent_dna.closure_v01": 3,
@@ -2710,10 +2775,10 @@
   "agent_dna.consensus.signing": 6,
   "agent_dna.consensus.weighted_quorum": 1,
   "agent_dna.control_posture": 4,
-  "agent_dna.decision": 22,
+  "agent_dna.decision": 24,
   "agent_dna.decision_graph": 3,
   "agent_dna.decision_record": 6,
-  "agent_dna.decision_recorder": 7,
+  "agent_dna.decision_recorder": 8,
   "agent_dna.decision_store": 3,
   "agent_dna.diff": 1,
   "agent_dna.discovery": 2,
@@ -2726,7 +2791,7 @@
   "agent_dna.economics.cost_check": 1,
   "agent_dna.evidence": 2,
   "agent_dna.execution_record": 5,
-  "agent_dna.execution_v01": 13,
+  "agent_dna.execution_v01": 14,
   "agent_dna.fingerprint": 5,
   "agent_dna.gateway.credentials": 5,
   "agent_dna.gateway.errors": 11,
@@ -2742,7 +2807,7 @@
   "agent_dna.gateway.upstream": 3,
   "agent_dna.governance.evaluate": 1,
   "agent_dna.governance.pack": 2,
-  "agent_dna.grants": 5,
+  "agent_dna.grants": 7,
   "agent_dna.intent_adapter": 1,
   "agent_dna.invariant_engine": 2,
   "agent_dna.invariants": 2,
@@ -2793,16 +2858,16 @@
   "agent_dna.signer_bridge": 1,
   "agent_dna.signer_python": 4,
   "agent_dna.similarity": 3,
-  "agent_dna.sqlite_store": 5,
+  "agent_dna.sqlite_store": 6,
   "agent_dna.store.grants": 1,
   "agent_dna.timeline": 1,
-  "agent_dna.trace": 25,
+  "agent_dna.trace": 27,
   "agent_dna.uaal_layer": 5,
   "agent_dna.validation.drift": 2,
   "agent_dna.validation.guard": 1,
   "agent_dna.validation.metrics": 4,
   "agent_dna.validation.report": 1,
-  "agent_dna.wire_serialization_v01": 6,
+  "agent_dna.wire_serialization_v01": 7,
   "api.server": 3,
   "experimental.adapters.git_bundle": 1,
   "experimental.authority_reachability_v01": 2,
@@ -2951,6 +3016,8 @@
   "examples.governance_market_entry_demo": 2,
   "examples.invariant_demo": 1,
   "examples.invariant_runtime_demo": 1,
+  "examples.langgraph_hitl.agent": 10,
+  "examples.langgraph_hitl.test_hitl_binding": 3,
   "examples.multi_agent_consensus_demo": 2,
   "examples.multi_agent_procurement_demo": 1,
   "examples.profile_versioning_demo": 2,
@@ -3655,6 +3722,18 @@
   "examples.invariant_runtime_demo": {
    "group": "examples",
    "path": "examples/invariant_runtime_demo.py"
+  },
+  "examples.langgraph_hitl.agent": {
+   "group": "examples",
+   "path": "examples/langgraph_hitl/agent.py"
+  },
+  "examples.langgraph_hitl.bench_latency": {
+   "group": "examples",
+   "path": "examples/langgraph_hitl/bench_latency.py"
+  },
+  "examples.langgraph_hitl.test_hitl_binding": {
+   "group": "examples",
+   "path": "examples/langgraph_hitl/test_hitl_binding.py"
   },
   "examples.multi_agent_consensus_demo": {
    "group": "examples",
