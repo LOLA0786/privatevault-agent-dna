@@ -252,6 +252,13 @@ Outcomes: `NOT_SENT` / `CONTROL_FAILURE` (send never began);
 transport invocation begins (`tool_executed=None`, `retryable=False`).
 An arbitrary `SendFn` is test-only and does not prove bytes on the wire.
 
+The permit's validity window is judged by the sidecar's own clock, which
+the caller cannot set (`ExactByteContext.at_time` is informational). There
+is no skew tolerance at the sidecar: a sidecar clock behind the mint host
+refuses a fresh permit as not yet valid until the clocks agree. Keep both
+hosts on NTP; any leeway must be granted at mint time, not at dispatch
+(`tests/connector/test_exact_byte_http.py::test_sidecar_clock_is_strict_and_stamps_the_evidence`).
+
 This class is an **in-process sidecar**. In-process is not complete
 mediation. Complete mediation requires deploying it as a separately
 isolated **sole-egress** service plus network policy that denies the

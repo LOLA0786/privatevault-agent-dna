@@ -38,7 +38,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -115,7 +115,13 @@ def serialize_json_payload(payload: Any) -> bytes:
 
 @dataclass(frozen=True)
 class ExactByteContext:
-    """Mint-bound digests and observed action/dispatch for EA verify."""
+    """Mint-bound digests and observed action/dispatch for EA verify.
+
+    ``at_time`` is caller-supplied and informational only. The dispatcher
+    judges the permit's validity window by its own clock (see
+    ``ExactByteHttpDispatcher.clock``); a caller cannot move the window by
+    stating a different time here.
+    """
 
     request_id: str
     observed_action: Mapping[str, Any]
@@ -196,6 +202,10 @@ def _indeterminate(
     )
 
 
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
 @dataclass
 class ExactByteHttpDispatcher:
     """Fail-closed egress with a pinned trust bundle and sidecar transport.
@@ -214,10 +224,23 @@ class ExactByteHttpDispatcher:
     # record can verify and consume it independently (ADR 0019). The header
     # does not change the bound wire bytes.
     attach_permit_header: bool = False
+    # The clock that judges ``not_before``/``expires_at`` and stamps
+    # ``consumed_at``, ``observed_at`` and ``closed_at``. It belongs to the
+    # sidecar operator (injectable for deterministic tests), never to the
+    # caller: ``ExactByteContext.at_time`` is not consulted. There is no
+    # skew tolerance here on purpose; the witness records ``observed_at``
+    # from this same clock and the protocol verifier requires it to lie
+    # inside the window, so leeway must be granted at mint time.
+    clock: Callable[[], datetime] = _utc_now
     _test_allow_callback_transport: bool = False
 
     def __post_init__(self) -> None:
         self.trust_bundle = validate_execution_trust_bundle(self.trust_bundle)
+        if not callable(self.clock):
+            raise ValueError("clock must be a callable returning an aware datetime")
+        probe = self.clock()
+        if not isinstance(probe, datetime) or probe.tzinfo is None:
+            raise ValueError("clock must return a timezone-aware datetime")
         if (
             isinstance(self.transport, CallbackSidecarTransport)
             and not self._test_allow_callback_transport
@@ -407,7 +430,7 @@ class ExactByteHttpDispatcher:
                     verification=report,
                     wire_bytes=wire,
                 )
-        consume_at = _rfc3339_now()
+        consume_at = self._now_rfc3339()
         consumed = self._consume(
             ea_id,
             organisation_id,
@@ -480,6 +503,17 @@ class ExactByteHttpDispatcher:
             audience = ""
         return sealed_dest, operation, audience, None
 
+    def _now_rfc3339(self) -> str:
+        """The sidecar's own notion of now, as RFC 3339 UTC with microseconds."""
+        now = self.clock()
+        if not isinstance(now, datetime) or now.tzinfo is None:
+            raise TypeError("clock must return a timezone-aware datetime")
+        return (
+            now.astimezone(UTC)
+            .isoformat(timespec="microseconds")
+            .replace("+00:00", "Z")
+        )
+
     def _verify_pinned(
         self,
         *,
@@ -503,7 +537,9 @@ class ExactByteHttpDispatcher:
             expected_obligations_digest=context.obligations_digest,
             expected_wire_bytes=wire,
             expected_peer_identity_bytes=peer,
-            at_time=context.at_time,
+            # The validity window is judged by the sidecar's clock, never by
+            # the caller's ``context.at_time`` (R1 #1).
+            at_time=self._now_rfc3339(),
             already_consumed=False,
             consume_ledger=None,
             check_peer_identity=check_peer_identity,
@@ -617,7 +653,7 @@ class ExactByteHttpDispatcher:
                 verification=report,
                 wire_bytes=wire,
             )
-        observed_at = _rfc3339_now()
+        observed_at = self._now_rfc3339()
         if not isinstance(sent, SidecarSendResult) or not sent.send_began:
             return _indeterminate(
                 reason_code=DISPATCH_TRANSPORT_REFUSED,
@@ -639,7 +675,7 @@ class ExactByteHttpDispatcher:
                 verification=report,
                 wire_bytes=wire,
             )
-        closed_at = _rfc3339_now()
+        closed_at = self._now_rfc3339()
         if closed_at < observed_at:
             closed_at = observed_at
         return self._attest_after_send(
@@ -854,6 +890,8 @@ def _http_dispatch_outcome(status: int) -> str:
 
 
 def _rfc3339_now() -> str:
+    """Wall clock as RFC 3339 UTC. The dispatcher uses its injected clock
+    instead; this remains for callers that stamp their own records."""
     stamp = datetime.now(UTC).isoformat(timespec="microseconds")
     return stamp.replace("+00:00", "Z")
 
