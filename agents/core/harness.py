@@ -138,12 +138,18 @@ class Harness:
         run_dir: str | Path,
         *,
         approver: Approver | None = None,
+        tools: list[Tool] | None = None,
     ) -> Iterator[Runtime]:
         persona = load_persona(persona_path)
         run_dir = Path(run_dir)
         run_dir.mkdir(parents=True, exist_ok=True)
         compiled = persona.compile(run_dir)
-        tools = _persona_tools(persona)
+        # ``tools`` overrides the persona's module (the proof demos use
+        # variants of a persona's tools); names must still match the YAML.
+        tools = _persona_tools(persona) if tools is None else list(tools)
+        unknown = sorted(set(persona.tools) - {t.name for t in tools})
+        if unknown:
+            raise ValueError(f"persona {persona.name} lists unknown tools {unknown}")
         money = [t for t in tools if t.risk is RiskClass.MONEY]
         receivers = {t.receiver for t in money if t.receiver is not None}
         if len(receivers) > 1:

@@ -46,11 +46,18 @@ class _Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802 - stdlib handler name
         length = int(self.headers.get("Content-Length", "0") or 0)
         body = self.rfile.read(length) if length > 0 else b""
+        try:
+            body_json: Any = json.loads(body.decode("utf-8")) if body else None
+        except (ValueError, UnicodeDecodeError):
+            body_json = None
         record = {
             "method": "POST",
             "path": self.path,
             "body_sha256": "sha256:" + hashlib.sha256(body).hexdigest(),
             "body_length": len(body),
+            # Demo only: what the stub would have acted on, so the proof can
+            # print the amount and payee that actually arrived.
+            "body_json": body_json,
             "header_names": sorted({k.lower() for k in self.headers.keys()}),
         }
         number = self.server.record(record)

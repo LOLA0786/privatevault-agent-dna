@@ -30,18 +30,18 @@ jobs:
       - name: Format gate
         run: >-
           uv run ruff format --check agent_dna api tests tools examples
-          experimental benchmarks agents end_to_end_coding_agents_demo.py
+          experimental benchmarks agents proof end_to_end_coding_agents_demo.py
           opa_decision_demo.py
 
       - name: Lint gate
         run: >-
           uv run ruff check agent_dna api tests tools examples experimental
-          benchmarks agents end_to_end_coding_agents_demo.py opa_decision_demo.py
+          benchmarks agents proof end_to_end_coding_agents_demo.py opa_decision_demo.py
 
       - name: Static typing
         run: |
           uv run mypy agent_dna api
-          uv run mypy agents
+          uv run mypy agents proof
           uv run mypy --strict --follow-imports=skip agent_dna/security
 
       - name: Demo demonstrates its own claims
