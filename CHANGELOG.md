@@ -5,6 +5,21 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Hardening: bounded request size and JSON nesting
+- A few thousand nested brackets inside a 1 MB body raised `RecursionError`
+  in JSON parsing on `/v1/decide` and `/v1/authorize` (a 500 per request),
+  and the app had no body size limit of its own. `agent_dna/request_bounds.py`
+  adds an outermost ASGI middleware: bodies over `PV_MAX_REQUEST_BYTES`
+  (default 1 MiB, validated at startup, 1 KiB to 64 MiB) are 413 before
+  parsing, with or without `Content-Length`; JSON nested deeper than 32
+  levels is 400 `REQUEST_JSON_TOO_DEEP`. In the library,
+  `_validate_json_value` and `canonicalize` enforce
+  `MAX_JSON_NESTING_DEPTH = 32` and `strict_json_loads` turns the decoder's
+  `RecursionError` into `AuthorityFormatError`, so the receiver gate now
+  answers a deep permit header with `RECEIVER_PERMIT_MALFORMED` (403, with a
+  receipt) instead of `RECEIVER_INTERNAL_ERROR` (500).
+  (`tests/test_request_bounds.py`, `tests/test_json_depth_bound.py`)
+
 ### Hardening: authorization window validated at startup
 - `/v1/authorize` parsed `PV_AUTHORIZATION_TTL_SECONDS` with a bare `int()`
   on every request: a non-integer value made every mint a 500, zero or a

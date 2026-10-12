@@ -40,6 +40,7 @@ from starlette.background import BackgroundTask
 
 from agent_dna.apikeys import ApiKeyRegistry
 from agent_dna.authority_v01 import CANONICALIZATION as _PV_CANON
+from agent_dna.authority_v01 import MAX_JSON_NESTING_DEPTH
 from agent_dna.authority_v01 import sha256_digest as _pv_sha256_digest
 from agent_dna.authorize_binding import (
     AUTHORIZE_DECISION_NOT_FOUND,
@@ -69,6 +70,7 @@ from agent_dna.observability.prometheus_bridge import (
     generate_latest as _prom_generate_latest,
 )
 from agent_dna.observability.prometheus_bridge import observe_decide_latency, set_ready
+from agent_dna.request_bounds import RequestBounds, RequestBoundsMiddleware
 from agent_dna.runtime import RuntimeMonitor
 from agent_dna.security.loop_discovery import (
     LoopDecision,
@@ -248,6 +250,26 @@ def _authorization_window(env: Any = None) -> AuthorizationWindow:
     )
 
 
+MAX_REQUEST_BYTES_DEFAULT = 1_048_576
+MAX_REQUEST_BYTES_MIN = 1024
+MAX_REQUEST_BYTES_MAX = 64 * 1_048_576
+
+
+def _request_bounds(env: Any = None) -> RequestBounds:
+    """Body size and JSON nesting limits, validated once at startup (R1 #7)."""
+    source = os.environ if env is None else env
+    return RequestBounds(
+        max_bytes=_env_int_bounded(
+            source,
+            "PV_MAX_REQUEST_BYTES",
+            MAX_REQUEST_BYTES_DEFAULT,
+            MAX_REQUEST_BYTES_MIN,
+            MAX_REQUEST_BYTES_MAX,
+        ),
+        max_json_depth=MAX_JSON_NESTING_DEPTH,
+    )
+
+
 def _assert_secure_authorize_material() -> None:
     """Under PV_SECURE_PROFILE, refuse to start without mint material."""
     secure = os.getenv("PV_SECURE_PROFILE", "").lower() in (
@@ -308,6 +330,7 @@ async def lifespan(app: FastAPI):
     _assert_auth_configured(runtime.apikeys.enabled)
     _assert_secure_authorize_material()
     state["authorization_window"] = _authorization_window()
+    state["request_bounds"] = _request_bounds()
     state["store"] = runtime.store
     state["recorder"] = runtime.recorder
     state["engine"] = runtime.engine
@@ -336,6 +359,9 @@ app = FastAPI(
     version="0.4.0",
     lifespan=lifespan,
 )
+# Outermost: oversize or over-nested bodies never reach routing, auth, or
+# the JSON parser. Limits are read from state once the lifespan validated them.
+app.add_middleware(RequestBoundsMiddleware, bounds=lambda: state.get("request_bounds"))
 
 
 def _monitor_for(agent_id: str) -> RuntimeMonitor:
