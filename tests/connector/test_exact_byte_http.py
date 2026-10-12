@@ -27,6 +27,12 @@ Claims → tests:
     → test_callback_sending_different_bytes_is_not_executed
   - Verified sidecar witness and closure
     → test_verified_sidecar_witness_and_closure_happy_path
+  - The validity window is judged by the sidecar's own clock; a caller
+    cannot move it by supplying ``at_time``
+    → test_expired_permit_refused_even_when_caller_claims_earlier_time
+    → test_not_yet_valid_permit_refused_even_when_caller_claims_later_time
+    → test_operator_clock_decides_validity
+    → test_sidecar_clock_is_strict_and_stamps_the_evidence
 """
 
 from __future__ import annotations
@@ -108,7 +114,12 @@ def _bundle_for(runtime_key: SigningKey, witness_key: SigningKey) -> dict[str, A
     }
 
 
-def _world(tmp_path, *, expires_at: str = "2099-01-01T00:00:00Z"):
+def _world(
+    tmp_path,
+    *,
+    expires_at: str = "2099-01-01T00:00:00Z",
+    not_before: str = "2026-08-10T12:00:00Z",
+):
     runtime_key = SigningKey.generate()
     witness_key = SigningKey.generate()
     trust_bundle = _bundle_for(runtime_key, witness_key)
@@ -141,8 +152,8 @@ def _world(tmp_path, *, expires_at: str = "2099-01-01T00:00:00Z"):
             "execution_authorization_id": ea_id,
             "organisation_id": ORG,
             "request_id": "req-egress-1",
-            "issued_at": "2026-08-10T12:00:00Z",
-            "not_before": "2026-08-10T12:00:00Z",
+            "issued_at": not_before,
+            "not_before": not_before,
             "expires_at": expires_at,
             "nonce": uuid.uuid4().hex,
             "decision_receipt_digest": Z,
@@ -191,7 +202,7 @@ def _context(w, *, at_time: str = AT, dispatch: dict | None = None) -> ExactByte
     )
 
 
-def _dispatcher(w, transport) -> ExactByteHttpDispatcher:
+def _dispatcher(w, transport, **extra: Any) -> ExactByteHttpDispatcher:
     return ExactByteHttpDispatcher(
         consume_ledger=w["store"],
         witness=WitnessSigner(
@@ -203,6 +214,7 @@ def _dispatcher(w, transport) -> ExactByteHttpDispatcher:
         ),
         trust_bundle=w["trust_bundle"],
         transport=transport,
+        **extra,
     )
 
 
@@ -672,3 +684,101 @@ def test_suspended_agent_permit_is_refused_before_any_byte_is_sent(tmp_path):
     assert result.reason_code == DISPATCH_SUSPENDED
     assert transport.writes == []
     assert not w["store"].is_execution_authorization_consumed(w["ea_id"])
+
+
+# ---- validity window is the sidecar's clock, not the caller's (R1 #1) ------
+
+
+def _refused_without_contact(result, transport, w) -> None:
+    assert result.sent is False
+    assert result.outcome == OUTCOME_CONTROL_FAILURE
+    assert result.reason_code == "EXECUTION_AUTHORIZATION_NON_CONFORMANT"
+    assert any("not valid at dispatch time" in f for f in result.verification.failures)
+    assert transport.handshake_count == 0
+    assert transport.writes == []
+    assert not w["store"].is_execution_authorization_consumed(w["ea_id"])
+
+
+def test_expired_permit_refused_even_when_caller_claims_earlier_time(tmp_path):
+    """The permit expired on 2026-08-10. The caller presents an ``at_time``
+    inside the old window. The wall clock, not the caller, decides."""
+    w = _world(tmp_path, expires_at="2026-08-10T12:01:00Z")
+    transport = RecordingSidecarTransport(peer_identity=PEER)
+    result = _dispatcher(w, transport).dispatch(
+        authorization=w["authorization"],
+        wire_bytes=WIRE,
+        context=_context(w, at_time="2026-08-10T12:00:05Z"),
+        observed_at=AT,
+    )
+    _refused_without_contact(result, transport, w)
+
+
+def test_not_yet_valid_permit_refused_even_when_caller_claims_later_time(tmp_path):
+    """Mirror image: a permit for 2099 with a caller ``at_time`` in 2099."""
+    w = _world(
+        tmp_path,
+        not_before="2099-01-01T00:00:00Z",
+        expires_at="2099-01-02T00:00:00Z",
+    )
+    transport = RecordingSidecarTransport(peer_identity=PEER)
+    result = _dispatcher(w, transport).dispatch(
+        authorization=w["authorization"],
+        wire_bytes=WIRE,
+        context=_context(w, at_time="2099-01-01T00:00:05Z"),
+        observed_at=AT,
+    )
+    _refused_without_contact(result, transport, w)
+
+
+def test_operator_clock_decides_validity(tmp_path):
+    """Only the dispatcher's own clock moves the window. With an operator
+    clock inside the window the expired-in-real-time permit dispatches, and
+    a caller ``at_time`` far outside the window changes nothing."""
+    from datetime import UTC
+
+    w = _world(tmp_path, expires_at="2026-08-10T12:01:00Z")
+    transport = RecordingSidecarTransport(peer_identity=PEER)
+    inside = datetime(2026, 8, 10, 12, 0, 30, tzinfo=UTC)
+    result = _dispatcher(w, transport, clock=lambda: inside).dispatch(
+        authorization=w["authorization"],
+        wire_bytes=WIRE,
+        context=_context(w, at_time="2031-01-01T00:00:00Z"),
+        observed_at=AT,
+    )
+    assert result.outcome == OUTCOME_EXECUTED
+    assert transport.writes == [WIRE]
+
+
+def test_sidecar_clock_is_strict_and_stamps_the_evidence(tmp_path):
+    """No leeway at the sidecar: a permit whose not_before is 5 s ahead of
+    the sidecar clock is refused. When admitted, consumed_at, observed_at
+    and closed_at all come from the same operator clock, so the witness
+    lies inside the window the verifier checks. A non-callable clock is a
+    configuration error."""
+    from datetime import UTC
+
+    w = _world(tmp_path, not_before="2026-08-10T12:00:10Z")
+    early = datetime(2026, 8, 10, 12, 0, 5, tzinfo=UTC)
+    strict = RecordingSidecarTransport(peer_identity=PEER)
+    refused = _dispatcher(w, strict, clock=lambda: early).dispatch(
+        authorization=w["authorization"],
+        wire_bytes=WIRE,
+        context=_context(w),
+        observed_at=AT,
+    )
+    _refused_without_contact(refused, strict, w)
+
+    later = datetime(2026, 8, 10, 12, 0, 10, 123456, tzinfo=UTC)
+    transport = RecordingSidecarTransport(peer_identity=PEER)
+    admitted = _dispatcher(w, transport, clock=lambda: later).dispatch(
+        authorization=w["authorization"],
+        wire_bytes=WIRE,
+        context=_context(w),
+        observed_at=AT,
+    )
+    assert admitted.outcome == OUTCOME_EXECUTED
+    assert admitted.witness["observed_at"] == "2026-08-10T12:00:10.123456Z"
+    assert admitted.closure["closed_at"] == "2026-08-10T12:00:10.123456Z"
+
+    with pytest.raises(ValueError, match="clock"):
+        _dispatcher(w, RecordingSidecarTransport(peer_identity=PEER), clock="now")

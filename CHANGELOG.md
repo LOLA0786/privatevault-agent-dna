@@ -5,6 +5,21 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Hardening: sidecar validity window uses the sidecar's clock
+- `ExactByteHttpDispatcher` judged `not_before`/`expires_at` against the
+  caller-supplied `ExactByteContext.at_time`, so a caller echoing the
+  mint time could dispatch an expired permit later. The window is now
+  judged by the dispatcher's own `clock` (operator-injectable, must return
+  an aware datetime), which also stamps `consumed_at`, `observed_at` and
+  `closed_at`. No skew tolerance at the sidecar by design: the witness
+  must lie inside the window the verifier checks, so any leeway belongs
+  at mint time. `at_time` stays on the context as informational only.
+  See `SECURITY.md`, "Fixed issues".
+  (`tests/connector/test_exact_byte_http.py::test_expired_permit_refused_even_when_caller_claims_earlier_time`,
+  `::test_not_yet_valid_permit_refused_even_when_caller_claims_later_time`,
+  `::test_operator_clock_decides_validity`,
+  `::test_sidecar_clock_is_strict_and_stamps_the_evidence`)
+
 ### Receiver gate (ADR 0019)
 - `agent_dna/receiver/`: the system of record verifies and consumes the
   permit. `ReceiverGate` admits a request only if it carries a permit
