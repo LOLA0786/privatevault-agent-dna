@@ -118,6 +118,8 @@ class RuntimeConfig:
     breaker_groups_file: str | None = None  # JSON {groups, group_volume_caps}
     trusted_public_keys: frozenset[str] = field(default_factory=frozenset)
     execution_trust_bundle_file: str | None = None
+    # ADR 0020: operator-pinned approver keys (usage approval_signer).
+    approver_trust_bundle_file: str | None = None
     egress_allowed_destinations: frozenset[str] = field(default_factory=frozenset)
     egress_allowed_audiences: frozenset[str] = field(default_factory=frozenset)
 
@@ -156,6 +158,7 @@ class RuntimeConfig:
             breaker_groups_file=os.getenv("PV_BREAKER_GROUPS_FILE"),
             trusted_public_keys=parse_trusted_keys(os.getenv(TRUSTED_KEYS_ENV)),
             execution_trust_bundle_file=os.getenv(EXECUTION_TRUST_BUNDLE_ENV),
+            approver_trust_bundle_file=os.getenv(APPROVER_TRUST_BUNDLE_ENV),
             egress_allowed_destinations=_csv_frozenset(
                 "PV_EGRESS_ALLOWED_DESTINATIONS"
             ),
@@ -334,6 +337,66 @@ def _secure_profile_manifest(secure: bool) -> dict[str, str]:
     return {
         "status": "not_configured",
         "detail": "set PV_SECURE_PROFILE=1 for secure-by-default operator path",
+    }
+
+
+APPROVER_TRUST_BUNDLE_ENV = "PV_APPROVER_TRUST_BUNDLE"
+
+
+def _load_approver_trust_bundle(path: str | None) -> dict[str, Any] | None:
+    """Read and validate the approver trust bundle; a bad file refuses startup."""
+    if not path:
+        return None
+    from .authority_v01 import (
+        AuthorityFormatError,
+        strict_json_loads,
+        validate_trust_bundle,
+    )
+
+    try:
+        raw = Path(path).read_bytes()
+    except OSError as exc:
+        raise RuntimeError(
+            f"{APPROVER_TRUST_BUNDLE_ENV} cannot be read: {path}: {exc.strerror}"
+        ) from exc
+    try:
+        bundle = strict_json_loads(raw)
+        keys = validate_trust_bundle(bundle)
+    except AuthorityFormatError as exc:
+        raise RuntimeError(
+            f"{APPROVER_TRUST_BUNDLE_ENV} is not a valid trust bundle: {exc}"
+        ) from exc
+    if not any("approval_signer" in key["usages"] for key in keys.values()):
+        raise RuntimeError(
+            f"{APPROVER_TRUST_BUNDLE_ENV} has no key with usage approval_signer"
+        )
+    return dict(bundle)
+
+
+def _attach_approvals(
+    cfg: RuntimeConfig, engine_core: DecisionEngine, store: SQLiteDecisionStore
+) -> dict[str, str]:
+    """Pin the approver bundle on the engine; manifest entry either way."""
+    approver_bundle = _load_approver_trust_bundle(cfg.approver_trust_bundle_file)
+    if approver_bundle is None:
+        return {
+            "status": "not_configured",
+            "detail": (
+                f"set {APPROVER_TRUST_BUNDLE_ENV} (approver keys with usage "
+                "approval_signer); decide requests carrying an approval are "
+                "refused"
+            ),
+        }
+    from .approval_bridge import ApprovalBridge
+
+    engine_core.approvals = ApprovalBridge(trust_bundle=approver_bundle, ledger=store)
+    return {
+        "status": "attached",
+        "detail": (
+            f"approver trust bundle {cfg.approver_trust_bundle_file} "
+            f"(org {approver_bundle['organisation_id']}); approvals are "
+            "single-use and require separation of duties"
+        ),
     }
 
 
@@ -616,6 +679,12 @@ def build_production_runtime(
         )
 
     store = SQLiteDecisionStore(cfg.db_path)
+
+    # ---- approvals (ADR 0020): operator-pinned approver trust bundle ----
+    # Attached after the store exists because the bridge claims each
+    # approval in the same durable ledger as permits.
+    comp["approvals"] = _attach_approvals(cfg, engine_core, store)
+
     comp["signing"] = {
         "status": "attached" if signer else "not_configured",
         "detail": (

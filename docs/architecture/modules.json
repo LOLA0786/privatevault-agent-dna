@@ -175,6 +175,16 @@
    "top"
   ],
   [
+   "agent_dna.approval_bridge",
+   "agent_dna.approval_v01",
+   "top"
+  ],
+  [
+   "agent_dna.approval_bridge",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
    "agent_dna.approval_v01",
    "agent_dna.authority_v01",
    "top"
@@ -288,6 +298,11 @@
    "agent_dna.composition",
    "agent_dna.apikeys",
    "top"
+  ],
+  [
+   "agent_dna.composition",
+   "agent_dna.approval_bridge",
+   "lazy"
   ],
   [
    "agent_dna.composition",
@@ -618,6 +633,11 @@
    "agent_dna.decision",
    "agent_dna.amount",
    "top"
+  ],
+  [
+   "agent_dna.decision",
+   "agent_dna.approval_bridge",
+   "lazy"
   ],
   [
    "agent_dna.decision",
@@ -1796,6 +1816,11 @@
   ],
   [
    "api.server",
+   "agent_dna.approval_bridge",
+   "top"
+  ],
+  [
+   "api.server",
    "agent_dna.authority_v01",
    "top"
   ],
@@ -2762,7 +2787,9 @@
   "agent_dna.allowlist": 1,
   "agent_dna.amount": 5,
   "agent_dna.apikeys": 9,
-  "agent_dna.authority_v01": 39,
+  "agent_dna.approval_bridge": 3,
+  "agent_dna.approval_v01": 1,
+  "agent_dna.authority_v01": 40,
   "agent_dna.authorization": 3,
   "agent_dna.authorize_binding": 6,
   "agent_dna.change_management": 1,
@@ -2906,6 +2933,7 @@
   "agent_dna.adapters_policy.git_bundle": 1,
   "agent_dna.adapters_policy.local": 2,
   "agent_dna.adapters_policy.skill_adapter": 2,
+  "agent_dna.approval_bridge": 2,
   "agent_dna.approval_v01": 1,
   "agent_dna.authorization": 1,
   "agent_dna.authorize_binding": 5,
@@ -2913,7 +2941,7 @@
   "agent_dna.circuit_breaker": 2,
   "agent_dna.cli": 7,
   "agent_dna.closure_v01": 3,
-  "agent_dna.composition": 27,
+  "agent_dna.composition": 28,
   "agent_dna.confidence": 1,
   "agent_dna.connector": 2,
   "agent_dna.connector.adapters": 2,
@@ -2927,7 +2955,7 @@
   "agent_dna.consensus.checker": 1,
   "agent_dna.consensus.secure_quorum": 1,
   "agent_dna.control_posture": 2,
-  "agent_dna.decision": 5,
+  "agent_dna.decision": 6,
   "agent_dna.decision_graph": 2,
   "agent_dna.decision_record": 4,
   "agent_dna.decision_recorder": 5,
@@ -3008,7 +3036,7 @@
   "agent_dna.validation.drift": 1,
   "agent_dna.validation.report": 2,
   "agent_dna.wire_serialization_v01": 1,
-  "api.server": 19,
+  "api.server": 20,
   "examples.amlsim.run_amlsim_sample": 6,
   "examples.authority_blast_radius_demo": 1,
   "examples.authority_derivation_demo": 1,
@@ -3134,6 +3162,10 @@
   "agent_dna.apikeys": {
    "group": "agent_dna (core modules)",
    "path": "agent_dna/apikeys.py"
+  },
+  "agent_dna.approval_bridge": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/approval_bridge.py"
   },
   "agent_dna.approval_v01": {
    "group": "agent_dna (core modules)",
