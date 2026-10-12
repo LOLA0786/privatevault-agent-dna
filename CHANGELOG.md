@@ -5,6 +5,28 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Agents, phase A: template and persona 1 (finance ops)
+- `agents/core/`: a config-driven agent template where the model only
+  proposes. Read tools run locally; external tools run under a single-use
+  clearance issued after an ALLOW; money tools never execute locally and
+  take effect only as the sidecar dispatch of the permitted bytes. A
+  persona is `persona.yaml` (identity, tools, grants, policy rules,
+  approvers) compiled to `PV_POLICY_FILE` and `PV_GRANTS_FILE`; the engine
+  decides, the template never does. `ApproverKit` signs real
+  `approval_v01` artifacts for the ADR 0020 bridge. An in-process harness
+  assembles the API, the receiver gate over the receiver kit's stub
+  upstream, the sidecar with a demo-grade transport, and per-run keys.
+  `AnthropicModel` is opt-in and untested. Not shipped in the wheel.
+  (`tests/agents/test_template.py`)
+- `agents/personas/finance_ops/`: invoice to payment instruction in INR.
+  Up to 5,000 with a matching PO is allowed under a budgeted grant; above
+  5,000 or without a PO needs the CFO's approval; above 50,000 or an
+  unknown payee is blocked. The demo shows a changed amount refused by the
+  sidecar before any byte and by the receiver when the sidecar is bypassed,
+  a replay refused, and the receiver's receipts passing the independent
+  verifier. (`tests/agents/test_finance_ops.py`, including
+  `::test_demo_runs_green`)
+
 ### Approval bridge (ADR 0020)
 - `/v1/decide` accepts an `approval` block (approval_v01 request, signed
   artifact, approver authority receipt). `agent_dna/approval_bridge.py`

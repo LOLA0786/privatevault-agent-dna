@@ -1,0 +1,72 @@
+# Persona 1: finance operations. Invoice to payment instruction.
+# Amounts are INR, whole rupees. The authority lives in PrivateVault:
+# these rules compile to PV_POLICY_FILE and PV_GRANTS_FILE; nothing here
+# is evaluated by the agent itself.
+
+name: finance_ops
+agent_id: ap-agent-01
+organisation_id: lender.example
+description: >
+  Reads an invoice, matches it to a purchase order, creates a payment
+  instruction at the payments receiver, and tells the AP team. Every payment
+  instruction is decided by PrivateVault and executed only through a
+  single-use permit that the receiver gate verifies.
+
+tools:
+  - read_invoice
+  - match_purchase_order
+  - create_payment_instruction
+  - notify_ap_team
+
+# Standing grants. A capability without a grant is REQUIRE_APPROVAL by
+# design. Budget is a cumulative ceiling held in process (see the README).
+grants:
+  - capability: payments.pay_invoice
+    budget: 100000
+  - capability: comms.notify_ap
+
+# Customer policy rules, first firing rule wins. Conditions read the decided
+# arguments; a rule whose field is absent is skipped, never passed.
+policy:
+  - id: unknown-payee
+    capability: payments.pay_invoice
+    outcome: block
+    reason: payee is not in the vendor master
+    condition:
+      field: arguments.payee_id
+      operator: not_in
+      value: [V-100, V-200, V-300]
+  - id: hard-cap
+    capability: payments.pay_invoice
+    outcome: block
+    reason: amount above the hard cap of 50,000 INR
+    condition:
+      field: arguments.amount
+      operator: ">"
+      value: 50000
+  - id: above-approval-threshold
+    capability: payments.pay_invoice
+    outcome: require_approval
+    reason: amount above 5,000 INR needs a human approval
+    condition:
+      field: arguments.amount
+      operator: ">"
+      value: 5000
+  - id: no-matching-po
+    capability: payments.pay_invoice
+    outcome: require_approval
+    reason: no matching purchase order
+    condition:
+      field: arguments.po_matched
+      operator: "=="
+      value: false
+
+approvers:
+  - principal: cfo@lender.example
+    key_id: approver-cfo
+
+limits:
+  currency: INR
+  hard_cap: 50000
+  approval_threshold: 5000
+  budget: 100000
