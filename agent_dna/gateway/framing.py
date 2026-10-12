@@ -148,6 +148,12 @@ def parse_jsonrpc(
     try:
         obj = strict_json_loads(raw)
     except AuthorityFormatError as exc:
+        # The authority parser bounds nesting itself; keep this layer's
+        # "max depth" contract for callers that match on it.
+        if "nesting exceeds" in str(exc):
+            raise FramingProtocolError(
+                f"JSON-RPC message exceeds max depth {max_json_depth}"
+            ) from exc
         raise FramingProtocolError(str(exc)) from exc
     if not isinstance(obj, dict):
         raise FramingProtocolError("JSON-RPC message must be an object")

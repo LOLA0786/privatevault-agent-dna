@@ -1550,6 +1550,11 @@
    "top"
   ],
   [
+   "agent_dna.request_bounds",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
    "agent_dna.runtime",
    "agent_dna.advisory",
    "top"
@@ -1842,6 +1847,11 @@
   [
    "api.server",
    "agent_dna.observability.prometheus_bridge",
+   "top"
+  ],
+  [
+   "api.server",
+   "agent_dna.request_bounds",
    "top"
   ],
   [
@@ -2752,7 +2762,7 @@
   "agent_dna.allowlist": 1,
   "agent_dna.amount": 5,
   "agent_dna.apikeys": 9,
-  "agent_dna.authority_v01": 38,
+  "agent_dna.authority_v01": 39,
   "agent_dna.authorization": 3,
   "agent_dna.authorize_binding": 6,
   "agent_dna.change_management": 1,
@@ -2846,6 +2856,7 @@
   "agent_dna.receiver.permit_header": 4,
   "agent_dna.receiver.receipts": 3,
   "agent_dna.reference_policies": 1,
+  "agent_dna.request_bounds": 1,
   "agent_dna.runtime": 7,
   "agent_dna.scan": 1,
   "agent_dna.scan.ingest": 3,
@@ -2978,6 +2989,7 @@
   "agent_dna.receiver.ledger": 2,
   "agent_dna.receiver.permit_header": 1,
   "agent_dna.receiver.receipts": 1,
+  "agent_dna.request_bounds": 1,
   "agent_dna.runtime": 5,
   "agent_dna.scan": 2,
   "agent_dna.scan.ingest": 1,
@@ -2996,7 +3008,7 @@
   "agent_dna.validation.drift": 1,
   "agent_dna.validation.report": 2,
   "agent_dna.wire_serialization_v01": 1,
-  "api.server": 18,
+  "api.server": 19,
   "examples.amlsim.run_amlsim_sample": 6,
   "examples.authority_blast_radius_demo": 1,
   "examples.authority_derivation_demo": 1,
@@ -3546,6 +3558,10 @@
   "agent_dna.reference_policies": {
    "group": "agent_dna (core modules)",
    "path": "agent_dna/reference_policies.py"
+  },
+  "agent_dna.request_bounds": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/request_bounds.py"
   },
   "agent_dna.runtime": {
    "group": "agent_dna (core modules)",

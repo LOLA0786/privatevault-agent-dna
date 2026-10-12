@@ -23,7 +23,7 @@ agent ──► POST /v1/decide ──► precedence engine ──► 200 / 202 
 
 ```bash
 pip install -e ".[dev]"
-python -m pytest -q                    # 1440+ tests
+python -m pytest -q                    # 1484+ tests
 ```
 
 Three properties worth checking before reading further:
@@ -299,6 +299,25 @@ startup unless API keys, grants, receipt signer, trust roots, and
 and authorize-time loop events are forced on. `PV_ALLOW_NO_AUTH=1` remains
 for local development and prints an explicit UNSAFE banner — it is
 incompatible with the secure profile.
+
+## Authorization window
+
+`PV_AUTHORIZATION_TTL_SECONDS` (default 60, allowed 1 to 300) is how long a
+minted permit lives. `PV_AUTHORIZATION_NOT_BEFORE_LEEWAY_SECONDS` (default 0,
+allowed 0 to 30) moves `not_before` that many seconds before mint time so a
+dispatching host whose clock is slightly behind does not refuse a fresh
+permit; it never moves `expires_at`. Both are validated at startup and a bad
+value refuses to start (`tests/test_authorize_window_config.py`).
+
+## Request bounds
+
+Every HTTP request body is read up to `PV_MAX_REQUEST_BYTES` (default 1 MiB,
+allowed 1 KiB to 64 MiB) and refused with 413 beyond that, with or without a
+`Content-Length`. JSON bodies nested deeper than 32 levels are refused with
+400 before any parser sees them, and authority artifacts carry the same
+32-level bound in the library, so hostile nesting is a format error rather
+than a `RecursionError` (`tests/test_request_bounds.py`,
+`tests/test_json_depth_bound.py`).
 
 ## Limitations
 

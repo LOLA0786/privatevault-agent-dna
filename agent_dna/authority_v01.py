@@ -47,6 +47,11 @@ SUPPORTED_USAGES = frozenset(
 )
 VERDICTS = frozenset({"ALLOW", "DENY", "REQUIRE_APPROVAL"})
 MAX_SAFE_INTEGER = (1 << 53) - 1
+# Deepest container nesting any authority artifact may carry. Real artifacts
+# are a handful of levels deep; the bound exists so hostile input cannot
+# drive the recursive validator, canonicalizer, or JSON decoder into
+# RecursionError (R1 #7).
+MAX_JSON_NESTING_DEPTH = 32
 
 
 class AuthorityFormatError(ValueError):
@@ -115,11 +120,19 @@ def strict_json_loads(data: str | bytes) -> Any:
         )
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
         raise AuthorityFormatError(f"invalid JSON: {exc}") from exc
+    except RecursionError:
+        # The decoder gave up before the validator could count: still a
+        # format error, never an interpreter limit escaping to the caller.
+        raise AuthorityFormatError(
+            f"JSON nesting exceeds {MAX_JSON_NESTING_DEPTH} levels"
+        ) from None
     _validate_json_value(value)
     return value
 
 
-def _validate_json_value(value: Any, path: str = "$") -> None:  # noqa: C901
+def _validate_json_value(  # noqa: C901
+    value: Any, path: str = "$", depth: int = 0
+) -> None:
     if value is None or isinstance(value, (str, bool)):
         if isinstance(value, str):
             try:
@@ -140,17 +153,22 @@ def _validate_json_value(value: Any, path: str = "$") -> None:  # noqa: C901
             f"{path}: floating point is forbidden in authority artifacts"
         )
 
+    if isinstance(value, (list, dict)) and depth >= MAX_JSON_NESTING_DEPTH:
+        raise AuthorityFormatError(
+            f"{path}: nesting exceeds {MAX_JSON_NESTING_DEPTH} levels"
+        )
+
     if isinstance(value, list):
         for index, item in enumerate(value):
-            _validate_json_value(item, f"{path}[{index}]")
+            _validate_json_value(item, f"{path}[{index}]", depth + 1)
         return
 
     if isinstance(value, dict):
         for key, item in value.items():
             if not isinstance(key, str):
                 raise AuthorityFormatError(f"{path}: object key is not a string")
-            _validate_json_value(key, f"{path}.<key>")
-            _validate_json_value(item, f"{path}.{key}")
+            _validate_json_value(key, f"{path}.<key>", depth + 1)
+            _validate_json_value(item, f"{path}.{key}", depth + 1)
         return
 
     raise AuthorityFormatError(f"{path}: unsupported JSON value {type(value).__name__}")
