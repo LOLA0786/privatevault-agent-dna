@@ -18,9 +18,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY --chown=privatevault:privatevault agent_dna/ agent_dna/
 COPY --chown=privatevault:privatevault network/__init__.py network/__init__.py
 COPY --chown=privatevault:privatevault network/receiver_kit/*.py network/receiver_kit/
+COPY --chmod=0755 network/receiver_kit/entrypoint.sh /entrypoint.sh
 
-USER 10001:10001
-
+# No USER here on purpose: the entrypoint starts as root only to hand the
+# mounted key to the gate user (uid 10001), then drops root before exec.
 EXPOSE 8080
 
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["uvicorn", "network.receiver_kit.app:app", "--host", "0.0.0.0", "--port", "8080"]

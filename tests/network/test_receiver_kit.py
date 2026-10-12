@@ -500,3 +500,108 @@ def test_compose_file_is_valid():
         check=False,
     )
     assert result.returncode == 0, result.stderr
+
+
+# ---- R1 #10: the key must reach the gate user on Linux, not only on macOS --
+
+KIT = REPO / "network" / "receiver_kit"
+
+
+def test_gate_does_not_depend_on_host_uid_matching_the_container_user():
+    """On Linux a bind-mounted 0600 key keeps the host's uid, so a container
+    running as a fixed non-root uid cannot read it (Docker Desktop on macOS
+    remaps ownership and hides this). The kit must not rely on a `user:`
+    override or on the host uid: the image starts an entrypoint that hands
+    the key to the gate user and drops root, and the ledger lives in a named
+    volume rather than a host directory."""
+    import yaml
+
+    compose = yaml.safe_load((KIT / "docker-compose.yml").read_text())
+    gate = compose["services"]["gate"]
+    assert "user" not in gate, "a uid override is not the mechanism"
+    volumes = gate["volumes"]
+    assert any(v.startswith("./keys:/keys:ro") for v in volumes)
+    assert not any(v.startswith("./data") for v in volumes), "no host data dir"
+    assert any(v.startswith("data:/data") for v in volumes)
+    assert "data" in compose.get("volumes", {})
+    assert "/run/pv" in gate.get("tmpfs", []), "key copy lives in tmpfs"
+
+    dockerfile = (KIT / "Dockerfile").read_text()
+    assert "ENTRYPOINT" in dockerfile and "entrypoint.sh" in dockerfile
+    assert "\nUSER " not in dockerfile, "root at start; the entrypoint drops it"
+    entrypoint = (KIT / "entrypoint.sh").read_text()
+    assert "setpriv" in entrypoint and "--no-new-privs" in entrypoint
+    assert stat.S_IMODE((KIT / "entrypoint.sh").stat().st_mode) & 0o111
+
+
+def test_unreadable_key_file_error_is_actionable(tmp_path):
+    """A key the gate user cannot read is a configuration error with
+    guidance, not a bare PermissionError. Mode 0400, which the entrypoint
+    installs, loads."""
+    env = _env(tmp_path, SigningKey.generate(), SigningKey.generate())
+    key = Path(env["PV_RECEIPT_KEY_FILE"])
+    key.chmod(0)
+    try:
+        with pytest.raises(config.ConfigError, match="gate user .* cannot read"):
+            config.build_gate(config.settings_from_env(env))
+    finally:
+        key.chmod(0o400)
+    assert config.build_gate(config.settings_from_env(env)).receipt_public_key
+
+
+@pytest.mark.skipif(
+    os.environ.get("PV_KIT_DOCKER_TESTS") != "1",
+    reason="set PV_KIT_DOCKER_TESTS=1 to build the image and run its entrypoint",
+)
+def test_entrypoint_hands_key_to_gate_user_and_drops_root(tmp_path):
+    """Build the kit image, mount a host-owned 0600 key read-only, and check
+    that the process runs as uid 10001 with a 0400 copy of the key it owns,
+    while the mounted original is untouched."""
+    image = "pv-receiver-kit-test"
+    build = subprocess.run(
+        [
+            "docker",
+            "build",
+            "-q",
+            "-f",
+            str(KIT / "Dockerfile"),
+            "-t",
+            image,
+            str(REPO),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert build.returncode == 0, build.stderr
+    keys = tmp_path / "keys"
+    keygen.write_key(SigningKey.generate(), keys / "receiver.key")
+    run = subprocess.run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "--tmpfs",
+            "/run/pv",
+            "-v",
+            f"{keys}:/keys:ro",
+            "-e",
+            "PV_RECEIPT_KEY_FILE=/keys/receiver.key",
+            image,
+            "sh",
+            "-c",
+            'id -u; echo "$PV_RECEIPT_KEY_FILE"; stat -c "%u:%a" "$PV_RECEIPT_KEY_FILE"; '
+            "cat /proc/self/status | grep -E '^(CapEff|NoNewPrivs)'",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert run.returncode == 0, run.stdout + run.stderr
+    uid, key_path, owner_mode, cap_eff, nnp = run.stdout.split("\n")[:5]
+    assert uid == "10001"
+    assert key_path == "/run/pv/receiver.key"
+    assert owner_mode == "10001:400"
+    assert cap_eff.split()[-1] == "0000000000000000", cap_eff
+    assert nnp.split()[-1] == "1", nnp
+    assert stat.S_IMODE((keys / "receiver.key").stat().st_mode) == 0o600

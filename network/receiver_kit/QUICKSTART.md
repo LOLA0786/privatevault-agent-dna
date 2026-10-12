@@ -82,9 +82,11 @@ receiver gate
   unprotected          GET /_health
 ```
 
-On Linux, if the gate fails to read `/keys/receiver.key`, start it as your
-own user so the 0600 file is readable:
-`PV_GATE_UID=$(id -u) PV_GATE_GID=$(id -g) docker compose up --build -d`.
+How the key is handled: the gate container starts as root only to copy
+`keys/receiver.key` into a private tmpfs owned by the gate user (uid 10001,
+mode 0400), then drops root before the gate starts. The mounted file is
+never modified. This is what makes the same compose file work on Linux,
+where a bind-mounted 0600 file keeps your uid.
 
 Demo only: port 9001 and `GET /_seen` on the upstream exist so the next step
 can prove what never reached it. A real partner never exposes the upstream.
@@ -124,9 +126,13 @@ Expected: `403`. No permit, no entry.
 
 ## 5. Export the receipts and verify them with your key
 
+The ledger lives in a Docker volume, so export inside the container and
+copy the file out:
+
 ```sh
-python -m network.receiver_kit.export_receipts \
-  --db network/receiver_kit/data/receiver.db --out receipts.jsonl
+docker compose -f network/receiver_kit/docker-compose.yml exec gate \
+  python -m network.receiver_kit.export_receipts --db /data/receiver.db --out /tmp/receipts.jsonl
+docker compose -f network/receiver_kit/docker-compose.yml cp gate:/tmp/receipts.jsonl receipts.jsonl
 python -I tools/verify_receiver_receipts.py --jsonl receipts.jsonl \
   --receiver-id payments.partner.example \
   --receiver-key "partner-receiver-01=$(cat network/receiver_kit/keys/receiver.pub)"
@@ -135,7 +141,7 @@ python -I tools/verify_receiver_receipts.py --jsonl receipts.jsonl \
 Expected (one more refused receipt if you ran the curl):
 
 ```
-wrote 3 receipts to receipts.jsonl
+wrote 3 receipts to /tmp/receipts.jsonl
 OK 3 receipts (1 admitted, 2 refused), mode=chain+signatures
 ```
 
@@ -174,6 +180,7 @@ cd network/receiver_kit && docker compose down
 | `PV_ALLOW_HTTP_UPSTREAM` | `1` only for a loopback upstream inside one host. |
 | `PV_LEDGER_PATH` | SQLite file for the consume ledger and receipt chain. |
 | `PV_UNPROTECTED_OPERATIONS` | `GET`/`HEAD` routes that bypass the gate, `;` separated. Writes cannot be unprotected. |
+| `PV_GATE_UID`, `PV_GATE_GID` | Optional. The uid and gid the entrypoint drops to after copying the key (default 10001). |
 | `PV_TRUST_BUNDLE_VERSION`, `PV_TRUST_BUNDLE_PINNED_AT` | Optional; both sides must agree. A pinned bundle file replaces these in Phase 2. |
 
 ## What this does not show

@@ -140,7 +140,15 @@ def load_signing_key(path: Path, name: str = "PV_RECEIPT_KEY_FILE") -> SigningKe
             f"{name}: {path} is readable by group or others; "
             "chmod 600 it (keygen.py writes it that way)"
         )
-    text = path.read_text(encoding="ascii").strip()
+    try:
+        text = path.read_text(encoding="ascii").strip()
+    except PermissionError as exc:
+        raise ConfigError(
+            f"{name}: the gate user (uid {os.getuid()}) cannot read {path}. "
+            "Inside the kit image the entrypoint copies the key for the gate "
+            "user; outside it, make the file readable by the gate user only "
+            "(mode 0400 or 0600)."
+        ) from exc
     try:
         seed = base64.b64decode(text, validate=True)
     except (binascii.Error, ValueError) as exc:

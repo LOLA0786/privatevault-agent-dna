@@ -8,8 +8,11 @@
 # send_test.py can show what never reached it. A real partner never exposes
 # the upstream; the gate is its only network path.
 #
-# On Linux, make the mounted key and data dirs readable by the container user:
-#   PV_GATE_UID=$(id -u) PV_GATE_GID=$(id -g) docker compose up --build -d
+# The gate container starts as root only to copy ./keys/receiver.key into a
+# private tmpfs owned by the gate user (uid 10001, mode 0400), then drops root
+# before the gate starts (see entrypoint.sh). The mounted key is never
+# modified. This is what makes the same file work on Linux, where a
+# bind-mounted 0600 file keeps your uid.
 
 services:
   upstream:
@@ -44,10 +47,13 @@ services:
       PV_RECEIPT_KEY_FILE: /keys/receiver.key
       PV_LEDGER_PATH: /data/receiver.db
       PV_UNPROTECTED_OPERATIONS: "GET /_health"
+      PV_GATE_UID: "${PV_GATE_UID:-10001}"   # the uid the entrypoint drops to
+      PV_GATE_GID: "${PV_GATE_GID:-10001}"
     volumes:
       - ./keys:/keys:ro
-      - ./data:/data
-    user: "${PV_GATE_UID:-10001}:${PV_GATE_GID:-10001}"
+      - data:/data
+    tmpfs:
+      - /run/pv
     healthcheck:
       test: ["CMD", "python", "-c",
              "import urllib.request; urllib.request.urlopen('http://localhost:8080/_health')"]
@@ -56,3 +62,6 @@ services:
       retries: 5
       start_period: 5s
     restart: unless-stopped
+
+volumes:
+  data:
