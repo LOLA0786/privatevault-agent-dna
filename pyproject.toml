@@ -51,6 +51,9 @@ integrations = [
     "opentelemetry-api>=1.30",
     "opentelemetry-sdk>=1.30",
 ]
+examples = [
+    "langgraph>=1.0,<2",
+]
 
 [project.urls]
 Homepage = "https://privatevault.ai"

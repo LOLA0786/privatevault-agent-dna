@@ -1,6 +1,9 @@
 """Tests: a LangGraph human approval is bound to the exact tool call by PrivateVault.
 
-Run:  uv run --no-sync pytest examples/langgraph_hitl/test_hitl_binding.py -v
+Run:  uv run --extra dev --extra examples pytest examples/langgraph_hitl -v
+
+These tests are not collected by the default run (testpaths = ["tests"]); they
+need the optional `examples` extra (langgraph).
 """
 
 from __future__ import annotations
