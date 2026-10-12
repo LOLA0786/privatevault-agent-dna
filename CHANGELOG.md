@@ -47,6 +47,28 @@ and a named test that runs in CI.
   `::test_operator_clock_decides_validity`,
   `::test_sidecar_clock_is_strict_and_stamps_the_evidence`)
 
+### Network kit, phase 1: receiver kit
+- `network/receiver_kit/`: run the ADR 0019 receiver gate as a reverse proxy
+  on a partner's own infrastructure with a partner-generated receipt key.
+  Configuration is environment only and fails closed; the trust bundle is
+  derived deterministically from the issuer organisation and public keys so
+  gate and issuer agree on its digest. Ships `keygen.py`, a demo upstream,
+  `send_test.py` (valid permit admitted once, amount changed refused, replay
+  refused, upstream never sees the second), `export_receipts.py`, a compose
+  file, and a one-page quickstart. No change to `agent_dna/`.
+  (`tests/network/test_receiver_kit.py`)
+- Receiver kit entrypoint: the container starts as root only to copy the
+  mounted receipt key into a tmpfs owned by the gate user (mode 0400) and
+  drops to uid 10001 with `setpriv --no-new-privs` before the gate starts;
+  the ledger moves to a named volume. Closes the Linux dead end where a
+  bind-mounted 0600 key keeps the host uid and the fixed container user
+  cannot read it (R1 #10). An unreadable key is now a `ConfigError` with
+  guidance.
+  (`tests/network/test_receiver_kit.py::test_gate_does_not_depend_on_host_uid_matching_the_container_user`,
+  `::test_unreadable_key_file_error_is_actionable`,
+  `::test_entrypoint_hands_key_to_gate_user_and_drops_root` with
+  `PV_KIT_DOCKER_TESTS=1`)
+
 ### Receiver gate (ADR 0019)
 - `agent_dna/receiver/`: the system of record verifies and consumes the
   permit. `ReceiverGate` admits a request only if it carries a permit
