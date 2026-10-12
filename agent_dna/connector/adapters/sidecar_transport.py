@@ -51,8 +51,18 @@ class SidecarSession(Protocol):
     peer_identity_bytes: bytes
     closed: bool
 
-    def write(self, wire: bytes, *, operation: str) -> SidecarSendResult:
-        """Write ``wire`` on this session's authenticated connection."""
+    def write(
+        self,
+        wire: bytes,
+        *,
+        operation: str,
+        extra_headers: Mapping[str, str] | None = None,
+    ) -> SidecarSendResult:
+        """Write ``wire`` on this session's authenticated connection.
+
+        ``extra_headers`` are request headers for this dispatch only (the
+        receiver-gate permit). They never change the bound body bytes.
+        """
 
     def close(self) -> None:
         """Release the connection. Idempotent."""
@@ -150,12 +160,19 @@ class RecordingSidecarSession:
     http_status: int
     closed: bool = False
 
-    def write(self, wire: bytes, *, operation: str) -> SidecarSendResult:
+    def write(
+        self,
+        wire: bytes,
+        *,
+        operation: str,
+        extra_headers: Mapping[str, str] | None = None,
+    ) -> SidecarSendResult:
         if self.closed:
             raise RuntimeError("sidecar session already closed")
         if not self.parent._handshook:
             raise RuntimeError("sidecar write before TLS handshake")
         self.parent.last_operation = operation
+        self.parent.last_extra_headers = dict(extra_headers or {})
         committed = (
             self.parent.substitute_bytes
             if self.parent.substitute_bytes is not None
@@ -197,6 +214,7 @@ class RecordingSidecarTransport:
     allowed_destinations: frozenset[str] = field(default_factory=frozenset)
     allowed_audiences: frozenset[str] = field(default_factory=frozenset)
     credentials_headers: Mapping[str, str] = field(default_factory=dict)
+    last_extra_headers: dict[str, str] = field(default_factory=dict)
     _handshook: bool = False
 
     def connect(
@@ -227,8 +245,14 @@ class CallbackSidecarSession:
     peer_identity_bytes: bytes
     closed: bool = False
 
-    def write(self, wire: bytes, *, operation: str) -> SidecarSendResult:
-        del operation
+    def write(
+        self,
+        wire: bytes,
+        *,
+        operation: str,
+        extra_headers: Mapping[str, str] | None = None,
+    ) -> SidecarSendResult:
+        del operation, extra_headers
         if self.closed:
             raise RuntimeError("sidecar session already closed")
         self.parent.writes.append(wire)
@@ -293,7 +317,13 @@ class TlsHttpsSidecarSession:
         self._max_response_bytes = max_response_bytes
         self._max_header_bytes = max_header_bytes
 
-    def write(self, wire: bytes, *, operation: str) -> SidecarSendResult:
+    def write(
+        self,
+        wire: bytes,
+        *,
+        operation: str,
+        extra_headers: Mapping[str, str] | None = None,
+    ) -> SidecarSendResult:
         if self.closed or self._conn is None:
             raise RuntimeError("sidecar session already closed")
         method, path = _split_operation(operation)
@@ -301,6 +331,12 @@ class TlsHttpsSidecarSession:
             "Content-Type": "application/octet-stream",
             **self._headers,
         }
+        for name, value in (extra_headers or {}).items():
+            if any(name.lower() == existing.lower() for existing in headers):
+                raise RuntimeError(
+                    f"per-dispatch header {name!r} would override a sidecar header"
+                )
+            headers[name] = value
         self._conn.request(method, path, body=wire, headers=headers)
         try:
             resp = self._conn.getresponse()

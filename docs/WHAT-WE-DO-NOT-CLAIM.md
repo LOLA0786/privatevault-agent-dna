@@ -38,7 +38,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 1376+ automated tests, run in CI on every commit
+- 1440+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
@@ -567,6 +567,49 @@ refused when submitted to the ladder. It does not demonstrate
 complete mediation, and we do not claim it until an independent
 infrastructure observer is built and shown to reconcile real external
 effects against the ALLOW log.
+
+### Receiver gate: mediation at the system of record, for gated operations only
+
+Shipped (ADR 0019, `agent_dna/receiver/`, `tests/receiver/`): a gate the
+*receiving* system's operator runs in front of its API. A state-changing
+request is admitted only if it carries a PrivateVault permit that
+verifies offline against the operator's pinned trust bundle, names that
+receiver and that exact `METHOD path`, binds the exact received body
+(whose bytes must be the signed action parameters), is in its validity
+window, passes operator-owned refuse-only checks, and has not been
+admitted by that receiver before (receiver-owned durable ledger). Every
+evaluation, admitted or refused, appends a receipt signed by the
+receiver operator's own key (refused if it is a PrivateVault key) and
+hash-chained; `tools/verify_receiver_receipts.py` verifies the chain
+without importing the runtime.
+
+What this lets us say: **for an operation behind a receiver gate, an
+agent that skips the sidecar and calls the API directly is refused by
+the API's front door**, with signed evidence of the refusal. Tests:
+`test_direct_call_without_permit_is_refused`,
+`test_proxy_blocks_bypass_and_forwards_permitted_call_once`,
+`test_amount_swap_refused`, `test_payee_swap_refused`,
+`test_replay_refused_by_receiver_ledger`,
+`test_concurrent_admit_exactly_once`.
+
+What we still do NOT claim:
+
+- That any bank API is gated. Coverage, and making the gate the only
+  network path to the upstream, are deployment properties. Operations
+  not routed through a gate are exactly as unmediated as before.
+- Production or regulator review. Tests run against an in-process ASGI
+  app and a local stdlib HTTP server. The Fineract lab pilot does not yet
+  route through the receiver gate.
+- Multi-host single-use. The ledger is one SQLite file; a horizontally
+  scaled receiver needs a store with the same exclusive claim.
+- Anything about what the upstream did after admission. Receipts state
+  what the gate admitted; an admitted request whose upstream call fails
+  has still burned its permit and is reported `INDETERMINATE`.
+- Body formats other than `pv-json-parameters/0.1`. Compressed,
+  form-encoded, multipart, or framed bodies are refused, not normalized.
+- Protection against a compromised receiver operator or receiver key.
+  The receipt chain is tamper-evident against later edits, not against
+  the key holder.
 
 ### Evidence handling is fail-closed for sensitive actions
 
