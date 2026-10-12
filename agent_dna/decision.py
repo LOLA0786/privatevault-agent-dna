@@ -55,6 +55,11 @@ class DecisionResult:
     # (OPA) does not expose rule identity.
     policy_id: str | None = None
 
+    # ADR 0020: the digest of the verified, single-use approval artifact
+    # that turned REQUIRE_APPROVAL into this ALLOW. Written into
+    # DecisionRecord.approval_ref ahead of grant_id. None otherwise.
+    approval_artifact_digest: str | None = None
+
     def to_dict(self):
 
         return {
@@ -122,9 +127,11 @@ class DecisionEngine:
         economics=None,  # optional CostAnomalyChecker
         consensus=None,  # optional ConsensusChecker
         policy=None,  # optional PolicyChecker (customer YAML/JSON rules)
+        approvals=None,  # optional ApprovalBridge (ADR 0020)
     ):
 
         self.scorer = scorer
+        self.approvals = approvals
 
         self.invariants = invariants
 
@@ -286,9 +293,17 @@ class DecisionEngine:
         action: AgentAction,
         prev_capability: str | None = None,
         evidence: dict | None = None,
+        *,
+        approval=None,
+        approval_context=None,
     ) -> DecisionResult:
         try:
-            return self._decide_unsafe(action, prev_capability, evidence)
+            result = self._decide_unsafe(action, prev_capability, evidence)
+            if approval is not None:
+                result = self._apply_approval(
+                    action, result, approval, approval_context
+                )
+            return result
         except Exception as exc:
             #
             # Fail-closed: ANY exception inside the decision path — a
@@ -313,6 +328,73 @@ class DecisionEngine:
                     authorized=True,
                 ),
             )
+
+    def _apply_approval(
+        self,
+        action: AgentAction,
+        result: DecisionResult,
+        approval,
+        approval_context,
+    ) -> DecisionResult:
+        """ADR 0020: let a verified, single-use approval satisfy a
+        REQUIRE_APPROVAL that came from policy or authorization.
+
+        Anything else leaves the verdict untouched: BLOCK stays BLOCK, a
+        plain ALLOW does not consume the approval, drift and consensus and
+        economics escalations are not human-approvable here. A refused
+        approval is recorded in the reason and never changes the verdict.
+        """
+        from agent_dna.approval_bridge import (
+            APPROVABLE_TRIGGERS,
+            APPROVAL_NOT_CONFIGURED,
+            TRIGGERED_BY_APPROVAL,
+            ApprovalContext,
+        )
+
+        if result.decision is not Decision.REQUIRE_APPROVAL:
+            return result
+        if result.triggered_by not in APPROVABLE_TRIGGERS:
+            result.reason += (
+                f"; approval refused: {result.triggered_by} escalations "
+                "are not satisfiable by an approval"
+            )
+            return result
+        if self.approvals is None:
+            result.reason += (
+                f"; approval refused: {APPROVAL_NOT_CONFIGURED}: no approver "
+                "trust bundle is pinned"
+            )
+            return result
+        if not isinstance(approval_context, ApprovalContext):
+            result.reason += (
+                "; approval refused: APPROVAL_MALFORMED: no approval context"
+            )
+            return result
+        verdict = self.approvals.consider(
+            approval, context=approval_context, agent_id=action.agent_id
+        )
+        if not verdict.ok:
+            result.reason += "; " + verdict.refusal
+            return result
+        return DecisionResult(
+            decision=Decision.ALLOW,
+            triggered_by=TRIGGERED_BY_APPROVAL,
+            reason=f"{verdict.detail}; satisfied: {result.reason}",
+            capability=result.capability,
+            agent_id=result.agent_id,
+            drift_score=result.drift_score,
+            severity=result.severity,
+            invariant_message=result.invariant_message,
+            advisory_reasons=list(result.advisory_reasons),
+            evidence=self.evidence_engine.build(
+                drift_score=result.drift_score,
+                invariant=False,
+                authorized=True,
+            ),
+            grant_id=None,
+            policy_id=result.policy_id,
+            approval_artifact_digest=verdict.artifact_digest,
+        )
 
     def _decide_unsafe(  # noqa: C901
         self,

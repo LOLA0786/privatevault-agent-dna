@@ -38,7 +38,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 1484+ automated tests, run in CI on every commit
+- 1532+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
@@ -94,8 +94,15 @@ first-class, restart-safe record kind is on our roadmap, not shipped.
 
 ## Capability grants
 
-**We do not claim delegation chains, mid-session grant rescoping, or
-approval-token binding are shipped.** What is shipped and tested:
+**We do not claim delegation chains or mid-session grant rescoping are
+shipped.** Approval binding is shipped as ADR 0020: a signed, single-use
+`approval_v01` artifact from an operator-pinned approver, bound to the
+exact execution action and subject to separation of duties, turns a policy
+or authorization REQUIRE_APPROVAL into an ALLOW whose permit names the
+approval (`tests/test_approval_bridge.py`,
+`tests/test_api_approval_bridge.py`). Not claimed there: multi-approver
+quorum, approval of drift or consensus escalations, or detecting one human
+holding two credentials. What is shipped and tested for grants:
 grants with expiry, revocation, and cumulative budget, with failures
 naming their specific condition (e.g. "grant expired," "grant revoked
 by security@corp," "budget exceeded"). Amounts on the grant-budget and

@@ -23,7 +23,7 @@ agent ──► POST /v1/decide ──► precedence engine ──► 200 / 202 
 
 ```bash
 pip install -e ".[dev]"
-python -m pytest -q                    # 1484+ tests
+python -m pytest -q                    # 1532+ tests
 ```
 
 Three properties worth checking before reading further:
@@ -318,6 +318,17 @@ allowed 1 KiB to 64 MiB) and refused with 413 beyond that, with or without a
 32-level bound in the library, so hostile nesting is a format error rather
 than a `RecursionError` (`tests/test_request_bounds.py`,
 `tests/test_json_depth_bound.py`).
+
+## Approvals
+
+A policy or authorization `REQUIRE_APPROVAL` can be satisfied by a signed
+human approval presented in the `approval` field of `/v1/decide`
+(ADR 0020). Pin the approvers with `PV_APPROVER_TRUST_BUNDLE` (a trust
+bundle whose approver keys carry usage `approval_signer`). The approval must
+bind the exact execution action, come from someone other than the agent or
+the caller, and is single-use; `/v1/authorize` mints only with the sealed
+approval digest. Without the bundle, approval blocks are refused outright
+(`tests/test_approval_bridge.py`, `tests/test_api_approval_bridge.py`).
 
 ## Limitations
 

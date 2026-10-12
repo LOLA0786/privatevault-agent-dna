@@ -596,6 +596,9 @@ class GuardedEngine:
         action,
         prev_capability: str | None = None,
         evidence: dict | None = None,
+        *,
+        approval: object = None,
+        approval_context: object = None,
     ) -> DecisionResult:
         # P0-5: transactional preflight -- the crossing action itself
         # is blocked; concurrent callers serialize against the same
@@ -638,7 +641,14 @@ class GuardedEngine:
         # a run of them. That is what the grant_spend_fault path did.
         verdict: str | None = None
         try:
-            result = self.engine.decide(action, prev_capability, evidence)
+            # Only forward the ADR 0020 keywords when an approval is actually
+            # presented: anything with the plain .decide contract still fits.
+            extra: dict[str, object] = (
+                {"approval": approval, "approval_context": approval_context}
+                if approval is not None
+                else {}
+            )
+            result = self.engine.decide(action, prev_capability, evidence, **extra)
             verdict = result.decision.value
             # Audit set 4: record budget spend for ALLOWed, grant-covered,
             # amount-bearing actions. record_spend existed but was wired

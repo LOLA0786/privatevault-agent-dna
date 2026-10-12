@@ -46,8 +46,20 @@ class RuntimeMonitor:
         self,
         action: AgentAction,
         evidence: dict | None = None,
+        *,
+        approval: object = None,
+        approval_context: object = None,
     ) -> DecisionResult:
-        result = self.engine.decide(action, self.previous_capability, evidence=evidence)
+        # ADR 0020 keywords travel only when an approval is presented, so an
+        # engine with the plain .decide contract keeps working.
+        extra: dict[str, object] = (
+            {"approval": approval, "approval_context": approval_context}
+            if approval is not None
+            else {}
+        )
+        result = self.engine.decide(
+            action, self.previous_capability, evidence=evidence, **extra
+        )
 
         # decide() already scored internally and is itself fail-closed.
         # Rebuild the advisory for the event record too, but never let

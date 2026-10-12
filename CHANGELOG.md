@@ -5,6 +5,23 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Approval bridge (ADR 0020)
+- `/v1/decide` accepts an `approval` block (approval_v01 request, signed
+  artifact, approver authority receipt). `agent_dna/approval_bridge.py`
+  admits it only if it verifies against the operator-pinned approver
+  bundle (`PV_APPROVER_TRUST_BUNDLE`), binds the exact execution action
+  and organisation, names this agent, satisfies separation of duties
+  (approver is not the agent, its principal, or the caller), and has not
+  been used before (durable single-use claim in `approval_consume`, same
+  construction as permits). A policy or authorization REQUIRE_APPROVAL
+  then becomes ALLOW with `triggered_by = "approval"` and the artifact
+  digest sealed in `approval_ref`; `/v1/authorize` mints only with that
+  digest (`AUTHORIZE_APPROVAL_MISMATCH` otherwise). Refused approvals
+  never change the verdict and are not consumed; BLOCK is never
+  overridden; a plain ALLOW does not burn the approval; an approval with
+  no bundle pinned or on an audit-only decide is refused outright (422).
+  (`tests/test_approval_bridge.py`, `tests/test_api_approval_bridge.py`)
+
 ### Hardening: bounded request size and JSON nesting
 - A few thousand nested brackets inside a 1 MB body raised `RecursionError`
   in JSON parsing on `/v1/decide` and `/v1/authorize` (a 500 per request),

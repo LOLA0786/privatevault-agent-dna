@@ -91,6 +91,14 @@ CREATE TABLE IF NOT EXISTS execution_authorization_mint (
     trust_bundle_json            TEXT,
     trust_bundle_digest          TEXT
 );
+-- ADR 0020: a human approval is single-use, like a permit. UNIQUE on the
+-- artifact digest makes a second claim fail atomically under concurrent
+-- writers (BEGIN IMMEDIATE + INSERT).
+CREATE TABLE IF NOT EXISTS approval_consume (
+    approval_artifact_digest TEXT PRIMARY KEY NOT NULL,
+    organisation_id          TEXT NOT NULL,
+    consumed_at              TEXT NOT NULL
+);
 -- ADR-0018 PR-J: suspensions checked inside the consume transaction.
 -- A claim ordered after a committed suspension is refused.
 CREATE TABLE IF NOT EXISTS suspensions (
@@ -355,6 +363,45 @@ class SQLiteDecisionStore:
             "SELECT 1 FROM execution_authorization_consume "
             "WHERE execution_authorization_id = ?",
             (execution_authorization_id,),
+        ).fetchone()
+        return row is not None
+
+    def try_consume_approval(
+        self,
+        approval_artifact_digest: str,
+        *,
+        organisation_id: str,
+        consumed_at: str,
+    ) -> bool:
+        """Atomically claim a single-use approval artifact (ADR 0020).
+
+        True if this call recorded the use, False if it was used before.
+        Same construction as ``try_consume_execution_authorization``.
+        """
+        if not approval_artifact_digest:
+            raise ValueError("approval_artifact_digest is required")
+        conn = self._conn
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            conn.execute(
+                "INSERT INTO approval_consume "
+                "(approval_artifact_digest, organisation_id, consumed_at) "
+                "VALUES (?, ?, ?)",
+                (approval_artifact_digest, organisation_id, consumed_at),
+            )
+            conn.commit()
+            return True
+        except sqlite3.IntegrityError:
+            conn.rollback()
+            return False
+        except Exception:
+            conn.rollback()
+            raise
+
+    def is_approval_consumed(self, approval_artifact_digest: str) -> bool:
+        row = self._conn.execute(
+            "SELECT 1 FROM approval_consume WHERE approval_artifact_digest = ?",
+            (approval_artifact_digest,),
         ).fetchone()
         return row is not None
 

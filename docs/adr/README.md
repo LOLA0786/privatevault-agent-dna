@@ -29,6 +29,7 @@ explicit statement that no such test exists.
 | [0016](0016-one-live-permit-per-decision.md) | One live stored permit per decision | accepted | `tests/test_authorize_mint_claim.py::test_sequential_mint_returns_byte_identical_authorization` |
 | [0017](0017-wire-action-binding.md) | Trusted action↔wire binding at authorize | accepted | `tests/test_wire_action_binding.py` |
 | [0019](0019-receiver-gate.md) | The system of record verifies the permit (receiver gate) | accepted | `tests/receiver/test_receiver_gate.py::test_direct_call_without_permit_is_refused` |
+| [0020](0020-approval-bridge.md) | A verified, single-use approval satisfies REQUIRE_APPROVAL | accepted | `tests/test_approval_bridge.py::test_approval_is_consumed_atomically_and_durably` |
 
 0001–0014 are the enforcement-spine decisions. 0015 is the earlier
 loop-discovery placement record, renumbered so the spine could own
@@ -39,4 +40,6 @@ action.
 0019 moves permit verification and single-use consumption to the
 system of record, so an agent that calls a gated API directly is refused
 by the API's own front door. 0018 is the separately proposed swarm-controls
-plan.
+plan. 0020 lets a verified, single-use human approval turn a policy or
+authorization REQUIRE_APPROVAL into an ALLOW bound to the same action, with
+separation of duties, so the permit names the approval that produced it.

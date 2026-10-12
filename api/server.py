@@ -39,10 +39,17 @@ from pydantic import BaseModel, Field
 from starlette.background import BackgroundTask
 
 from agent_dna.apikeys import ApiKeyRegistry
+from agent_dna.approval_bridge import (
+    APPROVAL_NOT_CONFIGURED,
+    APPROVAL_REQUIRES_BOUND_DECISION,
+    TRIGGERED_BY_APPROVAL,
+    ApprovalContext,
+)
 from agent_dna.authority_v01 import CANONICALIZATION as _PV_CANON
 from agent_dna.authority_v01 import MAX_JSON_NESTING_DEPTH
 from agent_dna.authority_v01 import sha256_digest as _pv_sha256_digest
 from agent_dna.authorize_binding import (
+    AUTHORIZE_APPROVAL_MISMATCH,
     AUTHORIZE_DECISION_NOT_FOUND,
     AUTHORIZE_DECISION_REQUIRED,
     AUTHORIZE_PERMIT_ALREADY_CONSUMED,
@@ -395,6 +402,11 @@ class DecideRequest(BaseModel):
     # dispatch_context_digest.
     execution_action: dict[str, Any] | None = None
     dispatch_context: dict[str, Any] | None = None
+    # ADR 0020: a signed human approval for exactly this execution action
+    # (approval_v01 request, artifact, approver_authority_receipt). Only
+    # meaningful on a mintable decide; refused outright when no approver
+    # trust bundle is pinned.
+    approval: dict[str, Any] | None = None
     # Optional first-request wire binding. When supplied with a mintable
     # decide, these must equal the named serialization of
     # execution_action.parameters — otherwise decide refuses rather than
@@ -553,6 +565,52 @@ def _validate_decide_binding(
     return execution_action, dispatch_context
 
 
+def _approval_context_for(
+    req: DecideRequest,
+    principal: Principal,
+    execution_action: dict[str, Any] | None,
+) -> ApprovalContext | None:
+    """ADR 0020: refuse an approval block outright when it cannot be judged.
+
+    No approver bundle pinned, or an audit-only decide: 422 before any
+    decision is made, so a misconfigured deployment never records an
+    approval it did not verify.
+    """
+    if req.approval is None:
+        return None
+    engine = state.get("engine")
+    core = getattr(engine, "engine", engine)
+    if getattr(core, "approvals", None) is None:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "reason_code": APPROVAL_NOT_CONFIGURED,
+                "detail": "approval presented but no approver trust bundle is "
+                "pinned (PV_APPROVER_TRUST_BUNDLE)",
+            },
+        )
+    if execution_action is None:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "reason_code": APPROVAL_REQUIRES_BOUND_DECISION,
+                "detail": "an approval requires a mintable decide "
+                "(execution_action and dispatch_context)",
+            },
+        )
+    from agent_dna.action_v01 import execution_action_digest
+
+    identities = {
+        req.agent_id,
+        principal.agent_id or "",
+        principal.credential_fingerprint,
+    }
+    return ApprovalContext(
+        expected_action_digest=execution_action_digest(execution_action),
+        requester_identities=frozenset(i for i in identities if i),
+    )
+
+
 @app.post("/v1/decide")
 def decide(req: DecideRequest, principal: FullPrincipal):
     _enforce_identity(principal, req.agent_id)
@@ -569,9 +627,15 @@ def decide(req: DecideRequest, principal: FullPrincipal):
         context=context,
         request_id=req.request_id,
     )
+    approval_context = _approval_context_for(req, principal, execution_action)
     monitor = _monitor_for(req.agent_id)
     started = _time.perf_counter()
-    result = monitor.process(action, evidence=req.evidence or None)
+    result = monitor.process(
+        action,
+        evidence=req.evidence or None,
+        approval=req.approval,
+        approval_context=approval_context,
+    )
     result = escalate_with_cross_agent(
         state.get("cross_agent"),
         execution_id=execution_id,
@@ -1092,6 +1156,16 @@ def authorize(req: AuthorizeRequest, principal: FullPrincipal):  # noqa: C901
 
     _enforce_identity(principal, req.agent_id)
     record = _require_sealed_allow_for_authorize(req)
+    if record.get("triggered_by") == TRIGGERED_BY_APPROVAL and (
+        not req.approval_artifact_digest
+        or req.approval_artifact_digest != record.get("approval_ref")
+    ):
+        # ADR 0020: the permit must name the approval that produced the ALLOW.
+        _authorize_refusal(
+            403,
+            AUTHORIZE_APPROVAL_MISMATCH,
+            "approval-triggered ALLOW mints only with its sealed approval digest",
+        )
 
     signer = _pv_load_signer()
     trust_bundle = signer["trust_bundle"]

@@ -296,9 +296,13 @@ def _build_record(
         arguments_digest=_digest_arguments(action.arguments),
         outcome="pending",
         request_id=request_id,
-        # audit set 4: the grant this action executed under -- the
-        # schema-reserved approval_ref finally populated
-        approval_ref=getattr(result, "grant_id", None),
+        # ADR 0020: a human approval that satisfied REQUIRE_APPROVAL names
+        # its artifact digest here; otherwise (audit set 4) the grant this
+        # action executed under.
+        approval_ref=(
+            getattr(result, "approval_artifact_digest", None)
+            or getattr(result, "grant_id", None)
+        ),
         # audit set 5 (P1-10): the fired customer-policy rule id
         policy_id=getattr(result, "policy_id", None),
         edges=(
