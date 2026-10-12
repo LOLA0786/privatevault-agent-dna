@@ -185,3 +185,7 @@ jobs:
       - name: Compose file resolves on this runner
         working-directory: network/receiver_kit
         run: docker compose config --quiet
+      - name: Proof runs in a container (P1 to P3)
+        env:
+          PV_PROOF_DOCKER_TESTS: "1"
+        run: uv run pytest -q tests/proof/test_run_all.py

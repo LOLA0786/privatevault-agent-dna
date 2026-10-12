@@ -1,0 +1,12 @@
+# One command runs P1 to P3 and prints the results:
+#   docker compose -f proof/docker-compose.yml up --build --abort-on-container-exit
+# Exit status is the proof's: 0 only if every proof holds.
+# No ports, no network beyond a loopback stub inside the container.
+
+services:
+  proof:
+    build:
+      context: ..
+      dockerfile: proof/Dockerfile
+    command: ["python", "-m", "proof.run_all"]
+    network_mode: none
