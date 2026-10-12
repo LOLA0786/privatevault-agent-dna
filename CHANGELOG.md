@@ -47,6 +47,17 @@ and a named test that runs in CI.
   `::test_operator_clock_decides_validity`,
   `::test_sidecar_clock_is_strict_and_stamps_the_evidence`)
 
+### Network kit, phase 1: receiver kit
+- `network/receiver_kit/`: run the ADR 0019 receiver gate as a reverse proxy
+  on a partner's own infrastructure with a partner-generated receipt key.
+  Configuration is environment only and fails closed; the trust bundle is
+  derived deterministically from the issuer organisation and public keys so
+  gate and issuer agree on its digest. Ships `keygen.py`, a demo upstream,
+  `send_test.py` (valid permit admitted once, amount changed refused, replay
+  refused, upstream never sees the second), `export_receipts.py`, a compose
+  file, and a one-page quickstart. No change to `agent_dna/`.
+  (`tests/network/test_receiver_kit.py`)
+
 ### Receiver gate (ADR 0019)
 - `agent_dna/receiver/`: the system of record verifies and consumes the
   permit. `ReceiverGate` admits a request only if it carries a permit

@@ -1,0 +1,58 @@
+# Receiver gate (reverse proxy) in front of a dummy payment upstream.
+#
+#   cp .env.example .env            # fill in the issuer public key
+#   python -m network.receiver_kit.keygen receiver   # from the repo root
+#   docker compose up --build -d
+#
+# Port 9001 and GET /_seen on the upstream exist ONLY for this demo so that
+# send_test.py can show what never reached it. A real partner never exposes
+# the upstream; the gate is its only network path.
+#
+# On Linux, make the mounted key and data dirs readable by the container user:
+#   PV_GATE_UID=$(id -u) PV_GATE_GID=$(id -g) docker compose up --build -d
+
+services:
+  upstream:
+    build:
+      context: ../..
+      dockerfile: network/receiver_kit/Dockerfile
+    command: ["python", "-m", "network.receiver_kit.upstream", "--host", "0.0.0.0", "--port", "9001"]
+    ports:
+      - "9001:9001"   # DEMO ONLY
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:9001/_health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  gate:
+    build:
+      context: ../..
+      dockerfile: network/receiver_kit/Dockerfile
+    depends_on:
+      upstream:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      PV_UPSTREAM: http://upstream:9001
+      PV_ALLOW_HTTP_UPSTREAM: "1"          # loopback inside the compose network only
+      PV_RECEIPT_KEY_FILE: /keys/receiver.key
+      PV_LEDGER_PATH: /data/receiver.db
+      PV_UNPROTECTED_OPERATIONS: "GET /_health"
+    volumes:
+      - ./keys:/keys:ro
+      - ./data:/data
+    user: "${PV_GATE_UID:-10001}:${PV_GATE_GID:-10001}"
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8080/_health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
