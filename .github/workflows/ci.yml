@@ -162,3 +162,25 @@ jobs:
       - name: Engine log on failure
         if: failure()
         run: tail -n 80 /tmp/pv-engine.log
+
+  receiver-kit-docker:
+    # Builds the receiver kit image and runs its entrypoint on a Linux
+    # kernel, where a bind-mounted 0600 key keeps the host uid. This is the
+    # path Docker Desktop on macOS cannot exercise (it remaps ownership).
+    # The test is opt-in so the plain python job never builds images.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - name: Install locked development environment
+        run: uv sync --locked --extra dev
+      - name: Receiver kit tests, including the image entrypoint
+        env:
+          PV_KIT_DOCKER_TESTS: "1"
+        run: uv run pytest -q tests/network
+      - name: Compose file resolves on this runner
+        working-directory: network/receiver_kit
+        run: docker compose config --quiet
