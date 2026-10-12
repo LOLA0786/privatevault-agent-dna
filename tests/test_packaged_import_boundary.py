@@ -4,6 +4,7 @@ Regression for: agent_dna/adapters_policy/__init__.py importing the
 git_bundle shim, which imports experimental/, which neither the wheel
 nor the Docker image ships.
 """
+
 import shutil
 import subprocess
 import sys
@@ -36,6 +37,7 @@ import agent_dna
 assert agent_dna.__file__.startswith({str(tmp_path)!r}), agent_dna.__file__
 assert 'experimental' not in sys.modules, 'core pulled in experimental'
 """
-    proc = subprocess.run([sys.executable, "-c", code], cwd=tmp_path,
-                          capture_output=True, text=True)
+    proc = subprocess.run(
+        [sys.executable, "-c", code], cwd=tmp_path, capture_output=True, text=True
+    )
     assert proc.returncode == 0, proc.stderr[-2000:]
