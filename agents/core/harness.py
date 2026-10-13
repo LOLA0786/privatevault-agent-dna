@@ -14,11 +14,11 @@ from __future__ import annotations
 import importlib
 import json
 import os
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 from nacl.signing import SigningKey
 
@@ -84,6 +84,23 @@ def _execution_bundle(
     }
 
 
+class Upstream(Protocol):
+    """What the harness needs from the system behind the receiver gate.
+
+    The receiver kit's stub satisfies it; a demo may supply its own mock
+    (for example a checkout API with a real request shape) through
+    ``Harness.start(upstream_factory=...)``. The gate in front of it does
+    not change.
+    """
+
+    @property
+    def port(self) -> int: ...
+
+    def seen(self) -> list[dict[str, Any]]: ...
+
+    def shutdown(self) -> None: ...
+
+
 def _persona_tools(persona: Persona) -> list[Tool]:
     module = importlib.import_module(f"agents.personas.{persona.name}.tools")
     available = {tool.name: tool for tool in module.TOOLS}
@@ -105,7 +122,7 @@ class Runtime:
     receiver_gate: ReceiverGate
     receiver_ledger_path: Path
     receiver_key_id: str
-    upstream: upstream.UpstreamServer
+    upstream: Upstream
     receipts: ReceiptLog
     approver_kit: ApproverKit
     approver: Approver
@@ -139,6 +156,7 @@ class Harness:
         *,
         approver: Approver | None = None,
         tools: list[Tool] | None = None,
+        upstream_factory: Callable[[], Upstream] | None = None,
     ) -> Iterator[Runtime]:
         persona = load_persona(persona_path)
         run_dir = Path(run_dir)
@@ -203,7 +221,7 @@ class Harness:
         server._pv_signer_cache.clear()
         client = TestClient(server.app)
         client.__enter__()
-        stub = None
+        stub: Upstream | None = None
         receiver_client = None
         try:
             # ---- receiver: gate as reverse proxy in front of the stub ----
@@ -213,7 +231,9 @@ class Harness:
             dispatcher = None
             peer = b""
             if receiver_spec is not None:
-                stub = upstream.start()
+                # The upstream is whatever sits behind the gate: the receiver
+                # kit's stub by default, or a demo's own mock API.
+                stub = (upstream_factory or upstream.start)()
                 receiver_gate = ReceiverGate(
                     receiver_id=receiver_spec.receiver_id,
                     destinations=frozenset({receiver_spec.destination}),
