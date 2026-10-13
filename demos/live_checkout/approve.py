@@ -188,11 +188,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--poll", type=float, default=0.5)
     args = parser.parse_args(argv)
     run_dir = Path(args.run_dir) if args.run_dir else cfg.run_dir()
-    secret = run_dir / "approver" / "secret.json"
-    if not secret.exists():
-        print(f"no approver key at {secret}; run bootstrap.py first", file=sys.stderr)
+    key_file = run_dir / "approver" / "secret.json"
+    if not key_file.exists():
+        print("no approver key in the run directory; run bootstrap.py first", file=sys.stderr)
         return 2
-    kit = approver_from_secret(secret)
+    kit = approver_from_secret(key_file)
     inbox = ApprovalInbox(run_dir / "approvals")
     try:
         return run(inbox, kit, auto=args.auto, once=args.once, poll_s=args.poll)
