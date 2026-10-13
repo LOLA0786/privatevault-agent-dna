@@ -12,8 +12,8 @@ receives, and answers 201. It does not dedupe on ``order_id``: it stands in
 for an upstream that trusts whatever its caller is authorised to send,
 which is exactly the position the receiver gate protects.
 
-DEMO ONLY. ``GET /_orders`` exposes what was created so the demo can prove
-which requests never arrived. A real gateway never exposes that, and never
+DEMO ONLY. ``GET /orders`` (and ``GET /_orders`` with the raw records)
+exposes what was created so the demo can prove which requests never arrived. A real gateway never exposes that, and never
 exposes the order API except through the gate.
 """
 
@@ -24,6 +24,7 @@ import json
 import re
 import sys
 import threading
+from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
@@ -78,6 +79,8 @@ class _Handler(BaseHTTPRequestHandler):
             self._json(200, {"ok": True})
         elif self.path == "/_orders":
             self._json(200, self.server.seen())
+        elif self.path == "/orders":
+            self._json(200, self.server.orders())
         else:
             self._json(404, {"error": "not found"})
 
@@ -108,6 +111,8 @@ class _Handler(BaseHTTPRequestHandler):
             "ord_" + hashlib.sha256(raw + str(number).encode()).hexdigest()[:12]
         )
         record["gateway_ref"] = gateway_ref
+        if self.server.on_order is not None:
+            self.server.on_order(dict(record))
         self._json(
             201,
             {
@@ -129,6 +134,8 @@ class CheckoutServer(ThreadingHTTPServer):
     def __init__(self, address: tuple[str, int], *, verbose: bool = False) -> None:
         super().__init__(address, _Handler)
         self.verbose = verbose
+        # Called with each created order's record (demo logging hook).
+        self.on_order: Callable[[dict[str, Any]], None] | None = None
         self._lock = threading.Lock()
         self._orders: list[dict[str, Any]] = []
 

@@ -1,0 +1,87 @@
+# Live refund agent. Amounts are INR, whole rupees. These rules compile to
+# PV_POLICY_FILE and PV_GRANTS_FILE for the PrivateVault API process. The
+# conditions read the decided arguments; the refund tool resolves them from
+# the order ledger (original amount and payee, prior refunds, the customer's
+# refunds today), so the model cannot supply the facts the rules read.
+
+name: live_refunds
+agent_id: refund-agent-01
+organisation_id: buyer.example
+description: >
+  Processes a queue of customer refund requests. The model reads each
+  request and the order record and proposes a refund, a decline or an
+  escalation. Every refund is decided by PrivateVault, approved by a human
+  when the policy says so, and reaches the payments API only through a
+  single-use permit the receiver gate verifies byte for byte.
+
+tools:
+  - order_history
+  - issue_refund
+  - decline
+  - escalate
+
+grants:
+  - capability: payments.issue_refund
+    budget: 1000000
+
+# First firing rule wins. Blocks first, then the approval threshold.
+policy:
+  - id: refund-exceeds-original
+    capability: payments.issue_refund
+    outcome: block
+    reason: refund amount exceeds the original order amount
+    condition:
+      field: arguments.amount_exceeds_original
+      operator: "=="
+      value: true
+  - id: payee-mismatch
+    capability: payments.issue_refund
+    outcome: block
+    reason: payee is not the original payment instrument
+    condition:
+      field: arguments.payee_matches_original
+      operator: "=="
+      value: false
+  - id: duplicate-refund
+    capability: payments.issue_refund
+    outcome: block
+    reason: this order already has a refund
+    condition:
+      field: arguments.prior_refunds_for_order
+      operator: ">"
+      value: 0
+  - id: velocity-limit
+    capability: payments.issue_refund
+    outcome: block
+    reason: customer already has 3 refunds today
+    condition:
+      field: arguments.customer_refunds_today
+      operator: ">"
+      value: 2
+  - id: hard-cap
+    capability: payments.issue_refund
+    outcome: block
+    reason: amount above the hard cap of 2,00,000 INR
+    condition:
+      field: arguments.amount
+      operator: ">"
+      value: 200000
+  - id: above-approval-threshold
+    capability: payments.issue_refund
+    outcome: require_approval
+    reason: amount above 20,000 INR needs a human approval
+    condition:
+      field: arguments.amount
+      operator: ">"
+      value: 20000
+
+approvers:
+  - principal: payments-lead@buyer.example
+    key_id: approver-payments-lead
+
+limits:
+  currency: INR
+  hard_cap: 200000
+  approval_threshold: 20000
+  max_refunds_per_customer_per_day: 3
+  budget: 1000000

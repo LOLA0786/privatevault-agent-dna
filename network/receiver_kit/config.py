@@ -4,17 +4,22 @@ Every value is read from the environment and validated before the gate is
 built. Anything missing or malformed raises ``ConfigError`` and the process
 does not start. There are no defaults for identities or keys.
 
-The trust bundle the gate pins is built deterministically from
-``PV_ISSUER_ORGANISATION`` and ``PV_ISSUER_KEYS`` so that an issuer holding
-the same two values computes the same bundle digest (a permit names the digest
-of the bundle it was minted under). A pinned bundle file replaces this in
-Phase 2 of the network kit.
+The trust bundle the gate pins comes from one of two places. By default it
+is built deterministically from ``PV_ISSUER_ORGANISATION`` and
+``PV_ISSUER_KEYS`` so that an issuer holding the same two values computes the
+same bundle digest (a permit names the digest of the bundle it was minted
+under). With ``PV_TRUST_BUNDLE_FILE`` set, the gate pins that file's bytes
+instead: this is how a deployment shares one bundle (signer and witness keys)
+between the PrivateVault API, the sidecar and the gate. When both are given,
+the file wins and the issuer values must agree with it, or the gate does not
+start.
 """
 
 from __future__ import annotations
 
 import base64
 import binascii
+import json
 import os
 import stat
 from collections.abc import Mapping
@@ -24,7 +29,13 @@ from typing import Any
 
 from nacl.signing import SigningKey
 
-from agent_dna.authority_v01 import CANONICALIZATION, TRUST_SPEC, sha256_digest
+from agent_dna.authority_v01 import (
+    CANONICALIZATION,
+    TRUST_SPEC,
+    AuthorityFormatError,
+    sha256_digest,
+    validate_trust_bundle,
+)
 from agent_dna.receiver.asgi import ReceiverGateProxy
 from agent_dna.receiver.gate import ReceiverGate
 from agent_dna.receiver.ledger import ReceiverLedger
@@ -43,6 +54,8 @@ REQUIRED_VARS = (
     "PV_UPSTREAM",
     "PV_LEDGER_PATH",
 )
+# Only needed when PV_TRUST_BUNDLE_FILE is not set (the bundle is derived).
+DERIVED_BUNDLE_VARS = ("PV_ISSUER_ORGANISATION", "PV_ISSUER_KEYS")
 
 
 class ConfigError(ValueError):
@@ -129,6 +142,52 @@ def trust_bundle(
     }
 
 
+def load_trust_bundle_file(
+    path: Path,
+    *,
+    organisation_id: str = "",
+    issuer_keys: tuple[tuple[str, str], ...] = (),
+    name: str = "PV_TRUST_BUNDLE_FILE",
+) -> dict[str, Any]:
+    """Load a pinned trust bundle and refuse anything that is not one.
+
+    The bundle must validate as ``pv-trust-bundle`` and carry at least one
+    ``execution_authorization_signer`` key. If the issuer organisation or
+    issuer keys are also configured, they must agree with the file: a bundle
+    that names another organisation, or that lacks a configured issuer key
+    with signer usage, is a configuration error, not a silent override.
+    """
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise ConfigError(f"{name}: cannot read {path}: {exc.strerror}") from exc
+    try:
+        bundle = json.loads(raw)
+    except ValueError as exc:
+        raise ConfigError(f"{name}: {path} is not valid JSON") from exc
+    try:
+        keys = validate_trust_bundle(bundle)
+    except AuthorityFormatError as exc:
+        raise ConfigError(f"{name}: {exc}") from exc
+    if not any(SIGNER_USAGE in key["usages"] for key in keys.values()):
+        raise ConfigError(f"{name}: bundle has no {SIGNER_USAGE} key")
+    if organisation_id and bundle["organisation_id"] != organisation_id:
+        raise ConfigError(
+            f"{name}: bundle organisation {bundle['organisation_id']!r} differs "
+            f"from PV_ISSUER_ORGANISATION {organisation_id!r}"
+        )
+    for key_id, public in issuer_keys:
+        key = keys.get(key_id)
+        if key is None or key["public_key"] != public:
+            raise ConfigError(
+                f"{name}: PV_ISSUER_KEYS names {key_id!r} but the bundle does "
+                "not carry that key"
+            )
+        if SIGNER_USAGE not in key["usages"]:
+            raise ConfigError(f"{name}: {key_id!r} lacks {SIGNER_USAGE} in the bundle")
+    return bundle
+
+
 def load_signing_key(path: Path, name: str = "PV_RECEIPT_KEY_FILE") -> SigningKey:
     """Read a base64 Ed25519 seed from a file that only its owner can read."""
     try:
@@ -173,15 +232,28 @@ class GateSettings:
     bundle_version: int = DEFAULT_BUNDLE_VERSION
     pinned_at: str = DEFAULT_PINNED_AT
     max_body_bytes: int = 1_048_576
+    trust_bundle_file: Path | None = None
 
     @property
     def trust_bundle(self) -> dict[str, Any]:
+        if self.trust_bundle_file is not None:
+            return load_trust_bundle_file(
+                self.trust_bundle_file,
+                organisation_id=self.organisation_id,
+                issuer_keys=self.issuer_keys,
+            )
         return trust_bundle(
             self.organisation_id,
             self.issuer_keys,
             bundle_version=self.bundle_version,
             pinned_at=self.pinned_at,
         )
+
+    @property
+    def trust_bundle_source(self) -> str:
+        if self.trust_bundle_file is not None:
+            return f"pinned file {self.trust_bundle_file}"
+        return "derived from PV_ISSUER_ORGANISATION and PV_ISSUER_KEYS"
 
     @property
     def trust_bundle_digest(self) -> str:
@@ -212,15 +284,22 @@ def _int(env: Mapping[str, str], name: str, default: int, minimum: int) -> int:
 
 def settings_from_env(env: Mapping[str, str] | None = None) -> GateSettings:
     source = os.environ if env is None else env
+    bundle_file = source.get("PV_TRUST_BUNDLE_FILE", "").strip()
     for name in REQUIRED_VARS:
+        if bundle_file and name in DERIVED_BUNDLE_VARS:
+            continue
         _require(source, name)
-    return GateSettings(
+    organisation_id = source.get("PV_ISSUER_ORGANISATION", "").strip()
+    issuer_raw = source.get("PV_ISSUER_KEYS", "").strip()
+    issuer_keys = parse_issuer_keys(issuer_raw) if issuer_raw else ()
+    settings = GateSettings(
         receiver_id=_require(source, "PV_RECEIVER_ID"),
         destinations=_split_list(
             _require(source, "PV_RECEIVER_DESTINATIONS"), "PV_RECEIVER_DESTINATIONS"
         ),
-        organisation_id=_require(source, "PV_ISSUER_ORGANISATION"),
-        issuer_keys=parse_issuer_keys(_require(source, "PV_ISSUER_KEYS")),
+        organisation_id=organisation_id,
+        issuer_keys=issuer_keys,
+        trust_bundle_file=Path(bundle_file) if bundle_file else None,
         receipt_key_file=Path(_require(source, "PV_RECEIPT_KEY_FILE")),
         receipt_key_id=_require(source, "PV_RECEIPT_KEY_ID"),
         upstream=_require(source, "PV_UPSTREAM"),
@@ -238,6 +317,11 @@ def settings_from_env(env: Mapping[str, str] | None = None) -> GateSettings:
         or DEFAULT_PINNED_AT,
         max_body_bytes=_int(source, "PV_MAX_BODY_BYTES", 1_048_576, 0),
     )
+    # Fail at configuration time, not at the first request: a pinned bundle
+    # file that cannot be loaded or disagrees with the issuer values refuses
+    # to start the gate.
+    settings.trust_bundle
+    return settings
 
 
 def build_gate(settings: GateSettings) -> ReceiverGate:
@@ -272,8 +356,9 @@ def describe(settings: GateSettings, gate: ReceiverGate) -> str:
         "receiver gate",
         f"  receiver_id          {settings.receiver_id}",
         f"  destinations         {'; '.join(settings.destinations)}",
-        f"  issuer organisation  {settings.organisation_id}",
-        f"  issuer key ids       {', '.join(k for k, _ in settings.issuer_keys)}",
+        f"  issuer organisation  {settings.trust_bundle['organisation_id']}",
+        f"  issuer key ids       {', '.join(k for k, _ in settings.issuer_keys) or '(from bundle)'}",
+        f"  trust bundle         {settings.trust_bundle_source}",
         f"  trust bundle digest  {settings.trust_bundle_digest}",
         f"  receipt key id       {settings.receipt_key_id}",
         f"  receipt public key   {gate.receipt_public_key}",

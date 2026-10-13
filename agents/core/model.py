@@ -90,9 +90,11 @@ class AnthropicModel:
     """
 
     def __init__(self, system: str, *, model: str | None = None) -> None:
-        import anthropic  # type: ignore[import-not-found]  # opt-in dependency
+        # Opt-in dependency (``uv sync --extra live``); typed as Any so the
+        # gate passes with or without the SDK installed.
+        import anthropic  # type: ignore[import-not-found, unused-ignore]
 
-        self._client = anthropic.Anthropic()
+        self._client: Any = anthropic.Anthropic()
         self._model = model or anthropic_model_name()
         self._system = system
         self._messages: list[dict[str, Any]] = []

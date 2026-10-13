@@ -5,6 +5,37 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Live refund agent demo: real Claude, real services over HTTP
+- `demos/live_checkout/`: a Claude refund agent works a 15-request queue
+  (`refund_queue.json`) through three real processes: the PrivateVault API
+  with a six-rule policy (refund <= original, payee must be the original
+  instrument, one refund per order, 3 per customer per day, approval above
+  20,000, hard cap 2,00,000), the receiver gate from the receiver kit, and
+  a mock payments API. A human approver in a second terminal signs
+  `approval_v01` artifacts with its own key. The tool resolves the facts the
+  rules read from the order ledger and from what the payments API actually
+  paid; the model only names order, amount and payee. The queue carries
+  every rule violation, a social-engineering message, a compromised tool
+  that rewrites 3,000 to 30,000 after the decision (refused by the sidecar
+  and by the gate), and a replay of request #1's permit (409). Live table,
+  end screen with the independent verifier (OK, then one byte changed,
+  FAIL), an impact banner computed only from the run's rows, Anthropic
+  cost, and `runs/<timestamp>.jsonl` with `--replay` for an offline
+  re-render. (`tests/demos/test_live_checkout.py`: services as subprocesses,
+  scripted model, approver as a separate process, banner arithmetic checked
+  against the rows; one opt-in real-model test behind `PV_LIVE_AGENT_TESTS=1`)
+- `network/receiver_kit/config.py`: `PV_TRUST_BUNDLE_FILE` pins a bundle
+  file instead of deriving one from the issuer values, so the API, sidecar
+  and gate share one bundle with signer and witness keys. A file that is not
+  a trust bundle, lacks a signer key, or disagrees with the issuer values
+  refuses to start the gate.
+  (`tests/network/test_receiver_kit.py::test_trust_bundle_file_is_pinned`,
+  `::test_trust_bundle_file_refuses_malformed_or_mismatched`)
+- `agents/core/approval.py`: `ApproverKit` accepts persisted keys so an
+  approver can sign from its own process. `demos/agent_checkout/checkout_api.py`
+  gains `GET /orders` and an order hook. `pyproject.toml`: optional extra
+  `live` with the `anthropic` SDK.
+
 ### Agent checkout demo for payment gateways
 - `demos/agent_checkout/`: one command (`uv run python demos/agent_checkout/run.py`)
   runs a procurement agent against a mock payment-gateway order API

@@ -605,3 +605,111 @@ def test_entrypoint_hands_key_to_gate_user_and_drops_root(tmp_path):
     assert cap_eff.split()[-1] == "0000000000000000", cap_eff
     assert nnp.split()[-1] == "1", nnp
     assert stat.S_IMODE((keys / "receiver.key").stat().st_mode) == 0o600
+
+
+# ------------------------------------------------- pinned trust bundle file
+#
+# Claims -> tests:
+#   - PV_TRUST_BUNDLE_FILE pins the file's bundle byte for byte, so the API,
+#     sidecar and gate can share one bundle (signer plus witness keys); the
+#     derived-bundle variables become optional
+#     -> test_trust_bundle_file_is_pinned
+#   - A bundle file that is not JSON, not a trust bundle, lacks a signer key,
+#     names another organisation, or disagrees with PV_ISSUER_KEYS refuses to
+#     start the gate
+#     -> test_trust_bundle_file_refuses_malformed_or_mismatched
+
+
+def _shared_bundle(signer: SigningKey, witness: SigningKey) -> dict[str, Any]:
+    return {
+        "spec": "pv-trust-bundle/0.1",
+        "canonicalization": "rfc8785-json",
+        "organisation_id": ORG,
+        "bundle_version": 1,
+        "pinned_at": "2026-01-01T00:00:00Z",
+        "keys": [
+            {
+                "key_id": "ea-signer",
+                "principal": f"execution-runtime@{ORG}",
+                "algorithm": "ed25519",
+                "public_key": encode_public_key(signer),
+                "usages": ["execution_authorization_signer"],
+            },
+            {
+                "key_id": "witness-01",
+                "principal": f"egress-witness@{ORG}",
+                "algorithm": "ed25519",
+                "public_key": encode_public_key(witness),
+                "usages": ["dispatch_witness_signer", "closure_signer"],
+            },
+        ],
+    }
+
+
+def test_trust_bundle_file_is_pinned(tmp_path):
+    from agent_dna.authority_v01 import CANONICALIZATION, TRUST_SPEC
+
+    signer, witness = SigningKey.generate(), SigningKey.generate()
+    bundle = _shared_bundle(signer, witness)
+    bundle["spec"], bundle["canonicalization"] = TRUST_SPEC, CANONICALIZATION
+    path = tmp_path / "trust.json"
+    path.write_text(json.dumps(bundle))
+    env = _env(tmp_path, signer, SigningKey.generate(), PV_TRUST_BUNDLE_FILE=str(path))
+    env.pop("PV_ISSUER_ORGANISATION")
+    env.pop("PV_ISSUER_KEYS")
+    settings = config.settings_from_env(env)
+    assert settings.trust_bundle == bundle
+    assert settings.trust_bundle_digest == sha256_digest(bundle)
+    assert "pinned file" in settings.trust_bundle_source
+    gate = config.build_gate(settings)
+    assert gate.trust_bundle == bundle
+    # With the issuer values also set and agreeing, the file still wins.
+    env2 = _env(tmp_path, signer, SigningKey.generate(), PV_TRUST_BUNDLE_FILE=str(path))
+    assert config.settings_from_env(env2).trust_bundle == bundle
+
+
+def test_trust_bundle_file_refuses_malformed_or_mismatched(tmp_path):
+    from agent_dna.authority_v01 import CANONICALIZATION, TRUST_SPEC
+
+    signer, witness, other = (
+        SigningKey.generate(),
+        SigningKey.generate(),
+        SigningKey.generate(),
+    )
+    good = _shared_bundle(signer, witness)
+    good["spec"], good["canonicalization"] = TRUST_SPEC, CANONICALIZATION
+
+    def env_with(payload: str, **over: str) -> dict[str, str]:
+        path = tmp_path / "bundle.json"
+        path.write_text(payload)
+        env = _env(
+            tmp_path, signer, SigningKey.generate(), PV_TRUST_BUNDLE_FILE=str(path)
+        )
+        env.pop("PV_ISSUER_ORGANISATION")
+        env.pop("PV_ISSUER_KEYS")
+        env.update(over)
+        return env
+
+    with pytest.raises(config.ConfigError, match="not valid JSON"):
+        config.settings_from_env(env_with("{not json"))
+    with pytest.raises(config.ConfigError, match="PV_TRUST_BUNDLE_FILE"):
+        config.settings_from_env(env_with(json.dumps({"keys": []})))
+    no_signer = dict(good, keys=[good["keys"][1]])
+    with pytest.raises(config.ConfigError, match="no execution_authorization_signer"):
+        config.settings_from_env(env_with(json.dumps(no_signer)))
+    with pytest.raises(config.ConfigError, match="differs from PV_ISSUER_ORGANISATION"):
+        config.settings_from_env(
+            env_with(json.dumps(good), PV_ISSUER_ORGANISATION="other.example")
+        )
+    with pytest.raises(config.ConfigError, match="does not carry that key"):
+        config.settings_from_env(
+            env_with(
+                json.dumps(good), PV_ISSUER_KEYS=f"ea-signer={encode_public_key(other)}"
+            )
+        )
+    missing = tmp_path / "missing.json"
+    env = _env(
+        tmp_path, signer, SigningKey.generate(), PV_TRUST_BUNDLE_FILE=str(missing)
+    )
+    with pytest.raises(config.ConfigError, match="cannot read"):
+        config.settings_from_env(env)
