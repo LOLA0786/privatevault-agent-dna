@@ -5,6 +5,17 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Proof, P4 to P6: one command, threat model, evaluation guide
+- `proof/run_all.py` runs P1 to P3 in process and exits 0 only if every
+  proof holds; `proof/docker-compose.yml` runs it in a container with no
+  network. (`tests/proof/test_run_all.py`; the container run is opt-in with
+  `PV_PROOF_DOCKER_TESTS=1` and runs in the ubuntu Docker CI job)
+- `docs/THREAT-MODEL.md`: one row per attack with the control, the ADR,
+  and the pinning test names; explicit non-goals. `docs/EVALUATE.md`: a
+  one-day evaluation guide with success criteria and a mermaid
+  architecture diagram. `tests/proof/test_docs_pin_tests.py` fails if
+  either document cites a test or path that does not exist.
+
 ### Proof, P1 to P3: comparison, before/after, prompt injection
 - `proof/compare/`: the same attack (valid credentials, amount or payee
   changed after approval) against an LLM guardrail stub, an API gateway
