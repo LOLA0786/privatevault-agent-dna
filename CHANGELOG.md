@@ -5,6 +5,30 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Enterprise treasury demo on the existing stack
+- `demos/treasury/`: two Claude agents with their own identities, API keys
+  and grants (accounts payable, treasury) work a 16-action queue at USD
+  magnitudes through the shipped controls: `/v1/decide` with a two-persona
+  policy merged into one file (counterparty master, unverified bank
+  details, 10M hard cap, per-agent authority, daily vendor aggregate,
+  hourly velocity, business hours, maker-checker above 1M, split pattern
+  above 1M aggregate), the approval bridge with a pinned treasury approver
+  (`approve.py --unpinned` shows an untrusted key refused), per-agent
+  permits and sidecars, the receiver gate, the receipt chain, the sealed
+  decision export, and `PolicyReplay` with opt-in field retention as the
+  deterministic replay check. Attacks: a compromised tool rewriting the
+  beneficiary account after the decision, a replay of a used permit, and
+  the treasury agent's sidecar handed the AP agent's permit. Naive and
+  policy prompt modes; live table, impact banner from the rows, both
+  verifiers OK then one byte changed FAIL, auditor export (`decisions.jsonl`,
+  `receipts.jsonl`, `summary-<mode>.md`), `runs/<ts>-<mode>.jsonl` with
+  `--replay`. Only the bank API and vendor master are mocks.
+  (`tests/demos/test_treasury.py`; one opt-in real-model test)
+- `docs/ROADMAP.md`: the receiver gate does not authenticate the
+  presenting agent (per-agent mTLS client certificates bound into the
+  permit is the planned fix); policy replay is library-only; approvals are
+  single-approver, no quorum.
+
 ### Live refund agent demo: real Claude, real services over HTTP
 - `demos/live_checkout/`: a Claude refund agent works a 15-request queue
   (`refund_queue.json`) through three real processes: the PrivateVault API

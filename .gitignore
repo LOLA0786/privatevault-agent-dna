@@ -34,6 +34,8 @@ demos/agent_checkout/report.html
 demos/agent_checkout/receiver-receipts.jsonl
 demos/live_checkout/.run/
 demos/live_checkout/.env
+demos/treasury/.run/
+demos/treasury/.env
 *.pre-claude-code
 *.pre-closure-*
 

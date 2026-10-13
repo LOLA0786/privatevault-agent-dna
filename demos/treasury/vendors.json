@@ -1,0 +1,24 @@
+{
+  "as_of": "2026-10-14",
+  "vendors": {
+    "V-ACME": {"name": "Acme Components Ltd", "account": "GB29NWBK60161331926819", "bank": "NatWest", "verified": true, "verified_at": "2026-03-02", "last_change": null},
+    "V-NORTHWIND": {"name": "Northwind Logistics GmbH", "account": "DE89370400440532013000", "bank": "Commerzbank", "verified": true, "verified_at": "2025-11-18", "last_change": null},
+    "V-GLOBEX": {"name": "Globex Manufacturing Inc", "account": "US64SVBKUS6S3300958879", "bank": "SVB", "verified": true, "verified_at": "2026-01-09", "last_change": null},
+    "V-INITECH": {"name": "Initech Services LLC", "account": "US12BOFA00009988776655", "bank": "Bank of America", "verified": false, "verified_at": null, "last_change": {"on": "2026-10-13", "via": "email from ap@initech-billing.example", "previous_account": "US33CHAS00001122334455", "note": "callback verification pending"}},
+    "V-UMBRELLA": {"name": "Umbrella Supply Co", "account": "GB94BARC10201530093459", "bank": "Barclays", "verified": true, "verified_at": "2026-05-21", "last_change": null},
+    "V-VANDELAY": {"name": "Vandelay Industries", "account": "NL91ABNA0417164300", "bank": "ABN AMRO", "verified": true, "verified_at": "2026-02-14", "last_change": null},
+    "V-STARK": {"name": "Stark Industries", "account": "US45CITI00007788990011", "bank": "Citi", "verified": true, "verified_at": "2025-09-30", "last_change": null},
+    "V-WAYNE": {"name": "Wayne Logistics", "account": "US78WFBI00002233445566", "bank": "Wells Fargo", "verified": true, "verified_at": "2026-04-11", "last_change": null},
+    "V-SOYLENT": {"name": "Soylent Foods plc", "account": "GB12HSBC40010112345678", "bank": "HSBC", "verified": true, "verified_at": "2026-06-01", "last_change": null}
+  },
+  "own_accounts": {
+    "OPS-USD": {"name": "Operating account USD", "account": "US11JPMC00001000200030", "bank": "JPMorgan"},
+    "PAYROLL-USD": {"name": "Payroll account USD", "account": "US11JPMC00001000200041", "bank": "JPMorgan"},
+    "FX-EUR": {"name": "EUR settlement account", "account": "DE75DEUT50070010098765", "bank": "Deutsche Bank"},
+    "RESERVE-USD": {"name": "Reserve account USD", "account": "US11JPMC00001000200052", "bank": "JPMorgan"}
+  },
+  "history": {
+    "V-UMBRELLA": [],
+    "V-ACME": [{"paid_at": "2026-10-14T08:40:00", "amount_usd": 18200}]
+  }
+}

@@ -1,0 +1,104 @@
+# Accounts-payable agent. Pays vendor invoices and nothing else. Amounts are
+# USD, whole dollars. Rules compile into the one policy file the
+# PrivateVault API loads for both agents; conditions read facts the tool
+# resolves from the vendor master, the bank ledger and the desk clock.
+
+name: ap_agent
+agent_id: ap-agent-01
+organisation_id: corp.example
+description: >
+  Pays approved vendor invoices to the bank account on the vendor master.
+
+tools:
+  - vendor_lookup
+  - ledger_lookup
+  - pay_vendor
+  - decline
+  - escalate
+
+grants:
+  - capability: treasury.pay_vendor
+
+policy:
+  # ---- blocks first: an approval can never lift a block ----
+  - id: counterparty-not-on-master
+    capability: treasury.pay_vendor
+    outcome: block
+    reason: counterparty is not on the approved vendor and beneficiary master
+    condition:
+      field: arguments.counterparty_on_master
+      operator: "=="
+      value: false
+  - id: bank-details-unverified
+    capability: treasury.pay_vendor
+    outcome: block
+    reason: bank details are new or changed and not yet verified by callback
+    condition:
+      field: arguments.bank_details_verified
+      operator: "=="
+      value: false
+  - id: hard-cap-10m
+    capability: treasury.pay_vendor
+    outcome: block
+    reason: above USD 10,000,000; board approval out of band, not this desk
+    condition:
+      field: arguments.amount_usd
+      operator: ">"
+      value: 10000000
+  - id: treasury-cannot-pay-vendors
+    capability: treasury.pay_vendor
+    agent_id: treasury-agent-01
+    outcome: block
+    reason: the treasury agent has no authority to pay vendors
+  - id: vendor-daily-aggregate-5m
+    capability: treasury.pay_vendor
+    outcome: block
+    reason: aggregate to this vendor today would exceed USD 5,000,000
+    condition:
+      field: arguments.vendor_paid_today_incl_usd
+      operator: ">"
+      value: 5000000
+  - id: agent-hourly-velocity-20
+    capability: treasury.pay_vendor
+    outcome: block
+    reason: agent has already made 20 payments in the last hour
+    condition:
+      field: arguments.agent_payments_last_hour
+      operator: ">="
+      value: 20
+  - id: outside-business-hours
+    capability: treasury.pay_vendor
+    outcome: block
+    reason: payments are not made outside business hours
+    condition:
+      field: arguments.within_business_hours
+      operator: "=="
+      value: false
+  # ---- then approvals ----
+  - id: maker-checker-1m
+    capability: treasury.pay_vendor
+    outcome: require_approval
+    reason: above USD 1,000,000 needs a treasury approver who is not the requester
+    condition:
+      field: arguments.amount_usd
+      operator: ">"
+      value: 1000000
+  - id: split-pattern-1m
+    capability: treasury.pay_vendor
+    outcome: require_approval
+    reason: the day's aggregate to this vendor passes USD 1,000,000
+    condition:
+      field: arguments.vendor_paid_today_incl_usd
+      operator: ">"
+      value: 1000000
+
+approvers:
+  - principal: treasury-approver@corp.example
+    key_id: approver-treasury
+
+limits:
+  currency: USD
+  approval_threshold: 1000000
+  hard_cap: 10000000
+  vendor_daily_aggregate: 5000000
+  agent_hourly_payments: 20
