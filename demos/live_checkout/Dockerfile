@@ -1,4 +1,4 @@
-# One image for the four demo services. Build context is the repository root:
+# One image for the three demo services. Build context is the repository root:
 #   docker compose -f demos/live_checkout/docker-compose.yml up --build
 FROM python:3.12-slim
 
@@ -19,8 +19,7 @@ COPY network/receiver_kit/*.py network/receiver_kit/
 COPY agents/__init__.py agents/__init__.py
 COPY agents/core/ agents/core/
 COPY demos/__init__.py demos/__init__.py
-COPY demos/agent_checkout/__init__.py demos/agent_checkout/checkout_api.py demos/agent_checkout/
-COPY demos/live_checkout/*.py demos/live_checkout/
+COPY demos/live_checkout/*.py demos/live_checkout/refund_queue.json demos/live_checkout/
 COPY demos/live_checkout/services/ demos/live_checkout/services/
 COPY pyproject.toml README.md ./
 

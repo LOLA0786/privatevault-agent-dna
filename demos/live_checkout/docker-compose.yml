@@ -1,4 +1,4 @@
-# The four demo services under Docker Compose. The agent and the approver run
+# The three demo services under Docker Compose. The agent and the approver run
 # on the host and reach the published ports.
 #
 #   uv run python demos/live_checkout/bootstrap.py      # keys and config into .run/
@@ -8,19 +8,6 @@
 # it. Ledgers and the decision store live in the named volume.
 
 services:
-  merchant-site:
-    build:
-      context: ../..
-      dockerfile: demos/live_checkout/Dockerfile
-    command: ["python", "-m", "demos.live_checkout.services.merchant_site", "--host", "0.0.0.0", "--port", "8701"]
-    ports:
-      - "8701:8701"
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8701/_health')"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-
   privatevault-api:
     build:
       context: ../..
@@ -43,13 +30,13 @@ services:
       retries: 10
       start_period: 5s
 
-  checkout-api:
+  payments-api:
     build:
       context: ../..
       dockerfile: demos/live_checkout/Dockerfile
-    command: ["python", "-m", "demos.live_checkout.services.checkout_api", "--host", "0.0.0.0", "--port", "8704"]
+    command: ["python", "-m", "demos.live_checkout.services.payments_api", "--host", "0.0.0.0", "--port", "8704"]
     ports:
-      - "8704:8704"   # DEMO ONLY: a real gateway never exposes the order API past the gate
+      - "8704:8704"   # DEMO ONLY: a real gateway never exposes the payments API past the gate
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8704/_health')"]
       interval: 5s
@@ -62,14 +49,14 @@ services:
       dockerfile: demos/live_checkout/Dockerfile
     command: ["python", "-m", "demos.live_checkout.services.gate", "--host", "0.0.0.0", "--port", "8703"]
     depends_on:
-      checkout-api:
+      payments-api:
         condition: service_healthy
     env_file:
       - path: .run/services.docker.env
         required: true
     environment:
       PV_LIVE_RUN_DIR: /run/pv
-      PV_UPSTREAM: http://checkout-api:8704
+      PV_UPSTREAM: http://payments-api:8704
     ports:
       - "8703:8703"
     volumes:

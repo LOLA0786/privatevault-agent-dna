@@ -1,6 +1,6 @@
-"""Shared configuration for the live checkout demo.
+"""Shared configuration for the live refund demo.
 
-Everything the four services and the two terminals (agent, approver) need
+Everything the three services and the two terminals (agent, approver) need
 to find each other and the run directory. Identities are fixed; ports and
 URLs have defaults that environment variables override, so the same code
 runs as local processes, under Docker Compose, or in tests on free ports.
@@ -16,23 +16,25 @@ HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 
 ORGANISATION_ID = "buyer.example"
-AGENT_ID = "procurement-agent-01"
-RECEIVER_ID = "checkout.gateway.example"
-DESTINATION = "https://checkout.gateway.example"
-OPERATION = "POST /v1/orders"
-ORDERS_PATH = "/v1/orders"
-TOOL_ID = "checkout.orders.v1"
+AGENT_ID = "refund-agent-01"
+RECEIVER_ID = "payments.gateway.example"
+DESTINATION = "https://payments.gateway.example"
+OPERATION = "POST /v1/refunds"
+REFUNDS_PATH = "/v1/refunds"
+TOOL_ID = "payments.refunds.v1"
 RECEIPT_KEY_ID = "gateway-receiver-01"
 EXECUTION_SIGNER_KEY_ID = "ea-signer"
 WITNESS_KEY_ID = "witness-01"
-CALLBACK_URL = "https://procurement.buyer.example/pv/callback"
-MERCHANT_ID = "M-1021"
 PEER_LABEL = f"tls-spki:{RECEIVER_ID}"
+UNPROTECTED_OPERATIONS = "GET /_health;GET /refunds"
 
-APPROVER_PRINCIPAL = "procurement-lead@buyer.example"
-APPROVER_KEY_ID = "approver-procurement-lead"
+APPROVER_PRINCIPAL = "payments-lead@buyer.example"
+APPROVER_KEY_ID = "approver-payments-lead"
 
-PORTS = {"merchant": 8701, "privatevault": 8702, "gate": 8703, "checkout": 8704}
+PORTS = {"privatevault": 8702, "gate": 8703, "payments": 8704}
+
+QUEUE_FILE = HERE / "refund_queue.json"
+RUNS_DIR = HERE / "runs"
 
 
 def run_dir() -> Path:

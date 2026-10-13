@@ -128,7 +128,7 @@ def _env_lines(root: str, *, upstream: str, tools: list[str]) -> str:
         "PV_UPSTREAM": upstream,
         "PV_ALLOW_HTTP_UPSTREAM": "1",
         "PV_LEDGER_PATH": f"{root}/gate/receiver.db",
-        "PV_UNPROTECTED_OPERATIONS": "GET /_health",
+        "PV_UNPROTECTED_OPERATIONS": cfg.UNPROTECTED_OPERATIONS,
     }
     return "".join(f"{k}={v}\n" for k, v in lines.items())
 
@@ -182,19 +182,15 @@ def bootstrap(
 
     # The money tool's capability is the baseline; read tools never reach
     # the API, but declaring them keeps the drift baseline honest.
-    tools = [
-        "checkout.create_order",
-        "procurement.browse_product",
-        "procurement.read_cart",
-    ]
+    tools = ["payments.issue_refund", "payments.order_history"]
     (run_dir / "services.env").write_text(
         _env_lines(
-            str(run_dir), upstream=f"http://127.0.0.1:{ports['checkout']}", tools=tools
+            str(run_dir), upstream=f"http://127.0.0.1:{ports['payments']}", tools=tools
         )
     )
     (run_dir / "services.docker.env").write_text(
         _env_lines(
-            DOCKER_RUN, upstream=f"http://checkout-api:{ports['checkout']}", tools=tools
+            DOCKER_RUN, upstream=f"http://payments-api:{ports['payments']}", tools=tools
         )
         .replace(
             f"PV_DB_PATH={DOCKER_RUN}/privatevault/pv.db", "PV_DB_PATH=/data/pv.db"

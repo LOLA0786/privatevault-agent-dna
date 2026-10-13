@@ -1,15 +1,14 @@
 #!/usr/bin/env bash
-# Start, stop and inspect the four demo services as local processes.
+# Start, stop and inspect the three demo services as local processes.
 #
-#   demos/live_checkout/services.sh up        # merchant-site, privatevault, checkout-gate, checkout-api
+#   demos/live_checkout/services.sh up        # privatevault, checkout-gate, payments-api
 #   demos/live_checkout/services.sh status
-#   demos/live_checkout/services.sh logs      # tail all four logs
+#   demos/live_checkout/services.sh logs      # tail all three logs
 #   demos/live_checkout/services.sh down
 #
 # Logs go to $RUN_DIR/logs/<service>.log, pids to $RUN_DIR/pids/. The run
 # directory is demos/live_checkout/.run unless PV_LIVE_RUN_DIR is set.
-# Ports: PV_LIVE_PORT_MERCHANT, _PRIVATEVAULT, _GATE, _CHECKOUT (defaults
-# 8701-8704). Run from anywhere; the script finds the repository root.
+# Ports: PV_LIVE_PORT_PRIVATEVAULT, _GATE, _PAYMENTS (defaults 8702-8704). Run from anywhere; the script finds the repository root.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -17,27 +16,24 @@ REPO="$(cd "$HERE/../.." && pwd)"
 RUN_DIR="${PV_LIVE_RUN_DIR:-$HERE/.run}"
 PY="${PYTHON:-uv run python}"
 HOST="${PV_LIVE_HOST:-127.0.0.1}"
-P_MERCHANT="${PV_LIVE_PORT_MERCHANT:-8701}"
 P_PV="${PV_LIVE_PORT_PRIVATEVAULT:-8702}"
 P_GATE="${PV_LIVE_PORT_GATE:-8703}"
-P_CHECKOUT="${PV_LIVE_PORT_CHECKOUT:-8704}"
-SERVICES=(merchant_site privatevault gate checkout_api)
+P_PAYMENTS="${PV_LIVE_PORT_PAYMENTS:-8704}"
+SERVICES=(privatevault gate payments_api)
 
 port_of() {
   case "$1" in
-    merchant_site) echo "$P_MERCHANT" ;;
     privatevault) echo "$P_PV" ;;
     gate) echo "$P_GATE" ;;
-    checkout_api) echo "$P_CHECKOUT" ;;
+    payments_api) echo "$P_PAYMENTS" ;;
   esac
 }
 
 health_of() {
   case "$1" in
-    merchant_site) echo "http://$HOST:$P_MERCHANT/_health" ;;
     privatevault) echo "http://$HOST:$P_PV/ready" ;;
     gate) echo "http://$HOST:$P_GATE/_health" ;;
-    checkout_api) echo "http://$HOST:$P_CHECKOUT/_health" ;;
+    payments_api) echo "http://$HOST:$P_PAYMENTS/_health" ;;
   esac
 }
 
@@ -48,9 +44,9 @@ up() {
     (cd "$REPO" && $PY demos/live_checkout/bootstrap.py --run-dir "$RUN_DIR")
   fi
   mkdir -p "$RUN_DIR/logs" "$RUN_DIR/pids"
-  # The gate must reach the checkout API on the port chosen here.
+  # The gate must reach the payments API on the port chosen here.
   export PV_LIVE_RUN_DIR="$RUN_DIR"
-  export PV_UPSTREAM="http://$HOST:$P_CHECKOUT"
+  export PV_UPSTREAM="http://$HOST:$P_PAYMENTS"
   for svc in "${SERVICES[@]}"; do
     if alive "$svc"; then
       echo "$svc already running (pid $(cat "$RUN_DIR/pids/$svc.pid"))"

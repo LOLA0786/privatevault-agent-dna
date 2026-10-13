@@ -38,8 +38,8 @@ def observed(
     response_headers: dict[str, str],
     response_body: bytes,
 ) -> None:
-    if path == "/_health":
-        return
+    if method == "GET":
+        return  # unprotected reads (/_health, /refunds) are forwarded, not gated
     permit_id = None
     header = request_headers.get(PERMIT_HEADER_LOWER)
     if header:
@@ -47,8 +47,10 @@ def observed(
             permit_id = decode_permit_header(header).get("execution_authorization_id")
         except Exception:
             permit_id = "malformed"
-    body: Any = json_or_none(request_body) or {}
-    res: Any = json_or_none(response_body) or {}
+    body: Any = json_or_none(request_body)
+    body = body if isinstance(body, dict) else {}
+    res: Any = json_or_none(response_body)
+    res = res if isinstance(res, dict) else {}
     seq = response_headers.get("x-pv-receiver-sequence") or res.get("receipt_sequence")
     receipt = response_headers.get("x-pv-receiver-receipt") or res.get("receipt_digest")
     if res.get("admitted") is False:

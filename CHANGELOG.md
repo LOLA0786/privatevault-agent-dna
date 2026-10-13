@@ -5,21 +5,25 @@ and a named test that runs in CI.
 
 ## Unreleased
 
-### Live agent checkout demo: real Claude, real services over HTTP
-- `demos/live_checkout/`: four processes (mock merchant site with a hidden
-  prompt injection, the real PrivateVault API, the real receiver gate from
-  the receiver kit, a mock payment-order API), a Claude agent over the
-  Anthropic API with browse/cart/checkout tools, and a human approver in a
-  second terminal that signs `approval_v01` artifacts with its own key.
-  Every checkout goes decide, approval, authorize, sidecar, gate, API.
-  Attacks: the page injection (shown honestly; a following model is blocked
-  at decide by `unknown-merchant` or seen by the approver), a compromised
-  tool that rewrites amount and payee after approval (refused by the
-  sidecar and by the gate), and a replay of the used permit (409).
-  `verify.sh` is the other party's check: OK on the export, FAIL after one
-  byte changes. `services.sh`, `Makefile`, `tmux.sh`, `docker-compose.yml`.
-  (`tests/demos/test_live_checkout.py`: services as subprocesses, scripted
-  model; one opt-in real-model test behind `PV_LIVE_AGENT_TESTS=1`)
+### Live refund agent demo: real Claude, real services over HTTP
+- `demos/live_checkout/`: a Claude refund agent works a 15-request queue
+  (`refund_queue.json`) through three real processes: the PrivateVault API
+  with a six-rule policy (refund <= original, payee must be the original
+  instrument, one refund per order, 3 per customer per day, approval above
+  20,000, hard cap 2,00,000), the receiver gate from the receiver kit, and
+  a mock payments API. A human approver in a second terminal signs
+  `approval_v01` artifacts with its own key. The tool resolves the facts the
+  rules read from the order ledger and from what the payments API actually
+  paid; the model only names order, amount and payee. The queue carries
+  every rule violation, a social-engineering message, a compromised tool
+  that rewrites 3,000 to 30,000 after the decision (refused by the sidecar
+  and by the gate), and a replay of request #1's permit (409). Live table,
+  end screen with the independent verifier (OK, then one byte changed,
+  FAIL), an impact banner computed only from the run's rows, Anthropic
+  cost, and `runs/<timestamp>.jsonl` with `--replay` for an offline
+  re-render. (`tests/demos/test_live_checkout.py`: services as subprocesses,
+  scripted model, approver as a separate process, banner arithmetic checked
+  against the rows; one opt-in real-model test behind `PV_LIVE_AGENT_TESTS=1`)
 - `network/receiver_kit/config.py`: `PV_TRUST_BUNDLE_FILE` pins a bundle
   file instead of deriving one from the issuer values, so the API, sidecar
   and gate share one bundle with signer and witness keys. A file that is not
