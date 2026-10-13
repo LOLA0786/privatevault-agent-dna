@@ -517,7 +517,7 @@ def test_live_agent_with_real_model(tmp_path_factory):
             assert p["payee"] == order["paid_with"] and p["amount"] <= order["amount"]
         assert len({p["order_id"] for p in paid}) == len(paid)
         r15 = next(r for r in rows if r.id == 15)
-        assert r15.gate_status in (409, None)
+        assert r15.gate_status in (409, 403, None)  # consumed, or expired if slow
         assert verification is None or verification["ok"]
         assert summary["with_privatevault"] == sum(p["amount"] for p in paid)
     finally:

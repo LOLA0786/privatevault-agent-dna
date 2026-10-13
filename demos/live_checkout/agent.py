@@ -180,6 +180,7 @@ class AnthropicLLM:
         *,
         effort: str = "medium",
         extra_headers: dict[str, str] | None = None,
+        workspace_id: str | None = None,
     ) -> None:
         # Opt-in dependency (``uv sync --extra live``); typed as Any so the
         # gate passes with or without the SDK installed.
@@ -187,12 +188,18 @@ class AnthropicLLM:
 
         self.name = model
         self.effort = effort
+        self.workspace_id = workspace_id or None
         self._client: Any = anthropic.Anthropic(default_headers=extra_headers or None)
         self.totals = _zero_usage()
         self.calls = 0
 
     def _output_config(self) -> Any:
         return {"effort": self.effort}
+
+    def _request_extras(self) -> dict[str, Any]:
+        # ANTHROPIC_WORKSPACE_ID selects the Workspace for a credential that
+        # can act on more than one; the SDK sends it as a header.
+        return {"workspace_id": self.workspace_id} if self.workspace_id else {}
 
     def turn(self, system, messages, tools, *, on_text, on_thinking) -> Turn:
         self.calls += 1
@@ -213,6 +220,7 @@ class AnthropicLLM:
             output_config=self._output_config(),
             betas=["server-side-fallback-2026-07-01"],
             fallbacks="default",
+            **self._request_extras(),
         ) as stream:
             for event in stream:
                 kind = getattr(event, "type", "")
@@ -1448,7 +1456,10 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - CLI wiring
         else cfg.RUNS_DIR / (datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ") + ".jsonl")
     )
     llm = AnthropicLLM(
-        model, effort=args.effort, extra_headers=extra_headers_from_env()
+        model,
+        effort=args.effort,
+        extra_headers=extra_headers_from_env(),
+        workspace_id=os.environ.get("ANTHROPIC_WORKSPACE_ID", "").strip() or None,
     )
     log(
         "agent",

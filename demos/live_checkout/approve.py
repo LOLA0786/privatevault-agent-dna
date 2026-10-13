@@ -69,16 +69,39 @@ def show(item: PendingApproval) -> None:
         f"  {d}action{r}      {item.action.get('action')}  on  {item.action.get('resource')}"
     )
     print(f"  {d}amount{r}      {b}{inr(p.get('amount'))} {p.get('currency', '')}{r}")
-    print(f"  {d}payee{r}       {b}{p.get('merchant_id')}{r}")
-    print(f"  {d}order{r}       {p.get('order_id')}  callback {p.get('callback_url')}")
+    payee = p.get("payee", p.get("merchant_id"))
+    original = p.get("original_payee")
+    same = (
+        ""
+        if original is None
+        else (
+            f"  {d}(original instrument){r}"
+            if payee == original
+            else f"  {b}(NOT the original: {original}){r}"
+        )
+    )
+    print(f"  {d}payee{r}       {b}{payee}{r}{same}")
+    print(
+        f"  {d}order{r}       {p.get('order_id')}  customer {p.get('customer_id', '-')}"
+        f"  refund {p.get('refund_id', '-')}"
+    )
+    if original is not None:
+        print(
+            f"  {d}facts{r}       original {inr(p.get('original_amount'))}"
+            f"  prior refunds on order {p.get('prior_refunds_for_order')}"
+            f"  customer refunds today {p.get('customer_refunds_today')}"
+        )
     print(f"  {d}order bytes{r} {item.wire_digest} ({item.wire_length} B)")
     print(f"  {d}action hash{r} {sha256_digest(item.action)}")
-    task = item.context.get("task")
-    if task:
-        print(f"  {d}agent task{r}  {task}")
-    cart = item.context.get("cart_total")
-    if cart is not None:
-        print(f"  {d}cart said{r}   {inr(cart)} to {item.context.get('cart_merchant')}")
+    for label, key in (
+        ("request", "request"),
+        ("customer", "customer_text"),
+        ("claude", "claude_reason"),
+        ("agent task", "task"),
+    ):
+        value = item.context.get(key)
+        if value:
+            print(f"  {d}{label:<11}{r} {value}")
 
 
 def decide(
