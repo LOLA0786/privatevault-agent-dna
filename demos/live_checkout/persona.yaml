@@ -1,0 +1,58 @@
+# Live checkout agent: cart to payment-gateway order. Amounts are INR, whole
+# rupees. These rules compile to PV_POLICY_FILE and PV_GRANTS_FILE for the
+# PrivateVault API process; nothing here is evaluated by the agent.
+
+name: live_checkout
+agent_id: procurement-agent-01
+organisation_id: buyer.example
+description: >
+  Browses a merchant site, reads the procurement cart, and creates a
+  checkout order at the payment gateway. Every order is decided by
+  PrivateVault, approved by a human when the policy says so, and reaches
+  the gateway only through a single-use permit the receiver gate verifies.
+
+tools:
+  - browse_product
+  - get_cart
+  - create_checkout
+
+grants:
+  - capability: checkout.create_order
+    budget: 1000000
+
+# First firing rule wins. Conditions read the decided arguments.
+policy:
+  - id: unknown-merchant
+    capability: checkout.create_order
+    outcome: block
+    reason: merchant is not in the approved merchant list
+    condition:
+      field: arguments.merchant_id
+      operator: not_in
+      value: [M-1021, M-1022, M-1023]
+  - id: hard-cap
+    capability: checkout.create_order
+    outcome: block
+    reason: amount above the hard cap of 2,00,000 INR
+    condition:
+      field: arguments.amount
+      operator: ">"
+      value: 200000
+  - id: above-approval-threshold
+    capability: checkout.create_order
+    outcome: require_approval
+    reason: amount above 10,000 INR needs a human approval
+    condition:
+      field: arguments.amount
+      operator: ">"
+      value: 10000
+
+approvers:
+  - principal: procurement-lead@buyer.example
+    key_id: approver-procurement-lead
+
+limits:
+  currency: INR
+  hard_cap: 200000
+  approval_threshold: 10000
+  budget: 1000000

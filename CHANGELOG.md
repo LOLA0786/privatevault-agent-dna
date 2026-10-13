@@ -5,6 +5,33 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Live agent checkout demo: real Claude, real services over HTTP
+- `demos/live_checkout/`: four processes (mock merchant site with a hidden
+  prompt injection, the real PrivateVault API, the real receiver gate from
+  the receiver kit, a mock payment-order API), a Claude agent over the
+  Anthropic API with browse/cart/checkout tools, and a human approver in a
+  second terminal that signs `approval_v01` artifacts with its own key.
+  Every checkout goes decide, approval, authorize, sidecar, gate, API.
+  Attacks: the page injection (shown honestly; a following model is blocked
+  at decide by `unknown-merchant` or seen by the approver), a compromised
+  tool that rewrites amount and payee after approval (refused by the
+  sidecar and by the gate), and a replay of the used permit (409).
+  `verify.sh` is the other party's check: OK on the export, FAIL after one
+  byte changes. `services.sh`, `Makefile`, `tmux.sh`, `docker-compose.yml`.
+  (`tests/demos/test_live_checkout.py`: services as subprocesses, scripted
+  model; one opt-in real-model test behind `PV_LIVE_AGENT_TESTS=1`)
+- `network/receiver_kit/config.py`: `PV_TRUST_BUNDLE_FILE` pins a bundle
+  file instead of deriving one from the issuer values, so the API, sidecar
+  and gate share one bundle with signer and witness keys. A file that is not
+  a trust bundle, lacks a signer key, or disagrees with the issuer values
+  refuses to start the gate.
+  (`tests/network/test_receiver_kit.py::test_trust_bundle_file_is_pinned`,
+  `::test_trust_bundle_file_refuses_malformed_or_mismatched`)
+- `agents/core/approval.py`: `ApproverKit` accepts persisted keys so an
+  approver can sign from its own process. `demos/agent_checkout/checkout_api.py`
+  gains `GET /orders` and an order hook. `pyproject.toml`: optional extra
+  `live` with the `anthropic` SDK.
+
 ### Agent checkout demo for payment gateways
 - `demos/agent_checkout/`: one command (`uv run python demos/agent_checkout/run.py`)
   runs a procurement agent against a mock payment-gateway order API

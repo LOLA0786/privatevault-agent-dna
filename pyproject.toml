@@ -54,6 +54,9 @@ integrations = [
 examples = [
     "langgraph>=1.0,<2",
 ]
+live = [
+    "anthropic>=1.0",
+]
 
 [project.urls]
 Homepage = "https://privatevault.ai"

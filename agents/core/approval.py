@@ -54,13 +54,26 @@ class ApproverKit:
     verifier refuses a grant chain whose issuer and subject share a principal.
     """
 
-    def __init__(self, organisation_id: str, *, principal: str, key_id: str) -> None:
+    def __init__(
+        self,
+        organisation_id: str,
+        *,
+        principal: str,
+        key_id: str,
+        root_key: SigningKey | None = None,
+        approver_key: SigningKey | None = None,
+        receipt_key: SigningKey | None = None,
+    ) -> None:
+        """Keys default to fresh per-run material. A deployment that keeps
+        the approver's keys across processes (a human approving from their
+        own terminal) passes the three keys in; the bundle and grant are
+        then byte-identical between processes."""
         self.organisation_id = organisation_id
         self.principal = principal
         self.key_id = key_id
-        self.root_key = SigningKey.generate()
-        self.approver_key = SigningKey.generate()
-        self.receipt_key = SigningKey.generate()
+        self.root_key = root_key or SigningKey.generate()
+        self.approver_key = approver_key or SigningKey.generate()
+        self.receipt_key = receipt_key or SigningKey.generate()
         self.bundle: dict[str, Any] = {
             "spec": TRUST_SPEC,
             "canonicalization": CANONICALIZATION,
