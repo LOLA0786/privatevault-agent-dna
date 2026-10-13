@@ -127,7 +127,8 @@ RULE_LABELS = {
     "human-denied": "denied by the treasury approver",
     "approval-refused": "approval refused by the bridge",
     "tampered": "beneficiary rewritten after decision (sidecar+gate)",
-    "replay": "replay of a used permit (gate)",
+    "replay": "replay of a used permit, inside its validity window (gate)",
+    "replay-late": "replay after the permit expired (gate)",
     "cross-agent": "another agent's permit (sidecar+gate)",
 }
 LABEL_ORDER = list(dict.fromkeys(RULE_LABELS.values()))
@@ -612,17 +613,26 @@ class Desk:
             policy=again.policy_id,
         )
 
-    def attacks(self, row: Row, source_id: int) -> None:
-        """#16: replay the AP agent's used permit; then hand it to the
-        treasury agent's sidecar."""
+    def _source(self, row: Row, source_id: int):
         source = self.permits.get(source_id)
         if source is None:
             row.error = "no executed permit to replay"
-            return
+            return None
         owner, permit, wire, sent = source
         ap = self.agents[owner]
         tool = ap.tools["pay_vendor"]
         path = tool.receiver.path if tool.receiver else "/"
+        return owner, permit, wire, sent, ap, path
+
+    def replay(self, row: Row, source_id: int, *, label: str) -> None:
+        """Re-send an executed action's permit and exact bytes to the gate.
+        Inside the permit's validity window the gate answers 409
+        RECEIVER_PERMIT_CONSUMED from its ledger; after the window it
+        answers 403 RECEIVER_PERMIT_EXPIRED before consulting the ledger."""
+        source = self._source(row, source_id)
+        if source is None:
+            return
+        owner, permit, wire, sent, ap, path = source
         row.replays = source_id
         row.permit_id = permit.permit_id
         row.would_have_sent = int(sent["amount_usd"])
@@ -632,7 +642,7 @@ class Desk:
         row.receipt_seq = payload.get("receipt_sequence")
         row.receipt_digest = payload.get("receipt_digest")
         if status >= 400:
-            row.prevent("replay", int(sent["amount_usd"]))
+            row.prevent(label, int(sent["amount_usd"]))
         else:
             row.moved += int(sent["amount_usd"])
         log(
@@ -644,11 +654,24 @@ class Desk:
             http=status,
             reason=row.gate_reason,
             gate_seq=row.receipt_seq,
+            note="late, after the permit's validity window"
+            if label == "replay-late"
+            else "inside the permit's validity window",
         )
 
-        # Cross-agent: the treasury agent's sidecar is handed the AP agent's
-        # permit for the treasury agent's own transfer. Its dispatcher
-        # verifies the permit against its own action and refuses.
+    def cross_agent(self, row: Row, source_id: int) -> None:
+        """The treasury agent's sidecar is handed the AP agent's permit for
+        the treasury agent's own transfer: its dispatcher verifies the permit
+        against its own action and refuses. Then the AP permit with the AP
+        agent's exact bytes is presented raw by the treasury process: the
+        gate binds bytes and single use, not the presenter, so this is
+        refused only because the permit was already consumed."""
+        source = self._source(row, source_id)
+        if source is None:
+            return
+        owner, permit, wire, sent, ap, path = source
+        row.replays = source_id
+        row.permit_id = permit.permit_id
         other = self.agents[cfg.TREASURY_AGENT]
         transfer = other.tools["move_liquidity"]
         own = transfer.arguments_for(
@@ -658,7 +681,14 @@ class Desk:
                 "amount_usd": 2500000,
             }
         )
+        row.would_have_sent = int(own["amount_usd"])
+        row.dispatched = {
+            "amount_usd": own["amount_usd"],
+            "to_account": own["to_account"],
+        }
         attempt = other.pv.dispatch(permit, transfer, own)
+        row.sidecar_outcome = attempt.outcome
+        row.sidecar_reason = attempt.reason_code
         row.cross_agent = {
             "agent": cfg.TREASURY_AGENT,
             "permit_owner": owner,
@@ -679,11 +709,11 @@ class Desk:
             sidecar=attempt.outcome,
             reason=attempt.reason_code,
         )
-        # And the same permit with the AP agent's exact bytes, presented raw
-        # by the treasury agent's process: the gate binds bytes and single
-        # use, not the presenter, so this is refused only because it was
-        # already consumed.
         raw_status, raw_payload = other.present(permit.header, path, wire)
+        row.gate_status = raw_status
+        row.gate_reason = raw_payload.get("reason_code")
+        row.receipt_seq = raw_payload.get("receipt_sequence")
+        row.receipt_digest = raw_payload.get("receipt_digest")
         row.cross_agent.update(
             {
                 "raw_gate_status": raw_status,
@@ -702,6 +732,8 @@ class Desk:
         )
         if attempt.outcome != "EXECUTED" and raw_status >= 400:
             row.prevent("cross-agent", int(own["amount_usd"]))
+        elif raw_status < 400:
+            row.moved += int(sent["amount_usd"])
 
     @staticmethod
     def _finish(row: Row, outcome: Any) -> None:
@@ -774,8 +806,20 @@ class TreasuryAgents:
         self.ledger.set_clock(action.clock)
         if action.is_attack_only:
             row.claude_decision = "none"
-            row.claude_reason = "not a desk action: captured permit re-sent, then handed to the other agent"
-            self.desk.attacks(row, action.replays_action or -1)
+            source = action.replays_action or -1
+            if action.kind == "replay_immediate":
+                row.claude_reason = f"not a desk action: #{source}'s permit re-sent inside its validity window"
+                self.desk.replay(row, source, label="replay")
+            elif action.kind == "replay_late":
+                row.claude_reason = f"not a desk action: #{source}'s permit re-sent after its validity window"
+                self.desk.replay(row, source, label="replay-late")
+            elif action.kind == "cross_agent":
+                row.claude_reason = (
+                    f"not a desk action: treasury sidecar handed AP's #{source} permit"
+                )
+                self.desk.cross_agent(row, source)
+            else:
+                row.error = f"unknown attack kind {action.kind}"
             row.finished_at = datetime.now(UTC).isoformat()
             return row
         path = self.desk.agents[action.agent]
@@ -923,8 +967,14 @@ def _fit(text: str, width: int) -> str:
 
 def row_cells(row: Row) -> list[tuple[str, str]]:  # noqa: C901 - one branch per column state
     agent = "AP" if row.agent == cfg.AP_AGENT else "TRS"
-    if row.kind == "replay_and_cross_agent":
-        action = f"replay #{row.replays} permit {usd(row.would_have_sent)}; TRS uses AP permit"
+    if row.kind == "replay_immediate":
+        action = f"replay #{row.replays} permit {usd(row.would_have_sent)} (inside TTL)"
+    elif row.kind == "replay_late":
+        action = f"late replay #{row.replays} permit {usd(row.would_have_sent)}"
+    elif row.kind == "cross_agent":
+        action = (
+            f"TRS uses AP #{row.replays} permit for {usd(row.would_have_sent)} move"
+        )
     else:
         target = (
             row.ask.get("vendor_id")
@@ -982,8 +1032,8 @@ def row_cells(row: Row) -> list[tuple[str, str]]:  # noqa: C901 - one branch per
             f"REFUSED {row.gate_status} {(row.gate_reason or '').replace('RECEIVER_', '')}",
             "bad",
         )
-    if row.cross_agent:
-        gate += f"; cross: {row.cross_agent.get('sidecar_reason', '')[:14]}"
+    if row.cross_agent and row.sidecar_outcome == "CONTROL_FAILURE":
+        gate = f"sidecar NON_CONFORMANT; raw {gate}"
     receipt = (
         f"#{row.receipt_seq} {short(row.receipt_digest, 8)}" if row.receipt_seq else "—"
     )
@@ -1030,18 +1080,14 @@ def impact(rows: list[Row]) -> dict[str, Any]:
     """Without PrivateVault is what the model proposed plus what the
     tamper, the replay and the other agent's attempt would have sent.
     Declines are credited to the model."""
-    desk_rows = [r for r in rows if r.kind != "replay_and_cross_agent"]
+    desk_rows = [r for r in rows if r.tool_requested is not None]
     requested = sum(r.ask.get("amount_usd", 0) for r in desk_rows)
     proposed = sum(
         int(r.claude_args.get("amount_usd") or 0)
         for r in rows
         if r.claude_decision in MONEY_TOOLS
     )
-    without_pv = sum(r.would_have_sent for r in rows) + sum(
-        int(r.cross_agent.get("attempted_amount_usd", 0))
-        for r in rows
-        if r.cross_agent and r.cross_agent.get("sidecar_outcome") != "EXECUTED"
-    )
+    without_pv = sum(r.would_have_sent for r in rows)
     with_pv = sum(r.moved for r in rows)
     breakdown: dict[str, dict[str, Any]] = {}
     prevented_rows = 0
@@ -1453,7 +1499,7 @@ def replay_saved(path: Path, *, delay_s: float = 0.0) -> int:
     return 0
 
 
-def run_queue(
+def run_queue(  # noqa: C901 - one linear run
     *,
     llm: Any,
     queue: Queue,
@@ -1469,6 +1515,7 @@ def run_queue(
     save_to: Path | None = None,
     quiet: bool = False,
     verify: bool = True,
+    include_optional: bool = False,
 ) -> tuple[
     list[Row],
     dict[str, Any],
@@ -1513,6 +1560,8 @@ def run_queue(
         print(table_header())
     for action in queue.actions:
         if only and action.id not in only:
+            continue
+        if action.optional and not include_optional and not only:
             continue
         row = agents.handle(action)
         rows.append(row)
@@ -1589,7 +1638,12 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - CLI wiring
     parser.add_argument(
         "--compromised-tool",
         action="store_true",
-        help="action #15's tool rewrites the beneficiary account after the decision",
+        help="action #17's tool rewrites the beneficiary account after the decision",
+    )
+    parser.add_argument(
+        "--late-replay",
+        action="store_true",
+        help="also run the optional late replay row (permit expired, 403) at the end",
     )
     parser.add_argument(
         "--approver",
@@ -1699,6 +1753,7 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - CLI wiring
             only=only,
             save_to=save_to,
             verify=not args.no_verify,
+            include_optional=args.late_replay,
         )
     finally:
         if approver is not None:

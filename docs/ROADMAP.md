@@ -29,7 +29,7 @@ the ledger. Until then: keep permits and wire bytes inside the sidecar
 process, keep the gate's validity window short (one minute today), and
 treat the sidecar's conformance check as the per-agent control.
 
-Shown honestly in `demos/treasury/` (action #16): the sidecar refusal and
+Shown honestly in `demos/treasury/` (action #4): the sidecar refusal and
 the consumed refusal are demonstrated; a presenter check is not claimed.
 
 ## Policy replay: library only

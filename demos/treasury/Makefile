@@ -4,7 +4,7 @@ HERE := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 REPO := $(abspath $(HERE)/../..)
 RUN_DIR ?= $(HERE).run
 export PV_TREASURY_RUN_DIR := $(RUN_DIR)
-AGENT := cd $(REPO) && uv run python demos/treasury/agent.py --run-dir "$(RUN_DIR)" --compromised-tool
+AGENT := cd $(REPO) && uv run python demos/treasury/agent.py --run-dir "$(RUN_DIR)" --compromised-tool $(EXTRA)
 
 .PHONY: help bootstrap up down status logs approve scripted live naive policy replay demo clean
 
@@ -17,6 +17,7 @@ help:
 	@echo "naive/policy one live mode"
 	@echo "replay      re-render the latest saved run: make replay [RUN=runs/<ts>-<mode>.jsonl]"
 	@echo "demo        bootstrap, up, scripted"
+	@echo "EXTRA=--late-replay   add the optional late-replay row (403 expired) to any run"
 
 bootstrap:
 	cd $(REPO) && uv run python demos/treasury/bootstrap.py --run-dir "$(RUN_DIR)"

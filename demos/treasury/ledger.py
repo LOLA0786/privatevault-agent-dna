@@ -43,6 +43,7 @@ class Action:
     clock: str
     text: str
     replays_action: int | None = None
+    optional: bool = False  # only with --late-replay
 
     @property
     def is_attack_only(self) -> bool:
@@ -80,6 +81,7 @@ def load_queue(path: Path | None = None) -> Queue:
                 clock=str(a["clock"]),
                 text=str(a["text"]),
                 replays_action=a.get("replays_action"),
+                optional=bool(a.get("optional", False)),
             )
             for a in raw["actions"]
         ],
