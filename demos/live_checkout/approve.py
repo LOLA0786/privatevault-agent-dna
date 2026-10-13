@@ -190,7 +190,10 @@ def main(argv: list[str] | None = None) -> int:
     run_dir = Path(args.run_dir) if args.run_dir else cfg.run_dir()
     key_file = run_dir / "approver" / "secret.json"
     if not key_file.exists():
-        print("no approver key in the run directory; run bootstrap.py first", file=sys.stderr)
+        print(
+            "no approver key in the run directory; run bootstrap.py first",
+            file=sys.stderr,
+        )
         return 2
     kit = approver_from_secret(key_file)
     inbox = ApprovalInbox(run_dir / "approvals")
