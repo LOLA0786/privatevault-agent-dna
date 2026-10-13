@@ -5,6 +5,25 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Agent checkout demo for payment gateways
+- `demos/agent_checkout/`: one command (`uv run python demos/agent_checkout/run.py`)
+  runs a procurement agent against a mock payment-gateway order API
+  (`order_id`, `amount`, `currency`, `merchant_id`, `callback_url`) with the
+  receiver gate in front of it. An 18,500 INR order is approved, minted,
+  admitted once; an amount changed to 85,000 after approval, a payee swapped
+  to M-9999, and a replay of the consumed permit are refused by the sidecar
+  and the gate (`RECEIVER_WIRE_MISMATCH`, `RECEIVER_PERMIT_CONSUMED`); a
+  2,50,000 request over the hard cap is blocked at decide with a signed
+  approval in hand; receipts are exported and pass the independent verifier;
+  the same five requests against the bare API all become orders. Writes a
+  self-contained `report.html` timeline. `INTEGRATION.md` lays out reverse
+  proxy, in-process middleware, and verify-endpoint integrations with
+  effort. The README states what is mocked. (`tests/demos/test_agent_checkout.py`,
+  including a tampered-receipts adversarial case)
+- `agents/core/harness.py`: `Harness.start(upstream_factory=...)` lets a demo
+  put its own mock behind the receiver gate; the default is still the receiver
+  kit's stub. (`tests/demos/test_agent_checkout.py::test_harness_custom_upstream_is_gated`)
+
 ### Proof, P4 to P6: one command, threat model, evaluation guide
 - `proof/run_all.py` runs P1 to P3 in process and exits 0 only if every
   proof holds; `proof/docker-compose.yml` runs it in a container with no

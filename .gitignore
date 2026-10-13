@@ -30,6 +30,8 @@ audit.json
 audit.parquet
 files.txt
 proof-of-run.json
+demos/agent_checkout/report.html
+demos/agent_checkout/receiver-receipts.jsonl
 *.pre-claude-code
 *.pre-closure-*
 

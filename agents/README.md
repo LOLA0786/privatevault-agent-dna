@@ -19,7 +19,7 @@ changes core code, and nothing here is shipped in the wheel.
 | `core/transport.py` | Demo-grade sidecar transport into an in-process receiver. Says so in its docstring. |
 | `core/runner.py` | The loop. Model proposes, PrivateVault decides, the runner obeys, every gated step is logged. |
 | `core/receipts.py` | Append-only, hash-chained receipt log for a run. |
-| `core/harness.py` | In-process assembly: API, receiver gate over the receiver kit's stub upstream, sidecar, approver bundle, per-run keys. |
+| `core/harness.py` | In-process assembly: API, receiver gate over the receiver kit's stub upstream (or a demo's own mock via `upstream_factory`), sidecar, approver bundle, per-run keys. |
 | `personas/finance_ops/` | Persona 1. `persona.yaml`, `tools.py`, `demo.py`, `README.md`. |
 
 ## Adding a persona
