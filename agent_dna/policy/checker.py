@@ -14,6 +14,7 @@ level in the engine whose outcome is data-driven, not fixed.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from .schema import PolicyDocument
@@ -34,6 +35,28 @@ def _get_field(obj: dict[str, Any], dotted_path: str):
     return True, current
 
 
+_NUMERIC_OPS = frozenset({">", ">=", "<", "<=", "==", "!="})
+
+
+def _numeric_string(actual: Any, val: Any) -> tuple[Decimal, Decimal] | None:
+    """If the rule value is a number and the field is a numeric string
+    (e.g. "50000", " 5e4 "), return both as finite Decimals so the rule
+    compares numerically. Grants and the circuit breaker already accept
+    such strings as amounts; the policy layer must not skip them."""
+    if not isinstance(actual, str):
+        return None
+    if isinstance(val, bool) or not isinstance(val, (int, float, Decimal)):
+        return None
+    try:
+        a = Decimal(actual.strip())
+        v = Decimal(str(val))
+    except (InvalidOperation, ValueError):
+        return None
+    if not a.is_finite() or not v.is_finite():
+        return None
+    return a, v
+
+
 def _evaluate_condition(  # noqa: C901
     cond, context: dict[str, Any]
 ) -> bool | None:
@@ -45,6 +68,10 @@ def _evaluate_condition(  # noqa: C901
 
     op = cond.operator
     val = cond.value
+    if op in _NUMERIC_OPS:
+        pair = _numeric_string(actual, val)
+        if pair is not None:
+            actual, val = pair
     try:
         if op == ">":
             return actual > val

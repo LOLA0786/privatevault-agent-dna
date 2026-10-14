@@ -40,7 +40,11 @@ Checks:
       decision was "block" fails -- the runtime refused and the world
       executed anyway.
   10. When detached envelopes and trusted keys are supplied, every decision
-      must have exactly one valid Ed25519 envelope signed by a trusted key.
+      AND every execution event must have exactly one valid Ed25519
+      envelope signed by a trusted key. (--allow-unsigned-executions
+      relaxes this for legacy exports; signed ones are still checked.)
+  11. Duplicate JSON object keys are rejected, and an export with no
+      records fails.
 
 Exit codes: 0 pass, 1 fail, 2 usage.
 Usage:
@@ -132,6 +136,17 @@ def _reject_nonfinite(token):
     raise ValueError(f"non-finite number {token!r} is not valid JSON")
 
 
+def _reject_duplicate_keys(pairs):
+    # json.loads keeps the LAST duplicate; grep/log viewers see the
+    # first. One signature must never cover two readings of a line.
+    obj = {}
+    for key, value in pairs:
+        if key in obj:
+            raise ValueError(f"duplicate key {key!r}")
+        obj[key] = value
+    return obj
+
+
 def compute_hash(record: dict) -> str:
     payload = {k: v for k, v in record.items() if k != "record_hash"}
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
@@ -150,7 +165,10 @@ def _verify_envelopes(  # noqa: C901 - ordered validation checklist
     path: str,
     trusted_keys: frozenset[str],
     decision_hashes: set[str],
+    execution_hashes: set[str] | None = None,
+    require_execution_envelopes: bool = True,
 ) -> tuple[list[str], dict[str, int]]:
+    execution_hashes = execution_hashes or set()
     failures = []
     stats = {
         "checked": 0,
@@ -184,6 +202,7 @@ def _verify_envelopes(  # noqa: C901 - ordered validation checklist
                 envelope = json.loads(
                     line,
                     parse_constant=_reject_nonfinite,
+                    object_pairs_hook=_reject_duplicate_keys,
                 )
             except ValueError as exc:
                 failures.append(f"envelopes line {lineno}: invalid JSON ({exc})")
@@ -246,7 +265,7 @@ def _verify_envelopes(  # noqa: C901 - ordered validation checklist
                 continue
             seen_hashes.add(signed_hash)
 
-            if signed_hash not in decision_hashes:
+            if signed_hash not in decision_hashes | execution_hashes:
                 failures.append(
                     f"envelopes line {lineno}: envelope references "
                     f"unknown decision hash {signed_hash}"
@@ -301,10 +320,15 @@ def _verify_envelopes(  # noqa: C901 - ordered validation checklist
                 stats["valid"] += 1
 
     missing_hashes = sorted(decision_hashes - seen_hashes)
-    stats["missing"] = len(missing_hashes)
+    missing_exec = (
+        sorted(execution_hashes - seen_hashes) if require_execution_envelopes else []
+    )
+    stats["missing"] = len(missing_hashes) + len(missing_exec)
 
     for signed_hash in missing_hashes:
         failures.append(f"missing envelope for decision hash {signed_hash}")
+    for signed_hash in missing_exec:
+        failures.append(f"missing envelope for execution hash {signed_hash}")
 
     return failures, stats
 
@@ -314,12 +338,14 @@ def verify(  # noqa: C901 - mirrors the protocol check order
     *,
     envelopes_path: str | None = None,
     trusted_keys: frozenset[str] | None = None,
+    allow_unsigned_executions: bool = False,
 ) -> int:
     failures = []
     chains = {}  # agent_id -> expected prev_hash (decisions)
     anchored = {}  # agent_id -> anchor hash (non-genesis origins)
     decisions = {}  # decision_id -> {"hash","decision","agent"} (first occurrence)
     decision_hashes = set()  # hashes requiring signature envelopes
+    execution_hashes = set()  # execution hashes (signed since v-next)
     event_ids = set()
     executed = set()  # decision_ids with an execution event
     total = 0
@@ -332,7 +358,11 @@ def verify(  # noqa: C901 - mirrors the protocol check order
             total += 1
 
             try:
-                rec = json.loads(line, parse_constant=_reject_nonfinite)
+                rec = json.loads(
+                    line,
+                    parse_constant=_reject_nonfinite,
+                    object_pairs_hook=_reject_duplicate_keys,
+                )
             except ValueError as e:
                 failures.append(f"line {lineno}: invalid JSON ({e})")
                 continue
@@ -488,6 +518,8 @@ def verify(  # noqa: C901 - mirrors the protocol check order
                 }
 
             else:  # execution
+                if isinstance(stored, str) and HEX64.match(stored):
+                    execution_hashes.add(stored)
                 eid = rec.get("event_id", f"<line {lineno}>")
                 dref = rec.get("decision_ref")
 
@@ -550,8 +582,13 @@ def verify(  # noqa: C901 - mirrors the protocol check order
                 envelopes_path,
                 trusted_keys,
                 decision_hashes,
+                execution_hashes,
+                require_execution_envelopes=not allow_unsigned_executions,
             )
             failures.extend(envelope_failures)
+
+    if total == 0:
+        failures.append("export contains no records")
 
     print(f"records checked : {total}")
     print(f"agents          : {len(chains)}")
@@ -592,6 +629,12 @@ def main(argv: list[str] | None = None) -> int:
         default=[],
         help="trusted Ed25519 public key in hex; may be repeated",
     )
+    parser.add_argument(
+        "--allow-unsigned-executions",
+        action="store_true",
+        help="legacy exports only: do not require envelopes on execution "
+        "events (ENFORCEMENT DIVERGENCE can then be erased by rehashing)",
+    )
     args = parser.parse_args(argv)
 
     if bool(args.envelopes) != bool(args.trusted_key):
@@ -601,6 +644,7 @@ def main(argv: list[str] | None = None) -> int:
         args.records,
         envelopes_path=args.envelopes,
         trusted_keys=frozenset(args.trusted_key),
+        allow_unsigned_executions=args.allow_unsigned_executions,
     )
 
 

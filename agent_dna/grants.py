@@ -15,6 +15,7 @@ rescoping, approval-token binding, consent workflows.
 
 from __future__ import annotations
 
+import threading
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -49,6 +50,10 @@ class GrantRegistry:
     def __init__(self) -> None:
         self._grants: dict[str, CapabilityGrant] = {}
         self.authorization_mode = "deny_all"
+        # explain() checks the budget before the rest of the decision
+        # runs; record_spend() re-checks under this lock so concurrent
+        # ALLOWs cannot jointly overspend (check-then-act race).
+        self._spend_lock = threading.Lock()
 
     # ---- lifecycle -----------------------------------------------------
 
@@ -147,9 +152,23 @@ class GrantRegistry:
         return False, "; ".join(reasons), None
 
     def record_spend(self, grant_id: str, amount: object) -> None:
+        """Atomically commit spend. Raises (fail closed -> BLOCK in the
+        guarded engine) if the grant was revoked or the spend would
+        exceed the budget since explain() looked at it."""
         delta = coerce_amount(amount)
-        current = coerce_amount(self._grants[grant_id].spent)
-        self._grants[grant_id].spent = current + delta
+        with self._spend_lock:
+            g = self._grants[grant_id]
+            if g.revoked:
+                raise ValueError(f"grant {grant_id[:14]} revoked before spend")
+            current = coerce_amount(g.spent)
+            if g.budget is not None:
+                budget = coerce_amount(g.budget)
+                if current + delta > budget:
+                    raise ValueError(
+                        f"grant {grant_id[:14]} budget exceeded at commit "
+                        f"({current + delta} > {budget})"
+                    )
+            g.spent = current + delta
 
     # ---- authorizer protocol (drop-in for allowlist) -------------------
 
