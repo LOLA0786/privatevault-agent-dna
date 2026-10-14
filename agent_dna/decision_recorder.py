@@ -285,7 +285,10 @@ class DecisionRecorder:
             )
             # UNIQUE(decision_ref) makes duplicate outcomes a
             # database-level ValueError across processes
-            self.store.append(event)
+            env_dict = self._sign_execution(event)
+            self._append_event(event, env_dict)
+            if env_dict is not None:
+                self.envelopes[event.record_hash] = env_dict
             return event
         decision = self.graph.get(decision_id)
         event = build_execution_event(
@@ -296,7 +299,26 @@ class DecisionRecorder:
             detail=detail,
             response_digest=response_digest,
         )
+        env_dict = self._sign_execution(event)
         if self.store is not None:
-            self.store.append(event)  # durability + DB uniqueness first
+            # durability + DB uniqueness first
+            self._append_event(event, env_dict)
         self.graph.add_execution(event)
+        if env_dict is not None:
+            self.envelopes[event.record_hash] = env_dict
         return event
+
+    def _sign_execution(self, event: ExecutionEvent) -> dict | None:
+        """Execution events carry the evidence that a BLOCK was (or was
+        not) honoured, so they are signed exactly like decisions. An
+        unsigned event could be rewritten or deleted by anyone holding
+        the export without the verifier noticing."""
+        if self.signer is None:
+            return None
+        return self.signer.sign_record(event).to_dict()
+
+    def _append_event(self, event: ExecutionEvent, env_dict: dict | None) -> None:
+        if env_dict is not None and getattr(self.store, "SUPPORTS_ENVELOPES", False):
+            self.store.append(event, envelope=env_dict)
+        else:
+            self.store.append(event)
