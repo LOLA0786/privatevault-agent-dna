@@ -630,9 +630,31 @@ def decide(req: DecideRequest, principal: FullPrincipal):
     approval_context = _approval_context_for(req, principal, execution_action)
     monitor = _monitor_for(req.agent_id)
     started = _time.perf_counter()
+    evidence = dict(req.evidence or {})
+    if execution_action is not None and dispatch_context is not None:
+        # The sealed destination, METHOD+path and resource are what the
+        # permit will bind and the receiver will execute. Expose them to
+        # customer policy under a reserved key that callers cannot supply,
+        # so rules can match on where and how the bytes are sent, e.g.
+        #   {"field": "evidence.bound.operation", "operator": "not_in",
+        #    "value": ["POST /v1/refunds"]}  -> block
+        evidence["bound"] = {
+            "destination": dispatch_context["destination"],
+            "operation": dispatch_context["operation"],
+            "transport": dispatch_context["transport"],
+            "wire_content_type": dispatch_context["wire_content_type"],
+            "resource": execution_action["resource"],
+            "subject_principal": execution_action["subject_principal"],
+            "action": execution_action["action"],
+        }
+    elif "bound" in evidence:
+        raise HTTPException(
+            status_code=422,
+            detail="evidence.bound is reserved for sealed dispatch values",
+        )
     result = monitor.process(
         action,
-        evidence=req.evidence or None,
+        evidence=evidence or None,
         approval=req.approval,
         approval_context=approval_context,
     )
@@ -1150,6 +1172,9 @@ def _authorize_loop_gate(
     return loop_report
 
 
+_NO_APPROVAL_DIGEST = "sha256:" + "0" * 64
+
+
 @app.post("/v1/authorize")
 def authorize(req: AuthorizeRequest, principal: FullPrincipal):  # noqa: C901
     """Issue execution authority bound to a sealed ALLOW and exact bytes."""
@@ -1165,6 +1190,17 @@ def authorize(req: AuthorizeRequest, principal: FullPrincipal):  # noqa: C901
             403,
             AUTHORIZE_APPROVAL_MISMATCH,
             "approval-triggered ALLOW mints only with its sealed approval digest",
+        )
+    if record.get("triggered_by") != TRIGGERED_BY_APPROVAL and (
+        req.approval_artifact_digest not in (None, _NO_APPROVAL_DIGEST)
+    ):
+        # A permit must never claim a human approval that did not happen.
+        # null or the all-zero placeholder (used by shipped partner and
+        # receiver kits) both mean "no approval"; any real digest is refused.
+        _authorize_refusal(
+            403,
+            AUTHORIZE_APPROVAL_MISMATCH,
+            "approval_artifact_digest is only valid for an approval-triggered ALLOW",
         )
 
     signer = _pv_load_signer()
