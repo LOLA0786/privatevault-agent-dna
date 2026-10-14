@@ -153,8 +153,16 @@ def signed_export(tmp_path):
 
 def _verify(records, envs, key, *extra) -> int:
     return subprocess.run(
-        [sys.executable, str(VERIFIER), str(records), "--envelopes", str(envs),
-         "--trusted-key", key, *extra],
+        [
+            sys.executable,
+            str(VERIFIER),
+            str(records),
+            "--envelopes",
+            str(envs),
+            "--trusted-key",
+            key,
+            *extra,
+        ],
         capture_output=True,
         text=True,
     ).returncode
@@ -208,7 +216,9 @@ def test_execution_envelope_stripped_fails_unless_legacy_flag(signed_export, tmp
         for ln in _lines(records)
         if json.loads(ln)["kind"] == "decision"
     }
-    only_dec = [ln for ln in _lines(envs) if json.loads(ln)["signed_hash"] in dec_hashes]
+    only_dec = [
+        ln for ln in _lines(envs) if json.loads(ln)["signed_hash"] in dec_hashes
+    ]
     stripped = tmp_path / "env_stripped.jsonl"
     stripped.write_text("\n".join(only_dec) + "\n")
     assert _verify(records, stripped, key) == 1
