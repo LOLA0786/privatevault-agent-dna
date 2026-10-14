@@ -632,6 +632,15 @@ class ExactByteHttpDispatcher:
         session: SidecarSession,
         extra_headers: Mapping[str, str] | None = None,
     ) -> ExactByteDispatchResult:
+        bound_type = str(
+            authorization.get("dispatch", {}).get("wire_content_type") or ""
+        )
+        if bound_type and not any(
+            k.lower() == "content-type" for k in (extra_headers or {})
+        ):
+            # send the content type the permit binds, so the receiver's
+            # header check sees exactly what was authorised
+            extra_headers = {**(extra_headers or {}), "Content-Type": bound_type}
         try:
             if extra_headers:
                 sent = session.write(

@@ -287,7 +287,28 @@ def _decide_https(
     )
 
 
-def _redecide_https_redirect(
+def _redecide_https_redirect(**kwargs: Any) -> HttpsEgressResult:
+    """Re-decide one same-origin hop WITHOUT retargeting the gateway.
+
+    The hop temporarily points the upstream at the redirect location so
+    the re-decided bytes reach it, then restores the operator-named URL.
+    Otherwise every later call would silently go to wherever the server
+    last redirected (dispatch_named_https reads the URL back from the
+    upstream), defeating the "callers cannot retarget" guarantee."""
+    upstream = kwargs["upstream"]
+    saved = {
+        attr: getattr(upstream, attr)
+        for attr in ("url", "identity")
+        if hasattr(upstream, attr)
+    }
+    try:
+        return _redecide_https_redirect_once(**kwargs)
+    finally:
+        for attr, value in saved.items():
+            setattr(upstream, attr, value)
+
+
+def _redecide_https_redirect_once(
     *,
     middleware: ConnectorMiddleware,
     upstream: Any,

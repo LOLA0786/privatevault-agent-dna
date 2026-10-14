@@ -2,8 +2,9 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
-import { writeFile } from "node:fs/promises";
-import { resolve as resolvePath } from "node:path";
+import { lstat, open, realpath } from "node:fs/promises";
+import { constants as fsConstants } from "node:fs";
+import { basename, dirname, join, resolve as resolvePath } from "node:path";
 import { PrivateVaultClient, EnforceResult, DecideResponse } from "./client.js";
 import { loadConfig } from "./config.js";
 import { sha256 } from "./digest.js";
@@ -202,7 +203,26 @@ export function buildServer(client: PrivateVaultClient = new PrivateVaultClient(
       },
     },
     async ({ path, content }) => {
-      const target = resolvePath(path);
+      // Decide on the REAL location: resolve symlinks in the parent
+      // directory, and refuse a symlink as the final component (O_NOFOLLOW
+      // below). A purely lexical path would let sandbox/x -> /etc/... pass
+      // a sandbox-only policy and then write through the link.
+      let target: string;
+      try {
+        const lexical = resolvePath(path);
+        target = join(await realpath(dirname(lexical)), basename(lexical));
+        const existing = await lstat(target).catch(() => null);
+        if (existing?.isSymbolicLink()) {
+          throw new Error("target is a symbolic link");
+        }
+      } catch (err) {
+        return {
+          content: [
+            { type: "text" as const, text: `REFUSED: cannot resolve ${path}: ${(err as Error).message}` },
+          ],
+          isError: true,
+        };
+      }
       const bytes = Buffer.byteLength(content, "utf8");
       const params = { path: target, bytes, content_sha256: sha256(content) };
       return gated(
@@ -213,8 +233,17 @@ export function buildServer(client: PrivateVaultClient = new PrivateVaultClient(
           dispatch: dispatch("file", "pv_write_file", target, "application/octet-stream"),
         },
         async () => {
-          await writeFile(path, content, "utf8");
-          return path;
+          const fh = await open(
+            target,
+            fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_TRUNC | fsConstants.O_NOFOLLOW,
+            0o644
+          );
+          try {
+            await fh.writeFile(content, "utf8");
+          } finally {
+            await fh.close();
+          }
+          return target;
         },
         (p) => `wrote ${p}`
       );

@@ -327,11 +327,19 @@ class TlsHttpsSidecarSession:
         if self.closed or self._conn is None:
             raise RuntimeError("sidecar session already closed")
         method, path = _split_operation(operation)
+        extra = dict(extra_headers or {})
+        # The permit binds the content type; the exact-byte adapter passes
+        # it per dispatch. Fall back to octet-stream only when it doesn't.
+        content_type = next(
+            (v for k, v in extra.items() if k.lower() == "content-type"),
+            "application/octet-stream",
+        )
+        extra = {k: v for k, v in extra.items() if k.lower() != "content-type"}
         headers = {
-            "Content-Type": "application/octet-stream",
+            "Content-Type": content_type,
             **self._headers,
         }
-        for name, value in (extra_headers or {}).items():
+        for name, value in extra.items():
             if any(name.lower() == existing.lower() for existing in headers):
                 raise RuntimeError(
                     f"per-dispatch header {name!r} would override a sidecar header"
