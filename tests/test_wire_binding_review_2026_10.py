@@ -19,7 +19,8 @@ from agent_dna.gateway.errors import SameOriginRedirectError
 from agent_dna.gateway.https_egress import dispatch_https_egress
 from agent_dna.gateway.session import new_session_id
 from tests.decide_binding import decide_json, dispatch_context_for
-from tests.gateway.conftest import TOOL, agent_key, allow_runtime, credentials  # noqa: F401
+from tests.gateway import conftest as gateway_conftest
+from tests.gateway.conftest import agent_key, allow_runtime, credentials  # noqa: F401
 from tests.test_wire_action_binding import (  # noqa: F401
     AGENT,
     ARGS40,
@@ -186,7 +187,7 @@ def test_redirect_does_not_retarget_named_url(allow_runtime, credentials):  # no
         agent_api_key=key,
         session_id=new_session_id(),
         client_identity="gateway-agent@test",
-        capability=TOOL,
+        capability=gateway_conftest.TOOL,
         method="POST",
         url=named,
         body=b"{}",
