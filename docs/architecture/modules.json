@@ -1601,6 +1601,11 @@
   ],
   [
    "agent_dna.receiver.gate",
+   "agent_dna.revocation_list",
+   "top"
+  ],
+  [
+   "agent_dna.receiver.gate",
    "agent_dna.wire_serialization_v01",
    "top"
   ],
@@ -1626,6 +1631,11 @@
   ],
   [
    "agent_dna.request_bounds",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "agent_dna.revocation_list",
    "agent_dna.authority_v01",
    "top"
   ],
@@ -1942,6 +1952,11 @@
   [
    "api.server",
    "agent_dna.request_bounds",
+   "top"
+  ],
+  [
+   "api.server",
+   "agent_dna.revocation_list",
    "top"
   ],
   [
@@ -2854,7 +2869,7 @@
   "agent_dna.apikeys": 9,
   "agent_dna.approval_bridge": 3,
   "agent_dna.approval_v01": 1,
-  "agent_dna.authority_v01": 40,
+  "agent_dna.authority_v01": 41,
   "agent_dna.authorization": 3,
   "agent_dna.authorize_binding": 6,
   "agent_dna.change_management": 1,
@@ -2953,6 +2968,7 @@
   "agent_dna.receiver.receipts": 3,
   "agent_dna.reference_policies": 1,
   "agent_dna.request_bounds": 1,
+  "agent_dna.revocation_list": 2,
   "agent_dna.runtime": 7,
   "agent_dna.scan": 1,
   "agent_dna.scan.ingest": 3,
@@ -3085,11 +3101,12 @@
   "agent_dna.rate": 1,
   "agent_dna.receiver": 5,
   "agent_dna.receiver.asgi": 3,
-  "agent_dna.receiver.gate": 6,
+  "agent_dna.receiver.gate": 7,
   "agent_dna.receiver.ledger": 2,
   "agent_dna.receiver.permit_header": 1,
   "agent_dna.receiver.receipts": 1,
   "agent_dna.request_bounds": 1,
+  "agent_dna.revocation_list": 1,
   "agent_dna.runtime": 5,
   "agent_dna.scan": 2,
   "agent_dna.scan.ingest": 1,
@@ -3108,7 +3125,7 @@
   "agent_dna.validation.drift": 1,
   "agent_dna.validation.report": 2,
   "agent_dna.wire_serialization_v01": 1,
-  "api.server": 21,
+  "api.server": 22,
   "examples.amlsim.run_amlsim_sample": 6,
   "examples.authority_blast_radius_demo": 1,
   "examples.authority_derivation_demo": 1,
@@ -3682,6 +3699,10 @@
   "agent_dna.request_bounds": {
    "group": "agent_dna (core modules)",
    "path": "agent_dna/request_bounds.py"
+  },
+  "agent_dna.revocation_list": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/revocation_list.py"
   },
   "agent_dna.runtime": {
    "group": "agent_dna (core modules)",

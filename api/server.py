@@ -89,6 +89,7 @@ from agent_dna.observability.prometheus_bridge import (
 )
 from agent_dna.observability.prometheus_bridge import observe_decide_latency, set_ready
 from agent_dna.request_bounds import RequestBounds, RequestBoundsMiddleware
+from agent_dna.revocation_list import build_revocation_list
 from agent_dna.runtime import RuntimeMonitor
 from agent_dna.security.loop_discovery import (
     LoopDecision,
@@ -851,6 +852,25 @@ def lineage(
 
 
 # ---------- audit surface -------------------------------------------------------
+
+
+@app.get("/v1/revocations", dependencies=[Depends(require_audit_or_full_key)])
+def revocations():
+    """Signed list of revoked permits, suspended agents and organisation.
+
+    Signed with the execution-authorization key receivers already pin, so a
+    receiver gate verifies it like a permit. Short validity: receivers must
+    refresh, and refuse everything when their copy expires.
+    """
+    signer = _pv_load_signer()
+    ttl = int(os.environ.get("PV_REVOCATION_LIST_TTL_SECONDS", "30"))
+    return build_revocation_list(
+        state["store"],
+        organisation_id=signer["trust_bundle"]["organisation_id"],
+        signing_key=signer["signing_key"],
+        signer_key_id=signer["key_id"],
+        validity=_timedelta(seconds=max(1, ttl)),
+    )
 
 
 @app.get("/v1/flows/{flow_id}", dependencies=[Depends(require_audit_or_full_key)])

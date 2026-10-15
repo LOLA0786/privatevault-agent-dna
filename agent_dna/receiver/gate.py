@@ -61,6 +61,9 @@ from agent_dna.receiver.receipts import (
     RECEIVER_RECEIPT_SPEC,
     sign_receiver_receipt,
 )
+from agent_dna.revocation_list import (
+    RECEIVER_REVOCATION_LIST_STALE,
+)
 from agent_dna.wire_serialization_v01 import serialize_parameters_wire
 
 RECEIVER_PERMIT_MISSING = "RECEIVER_PERMIT_MISSING"
@@ -177,6 +180,10 @@ class ReceiverGate:
     local_checks: Sequence[LocalCheck] = ()
     max_body_bytes: int = 1_048_576
     clock_skew: timedelta = timedelta(0)
+    # Optional RevocationListCache (agent_dna.revocation_list). When set,
+    # listed or suspended permits are refused, and a missing or expired
+    # list refuses everything (fail closed).
+    revocations: Any = None
     _keys: dict[str, Mapping[str, Any]] = field(init=False, repr=False)
     _bundle_digest: str = field(init=False, repr=False)
     _unprotected: frozenset[tuple[str, str]] = field(init=False, repr=False)
@@ -302,6 +309,7 @@ class ReceiverGate:
         self._verify_trust(ea)
         self._verify_destination(ea, method, path)
         self._verify_time(ea, now)
+        self._verify_not_revoked(ea, now)
         self._verify_body(ea, body)
         self._verify_headers(ea, headers)
         self._run_local_checks(ea)
@@ -387,6 +395,15 @@ class ReceiverGate:
             raise _RefusalError(
                 RECEIVER_OPERATION_MISMATCH, "received METHOD path not bound", ea=ea
             )
+
+    def _verify_not_revoked(self, ea: Mapping[str, Any], now: datetime) -> None:
+        if self.revocations is None:
+            return
+        hit = self.revocations.refusal(ea, now=now, clock_skew=self.clock_skew)
+        if hit is not None:
+            code, detail = hit
+            status = 503 if code == RECEIVER_REVOCATION_LIST_STALE else 403
+            raise _RefusalError(code, detail, status, ea=ea)
 
     def _verify_time(self, ea: Mapping[str, Any], now: datetime) -> None:
         not_before = _parse_timestamp(ea["not_before"], "not_before")
