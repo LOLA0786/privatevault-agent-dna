@@ -1,12 +1,14 @@
 # 0021: Multi-agent dual control runs on server-derived lineage, not a caller-chosen id
 
-Status:     accepted (PR 1 identity normalization, PR 2 lineage for dual control)
+Status:     accepted (PR 1 identity, PR 2 lineage for dual control, PR 3 signed lineage evidence)
 Date:       2026-10-15
 Pinned by:  tests/test_lineage_dual_control.py::test_split_execution_ids_no_longer_bypass;
             tests/test_lineage_dual_control.py::test_filler_events_cannot_evict_the_initiate;
             tests/test_lineage_dual_control.py::test_junk_ids_cannot_evict_other_agents_flow;
             tests/test_lineage_dual_control.py::test_distinct_checker_approves_exactly_once;
-            tests/test_identity_normalization.py::test_maker_cannot_approve_as_case_variant
+            tests/test_identity_normalization.py::test_maker_cannot_approve_as_case_variant;
+            tests/test_lineage_evidence.py::test_exported_flow_verifies_offline_with_signatures;
+            tests/test_lineage_evidence.py::test_concurrent_writes_never_fork_the_chain
 
 ## What forced the decision
 Cross-agent behavioural invariants (CABI, ADR 0018) correlate a multi-agent
@@ -56,18 +58,33 @@ restarts and are never evicted. `PV_LINEAGE=shadow` records rows and reports
 findings in the response without changing any verdict; `off` (default)
 leaves behaviour unchanged. CABI keeps running as an additional check.
 
+**Evidence (PR 3).** Each lineage row is also a sealed `pv-lineage-event/0.1`
+event: flow, seq, prev_event_hash, record_hash, agent, capability, intent,
+verdict, references and time. `event_hash = sha256("pv-lineage-event/0.1\n"
+|| canonical JSON)`; the domain prefix keeps an event hash from ever
+equalling a decision or manifest hash signed by the same key. The chain
+position is assigned inside `BEGIN IMMEDIATE`, so concurrent decides in one
+flow cannot fork it. When the receipt signer is configured each event hash is
+signed (Ed25519). `GET /v1/flows/{flow_id}` (audit or full scope) exports a
+flow; `tools/verify_lineage.py` checks it with the standard library and
+PyNaCl only: field set, hashes, gap-free seq, the chain, signatures from
+`--trusted-key`, and the dual-control rule itself (no self-approval, at most
+one ALLOWed approval per initiate). Rows recorded before PR 3 are exported
+unsealed and the verifier refuses them.
+
 ## What this costs us
 - One extra SQLite read per decide and one write per recorded decision.
 - Integrations must pass `lineage.approves` on approval steps. Shadow mode
   exists so operators can see who would be blocked before enforcing.
-- Lineage rows are server state, not yet signed evidence; the sealed
-  decision record does not yet carry the lineage edge (PR 3).
+- The sealed decision record does not carry the lineage edge; the link
+  lives in the signed lineage event. Deleting a whole flow's tail is not
+  detectable from the export alone (same limit as ADR 0004 exports).
 - The lineage row is written after the decision record, outside its
   transaction. A crash between the two leaves a sealed decision with no
   lineage row; a later approval referencing it fails closed
   (`LINEAGE_REFERENCE_UNKNOWN`).
 
 ## What would make us revisit
-- Signed, hash-chained lineage events and record edges (PR 3).
+- Loop detection fed from server lineage instead of caller events (PR 4).
 - Signed attenuating delegation (ADR 0022) changes who may join a flow.
 - Default-on in the secure profile once integrations pass references.

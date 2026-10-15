@@ -4224,6 +4224,10 @@
    "group": "tools",
    "path": "tools/verify_discovery.py"
   },
+  "tools.verify_lineage": {
+   "group": "tools",
+   "path": "tools/verify_lineage.py"
+  },
   "tools.verify_receiver_receipts": {
    "group": "tools",
    "path": "tools/verify_receiver_receipts.py"

@@ -22,12 +22,20 @@ Modes (``PV_LINEAGE``): ``off`` (default), ``shadow`` (record and report
 findings, never change a verdict), ``enforce`` (findings BLOCK). Lineage
 can only escalate a verdict; it never relaxes one.
 
-Not yet (later PRs): signed lineage events, delegation chains, per-flow
-budgets, loop detection fed from server rows.
+Evidence (PR 3): every lineage row is also a sealed event in a per-flow
+hash chain (``pv-lineage-event/0.1``), signed with the receipt signer when
+one is configured. ``GET /v1/flows/{flow_id}`` exports a flow and
+``tools/verify_lineage.py`` re-checks chain, signatures and the dual-control
+rule offline, without importing this package.
+
+Not yet (later PRs): delegation chains, per-flow budgets, loop detection fed
+from server rows.
 """
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import sqlite3
 import threading
@@ -50,6 +58,31 @@ REFERENCE_UNKNOWN = "LINEAGE_REFERENCE_UNKNOWN"
 APPROVE_TARGET_NOT_INITIATE = "LINEAGE_APPROVE_TARGET_NOT_INITIATE"
 MAKER_EQUALS_CHECKER = "LINEAGE_MAKER_EQUALS_CHECKER"
 ALREADY_APPROVED = "LINEAGE_INITIATE_ALREADY_APPROVED"
+
+LINEAGE_EVENT_SPEC = "pv-lineage-event/0.1"
+LINEAGE_GENESIS = "0" * 64
+# Domain separation: an event hash can never equal a decision record hash
+# or a manifest hash signed by the same key.
+_EVENT_DOMAIN = b"pv-lineage-event/0.1\n"
+# Columns added by PR 3; ALTERed into databases created by PR 2.
+_SEALED_COLUMNS = {
+    "seq": "INTEGER",
+    "prev_event_hash": "TEXT",
+    "event_hash": "TEXT",
+    "event_json": "TEXT",
+    "envelope_json": "TEXT",
+}
+
+
+def canonical_event_bytes(event: dict[str, Any]) -> bytes:
+    return json.dumps(
+        event, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode("utf-8")
+
+
+def lineage_event_hash(event: dict[str, Any]) -> str:
+    return hashlib.sha256(_EVENT_DOMAIN + canonical_event_bytes(event)).hexdigest()
+
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS lineage_events (
@@ -126,10 +159,23 @@ class LineageContext:
 class LineageLedger:
     """Durable lineage rows next to the decision store (same SQLite file)."""
 
-    def __init__(self, path: str | Path) -> None:
+    def __init__(self, path: str | Path, signer: Any = None) -> None:
         self.path = Path(path)
+        self.signer = signer  # ReceiptSigner-compatible (sign_hash), or None
         self._local = threading.local()
         self._conn.executescript(_SCHEMA)
+        existing = {
+            row[1] for row in self._conn.execute("PRAGMA table_info(lineage_events)")
+        }
+        for column, kind in _SEALED_COLUMNS.items():
+            if column not in existing:
+                self._conn.execute(
+                    f"ALTER TABLE lineage_events ADD COLUMN {column} {kind}"
+                )
+        self._conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS lineage_events_flow_seq "
+            "ON lineage_events (flow_id, seq)"
+        )
         self._conn.commit()
 
     @property
@@ -305,36 +351,102 @@ class LineageLedger:
         decision: str,
         claimed: bool,
     ) -> str:
-        """Persist the event; returns the flow id (new flows root here)."""
+        """Persist a sealed, chained event; returns the flow id.
+
+        The chain position (seq, prev_event_hash) is read and written inside
+        one ``BEGIN IMMEDIATE`` transaction, so concurrent decides in the
+        same flow cannot fork the chain.
+        """
         bare = _bare(record_hash)
         flow_id = ctx.flow_id or f"flow:{bare}"
+        now = time.time()
         conn = self._conn
-        conn.execute(
-            "INSERT INTO lineage_events (record_hash, flow_id, decision_id, "
-            "agent_norm, capability, intent, decision, parent_record_hash, "
-            "approves_record_hash, occurred_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
-            (
-                bare,
-                flow_id,
-                decision_id,
-                ctx.agent_norm,
-                ctx.capability,
-                ctx.intent,
-                decision,
-                ctx.parent_record_hash,
-                ctx.approves_record_hash,
-                time.time(),
-            ),
-        )
-        if claimed and ctx.approves_record_hash is not None:
-            conn.execute(
-                "UPDATE lineage_dual_control SET approver_record_hash = ? "
-                "WHERE initiate_record_hash = ?",
-                (bare, ctx.approves_record_hash),
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            head = conn.execute(
+                "SELECT seq, event_hash FROM lineage_events WHERE flow_id = ? "
+                "AND seq IS NOT NULL ORDER BY seq DESC LIMIT 1",
+                (flow_id,),
+            ).fetchone()
+            seq = 1 if head is None else int(head[0]) + 1
+            prev = LINEAGE_GENESIS if head is None else str(head[1])
+            event = {
+                "spec": LINEAGE_EVENT_SPEC,
+                "flow_id": flow_id,
+                "seq": seq,
+                "prev_event_hash": prev,
+                "record_hash": bare,
+                "decision_id": decision_id,
+                "agent": ctx.agent_norm,
+                "capability": ctx.capability,
+                "intent": ctx.intent,
+                "decision": decision,
+                "parent_record_hash": ctx.parent_record_hash,
+                "approves_record_hash": ctx.approves_record_hash,
+                "occurred_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now)),
+            }
+            event_hash = lineage_event_hash(event)
+            envelope = (
+                self.signer.sign_hash(event_hash).to_dict()
+                if self.signer is not None
+                else None
             )
-        conn.commit()
+            conn.execute(
+                "INSERT INTO lineage_events (record_hash, flow_id, decision_id, "
+                "agent_norm, capability, intent, decision, parent_record_hash, "
+                "approves_record_hash, occurred_at, seq, prev_event_hash, "
+                "event_hash, event_json, envelope_json) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (
+                    bare,
+                    flow_id,
+                    decision_id,
+                    ctx.agent_norm,
+                    ctx.capability,
+                    ctx.intent,
+                    decision,
+                    ctx.parent_record_hash,
+                    ctx.approves_record_hash,
+                    now,
+                    seq,
+                    prev,
+                    event_hash,
+                    canonical_event_bytes(event).decode("utf-8"),
+                    json.dumps(envelope, sort_keys=True) if envelope else None,
+                ),
+            )
+            if claimed and ctx.approves_record_hash is not None:
+                conn.execute(
+                    "UPDATE lineage_dual_control SET approver_record_hash = ? "
+                    "WHERE initiate_record_hash = ?",
+                    (bare, ctx.approves_record_hash),
+                )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
         ctx.flow_id = flow_id
         return flow_id
+
+    def export_flow(self, flow_id: str) -> list[dict[str, Any]]:
+        """Sealed events of one flow in chain order, for offline audit."""
+        rows = self._conn.execute(
+            "SELECT event_json, event_hash, envelope_json FROM lineage_events "
+            "WHERE flow_id = ? ORDER BY seq IS NULL, seq, occurred_at",
+            (flow_id,),
+        ).fetchall()
+        out: list[dict[str, Any]] = []
+        for event_json, event_hash, envelope_json in rows:
+            out.append(
+                {
+                    # None marks a row recorded before events were sealed;
+                    # the verifier refuses it rather than trusting it.
+                    "event": json.loads(event_json) if event_json else None,
+                    "event_hash": event_hash,
+                    "envelope": json.loads(envelope_json) if envelope_json else None,
+                }
+            )
+        return out
 
 
 _RANK = {"allow": 0, "require_approval": 1, "block": 2}
