@@ -4272,6 +4272,10 @@
    "group": "tools",
    "path": "tools/smoke_campfire_blackbox.py"
   },
+  "tools.verify_deployment": {
+   "group": "tools",
+   "path": "tools/verify_deployment.py"
+  },
   "tools.verify_discovery": {
    "group": "tools",
    "path": "tools/verify_discovery.py"

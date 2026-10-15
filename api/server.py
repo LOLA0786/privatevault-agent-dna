@@ -80,6 +80,7 @@ from agent_dna.lineage import (
     LineageFinding,
     LineageLedger,
     escalate_with_lineage,
+    lineage_manifest,
     lineage_mode,
 )
 from agent_dna.observability.logger import get_logger
@@ -362,6 +363,9 @@ async def lifespan(app: FastAPI):
         LineageLedger(store_path, signer=runtime.signer)
         if state["lineage_mode"] != "off" and store_path is not None
         else None
+    )
+    runtime.composition["lineage"] = lineage_manifest(
+        state["lineage_mode"], state["lineage"] is not None
     )
     state["monitors"] = {}
     state["started_at"] = _datetime.now(UTC).isoformat()
