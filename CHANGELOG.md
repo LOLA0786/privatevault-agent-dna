@@ -5,6 +5,19 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Fixed — MCP gateway works with standard MCP clients (external test, 2026-10-15)
+
+- `python -m agent_dna.gateway` now loads `RuntimeConfig.from_env()`; it
+  previously ignored `PV_POLICY_FILE`, `PV_GRANTS_FILE`, `PV_DB_PATH` and the
+  trusted keys. Bad configuration exits 1 with a message.
+- stdio speaks newline-delimited JSON (MCP spec) by default on both the
+  client and upstream side; `--framing content-length` keeps legacy clients.
+- Upstream replies already buffered in the pipe are no longer mistaken for
+  a timeout (raw-fd reads); upstream stderr no longer fills an unread pipe.
+- Notifications get no response (JSON-RPC 2.0).
+- `data/privatevault.db` is no longer tracked; `examples/config/grants.json`
+  shows the `PV_GRANTS_FILE` format and the loader error points to it.
+
 ### Live refund agent demo: real Claude, real services over HTTP
 - `demos/live_checkout/`: a Claude refund agent works a 15-request queue
   (`refund_queue.json`) through three real processes: the PrivateVault API

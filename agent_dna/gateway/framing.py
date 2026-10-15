@@ -1,7 +1,10 @@
-"""MCP JSON-RPC framing (Content-Length) and exact-byte serialization.
+"""MCP JSON-RPC framing and exact-byte serialization.
 
-Production sessions use Content-Length framing only. Newline-delimited
-JSON is test-only and cannot be selected by production GatewayConfig.
+The MCP stdio transport is newline-delimited JSON: one JSON-RPC message
+per line, no embedded newlines. That is what the official SDKs speak, and
+it is the default for ``python -m agent_dna.gateway --stdio``.
+Content-Length framing (LSP style) is still supported for legacy clients.
+Both modes are size-capped before any message is decoded.
 """
 
 from __future__ import annotations
@@ -34,7 +37,7 @@ MAX_JSON_DEPTH = 32
 
 class FramingMode(StrEnum):
     CONTENT_LENGTH = "content-length"
-    NEWLINE = "newline"  # test-only
+    NEWLINE = "newline"  # MCP stdio spec
 
 
 def encode_jsonrpc_message(message: dict[str, Any]) -> bytes:
@@ -57,6 +60,19 @@ def frame_stdio(payload: bytes) -> bytes:
     """Wrap JSON bytes in MCP stdio Content-Length framing."""
     header = f"Content-Length: {len(payload)}\r\n\r\n".encode("ascii")
     return header + payload
+
+
+def frame_message(payload: bytes, mode: FramingMode) -> bytes:
+    """Frame one encoded JSON-RPC payload for a stdio stream."""
+    if mode is FramingMode.CONTENT_LENGTH:
+        return frame_stdio(payload)
+    if mode is FramingMode.NEWLINE:
+        # encode_jsonrpc_message escapes control characters, so a raw
+        # newline here means a caller bypassed it: refuse, never split.
+        if b"\n" in payload or b"\r" in payload:
+            raise FramingProtocolError("newline-framed payload contains a newline")
+        return payload + b"\n"
+    raise FramingProtocolError(f"unknown framing mode {mode!r}")
 
 
 def build_tools_call_message(
@@ -82,6 +98,7 @@ def freeze_tools_call_bytes(
     tool_name: str,
     arguments: dict[str, Any],
     framed: bool = True,
+    mode: FramingMode = FramingMode.CONTENT_LENGTH,
 ) -> tuple[bytes, str]:
     """Return (exact bytes to write upstream, sha256 digest of those bytes)."""
     message = build_tools_call_message(
@@ -90,7 +107,7 @@ def freeze_tools_call_bytes(
         arguments=arguments,
     )
     payload = encode_jsonrpc_message(message)
-    wire = frame_stdio(payload) if framed else payload
+    wire = frame_message(payload, mode) if framed else payload
     return wire, sha256_bytes_digest(wire)
 
 
@@ -98,10 +115,11 @@ def freeze_jsonrpc_bytes(
     message: dict[str, Any],
     *,
     framed: bool = True,
+    mode: FramingMode = FramingMode.CONTENT_LENGTH,
 ) -> tuple[bytes, str]:
     """Exact-byte freeze of an already-built JSON-RPC object."""
     payload = encode_jsonrpc_message(message)
-    wire = frame_stdio(payload) if framed else payload
+    wire = frame_message(payload, mode) if framed else payload
     return wire, sha256_bytes_digest(wire)
 
 

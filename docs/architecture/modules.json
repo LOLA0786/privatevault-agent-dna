@@ -911,6 +911,11 @@
   ],
   [
    "agent_dna.gateway.__main__",
+   "agent_dna.gateway.framing",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.__main__",
    "agent_dna.gateway.http_sse_proxy",
    "top"
   ],
@@ -2912,7 +2917,7 @@
   "agent_dna.fingerprint": 5,
   "agent_dna.gateway.credentials": 5,
   "agent_dna.gateway.errors": 11,
-  "agent_dna.gateway.framing": 7,
+  "agent_dna.gateway.framing": 8,
   "agent_dna.gateway.http_sse_proxy": 1,
   "agent_dna.gateway.https_egress": 2,
   "agent_dna.gateway.mediator": 2,
@@ -3058,7 +3063,7 @@
   "agent_dna.export_manifest": 1,
   "agent_dna.fingerprint": 2,
   "agent_dna.gateway": 3,
-  "agent_dna.gateway.__main__": 7,
+  "agent_dna.gateway.__main__": 8,
   "agent_dna.gateway.credentials": 1,
   "agent_dna.gateway.framing": 4,
   "agent_dna.gateway.http_sse_proxy": 4,
