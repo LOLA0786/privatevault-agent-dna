@@ -75,6 +75,7 @@ from agent_dna.lineage import (
     ALREADY_APPROVED as LINEAGE_ALREADY_APPROVED,
 )
 from agent_dna.lineage import (
+    LINEAGE_EVENT_SPEC,
     LineageFinding,
     LineageLedger,
     escalate_with_lineage,
@@ -356,7 +357,7 @@ async def lifespan(app: FastAPI):
     state["lineage_mode"] = lineage_mode()
     store_path = getattr(runtime.store, "path", None)
     state["lineage"] = (
-        LineageLedger(store_path)
+        LineageLedger(store_path, signer=runtime.signer)
         if state["lineage_mode"] != "off" and store_path is not None
         else None
     )
@@ -849,6 +850,21 @@ def lineage(
 
 
 # ---------- audit surface -------------------------------------------------------
+
+
+@app.get("/v1/flows/{flow_id}", dependencies=[Depends(require_audit_or_full_key)])
+def flow_export(flow_id: str):
+    """ADR 0021: sealed lineage events of one multi-agent flow.
+
+    Audit or full scope. Verify offline with tools/verify_lineage.py.
+    """
+    ledger: LineageLedger | None = state.get("lineage")
+    if ledger is None:
+        raise HTTPException(status_code=404, detail="lineage is not enabled")
+    events = ledger.export_flow(flow_id)
+    if not events:
+        raise HTTPException(status_code=404, detail="unknown flow")
+    return {"flow_id": flow_id, "spec": LINEAGE_EVENT_SPEC, "events": events}
 
 
 @app.get("/v1/envelope/{record_hash}", dependencies=[Depends(require_api_key)])
