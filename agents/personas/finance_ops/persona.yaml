@@ -28,6 +28,26 @@ grants:
 # Customer policy rules, first firing rule wins. Conditions read the decided
 # arguments; a rule whose field is absent is skipped, never passed.
 policy:
+  # Where and how the bytes go. evidence.bound.* is the sealed dispatch
+  # (destination, METHOD path) the permit will bind and the receiver will
+  # execute; the agent cannot set it. Anything other than the one endpoint
+  # this tool exists for is blocked before a permit can be minted.
+  - id: wrong-destination
+    capability: payments.pay_invoice
+    outcome: block
+    reason: destination is not the endpoint this tool is approved for
+    condition:
+      field: evidence.bound.destination
+      operator: not_in
+      value: ["https://payments.partner.example"]
+  - id: wrong-operation
+    capability: payments.pay_invoice
+    outcome: block
+    reason: method and path are not the operation this tool is approved for
+    condition:
+      field: evidence.bound.operation
+      operator: not_in
+      value: ["POST /api/v1/transfers"]
   - id: unknown-payee
     capability: payments.pay_invoice
     outcome: block
