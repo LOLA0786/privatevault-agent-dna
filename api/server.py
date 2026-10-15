@@ -82,6 +82,7 @@ from agent_dna.runtime import RuntimeMonitor
 from agent_dna.security.loop_discovery import (
     LoopDecision,
     LoopFormatError,
+    LoopPolicy,
     discover_loops,
 )
 from agent_dna.signer import verify_trusted_envelope
@@ -1151,7 +1152,7 @@ def _authorize_loop_gate(
     security_events: list[dict[str, Any]],
 ) -> dict[str, Any]:
     try:
-        report = discover_loops(security_events)
+        report = discover_loops(security_events, LoopPolicy(normalize_agent_ids=True))
     except LoopFormatError as exc:
         raise HTTPException(
             status_code=422,

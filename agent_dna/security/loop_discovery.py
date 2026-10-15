@@ -19,11 +19,12 @@ import hashlib
 import re
 from collections import Counter, deque
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from enum import StrEnum
 
 from agent_dna.authority_v01 import canonicalize
+from agent_dna.identity import fold_agent_id
 
 LOOP_EVENT_SPEC = "pv-agent-security-event/1.0"
 LOOP_REPORT_SPEC = "pv-loop-discovery-report/1.0"
@@ -229,6 +230,9 @@ class LoopPolicy:
     action_block_occurrences: int = 3
     max_findings: int = 256
     require_complete_lineage: bool = True
+    # Analyse the graph on folded agent ids (case / Unicode variants are one
+    # node). The input digest still covers the events exactly as received.
+    normalize_agent_ids: bool = False
 
     def __post_init__(self) -> None:
         integer_fields = {
@@ -303,6 +307,17 @@ class _CycleWitness:
 
 def _event_order(event: LoopEvent) -> tuple[str, str, str]:
     return (event.trace_id, event.occurred_at, event.event_id)
+
+
+def _fold_identities(events: Sequence[LoopEvent]) -> tuple[LoopEvent, ...]:
+    return tuple(
+        replace(
+            event,
+            source_agent_id=fold_agent_id(event.source_agent_id),
+            target_agent_id=fold_agent_id(event.target_agent_id),
+        )
+        for event in events
+    )
 
 
 def _deduplicate(events: Iterable[LoopEvent]) -> tuple[LoopEvent, ...]:
@@ -807,10 +822,13 @@ def discover_loops(
             f"event count {len(normalized)} exceeds limit {policy.max_events}"
         )
 
+    analysed = (
+        _fold_identities(normalized) if policy.normalize_agent_ids else normalized
+    )
     findings = (
-        _authorization_findings(normalized)
-        + _causal_findings(normalized, policy)
-        + _graph_findings(normalized)
+        _authorization_findings(analysed)
+        + _causal_findings(analysed, policy)
+        + _graph_findings(analysed)
     )
     findings = sorted(
         {_finding_key(item): item for item in findings}.values(), key=_finding_key
