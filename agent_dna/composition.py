@@ -31,6 +31,7 @@ binding constraint). GET /v1/runtime serves it.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import os
@@ -57,6 +58,7 @@ from .decision import DecisionEngine
 from .decision_recorder import DecisionRecorder
 from .dynamics import BehaviorDynamics
 from .economics import CostAnomalyChecker
+from .grant_spend import GrantSpendLedger
 from .grants import GrantRegistry
 from .manifold import CapabilityManifold
 from .open_authorizer import OpenAuthorizer
@@ -257,6 +259,34 @@ def _train_scorer(extra_capabilities: list[str] | None = None) -> DriftScorer:
     return DriftScorer(manifold, dynamics)
 
 
+def _stable_grant_id(
+    entry: dict, granted_by: str, ordinals: dict[tuple[str, str, str], int]
+) -> str:
+    """Grant identity that survives restarts, so durable spend follows it.
+
+    Derived from who/what/granted_by plus the entry's position among
+    identical ones -- deliberately NOT from budget or expiry, so raising a
+    budget or extending a grant does not reset what was already spent.
+    Operators who reorder or split grants should set an explicit grant_id.
+    """
+    key = (str(entry["agent_id"]), str(entry["capability"]), str(granted_by))
+    ordinal = ordinals.get(key, 0)
+    ordinals[key] = ordinal + 1
+    material = json.dumps([*key, ordinal], separators=(",", ":"))
+    return "grant-" + hashlib.sha256(material.encode()).hexdigest()[:32]
+
+
+def _attach_durable_spend(
+    authorizer: object, cfg: RuntimeConfig, comp: dict[str, Any]
+) -> None:
+    """Durable, cross-worker grant spend in the decision store's database."""
+    if isinstance(authorizer, GrantRegistry) and (
+        authorizer.authorization_mode == "grants_file"
+    ):
+        authorizer.attach_spend_ledger(GrantSpendLedger(cfg.db_path))
+        comp["authorization"]["spend"] = "durable (sqlite)"
+
+
 def _load_grants(path: str) -> GrantRegistry:
     """JSON list: [{agent_id, capability, granted_by?, expires_at?,
     budget?}, ...]. Malformed config fails the BUILD (loudly, at
@@ -266,13 +296,16 @@ def _load_grants(path: str) -> GrantRegistry:
         raise ValueError(f"{path}: expected a JSON list of grants")
     reg = GrantRegistry()
     reg.authorization_mode = "grants_file"
+    ordinals: dict[tuple[str, str, str], int] = {}
     for e in entries:
+        granted_by = e.get("granted_by", "config")
         reg.grant(
             agent_id=e["agent_id"],
             capability=e["capability"],
-            granted_by=e.get("granted_by", "config"),
+            granted_by=granted_by,
             expires_at=e.get("expires_at"),
             budget=e.get("budget"),
+            grant_id=e.get("grant_id") or _stable_grant_id(e, granted_by, ordinals),
         )
     reg.authorization_mode = "grants_file"
     return reg
@@ -679,6 +712,7 @@ def build_production_runtime(
         )
 
     store = SQLiteDecisionStore(cfg.db_path)
+    _attach_durable_spend(authorizer, cfg, comp)
 
     # ---- approvals (ADR 0020): operator-pinned approver trust bundle ----
     # Attached after the store exists because the bridge claims each
