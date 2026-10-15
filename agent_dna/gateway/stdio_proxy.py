@@ -22,7 +22,7 @@ def _read_stdio_message(
     *,
     timeout_s: float | None = None,
 ) -> bytes | None:
-    """Read one framed message into ``buffer``. Production uses Content-Length.
+    """Read one framed message into ``buffer`` (newline or Content-Length).
 
     Returns the message body, or None on clean EOF with an empty buffer.
     Incomplete frames at EOF / timeout raise FramingProtocolError or return
@@ -59,13 +59,11 @@ def serve_stdio(
     """Run the stdio proxy until the client disconnects."""
     if gateway.config.transport != "stdio":
         raise ValueError("serve_stdio requires transport=stdio")
-    if gateway.config.framing_mode is not FramingMode.CONTENT_LENGTH:
-        raise ValueError("serve_stdio requires content-length framing")
     cin = client_in if client_in is not None else sys.stdin.buffer
     cout = client_out if client_out is not None else sys.stdout.buffer
     mediator = gateway.open_session()
     buffer = FrameBuffer(
-        mode=FramingMode.CONTENT_LENGTH,
+        mode=gateway.config.framing_mode,
         max_header_bytes=MAX_HEADER_BYTES,
         max_message_bytes=gateway.config.max_message_bytes,
     )
@@ -78,9 +76,12 @@ def serve_stdio(
         if raw is None:
             mediator.mark_client_disconnected()
             break
+        if not raw.strip():
+            continue  # blank line between newline-framed messages
         response = mediator.handle_raw(raw)
-        cout.write(response)
-        cout.flush()
+        if response:
+            cout.write(response)
+            cout.flush()
 
 
 def serve_stdio_text(
@@ -111,6 +112,7 @@ def serve_stdio_text(
             if not raw.strip():
                 continue
             response = mediator.handle_raw(raw)
-            lines_out.write(response.decode("utf-8") + "\n")
-            lines_out.flush()
+            if response:
+                lines_out.write(response.decode("utf-8") + "\n")
+                lines_out.flush()
     mediator.mark_client_disconnected()

@@ -1,0 +1,15 @@
+[
+  {
+    "agent_id": "treasury-agent",
+    "capability": "payments.pay_invoice",
+    "granted_by": "cfo@acme.example",
+    "expires_at": null,
+    "budget": 100000
+  },
+  {
+    "agent_id": "coder-agent",
+    "capability": "fs.read",
+    "granted_by": "platform-team",
+    "expires_at": null
+  }
+]

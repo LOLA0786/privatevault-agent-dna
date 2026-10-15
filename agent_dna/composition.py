@@ -296,7 +296,12 @@ def _load_grants(path: str) -> GrantRegistry:
     startup) -- never a silently empty authorizer."""
     entries = json.loads(Path(path).read_text())
     if not isinstance(entries, list):
-        raise ValueError(f"{path}: expected a JSON list of grants")
+        raise ValueError(
+            f"{path}: expected a JSON list of grants "
+            '[{"agent_id": ..., "capability": ..., ...}] -- see '
+            "examples/config/grants.json (profiles/grants.json is the "
+            "legacy per-agent skill-adapter format, not PV_GRANTS_FILE)"
+        )
     reg = GrantRegistry()
     reg.authorization_mode = "grants_file"
     ordinals: dict[tuple[str, str, str], int] = {}

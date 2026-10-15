@@ -38,7 +38,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 1700+ automated tests, run in CI on every commit
+- 1720+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
@@ -468,10 +468,15 @@ What is shipped and tested (`tests/gateway/`):
   closed: they are not forwarded and the exact method name is recorded.
 - Frame reading is bounded and mode-explicit (`tests/gateway/test_framing.py`):
   header ≤ 8 KiB, body ≤ configurable `max_message_bytes` (default 8 MiB),
-  JSON nesting ≤ `max_json_depth` (default 32), Content-Length framing
-  only in production; trailing bytes after a frame are retained for
-  pipelining; newline framing is test-only. The same size and depth
-  caps apply to upstream bodies, not only client frames.
+  JSON nesting ≤ `max_json_depth` (default 32). stdio uses
+  newline-delimited JSON (the MCP spec; CLI default) or Content-Length
+  (`--framing content-length`, legacy clients), with the same caps in both;
+  trailing bytes after a frame are retained for pipelining. The same size
+  and depth caps apply to upstream bodies, not only client frames.
+- Interoperability with the official MCP Python SDK (client and server) is
+  tested end to end through the real CLI
+  (`tests/gateway/test_gateway_mcp_compat.py`). Other SDKs and clients are
+  not tested.
 - TLS certificate verification is on by default for HTTP/SSE; starting
   with verification disabled requires the operator flag
   `allow_insecure_tls`. Cross-origin HTTP redirects are refused (they

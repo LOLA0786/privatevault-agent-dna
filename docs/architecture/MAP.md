@@ -117,7 +117,7 @@ flowchart LR
 | `agent_dna.gateway.errors` | 11 | 0 |
 | `agent_dna.apikeys` | 9 | 1 |
 | `agent_dna.decision_recorder` | 8 | 5 |
-| `agent_dna.gateway.framing` | 7 | 4 |
+| `agent_dna.gateway.framing` | 8 | 4 |
 | `agent_dna.grants` | 7 | 1 |
 | `agent_dna.manifold` | 7 | 1 |
 

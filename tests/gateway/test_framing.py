@@ -216,11 +216,13 @@ def test_parse_jsonrpc_rejects_nesting_beyond_max_depth():
         parse_jsonrpc(raw)
 
 
-def test_newline_framing_rejected_without_test_flag(credentials):
+def test_newline_framing_is_a_production_mode(credentials):
+    """Newline-delimited JSON is the MCP stdio spec, so production config
+    accepts it; the gateway still refuses to start without a runtime."""
     from agent_dna.gateway.runtime import McpGateway
     from agent_dna.gateway.upstream import RecordingUpstream
 
-    with pytest.raises(GatewayStartupError, match="test-only"):
+    with pytest.raises(GatewayStartupError, match="without a configured runtime"):
         McpGateway(
             None,
             config=GatewayConfig(
@@ -228,7 +230,6 @@ def test_newline_framing_rejected_without_test_flag(credentials):
                 client_identity="x",
                 transport="stdio",
                 framing_mode=FramingMode.NEWLINE,
-                _test_allow_newline_framing=False,
             ),
             credentials=credentials,
             upstream=RecordingUpstream(),
