@@ -58,6 +58,7 @@ from .decision import DecisionEngine
 from .decision_recorder import DecisionRecorder
 from .dynamics import BehaviorDynamics
 from .economics import CostAnomalyChecker
+from .grant_revocation import GrantRevocationLedger
 from .grant_spend import GrantSpendLedger
 from .grants import GrantRegistry
 from .manifold import CapabilityManifold
@@ -279,12 +280,14 @@ def _stable_grant_id(
 def _attach_durable_spend(
     authorizer: object, cfg: RuntimeConfig, comp: dict[str, Any]
 ) -> None:
-    """Durable, cross-worker grant spend in the decision store's database."""
+    """Durable, cross-worker grant spend and revocation in the store's DB."""
     if isinstance(authorizer, GrantRegistry) and (
         authorizer.authorization_mode == "grants_file"
     ):
         authorizer.attach_spend_ledger(GrantSpendLedger(cfg.db_path))
+        authorizer.attach_revocation_ledger(GrantRevocationLedger(cfg.db_path))
         comp["authorization"]["spend"] = "durable (sqlite)"
+        comp["authorization"]["revocation"] = "durable (sqlite)"
 
 
 def _load_grants(path: str) -> GrantRegistry:
