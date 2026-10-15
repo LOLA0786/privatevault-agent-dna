@@ -52,6 +52,7 @@ from agent_dna.authorize_binding import (
     AUTHORIZE_APPROVAL_MISMATCH,
     AUTHORIZE_DECISION_NOT_FOUND,
     AUTHORIZE_DECISION_REQUIRED,
+    AUTHORIZE_GRANT_REVOKED,
     AUTHORIZE_PERMIT_ALREADY_CONSUMED,
     AUTHORIZE_PERMIT_BINDING_CONFLICT,
     AUTHORIZE_PERMIT_EXPIRED,
@@ -1261,6 +1262,19 @@ def _authorize_loop_gate(
 _NO_APPROVAL_DIGEST = "sha256:" + "0" * 64
 
 
+def _revoked_grant_for(record: dict[str, Any]) -> str | None:
+    """Grant id of a sealed decision if that grant is durably revoked."""
+    if record.get("triggered_by") == TRIGGERED_BY_APPROVAL:
+        return None  # approval_ref names an approval artifact, not a grant
+    grant_id = record.get("approval_ref")
+    engine = state.get("engine")
+    authorizer = getattr(engine, "authorizer", None)
+    ledger = getattr(authorizer, "revocation_ledger", None)
+    if ledger is None or not isinstance(grant_id, str):
+        return None
+    return grant_id if ledger.is_revoked(grant_id) is not None else None
+
+
 @app.post("/v1/authorize")
 def authorize(req: AuthorizeRequest, principal: FullPrincipal):  # noqa: C901
     """Issue execution authority bound to a sealed ALLOW and exact bytes."""
@@ -1287,6 +1301,14 @@ def authorize(req: AuthorizeRequest, principal: FullPrincipal):  # noqa: C901
             403,
             AUTHORIZE_APPROVAL_MISMATCH,
             "approval_artifact_digest is only valid for an approval-triggered ALLOW",
+        )
+
+    revoked_grant = _revoked_grant_for(record)
+    if revoked_grant is not None:
+        _authorize_refusal(
+            403,
+            AUTHORIZE_GRANT_REVOKED,
+            f"the grant behind this decision was revoked ({revoked_grant})",
         )
 
     signer = _pv_load_signer()
@@ -1420,6 +1442,24 @@ def authorize(req: AuthorizeRequest, principal: FullPrincipal):  # noqa: C901
     mint_status = mint_result[0]
     authorization = mint_result[1]
     stored_bundle = mint_result[2] if len(mint_result) > 2 else None
+
+    # Revocation that committed while this mint was being claimed: the
+    # revoke scan may not have seen this permit, so suspend it here and
+    # refuse to hand it out (grant_revocation module docstring).
+    late_revocation = _revoked_grant_for(record)
+    if late_revocation is not None and isinstance(authorization, dict):
+        store.suspend(
+            "authorization",
+            str(authorization.get("execution_authorization_id")),
+            reason=f"grant revoked during mint ({late_revocation})",
+            suspended_by="authorize",
+            suspended_at=minted_at,
+        )
+        _authorize_refusal(
+            403,
+            AUTHORIZE_GRANT_REVOKED,
+            f"the grant behind this decision was revoked ({late_revocation})",
+        )
 
     if mint_status == "conflict":
         _authorize_refusal(

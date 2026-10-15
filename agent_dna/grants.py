@@ -58,9 +58,20 @@ class GrantRegistry:
         # Optional durable ledger (agent_dna.grant_spend). When attached,
         # spend survives restarts and is shared by every worker on the DB.
         self.spend_ledger: Any = None
+        # Optional durable revocations (agent_dna.grant_revocation).
+        self.revocation_ledger: Any = None
 
     def attach_spend_ledger(self, ledger: Any) -> None:
         self.spend_ledger = ledger
+
+    def attach_revocation_ledger(self, ledger: Any) -> None:
+        self.revocation_ledger = ledger
+
+    def _durable_revocation(self, g: CapabilityGrant) -> dict[str, str] | None:
+        if self.revocation_ledger is None:
+            return None
+        hit: dict[str, str] | None = self.revocation_ledger.is_revoked(g.grant_id)
+        return hit
 
     def _spent(self, g: CapabilityGrant) -> Decimal:
         if self.spend_ledger is not None:
@@ -139,6 +150,12 @@ class GrantRegistry:
             if g.revoked:
                 reasons.append(f"grant {g.grant_id[:14]} revoked by {g.revoked_by}")
                 continue
+            durable = self._durable_revocation(g)
+            if durable is not None:
+                reasons.append(
+                    f"grant {g.grant_id[:14]} revoked by {durable['revoked_by']}"
+                )
+                continue
             if g.expires_at is not None and now >= g.expires_at:
                 reasons.append(f"grant {g.grant_id[:14]} expired")
                 continue
@@ -173,7 +190,7 @@ class GrantRegistry:
         delta = coerce_amount(amount)
         with self._spend_lock:
             g = self._grants[grant_id]
-            if g.revoked:
+            if g.revoked or self._durable_revocation(g) is not None:
                 raise ValueError(f"grant {grant_id[:14]} revoked before spend")
             if self.spend_ledger is not None:
                 g.spent = self.spend_ledger.commit_spend(grant_id, delta, g.budget)

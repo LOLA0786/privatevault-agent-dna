@@ -256,6 +256,11 @@
   ],
   [
    "agent_dna.cli",
+   "agent_dna.grant_revocation",
+   "lazy"
+  ],
+  [
+   "agent_dna.cli",
    "agent_dna.policy_gate",
    "lazy"
   ],
@@ -372,6 +377,11 @@
   [
    "agent_dna.composition",
    "agent_dna.economics",
+   "top"
+  ],
+  [
+   "agent_dna.composition",
+   "agent_dna.grant_revocation",
    "top"
   ],
   [
@@ -2899,6 +2909,7 @@
   "agent_dna.gateway.upstream": 3,
   "agent_dna.governance.evaluate": 1,
   "agent_dna.governance.pack": 2,
+  "agent_dna.grant_revocation": 2,
   "agent_dna.grant_spend": 1,
   "agent_dna.grants": 7,
   "agent_dna.identity": 5,
@@ -2998,9 +3009,9 @@
   "agent_dna.authorize_binding": 5,
   "agent_dna.change_management": 1,
   "agent_dna.circuit_breaker": 2,
-  "agent_dna.cli": 7,
+  "agent_dna.cli": 8,
   "agent_dna.closure_v01": 3,
-  "agent_dna.composition": 29,
+  "agent_dna.composition": 30,
   "agent_dna.confidence": 1,
   "agent_dna.connector": 2,
   "agent_dna.connector.adapters": 2,
@@ -3479,6 +3490,10 @@
   "agent_dna.governance.pack": {
    "group": "agent_dna/governance",
    "path": "agent_dna/governance/pack.py"
+  },
+  "agent_dna.grant_revocation": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/grant_revocation.py"
   },
   "agent_dna.grant_spend": {
    "group": "agent_dna (core modules)",

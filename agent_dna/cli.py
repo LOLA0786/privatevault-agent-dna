@@ -640,6 +640,40 @@ def cmd_discovery_run(args: argparse.Namespace) -> int:  # noqa: C901
     return EXIT_FAIL if result.status is DiscoveryStatus.STRUCTURAL_BLOCK else EXIT_OK
 
 
+def cmd_grants_revoke(args: argparse.Namespace) -> int:
+    """Operator-only: needs the database, never an agent API key."""
+    from agent_dna.grant_revocation import GrantRevocationLedger
+    from agent_dna.sqlite_store import SQLiteDecisionStore
+
+    ledger = GrantRevocationLedger(args.db)
+    store = SQLiteDecisionStore(args.db)
+    try:
+        result = ledger.revoke(
+            args.grant_id, revoked_by=args.by, reason=args.reason, store=store
+        )
+    finally:
+        store.close()
+        ledger.close()
+    state = "revoked" if result.newly_revoked else "already revoked"
+    print(f"grant {result.grant_id}: {state} at {result.revoked_at}")
+    print(f"outstanding permits suspended: {len(result.suspended_authorizations)}")
+    for ea_id in result.suspended_authorizations:
+        print(f"  {ea_id}")
+    return EXIT_OK
+
+
+def cmd_grants_revoked(args: argparse.Namespace) -> int:
+    from agent_dna.grant_revocation import GrantRevocationLedger
+
+    ledger = GrantRevocationLedger(args.db)
+    try:
+        rows = ledger.revoked()
+    finally:
+        ledger.close()
+    print(json.dumps(rows, indent=2))
+    return EXIT_OK
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="pv", description="PrivateVault decision-security runtime"
@@ -776,6 +810,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="write machine-readable report",
     )
     scan.set_defaults(func=cmd_authority_scan)
+
+    grants = sub.add_parser("grants", help="grant lifecycle (operator)")
+    gsub = grants.add_subparsers(dest="action", required=True)
+    revoke = gsub.add_parser(
+        "revoke",
+        help="durably revoke a grant and suspend every permit minted under it",
+    )
+    revoke.add_argument("grant_id")
+    revoke.add_argument("--db", required=True, help="PrivateVault SQLite database")
+    revoke.add_argument("--by", required=True, help="who is revoking (recorded)")
+    revoke.add_argument("--reason", required=True, help="why (recorded)")
+    revoke.set_defaults(func=cmd_grants_revoke)
+    revoked = gsub.add_parser("revoked", help="list durable revocations")
+    revoked.add_argument("--db", required=True, help="PrivateVault SQLite database")
+    revoked.set_defaults(func=cmd_grants_revoked)
 
     loop = sub.add_parser(
         "loop",
