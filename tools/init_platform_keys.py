@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -45,20 +46,15 @@ def main() -> int:
         + "\n",
         encoding="utf-8",
     )
-    args.secrets_out.write_text(
-        "\n".join(
-            [
-                f"OPERATOR_KEY={op['key']}",
-                f"AUDITOR_KEY={au['key']}",
-                "",
-            ]
-        ),
-        encoding="utf-8",
-    )
+    args.secrets_out.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(args.secrets_out, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write(f"OPERATOR_KEY={op['key']}\nAUDITOR_KEY={au['key']}\n")
+    os.chmod(args.secrets_out, 0o600)  # also tighten a pre-existing file
+    # Keys are never printed: stdout ends up in CI logs and scrollback.
     print(f"wrote registry {args.out}")
-    print(f"wrote secrets  {args.secrets_out} (gitignored; do not commit)")
-    print(f"OPERATOR_KEY={op['key']}")
-    print(f"AUDITOR_KEY={au['key']}")
+    print(f"wrote secrets  {args.secrets_out} (mode 0600, gitignored; do not commit)")
+    print(f"read them with: cat {args.secrets_out}")
     return 0
 
 

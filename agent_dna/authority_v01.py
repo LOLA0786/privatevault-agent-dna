@@ -29,8 +29,15 @@ COMPOSITION_PROFILE = "pv-fail-closed/0.1"
 
 SHA256_RE = re.compile(r"sha256:[0-9a-f]{64}\Z")
 SIGNATURE_RE = re.compile(r"ed25519:[A-Za-z0-9+/]+={0,2}\Z")
-RESOURCE_RE = re.compile(r"[^*]+(?::\*)?\Z")
 ISO_CURRENCY_RE = re.compile(r"[A-Z]{3}\Z")
+
+
+def _resource_wildcard_ok(resource: str) -> bool:
+    """Non-empty, and '*' only as one trailing ':*' (linear, no regex)."""
+    stem = resource[:-2] if resource.endswith(":*") else resource
+    return bool(stem) and "*" not in stem
+
+
 RFC3339_UTC_RE = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z\Z")
 SUPPORTED_OPERATORS = frozenset({"lte", "gte", "in", "not_in", "eq"})
 SUPPORTED_USAGES = frozenset(
@@ -489,7 +496,7 @@ def _validate_capability(value: Any, path: str) -> None:
         f"{path}.resource",
     )
 
-    if not RESOURCE_RE.fullmatch(resource):
+    if not _resource_wildcard_ok(resource):
         raise AuthorityFormatError(
             f"{path}.resource: only a single trailing ':*' wildcard is permitted"
         )

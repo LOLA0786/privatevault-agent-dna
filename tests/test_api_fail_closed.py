@@ -42,7 +42,10 @@ def test_faulting_scorer_returns_403_not_500(tmp_path, monkeypatch):
         body = r.json()
         assert body["decision"] == "block"
         assert body["triggered_by"] == "engine_fault"
-        assert "scorer blew up" in body["reason"]
+        # type and fault id are auditable; the exception text is not
+        # returned or sealed (CodeQL py/stack-trace-exposure)
+        assert body["reason"].startswith("engine_fault: RuntimeError (fault_id=")
+        assert "scorer blew up" not in body["reason"]
 
         # the fault record itself must be a valid, sealed, queryable
         # record — not a special case that skips the audit trail

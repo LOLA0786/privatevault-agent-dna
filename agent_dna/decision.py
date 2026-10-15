@@ -4,6 +4,8 @@ Unified Runtime Decision Engine.
 
 from __future__ import annotations
 
+import logging
+import uuid
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Protocol, runtime_checkable
@@ -12,6 +14,31 @@ from .advisory import AdvisorySignal, Severity
 from .amount import INVALID_AMOUNT, InvalidAmountError, coerce_amount
 from .evidence import EvidenceEngine, EvidenceReport
 from .trace import AgentAction
+
+_fault_log = logging.getLogger("pv.engine")
+
+
+def fault_reason(exc: BaseException, label: str = "engine_fault") -> str:
+    """Auditable reason for a fail-closed fault, without the exception text.
+
+    The reason is sealed into the decision record, returned to the caller
+    and exported to auditors. Exception messages can carry file paths,
+    connection strings or evidence values, so only the exception type, an
+    optional class-level ``public_reason`` constant and a fault id go there;
+    the full exception is logged under the same id.
+    """
+    fault_id = uuid.uuid4().hex[:16]
+    _fault_log.error(
+        "%s fault_id=%s %s: %s",
+        label,
+        fault_id,
+        type(exc).__name__,
+        exc,
+        exc_info=(type(exc), exc, exc.__traceback__),
+    )
+    public = getattr(type(exc), "public_reason", None)
+    detail = f": {public}" if isinstance(public, str) and public else ""
+    return f"{label}: {type(exc).__name__}{detail} (fault_id={fault_id})"
 
 
 class Decision(StrEnum):
@@ -315,7 +342,7 @@ class DecisionEngine:
             return DecisionResult(
                 decision=Decision.BLOCK,
                 triggered_by="engine_fault",
-                reason=f"{type(exc).__name__}: {exc}",
+                reason=fault_reason(exc),
                 capability=action.capability,
                 agent_id=action.agent_id,
                 drift_score=0.0,

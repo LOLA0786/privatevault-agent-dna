@@ -1052,12 +1052,13 @@ def ready():
         store.ping()
     except Exception as exc:
         set_ready(False)
+        _log.error("readiness: store ping failed", exc_info=exc)
         return JSONResponse(
             status_code=503,
             content={
                 "status": "not_ready",
                 "reason": "store_unavailable",
-                "detail": str(exc),
+                "detail": type(exc).__name__,
             },
         )
     set_ready(True)

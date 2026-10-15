@@ -51,6 +51,10 @@ class PolicyUnavailableError(RuntimeError):
     infrastructure fault, honestly distinct in the audit trail from a
     real policy denial."""
 
+    # Safe, static text for the sealed reason (engine fault_reason); the
+    # instance message names the endpoint and stays in the server log.
+    public_reason = "policy backend unavailable (opa)"
+
 
 class PolicyResult:
     """Verdict contract consumed by DecisionEngine. `fired` False means
