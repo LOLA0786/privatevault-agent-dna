@@ -32,6 +32,8 @@ import os
 import secrets
 from pathlib import Path
 
+from agent_dna.identity import identity_collisions
+
 KEYS_ENV = "PV_API_KEYS_FILE"
 VALID_SCOPES = {"full", "audit"}
 
@@ -78,6 +80,15 @@ class ApiKeyRegistry:
             if not isinstance(data, dict) or not data:
                 raise ValueError(f"{self.path}: expected non-empty hash->entry map")
             self._entries = {h: _normalize_entry(v) for h, v in data.items()}
+            collisions = identity_collisions(e["name"] for e in self._entries.values())
+            if collisions:
+                # Two different names that are one identity after case and
+                # Unicode folding would let one agent appear as two to the
+                # maker != checker and separation-of-duties checks.
+                raise ValueError(
+                    f"{self.path}: key names collide after identity "
+                    f"normalization: {collisions}"
+                )
             self.enabled = True
 
     def verify(self, key: str | None) -> str | None:

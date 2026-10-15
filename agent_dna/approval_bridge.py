@@ -42,6 +42,7 @@ from agent_dna.approval_v01 import (
     verify_approval_for_execution,
 )
 from agent_dna.authority_v01 import AuthorityFormatError, validate_trust_bundle
+from agent_dna.identity import fold_agent_id
 
 APPROVAL_BLOCK_FIELDS = frozenset({"request", "artifact", "approver_authority_receipt"})
 
@@ -191,11 +192,19 @@ class ApprovalBridge:
             )
         approver_principal = str(artifact["approver_principal"])
         approver_key_id = str(artifact["approver_key_id"])
-        requesters = set(context.requester_identities) | {
-            str(subject["subject_principal"]),
-            str(subject["subject_key_id"]),
+        requesters = {
+            fold_agent_id(i)
+            for i in (
+                *context.requester_identities,
+                str(subject["subject_principal"]),
+                str(subject["subject_key_id"]),
+            )
         }
-        if approver_principal in requesters or approver_key_id in requesters:
+        # compare folded identities: "Alice" must not approve "alice"'s action
+        if (
+            fold_agent_id(approver_principal) in requesters
+            or fold_agent_id(approver_key_id) in requesters
+        ):
             return ApprovalVerdict(
                 False,
                 APPROVAL_SEPARATION_OF_DUTIES,
