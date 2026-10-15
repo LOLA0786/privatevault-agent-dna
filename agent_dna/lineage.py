@@ -107,11 +107,47 @@ CREATE TABLE IF NOT EXISTS lineage_dual_control (
 """
 
 
+def _secure_profile() -> bool:
+    return os.getenv("PV_SECURE_PROFILE", "0").lower() in ("1", "true", "yes", "on")
+
+
 def lineage_mode() -> str:
-    mode = os.getenv(LINEAGE_ENV, "off").strip().lower() or "off"
+    """Configured lineage mode.
+
+    Under ``PV_SECURE_PROFILE=1`` the default is ``enforce`` and anything
+    weaker refuses to start: a control that is off or only reporting gives no
+    blocking guarantee, so the secure profile cannot claim it.
+    """
+    raw = os.getenv(LINEAGE_ENV)
+    default = "enforce" if _secure_profile() else "off"
+    mode = (raw or default).strip().lower() or default
     if mode not in LINEAGE_MODES:
         raise ValueError(f"{LINEAGE_ENV} must be one of {LINEAGE_MODES}, got {mode!r}")
+    if _secure_profile() and mode != "enforce":
+        raise RuntimeError(
+            f"PV_SECURE_PROFILE=1 requires {LINEAGE_ENV}=enforce (got {mode!r}); "
+            "maker != checker gives no blocking guarantee in off or shadow mode"
+        )
     return mode
+
+
+def lineage_manifest(mode: str, attached: bool) -> dict[str, str]:
+    """Composition-manifest entry, reported by GET /v1/runtime."""
+    if not attached:
+        return {
+            "status": "not_attached",
+            "mode": mode,
+            "detail": f"{LINEAGE_ENV}={mode}; server-derived dual control is off",
+        }
+    detail = {
+        "enforce": "server-derived maker != checker BLOCKs (ADR 0021)",
+        "shadow": "findings reported only; NO blocking guarantee",
+    }[mode]
+    return {
+        "status": "enforced" if mode == "enforce" else "shadow",
+        "mode": mode,
+        "detail": detail,
+    }
 
 
 def _bare(record_hash: str) -> str:

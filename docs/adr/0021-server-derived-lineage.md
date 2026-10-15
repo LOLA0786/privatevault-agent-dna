@@ -72,6 +72,15 @@ PyNaCl only: field set, hashes, gap-free seq, the chain, signatures from
 one ALLOWed approval per initiate). Rows recorded before PR 3 are exported
 unsealed and the verifier refuses them.
 
+**Deployment (PR 4).** Under `PV_SECURE_PROFILE=1` lineage defaults to
+`enforce` and the server refuses to start with `off` or `shadow`.
+`GET /v1/runtime` reports `composition.lineage` (`enforced`, `shadow` or
+`not_attached`). `tools/verify_deployment.py` checks those claims against a
+running server and then probes behaviour: an unbound approval and a
+self-approval must both be refused with `triggered_by=lineage_invariant`.
+A deployment may claim enforced maker != checker only for covered flows on
+a server that passes this verifier.
+
 ## What this costs us
 - One extra SQLite read per decide and one write per recorded decision.
 - Integrations must pass `lineage.approves` on approval steps. Shadow mode
@@ -87,4 +96,3 @@ unsealed and the verifier refuses them.
 ## What would make us revisit
 - Loop detection fed from server lineage instead of caller events (PR 4).
 - Signed attenuating delegation (ADR 0022) changes who may join a flow.
-- Default-on in the secure profile once integrations pass references.
