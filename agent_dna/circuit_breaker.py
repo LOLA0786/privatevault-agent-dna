@@ -32,7 +32,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from .amount import InvalidAmountError, coerce_amount
-from .decision import Decision, DecisionResult, Severity
+from .decision import Decision, DecisionResult, Severity, fault_reason
 
 RESET_CAPABILITY = "breaker.reset"
 RESET_GROUP_CAPABILITY = "breaker.reset_group"
@@ -629,7 +629,7 @@ class GuardedEngine:
             )
         except Exception as exc:
             # a faulting breaker must never become a bypass
-            return self._blocked(action, f"breaker_fault: {type(exc).__name__}: {exc}")
+            return self._blocked(action, fault_reason(exc, "breaker_fault"))
         if reason is not None:
             return self._blocked(action, reason)
         # Every path from here MUST finalize the reservation. Rate and
