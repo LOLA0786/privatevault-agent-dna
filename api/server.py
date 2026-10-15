@@ -35,7 +35,7 @@ from typing import Annotated, Any, NoReturn
 from fastapi import Depends, FastAPI, Header, HTTPException, Response
 from fastapi.responses import FileResponse, JSONResponse
 from nacl.signing import SigningKey as _SigningKey
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from starlette.background import BackgroundTask
 
 from agent_dna.apikeys import ApiKeyRegistry
@@ -71,6 +71,15 @@ from agent_dna.control_posture import (
 from agent_dna.decision import Decision
 from agent_dna.execution_v01 import EXECUTION_AUTHORIZATION_SPEC as _PV_EA_SPEC
 from agent_dna.execution_v01 import sign_execution_authorization as _pv_sign_ea
+from agent_dna.lineage import (
+    ALREADY_APPROVED as LINEAGE_ALREADY_APPROVED,
+)
+from agent_dna.lineage import (
+    LineageFinding,
+    LineageLedger,
+    escalate_with_lineage,
+    lineage_mode,
+)
 from agent_dna.observability.logger import get_logger
 from agent_dna.observability.metrics import MetricsExporter
 from agent_dna.observability.prometheus_bridge import (
@@ -344,6 +353,13 @@ async def lifespan(app: FastAPI):
     state["engine"] = runtime.engine
     state["signer"] = runtime.signer
     state["cross_agent"] = runtime.cross_agent
+    state["lineage_mode"] = lineage_mode()
+    store_path = getattr(runtime.store, "path", None)
+    state["lineage"] = (
+        LineageLedger(store_path)
+        if state["lineage_mode"] != "off" and store_path is not None
+        else None
+    )
     state["monitors"] = {}
     state["started_at"] = _datetime.now(UTC).isoformat()
     try:
@@ -358,6 +374,8 @@ async def lifespan(app: FastAPI):
     )
     yield
     set_ready(False)
+    if state.get("lineage") is not None:
+        state["lineage"].close()
     state["store"].close()
     state.clear()
 
@@ -385,6 +403,20 @@ def _monitor_for(agent_id: str) -> RuntimeMonitor:
 
 
 # ---------- request models -------------------------------------------------
+
+
+class LineageRef(BaseModel):
+    """ADR 0021: link this decide to decisions the server already sealed.
+
+    Never a caller-chosen flow id: only references to recorded decisions,
+    which the server resolves from its own lineage rows.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+    parent_record_hash: str | None = Field(
+        default=None, pattern=r"^(sha256:)?[0-9a-f]{64}$"
+    )
+    approves: str | None = Field(default=None, pattern=r"^(sha256:)?[0-9a-f]{64}$")
 
 
 class DecideRequest(BaseModel):
@@ -416,6 +448,8 @@ class DecideRequest(BaseModel):
         default=None, pattern=r"^sha256:[0-9a-f]{64}$"
     )
     expected_wire_bytes_length: int | None = Field(default=None, ge=0)
+    # ADR 0021 server-derived lineage (PV_LINEAGE=shadow|enforce).
+    lineage: LineageRef | None = None
 
 
 class OutcomeRequest(BaseModel):
@@ -668,6 +702,33 @@ def decide(req: DecideRequest, principal: FullPrincipal):
     )
     observe_decide_latency(_time.perf_counter() - started)
 
+    # ADR 0021: server-derived lineage. Escalate-only; enforce blocks on
+    # any finding, shadow reports without changing the verdict.
+    ledger: LineageLedger | None = state.get("lineage")
+    mode = state.get("lineage_mode", "off")
+    lineage_ctx = None
+    lineage_claimed = False
+    if ledger is not None:
+        lineage_ctx = ledger.resolve(
+            agent_id=req.agent_id,
+            capability=req.capability,
+            lineage=req.lineage.model_dump() if req.lineage else None,
+        )
+        if mode == "enforce":
+            result = escalate_with_lineage(result, lineage_ctx.findings)
+            if (
+                result.decision is Decision.ALLOW
+                and lineage_ctx.approves_record_hash is not None
+            ):
+                lineage_claimed = ledger.claim_approval(lineage_ctx)
+                if not lineage_claimed:
+                    finding = LineageFinding(
+                        LINEAGE_ALREADY_APPROVED,
+                        "this initiate has already been approved once",
+                    )
+                    lineage_ctx.findings.append(finding)
+                    result = escalate_with_lineage(result, [finding])
+
     enforcer = state.get("cross_agent")
     require_eid = bool(
         enforcer is not None and getattr(enforcer, "require_execution_id", False)
@@ -685,6 +746,7 @@ def decide(req: DecideRequest, principal: FullPrincipal):
             "loop_events_required": bool(
                 getattr(runtime, "loop_events_required", False)
             ),
+            "lineage_mode": mode,
         },
     )
 
@@ -695,16 +757,23 @@ def decide(req: DecideRequest, principal: FullPrincipal):
         dispatch_context=dispatch_context,
     )
 
-    return JSONResponse(
-        status_code=STATUS_MAP[result.decision],
-        content={
-            "decision": result.decision.value,
-            "triggered_by": result.triggered_by,
-            "reason": result.reason,
-            "execution_id": execution_id,
-            "record": record.to_dict(),
-        },
-    )
+    content: dict[str, Any] = {
+        "decision": result.decision.value,
+        "triggered_by": result.triggered_by,
+        "reason": result.reason,
+        "execution_id": execution_id,
+        "record": record.to_dict(),
+    }
+    if ledger is not None and lineage_ctx is not None:
+        ledger.record(
+            lineage_ctx,
+            record_hash=record.record_hash,
+            decision_id=record.decision_id,
+            decision=result.decision.value,
+            claimed=lineage_claimed,
+        )
+        content["lineage"] = lineage_ctx.report(mode)
+    return JSONResponse(status_code=STATUS_MAP[result.decision], content=content)
 
 
 @app.post("/v1/outcome")

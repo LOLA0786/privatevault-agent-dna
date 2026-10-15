@@ -30,6 +30,7 @@ explicit statement that no such test exists.
 | [0017](0017-wire-action-binding.md) | Trusted action↔wire binding at authorize | accepted | `tests/test_wire_action_binding.py` |
 | [0019](0019-receiver-gate.md) | The system of record verifies the permit (receiver gate) | accepted | `tests/receiver/test_receiver_gate.py::test_direct_call_without_permit_is_refused` |
 | [0020](0020-approval-bridge.md) | A verified, single-use approval satisfies REQUIRE_APPROVAL | accepted | `tests/test_approval_bridge.py::test_approval_is_consumed_atomically_and_durably` |
+| [0021](0021-server-derived-lineage.md) | Multi-agent dual control runs on server-derived lineage, not a caller-chosen id | accepted | `tests/test_lineage_dual_control.py::test_split_execution_ids_no_longer_bypass` |
 
 0001–0014 are the enforcement-spine decisions. 0015 is the earlier
 loop-discovery placement record, renumbered so the spine could own
@@ -43,3 +44,6 @@ by the API's own front door. 0018 is the separately proposed swarm-controls
 plan. 0020 lets a verified, single-use human approval turn a policy or
 authorization REQUIRE_APPROVAL into an ALLOW bound to the same action, with
 separation of duties, so the permit names the approval that produced it.
+0021 moves maker != checker from a caller-chosen execution id to lineage the
+server records itself, so splitting, flooding or evicting a correlation window
+no longer lets one agent approve its own initiate.
