@@ -1165,6 +1165,26 @@
    "top"
   ],
   [
+   "agent_dna.lineage",
+   "agent_dna.advisory",
+   "top"
+  ],
+  [
+   "agent_dna.lineage",
+   "agent_dna.decision",
+   "top"
+  ],
+  [
+   "agent_dna.lineage",
+   "agent_dna.identity",
+   "top"
+  ],
+  [
+   "agent_dna.lineage",
+   "agent_dna.multi_agent.dual_control",
+   "top"
+  ],
+  [
    "agent_dna.manifold",
    "agent_dna.trace",
    "top"
@@ -1877,6 +1897,11 @@
   [
    "api.server",
    "agent_dna.execution_v01",
+   "top"
+  ],
+  [
+   "api.server",
+   "agent_dna.lineage",
    "top"
   ],
   [
@@ -2803,7 +2828,7 @@
   "agent_dna.adapters_policy.local": 2,
   "agent_dna.adapters_policy.opa": 2,
   "agent_dna.adapters_policy.skill_adapter": 1,
-  "agent_dna.advisory": 10,
+  "agent_dna.advisory": 11,
   "agent_dna.allowlist": 1,
   "agent_dna.amount": 5,
   "agent_dna.apikeys": 9,
@@ -2832,7 +2857,7 @@
   "agent_dna.consensus.signing": 6,
   "agent_dna.consensus.weighted_quorum": 1,
   "agent_dna.control_posture": 4,
-  "agent_dna.decision": 24,
+  "agent_dna.decision": 25,
   "agent_dna.decision_graph": 3,
   "agent_dna.decision_record": 6,
   "agent_dna.decision_recorder": 8,
@@ -2865,16 +2890,17 @@
   "agent_dna.governance.evaluate": 1,
   "agent_dna.governance.pack": 2,
   "agent_dna.grants": 7,
-  "agent_dna.identity": 4,
+  "agent_dna.identity": 5,
   "agent_dna.intent_adapter": 1,
   "agent_dna.invariant_engine": 2,
   "agent_dna.invariants": 2,
+  "agent_dna.lineage": 1,
   "agent_dna.manifold": 7,
   "agent_dna.multi_agent": 3,
   "agent_dna.multi_agent.authority": 2,
   "agent_dna.multi_agent.base": 13,
   "agent_dna.multi_agent.consensus": 2,
-  "agent_dna.multi_agent.dual_control": 3,
+  "agent_dna.multi_agent.dual_control": 4,
   "agent_dna.multi_agent.events": 4,
   "agent_dna.multi_agent.graph_builder": 2,
   "agent_dna.multi_agent.intent": 2,
@@ -3010,6 +3036,7 @@
   "agent_dna.invariant_engine": 1,
   "agent_dna.invariants": 1,
   "agent_dna.key_lifecycle": 3,
+  "agent_dna.lineage": 4,
   "agent_dna.manifold": 1,
   "agent_dna.multi_agent": 15,
   "agent_dna.multi_agent.authority": 2,
@@ -3058,7 +3085,7 @@
   "agent_dna.validation.drift": 1,
   "agent_dna.validation.report": 2,
   "agent_dna.wire_serialization_v01": 1,
-  "api.server": 20,
+  "api.server": 21,
   "examples.amlsim.run_amlsim_sample": 6,
   "examples.authority_blast_radius_demo": 1,
   "examples.authority_derivation_demo": 1,
@@ -3464,6 +3491,10 @@
   "agent_dna.key_lifecycle": {
    "group": "agent_dna (core modules)",
    "path": "agent_dna/key_lifecycle.py"
+  },
+  "agent_dna.lineage": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/lineage.py"
   },
   "agent_dna.manifold": {
    "group": "agent_dna (core modules)",
