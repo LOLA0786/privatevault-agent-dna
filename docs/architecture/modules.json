@@ -376,6 +376,11 @@
   ],
   [
    "agent_dna.composition",
+   "agent_dna.grant_spend",
+   "top"
+  ],
+  [
+   "agent_dna.composition",
    "agent_dna.grants",
    "top"
   ],
@@ -1127,6 +1132,11 @@
   [
    "agent_dna.governance.evaluate",
    "agent_dna.governance.pack",
+   "top"
+  ],
+  [
+   "agent_dna.grant_spend",
+   "agent_dna.amount",
    "top"
   ],
   [
@@ -2830,7 +2840,7 @@
   "agent_dna.adapters_policy.skill_adapter": 1,
   "agent_dna.advisory": 11,
   "agent_dna.allowlist": 1,
-  "agent_dna.amount": 5,
+  "agent_dna.amount": 6,
   "agent_dna.apikeys": 9,
   "agent_dna.approval_bridge": 3,
   "agent_dna.approval_v01": 1,
@@ -2889,6 +2899,7 @@
   "agent_dna.gateway.upstream": 3,
   "agent_dna.governance.evaluate": 1,
   "agent_dna.governance.pack": 2,
+  "agent_dna.grant_spend": 1,
   "agent_dna.grants": 7,
   "agent_dna.identity": 5,
   "agent_dna.intent_adapter": 1,
@@ -2989,7 +3000,7 @@
   "agent_dna.circuit_breaker": 2,
   "agent_dna.cli": 7,
   "agent_dna.closure_v01": 3,
-  "agent_dna.composition": 28,
+  "agent_dna.composition": 29,
   "agent_dna.confidence": 1,
   "agent_dna.connector": 2,
   "agent_dna.connector.adapters": 2,
@@ -3031,6 +3042,7 @@
   "agent_dna.gateway.stdio_proxy": 3,
   "agent_dna.gateway.upstream": 3,
   "agent_dna.governance.evaluate": 1,
+  "agent_dna.grant_spend": 1,
   "agent_dna.grants": 1,
   "agent_dna.intent_adapter": 1,
   "agent_dna.invariant_engine": 1,
@@ -3467,6 +3479,10 @@
   "agent_dna.governance.pack": {
    "group": "agent_dna/governance",
    "path": "agent_dna/governance/pack.py"
+  },
+  "agent_dna.grant_spend": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/grant_spend.py"
   },
   "agent_dna.grants": {
    "group": "agent_dna (core modules)",
