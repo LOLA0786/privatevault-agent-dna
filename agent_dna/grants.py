@@ -22,7 +22,12 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
 
-from agent_dna.amount import INVALID_AMOUNT, InvalidAmountError, coerce_amount
+from agent_dna.amount import (
+    INVALID_AMOUNT,
+    INVALID_AMOUNT_REASON,
+    InvalidAmountError,
+    coerce_amount,
+)
 
 
 @dataclass
@@ -143,8 +148,8 @@ class GrantRegistry:
         if amount is not None:
             try:
                 coerced_amount = coerce_amount(amount)
-            except InvalidAmountError as exc:
-                return False, str(exc), None
+            except InvalidAmountError:
+                return False, INVALID_AMOUNT_REASON, None
         reasons = []
         for g in candidates:
             if g.revoked:

@@ -142,3 +142,20 @@ def test_fault_reason_uses_class_level_public_reason_only():
     reason = fault_reason(exc)
     assert "policy backend unavailable (opa)" in reason
     assert SECRET not in reason and "10.0.0.5" not in reason
+
+
+# ---- py/stack-trace-exposure #19: amount rejections ----------------------
+
+
+def test_amount_rejection_reason_never_echoes_exception_text():
+    from agent_dna.amount import INVALID_AMOUNT, INVALID_AMOUNT_REASON
+    from agent_dna.grants import GrantRegistry
+
+    reg = GrantRegistry()
+    reg.grant(agent_id="a", capability="pay", granted_by="t", budget=100)
+    hostile = "1e999<script>" + SECRET
+    ok, reason, _ = reg.explain("a", "pay", amount=hostile)
+    assert ok is False
+    assert reason == INVALID_AMOUNT_REASON
+    assert reason.startswith(INVALID_AMOUNT)
+    assert SECRET not in reason and "<script>" not in reason

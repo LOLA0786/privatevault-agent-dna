@@ -11,6 +11,13 @@ import os
 from decimal import Decimal, InvalidOperation
 
 INVALID_AMOUNT = "INVALID_AMOUNT"
+# Fixed text for decision reasons. The exception message can echo the raw
+# caller value; decision reasons are sealed, returned and exported, so they
+# carry this constant instead (CodeQL py/stack-trace-exposure).
+INVALID_AMOUNT_REASON = (
+    f"{INVALID_AMOUNT}: amount missing or not a finite, non-negative decimal "
+    "within the configured ceiling and precision"
+)
 DEFAULT_AMOUNT_CEILING = Decimal("1000000000")
 MAX_AMOUNT_FRACTIONAL_PLACES = 8
 MAX_AMOUNT_DIGITS = 18
