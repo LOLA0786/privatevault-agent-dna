@@ -51,7 +51,10 @@ def latest_run(pinned: Path | None) -> Path | None:
     return runs[-1] if runs else None
 
 
-def pending_approvals() -> list[dict[str, Any]]:
+def pending_approvals(since: str | None = None) -> list[dict[str, Any]]:
+    """Approvals still waiting, submitted at or after ``since`` (ISO UTC).
+
+    A request left over from an earlier run is not this run's business."""
     pending = cfg.run_dir() / "approvals" / "pending"
     decided = cfg.run_dir() / "approvals" / "decided"
     items = []
@@ -61,6 +64,8 @@ def pending_approvals() -> list[dict[str, Any]]:
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
+            continue
+        if since and str(data.get("submitted_at") or "") < since[:19]:
             continue
         action = data.get("action") or {}
         params = action.get("parameters") or {}
@@ -113,7 +118,7 @@ def state(pinned: Path | None) -> dict[str, Any]:
             }
             for a in queue["actions"]
         ],
-        "pending": pending_approvals(),
+        "pending": pending_approvals(meta.get("started_at") if meta else "9999"),
         "services": service_health() if pinned is None else {},
         "pinned": pinned is not None,
     }
