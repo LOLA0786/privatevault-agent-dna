@@ -11,7 +11,12 @@ from enum import StrEnum
 from typing import Protocol, runtime_checkable
 
 from .advisory import AdvisorySignal, Severity
-from .amount import INVALID_AMOUNT, InvalidAmountError, coerce_amount
+from .amount import (
+    INVALID_AMOUNT,
+    INVALID_AMOUNT_REASON,
+    InvalidAmountError,
+    coerce_amount,
+)
 from .evidence import EvidenceEngine, EvidenceReport
 from .trace import AgentAction
 
@@ -506,11 +511,11 @@ class DecisionEngine:
             if raw_amount is not None:
                 try:
                     amount = coerce_amount(raw_amount)
-                except InvalidAmountError as exc:
+                except InvalidAmountError:
                     return DecisionResult(
                         decision=Decision.BLOCK,
                         triggered_by="authorization",
-                        reason=str(exc),
+                        reason=INVALID_AMOUNT_REASON,
                         capability=action.capability,
                         agent_id=action.agent_id,
                         drift_score=signal.drift_score,
