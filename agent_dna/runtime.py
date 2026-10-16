@@ -20,6 +20,7 @@ from .advisory import AdvisorySignal
 from .circuit_breaker import GuardedEngine
 from .decision import Decision, DecisionEngine, DecisionResult
 from .observability.metrics import MetricsExporter
+from .shell_guard import attach_shell_evidence, escalate_with_shell
 from .trace import AgentAction
 
 
@@ -57,9 +58,13 @@ class RuntimeMonitor:
             if approval is not None
             else {}
         )
+        # Shell guard: evidence.shell is derived here from the action's own
+        # arguments (never caller-authored), then any finding escalates.
+        evidence = attach_shell_evidence(action.capability, action.arguments, evidence)
         result = self.engine.decide(
             action, self.previous_capability, evidence=evidence, **extra
         )
+        result = escalate_with_shell(result, (evidence or {}).get("shell"))
 
         # decide() already scored internally and is itself fail-closed.
         # Rebuild the advisory for the event record too, but never let

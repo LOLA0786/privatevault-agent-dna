@@ -5,6 +5,7 @@ Unified Runtime Decision Engine.
 from __future__ import annotations
 
 import logging
+import os
 import uuid
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -21,6 +22,22 @@ from .evidence import EvidenceEngine, EvidenceReport
 from .trace import AgentAction
 
 _fault_log = logging.getLogger("pv.engine")
+
+NO_GRANT_PREFIX = "no grant exists"
+UNGRANTED_DECISION_ENV = "PV_UNGRANTED_DECISION"
+
+
+def ungranted_decision() -> str:
+    """'block' or 'require_approval' for a capability with no grant at all.
+
+    Default: block under PV_SECURE_PROFILE, require_approval otherwise.
+    An unrecognised value fails closed to block.
+    """
+    raw = os.environ.get(UNGRANTED_DECISION_ENV, "").strip().lower()
+    if not raw:
+        secure = os.environ.get("PV_SECURE_PROFILE", "0").lower()
+        return "block" if secure in ("1", "true", "yes", "on") else "require_approval"
+    return raw if raw in ("block", "require_approval") else "block"
 
 
 def fault_reason(exc: BaseException, label: str = "engine_fault") -> str:
@@ -572,4 +589,14 @@ class DecisionEngine:
         )
         if auth_reason is not None and result.triggered_by == "authorization":
             result.reason = auth_reason
+            if (
+                result.decision is Decision.REQUIRE_APPROVAL
+                and auth_reason.startswith(NO_GRANT_PREFIX)
+                and ungranted_decision() == "block"
+            ):
+                # No grant at all is not a request to escalate: under the
+                # secure profile (or PV_UNGRANTED_DECISION=block) it is a
+                # hard refusal that no approval can turn into an ALLOW.
+                result.decision = Decision.BLOCK
+                result.severity = Severity.CRITICAL
         return result

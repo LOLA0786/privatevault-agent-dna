@@ -5,6 +5,21 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Added — shell guard (external test findings S07, S11c, S12)
+
+- `agent_dna/shell_guard.py`: for `PV_SHELL_CAPABILITIES` (default
+  `shell.exec`) the runtime derives `evidence.shell` from the action's own
+  argv/command, unwrapping env/sudo/timeout/xargs/nice/find -exec/busybox and
+  nested `sh -c`. Callers cannot author it.
+- Default deny, no policy needed: unparseable commands, inline code
+  (`sh -c`, interpreter `-c/-e`, `eval`, `$(...)`, shell reading stdin) and
+  network tools given credential-like files are BLOCKed
+  (`triggered_by=shell_guard`). `PV_SHELL_ALLOW_INLINE=1` lifts only inline.
+- Policy operators `any_in` / `any_not_in` for list fields;
+  `examples/config/shell-policy.json`.
+- `PV_UNGRANTED_DECISION=block|require_approval`; secure profile defaults to
+  block for capabilities with no grant.
+
 ### Fixed — MCP gateway works with standard MCP clients (external test, 2026-10-15)
 
 - `python -m agent_dna.gateway` now loads `RuntimeConfig.from_env()`; it

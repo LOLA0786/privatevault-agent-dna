@@ -38,7 +38,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 1720+ automated tests, run in CI on every commit
+- 1770+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
@@ -91,6 +91,34 @@ Decision and execution records do — restart-safety here is
 independently tested. Signature envelopes are currently retrievable
 for the producing process's lifetime; persisting them as a
 first-class, restart-safe record kind is on our roadmap, not shipped.
+
+## Shell commands (shell guard)
+
+For capabilities listed in `PV_SHELL_CAPABILITIES` (default `shell.exec`) the
+runtime parses the command itself and derives `evidence.shell`; callers
+cannot supply it (`/v1/decide` refuses the key, the monitor replaces it).
+Built in, with no policy: unparseable commands, code the runtime cannot see
+(`sh -c`, `python -c`, `eval`, `$(...)`, a shell reading stdin) and network
+tools handed credential-like files are blocked. Policy rules can match every
+program the command would run via `any_in` / `any_not_in` on
+`evidence.shell.executables` (`examples/config/shell-policy.json`).
+
+What this does **not** claim:
+
+- It is static analysis of the command text, not a sandbox. A script file
+  (`python script.py`, `make`, `npm run`, `git` hooks/aliases) runs code the
+  guard never sees; only an allowlist of programs bounds that.
+- It sees only the arguments it is given. A wrapper that sends `{"verb":
+  "ls"}` and then runs something else is outside the guard; send the real
+  argv (`argv`, `command`+`args`, or the command string).
+- Tool names other than the configured shell capabilities are not parsed.
+  Name your MCP shell tools in `PV_SHELL_CAPABILITIES`.
+- Credential detection is a filename heuristic (`.env`, keys, `~/.ssh`,
+  `~/.aws`, ...), not data-loss prevention.
+
+An ungranted capability returns `require_approval` by default; under
+`PV_SECURE_PROFILE` (or `PV_UNGRANTED_DECISION=block`) it is a hard BLOCK
+that no approval can turn into an ALLOW.
 
 ## Capability grants
 

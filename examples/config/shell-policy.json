@@ -1,0 +1,34 @@
+{
+  "version": "1.0",
+  "policies": [
+    {
+      "id": "shell-destructive",
+      "capability": "shell.exec",
+      "outcome": "block",
+      "reason": "destructive program in command (any wrapper or nesting)",
+      "condition": {
+        "field": "evidence.shell.executables",
+        "operator": "any_in",
+        "value": ["rm", "rmdir", "dd", "shred", "mkfs", "chmod", "chown", "shutdown", "reboot"]
+      }
+    },
+    {
+      "id": "shell-network-needs-approval",
+      "capability": "shell.exec",
+      "outcome": "require_approval",
+      "reason": "network tool in command",
+      "condition": {"field": "evidence.shell.network", "operator": "==", "value": true}
+    },
+    {
+      "id": "shell-allowlist",
+      "capability": "shell.exec",
+      "outcome": "block",
+      "reason": "program not on the allowlist",
+      "condition": {
+        "field": "evidence.shell.executables",
+        "operator": "any_not_in",
+        "value": ["ls", "cat", "head", "tail", "grep", "find", "git", "pytest", "python", "uv", "curl", "wget"]
+      }
+    }
+  ]
+}
