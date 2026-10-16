@@ -40,12 +40,17 @@ def test_run_all_prints_every_proof_and_holds(capsys, tmp_path):
 
 
 def _docker_available() -> bool:
-    return (
-        subprocess.run(
-            ["docker", "compose", "version"], capture_output=True, check=False
-        ).returncode
-        == 0
-    )
+    # Evaluated at import (skipif): a missing docker binary must skip,
+    # not abort collection with FileNotFoundError.
+    try:
+        return (
+            subprocess.run(
+                ["docker", "compose", "version"], capture_output=True, check=False
+            ).returncode
+            == 0
+        )
+    except OSError:
+        return False
 
 
 @pytest.mark.skipif(not _docker_available(), reason="docker compose not available")

@@ -9,15 +9,32 @@
       "condition": {
         "field": "evidence.shell.executables",
         "operator": "any_in",
-        "value": ["rm", "rmdir", "dd", "shred", "mkfs", "chmod", "chown", "shutdown", "reboot"]
+        "value": [
+          "rm",
+          "rmdir",
+          "unlink",
+          "dd",
+          "shred",
+          "mkfs",
+          "mv",
+          "chmod",
+          "chown",
+          "shutdown",
+          "reboot",
+          "truncate"
+        ]
       }
     },
     {
-      "id": "shell-network-needs-approval",
+      "id": "shell-destructive-flags",
       "capability": "shell.exec",
-      "outcome": "require_approval",
-      "reason": "network tool in command",
-      "condition": {"field": "evidence.shell.network", "operator": "==", "value": true}
+      "outcome": "block",
+      "reason": "destructive operation (e.g. find -delete)",
+      "condition": {
+        "field": "evidence.shell.destructive",
+        "operator": "==",
+        "value": true
+      }
     },
     {
       "id": "shell-allowlist",
@@ -27,7 +44,42 @@
       "condition": {
         "field": "evidence.shell.executables",
         "operator": "any_not_in",
-        "value": ["ls", "cat", "head", "tail", "grep", "find", "git", "pytest", "python", "uv", "curl", "wget"]
+        "value": [
+          "ls",
+          "cat",
+          "head",
+          "tail",
+          "grep",
+          "find",
+          "git",
+          "pytest",
+          "python",
+          "uv",
+          "curl",
+          "wget"
+        ]
+      }
+    },
+    {
+      "id": "shell-script-needs-approval",
+      "capability": "shell.exec",
+      "outcome": "require_approval",
+      "reason": "interpreter runs a script file the guard cannot inspect",
+      "condition": {
+        "field": "evidence.shell.interpreter",
+        "operator": "==",
+        "value": true
+      }
+    },
+    {
+      "id": "shell-network-needs-approval",
+      "capability": "shell.exec",
+      "outcome": "require_approval",
+      "reason": "network tool in command",
+      "condition": {
+        "field": "evidence.shell.network",
+        "operator": "==",
+        "value": true
       }
     }
   ]

@@ -38,11 +38,31 @@ def main() -> int:
         encoding="utf-8",
     )
 
+    grants = tmp / "grants.json"
+    grants.write_text(
+        json.dumps(
+            [
+                {
+                    "agent_id": "payments-agent",
+                    "capability": "crm.read_contact",
+                    "granted_by": "platform-demo",
+                }
+            ],
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
     import os
 
+    # A self-contained demo: settings left in the caller's shell (signing
+    # keys, policy files, ...) must not change what it shows.
+    for name in [n for n in os.environ if n.startswith("PV_")]:
+        os.environ.pop(name)
     os.environ["PV_DB_PATH"] = str(tmp / "platform.db")
     os.environ["PV_API_KEYS_FILE"] = str(keys)
-    os.environ.pop("PV_ALLOW_NO_AUTH", None)
+    os.environ["PV_GRANTS_FILE"] = str(grants)
+    os.environ["PV_BASELINE_CAPABILITIES"] = "crm.read_contact"
 
     import importlib
 

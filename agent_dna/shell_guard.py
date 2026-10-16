@@ -20,8 +20,10 @@ cannot be fully understood, so this module does two things:
 2. **Default deny** (no policy needed). The decision is escalated to BLOCK
    when the command cannot be parsed, when it carries code the runtime
    cannot see (``sh -c``, ``python -c``, ``eval``, ``$(...)``, a shell
-   reading stdin), or when a network tool is handed a credential-like
-   file. ``PV_SHELL_ALLOW_INLINE=1`` lifts only the inline-code rule.
+   reading stdin), when a network tool is handed a credential-like file,
+   or when such a file is copied, linked, packed, re-encoded or redirected
+   to another file (staging it under an innocent name for a later step).
+   ``PV_SHELL_ALLOW_INLINE=1`` lifts only the inline-code rule.
 
 Accepted argument shapes, in order: ``argv`` (list, exec-style),
 ``command`` + ``args`` (exec-style), ``command`` / ``cmd`` as a string
@@ -48,6 +50,7 @@ TRIGGERED_BY_SHELL = "shell_guard"
 SHELL_UNPARSEABLE = "SHELL_UNPARSEABLE"
 SHELL_INLINE_CODE = "SHELL_INLINE_CODE"
 SHELL_SECRET_EGRESS = "SHELL_SECRET_EGRESS"
+SHELL_SECRET_STAGING = "SHELL_SECRET_STAGING"
 
 MAX_DEPTH = 4
 MAX_COMMAND_CHARS = 16_384
@@ -124,6 +127,36 @@ NETWORK = frozenset(
         "https",
         "aria2c",
         "lftp",
+    }
+)
+# Programs that copy, rename, link, pack or re-encode files. Pointed at a
+# credential-like file they stage it under an innocent name for a later
+# step (external retest 2026-10-16: E06 symlink, E10/E11 copy-then-send).
+STAGING = frozenset(
+    {
+        "cp",
+        "mv",
+        "ln",
+        "link",
+        "install",
+        "rsync",
+        "tar",
+        "zip",
+        "7z",
+        "gzip",
+        "bzip2",
+        "xz",
+        "zstd",
+        "base64",
+        "base32",
+        "xxd",
+        "od",
+        "hexdump",
+        "openssl",
+        "gpg",
+        "tee",
+        "split",
+        "dd",
     }
 )
 DESTRUCTIVE = frozenset(
@@ -480,6 +513,8 @@ def analyze_shell_arguments(arguments: Mapping[str, Any] | None) -> dict[str, An
         "writes_files": list(dict.fromkeys(acc.writes_files)),
         "touches_sensitive": bool(acc.sensitive_args or sensitive_reads),
         "secret_egress": network and bool(acc.sensitive_args or sensitive_reads),
+        "secret_staging": bool(acc.sensitive_args or sensitive_reads)
+        and (any(e in STAGING for e in acc.executables) or bool(acc.writes_files)),
     }
 
 
@@ -516,6 +551,13 @@ def shell_findings(shell: Mapping[str, Any] | None) -> list[tuple[str, str]]:
     if shell.get("secret_egress"):
         findings.append(
             (SHELL_SECRET_EGRESS, "network tool handed a credential-like file")
+        )
+    if shell.get("secret_staging"):
+        findings.append(
+            (
+                SHELL_SECRET_STAGING,
+                "credential-like file copied, linked, packed or re-encoded",
+            )
         )
     return findings
 
