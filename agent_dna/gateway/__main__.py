@@ -3,6 +3,10 @@
 Run as a separate principal from the model:
 
     python -m agent_dna.gateway --stdio --command npx -- some-mcp-server
+
+Configuration comes from the same PV_* environment as the API server
+(RuntimeConfig.from_env). stdio uses newline-delimited JSON, as the MCP
+spec and official SDKs do; pass --framing content-length for legacy clients.
     python -m agent_dna.gateway --http-url https://mcp.example/mcp
     python -m agent_dna.gateway --https-egress https://api.example/v1 --capability crm.read_contact
 """
@@ -16,6 +20,7 @@ import sys
 from agent_dna.composition import RuntimeConfig, build_production_runtime
 from agent_dna.gateway.credentials import UpstreamCredentials
 from agent_dna.gateway.errors import GatewayStartupError
+from agent_dna.gateway.framing import FramingMode
 from agent_dna.gateway.http_sse_proxy import build_asgi_app
 from agent_dna.gateway.https_egress import build_https_egress_asgi_app
 from agent_dna.gateway.runtime import GatewayConfig, McpGateway
@@ -51,6 +56,12 @@ def main(argv: list[str] | None = None) -> int:
         default=os.environ.get("PV_HTTPS_EGRESS_CAPABILITY", ""),
         help="named capability for --https-egress (required in that mode)",
     )
+    parser.add_argument(
+        "--framing",
+        choices=[m.value for m in FramingMode],
+        default=os.environ.get("PV_GATEWAY_FRAMING", FramingMode.NEWLINE.value),
+        help="stdio framing: newline (MCP spec, default) or content-length",
+    )
     parser.add_argument("--http-bind", default="127.0.0.1")
     parser.add_argument("--http-port", type=int, default=8088)
     args = parser.parse_args(argv)
@@ -75,7 +86,13 @@ def main(argv: list[str] | None = None) -> int:
         print("--stdio requires --command", file=sys.stderr)
         return 2
 
-    runtime = build_production_runtime(RuntimeConfig())
+    # Same environment contract as the API server: PV_POLICY_FILE,
+    # PV_GRANTS_FILE, PV_DB_PATH, PV_TRUSTED_PUBLIC_KEYS, ... all apply.
+    try:
+        runtime = build_production_runtime(RuntimeConfig.from_env())
+    except (RuntimeError, ValueError, OSError) as exc:
+        print(f"gateway startup refused: {exc}", file=sys.stderr)
+        return 1
     credentials = _credentials_from_env()
     try:
         if args.stdio:
@@ -85,6 +102,7 @@ def main(argv: list[str] | None = None) -> int:
                     agent_api_key=args.agent_key,
                     client_identity=args.client_identity,
                     transport="stdio",
+                    framing_mode=FramingMode(args.framing),
                 ),
                 credentials=credentials,
                 command=list(args.command),

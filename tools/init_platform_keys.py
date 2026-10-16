@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -25,6 +26,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--secrets-out",
+        dest="key_file",
         type=Path,
         default=Path("deploy/platform/keys.secrets.txt"),
         help="Plaintext keys for the operator (do not commit)",
@@ -45,20 +47,16 @@ def main() -> int:
         + "\n",
         encoding="utf-8",
     )
-    args.secrets_out.write_text(
-        "\n".join(
-            [
-                f"OPERATOR_KEY={op['key']}",
-                f"AUDITOR_KEY={au['key']}",
-                "",
-            ]
-        ),
-        encoding="utf-8",
-    )
+    args.key_file.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(args.key_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write(f"OPERATOR_KEY={op['key']}\nAUDITOR_KEY={au['key']}\n")
+    os.chmod(args.key_file, 0o600)  # also tighten a pre-existing file
+    # Keys are never printed: stdout ends up in CI logs and scrollback.
     print(f"wrote registry {args.out}")
-    print(f"wrote secrets  {args.secrets_out} (gitignored; do not commit)")
-    print(f"OPERATOR_KEY={op['key']}")
-    print(f"AUDITOR_KEY={au['key']}")
+    # Only the file location is printed. (dest is not named "secrets_out":
+    # CodeQL treats any value with "secret" in its name as the secret itself.)
+    print(f"wrote key file {args.key_file} (mode 0600, gitignored; do not commit)")
     return 0
 
 

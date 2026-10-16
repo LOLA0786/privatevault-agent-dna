@@ -41,7 +41,8 @@ def test_raising_scorer_fails_closed():
     result = engine.decide(_act())
     assert result.decision == Decision.BLOCK
     assert result.triggered_by == "engine_fault"
-    assert "scorer blew up" in result.reason
+    assert "RuntimeError" in result.reason and "fault_id=" in result.reason
+    assert "scorer blew up" not in result.reason
 
 
 def test_raising_invariants_fails_closed():

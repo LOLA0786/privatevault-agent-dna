@@ -37,9 +37,10 @@ UNDECLARED_POLICIES = frozenset({"finding", "block"})
 class GatewayConfig:
     """Operator configuration only — nothing here is caller-skippable.
 
-    ``framing_mode`` defaults to Content-Length. Newline framing is
-    test-only: it requires ``_test_allow_newline_framing=True``, which
-    production constructors never set.
+    ``framing_mode`` applies to stdio: ``NEWLINE`` is the MCP stdio spec
+    (what the official SDKs send) and the CLI default; ``CONTENT_LENGTH``
+    remains for legacy clients and is this dataclass's default so existing
+    embedders keep their wire format.
     """
 
     agent_api_key: str
@@ -81,14 +82,7 @@ def _validate_gateway_config(config: GatewayConfig) -> None:
 
 
 def _validate_framing_mode(config: GatewayConfig) -> None:
-    if config.framing_mode is FramingMode.NEWLINE:
-        if not config._test_allow_newline_framing:
-            raise GatewayStartupError(
-                "newline framing is test-only; production config must use "
-                "content-length framing"
-            )
-        return
-    if config.framing_mode is not FramingMode.CONTENT_LENGTH:
+    if config.framing_mode not in (FramingMode.NEWLINE, FramingMode.CONTENT_LENGTH):
         raise GatewayStartupError(f"unsupported framing_mode {config.framing_mode!r}")
 
 
@@ -174,16 +168,12 @@ class McpGateway:
             )
         if not command:
             raise GatewayStartupError("stdio upstream command is required")
-        if config.framing_mode is not FramingMode.CONTENT_LENGTH:
-            raise GatewayStartupError(
-                "from_stdio_command requires content-length framing"
-            )
         upstream = StdioUpstream(
             command=list(command),
             credentials=credentials,
             max_message_bytes=config.max_message_bytes,
             max_json_depth=config.max_json_depth,
-            framing_mode=FramingMode.CONTENT_LENGTH,
+            framing_mode=config.framing_mode,
         )
         return cls(
             runtime,
@@ -333,6 +323,7 @@ class McpGateway:
             agent_api_key=self.config.agent_api_key,
             upstream_timeout_s=self.config.upstream_timeout_s,
             framed=self.config.framed,
+            framing_mode=self.config.framing_mode,
             max_message_bytes=self.config.max_message_bytes,
             max_json_depth=self.config.max_json_depth,
             fail_closed_on_unattributed=self.config.fail_closed_on_unattributed,

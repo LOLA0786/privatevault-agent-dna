@@ -175,6 +175,11 @@
    "top"
   ],
   [
+   "agent_dna.apikeys",
+   "agent_dna.identity",
+   "top"
+  ],
+  [
    "agent_dna.approval_bridge",
    "agent_dna.approval_v01",
    "top"
@@ -182,6 +187,11 @@
   [
    "agent_dna.approval_bridge",
    "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "agent_dna.approval_bridge",
+   "agent_dna.identity",
    "top"
   ],
   [
@@ -242,6 +252,11 @@
   [
    "agent_dna.cli",
    "agent_dna.discovery",
+   "lazy"
+  ],
+  [
+   "agent_dna.cli",
+   "agent_dna.grant_revocation",
    "lazy"
   ],
   [
@@ -362,6 +377,16 @@
   [
    "agent_dna.composition",
    "agent_dna.economics",
+   "top"
+  ],
+  [
+   "agent_dna.composition",
+   "agent_dna.grant_revocation",
+   "top"
+  ],
+  [
+   "agent_dna.composition",
+   "agent_dna.grant_spend",
    "top"
   ],
   [
@@ -512,6 +537,11 @@
   [
    "agent_dna.connector.cross_agent",
    "agent_dna.decision",
+   "top"
+  ],
+  [
+   "agent_dna.connector.cross_agent",
+   "agent_dna.identity",
    "top"
   ],
   [
@@ -881,6 +911,11 @@
   ],
   [
    "agent_dna.gateway.__main__",
+   "agent_dna.gateway.framing",
+   "top"
+  ],
+  [
+   "agent_dna.gateway.__main__",
    "agent_dna.gateway.http_sse_proxy",
    "top"
   ],
@@ -1115,6 +1150,11 @@
    "top"
   ],
   [
+   "agent_dna.grant_spend",
+   "agent_dna.amount",
+   "top"
+  ],
+  [
    "agent_dna.grants",
    "agent_dna.amount",
    "top"
@@ -1147,6 +1187,26 @@
   [
    "agent_dna.key_lifecycle",
    "agent_dna.trace",
+   "top"
+  ],
+  [
+   "agent_dna.lineage",
+   "agent_dna.advisory",
+   "top"
+  ],
+  [
+   "agent_dna.lineage",
+   "agent_dna.decision",
+   "top"
+  ],
+  [
+   "agent_dna.lineage",
+   "agent_dna.identity",
+   "top"
+  ],
+  [
+   "agent_dna.lineage",
+   "agent_dna.multi_agent.dual_control",
    "top"
   ],
   [
@@ -1546,6 +1606,11 @@
   ],
   [
    "agent_dna.receiver.gate",
+   "agent_dna.revocation_list",
+   "top"
+  ],
+  [
+   "agent_dna.receiver.gate",
    "agent_dna.wire_serialization_v01",
    "top"
   ],
@@ -1575,6 +1640,11 @@
    "top"
   ],
   [
+   "agent_dna.revocation_list",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
    "agent_dna.runtime",
    "agent_dna.advisory",
    "top"
@@ -1592,6 +1662,11 @@
   [
    "agent_dna.runtime",
    "agent_dna.observability.metrics",
+   "top"
+  ],
+  [
+   "agent_dna.runtime",
+   "agent_dna.shell_guard",
    "top"
   ],
   [
@@ -1692,6 +1767,21 @@
   [
    "agent_dna.security.loop_discovery",
    "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "agent_dna.security.loop_discovery",
+   "agent_dna.identity",
+   "top"
+  ],
+  [
+   "agent_dna.shell_guard",
+   "agent_dna.advisory",
+   "top"
+  ],
+  [
+   "agent_dna.shell_guard",
+   "agent_dna.decision",
    "top"
   ],
   [
@@ -1861,6 +1951,11 @@
   ],
   [
    "api.server",
+   "agent_dna.lineage",
+   "top"
+  ],
+  [
+   "api.server",
    "agent_dna.observability.logger",
    "top"
   ],
@@ -1877,6 +1972,11 @@
   [
    "api.server",
    "agent_dna.request_bounds",
+   "top"
+  ],
+  [
+   "api.server",
+   "agent_dna.revocation_list",
    "top"
   ],
   [
@@ -2665,6 +2765,26 @@
    "lazy"
   ],
   [
+   "tools.init_secure_profile",
+   "agent_dna.apikeys",
+   "top"
+  ],
+  [
+   "tools.init_secure_profile",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "tools.init_secure_profile",
+   "agent_dna.connector.adapters.execution_trust",
+   "top"
+  ],
+  [
+   "tools.init_secure_profile",
+   "agent_dna.signer_python",
+   "top"
+  ],
+  [
    "tools.make_evidence_bundle",
    "agent_dna.composition",
    "top"
@@ -2783,13 +2903,13 @@
   "agent_dna.adapters_policy.local": 2,
   "agent_dna.adapters_policy.opa": 2,
   "agent_dna.adapters_policy.skill_adapter": 1,
-  "agent_dna.advisory": 10,
+  "agent_dna.advisory": 12,
   "agent_dna.allowlist": 1,
-  "agent_dna.amount": 5,
-  "agent_dna.apikeys": 9,
+  "agent_dna.amount": 6,
+  "agent_dna.apikeys": 10,
   "agent_dna.approval_bridge": 3,
   "agent_dna.approval_v01": 1,
-  "agent_dna.authority_v01": 40,
+  "agent_dna.authority_v01": 42,
   "agent_dna.authorization": 3,
   "agent_dna.authorize_binding": 6,
   "agent_dna.change_management": 1,
@@ -2799,7 +2919,7 @@
   "agent_dna.confidence": 1,
   "agent_dna.connector": 2,
   "agent_dna.connector.adapters.exact_byte_http": 3,
-  "agent_dna.connector.adapters.execution_trust": 3,
+  "agent_dna.connector.adapters.execution_trust": 4,
   "agent_dna.connector.adapters.mcp": 1,
   "agent_dna.connector.adapters.sidecar_transport": 2,
   "agent_dna.connector.cross_agent": 3,
@@ -2812,7 +2932,7 @@
   "agent_dna.consensus.signing": 6,
   "agent_dna.consensus.weighted_quorum": 1,
   "agent_dna.control_posture": 4,
-  "agent_dna.decision": 24,
+  "agent_dna.decision": 26,
   "agent_dna.decision_graph": 3,
   "agent_dna.decision_record": 6,
   "agent_dna.decision_recorder": 8,
@@ -2832,7 +2952,7 @@
   "agent_dna.fingerprint": 5,
   "agent_dna.gateway.credentials": 5,
   "agent_dna.gateway.errors": 11,
-  "agent_dna.gateway.framing": 7,
+  "agent_dna.gateway.framing": 8,
   "agent_dna.gateway.http_sse_proxy": 1,
   "agent_dna.gateway.https_egress": 2,
   "agent_dna.gateway.mediator": 2,
@@ -2844,16 +2964,20 @@
   "agent_dna.gateway.upstream": 3,
   "agent_dna.governance.evaluate": 1,
   "agent_dna.governance.pack": 2,
+  "agent_dna.grant_revocation": 2,
+  "agent_dna.grant_spend": 1,
   "agent_dna.grants": 7,
+  "agent_dna.identity": 5,
   "agent_dna.intent_adapter": 1,
   "agent_dna.invariant_engine": 2,
   "agent_dna.invariants": 2,
+  "agent_dna.lineage": 1,
   "agent_dna.manifold": 7,
   "agent_dna.multi_agent": 3,
   "agent_dna.multi_agent.authority": 2,
   "agent_dna.multi_agent.base": 13,
   "agent_dna.multi_agent.consensus": 2,
-  "agent_dna.multi_agent.dual_control": 3,
+  "agent_dna.multi_agent.dual_control": 4,
   "agent_dna.multi_agent.events": 4,
   "agent_dna.multi_agent.graph_builder": 2,
   "agent_dna.multi_agent.intent": 2,
@@ -2884,6 +3008,7 @@
   "agent_dna.receiver.receipts": 3,
   "agent_dna.reference_policies": 1,
   "agent_dna.request_bounds": 1,
+  "agent_dna.revocation_list": 2,
   "agent_dna.runtime": 7,
   "agent_dna.scan": 1,
   "agent_dna.scan.ingest": 3,
@@ -2892,9 +3017,10 @@
   "agent_dna.scorer": 3,
   "agent_dna.security": 1,
   "agent_dna.security.loop_discovery": 4,
+  "agent_dna.shell_guard": 1,
   "agent_dna.signer": 6,
   "agent_dna.signer_bridge": 1,
-  "agent_dna.signer_python": 4,
+  "agent_dna.signer_python": 5,
   "agent_dna.similarity": 3,
   "agent_dna.sqlite_store": 6,
   "agent_dna.store.grants": 1,
@@ -2933,22 +3059,23 @@
   "agent_dna.adapters_policy.git_bundle": 1,
   "agent_dna.adapters_policy.local": 2,
   "agent_dna.adapters_policy.skill_adapter": 2,
-  "agent_dna.approval_bridge": 2,
+  "agent_dna.apikeys": 1,
+  "agent_dna.approval_bridge": 3,
   "agent_dna.approval_v01": 1,
   "agent_dna.authorization": 1,
   "agent_dna.authorize_binding": 5,
   "agent_dna.change_management": 1,
   "agent_dna.circuit_breaker": 2,
-  "agent_dna.cli": 7,
+  "agent_dna.cli": 8,
   "agent_dna.closure_v01": 3,
-  "agent_dna.composition": 28,
+  "agent_dna.composition": 30,
   "agent_dna.confidence": 1,
   "agent_dna.connector": 2,
   "agent_dna.connector.adapters": 2,
   "agent_dna.connector.adapters.exact_byte_http": 8,
   "agent_dna.connector.adapters.execution_trust": 1,
   "agent_dna.connector.adapters.mcp": 1,
-  "agent_dna.connector.cross_agent": 8,
+  "agent_dna.connector.cross_agent": 9,
   "agent_dna.connector.middleware": 8,
   "agent_dna.consensus": 3,
   "agent_dna.consensus.byzantine": 2,
@@ -2972,7 +3099,7 @@
   "agent_dna.export_manifest": 1,
   "agent_dna.fingerprint": 2,
   "agent_dna.gateway": 3,
-  "agent_dna.gateway.__main__": 7,
+  "agent_dna.gateway.__main__": 8,
   "agent_dna.gateway.credentials": 1,
   "agent_dna.gateway.framing": 4,
   "agent_dna.gateway.http_sse_proxy": 4,
@@ -2983,11 +3110,13 @@
   "agent_dna.gateway.stdio_proxy": 3,
   "agent_dna.gateway.upstream": 3,
   "agent_dna.governance.evaluate": 1,
+  "agent_dna.grant_spend": 1,
   "agent_dna.grants": 1,
   "agent_dna.intent_adapter": 1,
   "agent_dna.invariant_engine": 1,
   "agent_dna.invariants": 1,
   "agent_dna.key_lifecycle": 3,
+  "agent_dna.lineage": 4,
   "agent_dna.manifold": 1,
   "agent_dna.multi_agent": 15,
   "agent_dna.multi_agent.authority": 2,
@@ -3013,19 +3142,21 @@
   "agent_dna.rate": 1,
   "agent_dna.receiver": 5,
   "agent_dna.receiver.asgi": 3,
-  "agent_dna.receiver.gate": 6,
+  "agent_dna.receiver.gate": 7,
   "agent_dna.receiver.ledger": 2,
   "agent_dna.receiver.permit_header": 1,
   "agent_dna.receiver.receipts": 1,
   "agent_dna.request_bounds": 1,
-  "agent_dna.runtime": 5,
+  "agent_dna.revocation_list": 1,
+  "agent_dna.runtime": 6,
   "agent_dna.scan": 2,
   "agent_dna.scan.ingest": 1,
   "agent_dna.scan.inventory": 1,
   "agent_dna.scan.replay": 7,
   "agent_dna.scorer": 6,
   "agent_dna.security": 1,
-  "agent_dna.security.loop_discovery": 1,
+  "agent_dna.security.loop_discovery": 2,
+  "agent_dna.shell_guard": 2,
   "agent_dna.signer": 2,
   "agent_dna.signer_bridge": 1,
   "agent_dna.similarity": 1,
@@ -3036,7 +3167,7 @@
   "agent_dna.validation.drift": 1,
   "agent_dna.validation.report": 2,
   "agent_dna.wire_serialization_v01": 1,
-  "api.server": 20,
+  "api.server": 22,
   "examples.amlsim.run_amlsim_sample": 6,
   "examples.authority_blast_radius_demo": 1,
   "examples.authority_derivation_demo": 1,
@@ -3096,6 +3227,7 @@
   "tools.init_campfire_blackbox": 5,
   "tools.init_execution_signer": 1,
   "tools.init_platform_keys": 1,
+  "tools.init_secure_profile": 4,
   "tools.make_evidence_bundle": 2,
   "tools.platform_demo": 2,
   "tools.pv_authority_cli": 1,
@@ -3419,9 +3551,21 @@
    "group": "agent_dna/governance",
    "path": "agent_dna/governance/pack.py"
   },
+  "agent_dna.grant_revocation": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/grant_revocation.py"
+  },
+  "agent_dna.grant_spend": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/grant_spend.py"
+  },
   "agent_dna.grants": {
    "group": "agent_dna (core modules)",
    "path": "agent_dna/grants.py"
+  },
+  "agent_dna.identity": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/identity.py"
   },
   "agent_dna.intent_adapter": {
    "group": "agent_dna (core modules)",
@@ -3438,6 +3582,10 @@
   "agent_dna.key_lifecycle": {
    "group": "agent_dna (core modules)",
    "path": "agent_dna/key_lifecycle.py"
+  },
+  "agent_dna.lineage": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/lineage.py"
   },
   "agent_dna.manifold": {
    "group": "agent_dna (core modules)",
@@ -3595,6 +3743,10 @@
    "group": "agent_dna (core modules)",
    "path": "agent_dna/request_bounds.py"
   },
+  "agent_dna.revocation_list": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/revocation_list.py"
+  },
   "agent_dna.runtime": {
    "group": "agent_dna (core modules)",
    "path": "agent_dna/runtime.py"
@@ -3630,6 +3782,10 @@
   "agent_dna.shadow": {
    "group": "agent_dna (core modules)",
    "path": "agent_dna/shadow.py"
+  },
+  "agent_dna.shell_guard": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/shell_guard.py"
   },
   "agent_dna.signer": {
    "group": "agent_dna (core modules)",
@@ -4119,6 +4275,10 @@
    "group": "tools",
    "path": "tools/init_platform_keys.py"
   },
+  "tools.init_secure_profile": {
+   "group": "tools",
+   "path": "tools/init_secure_profile.py"
+  },
   "tools.make_evidence_bundle": {
    "group": "tools",
    "path": "tools/make_evidence_bundle.py"
@@ -4163,9 +4323,17 @@
    "group": "tools",
    "path": "tools/smoke_campfire_blackbox.py"
   },
+  "tools.verify_deployment": {
+   "group": "tools",
+   "path": "tools/verify_deployment.py"
+  },
   "tools.verify_discovery": {
    "group": "tools",
    "path": "tools/verify_discovery.py"
+  },
+  "tools.verify_lineage": {
+   "group": "tools",
+   "path": "tools/verify_lineage.py"
   },
   "tools.verify_receiver_receipts": {
    "group": "tools",

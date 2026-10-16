@@ -28,6 +28,59 @@ and a named test that runs in CI.
   presenting agent (per-agent mTLS client certificates bound into the
   permit is the planned fix); policy replay is library-only; approvals are
   single-approver, no quorum.
+### Added — secure profile in one command; retest 2 (2026-10-16) findings
+
+- `tools/init_secure_profile.py` provisions API keys, grants, the execution
+  signer, an independent dispatch-witness/closure key, the trust bundle and a
+  0600 `secure.env`; the API starts under `PV_SECURE_PROFILE=1` from it and
+  `tools/verify_deployment.py` passes (tested end to end). Nothing secret is
+  printed; existing directories are refused unless `--replace-existing`.
+- Shell guard: `curl --data-urlencode name@file` (N16), secrets in
+  environment variables such as `"$API_TOKEN"` (N12), bare `env`/`printenv`
+  and `/proc/*/environ` count as secret egress; `tar --remove-files`,
+  `rsync --remove-source-files/--delete*` and `git clean` set `destructive`.
+  The 19 new variants are pinned in `tests/test_shell_guard.py`.
+
+### Fixed — external retest findings (2026-10-16)
+
+- Shell guard blocks credential staging (`cp`/`ln`/`tar`/`base64`/... or a
+  redirect writing a credential-like file): retest E06 (symlink) and E10/E11
+  (copy-then-send) no longer get a clean path.
+- `examples/config/shell-policy.json`: `destructive` flag rule (`find -delete`,
+  V10), unlisted programs blocked before approval rules, interpreters running
+  script files need approval (V11). The full retest bypass table is pinned in
+  `tests/test_shell_guard.py`.
+- Test collection no longer aborts when the `docker` binary is missing.
+- `tools/platform_demo.py` configures its own grants and ignores `PV_*`
+  settings left in the caller's shell.
+
+### Added — shell guard (external test findings S07, S11c, S12)
+
+- `agent_dna/shell_guard.py`: for `PV_SHELL_CAPABILITIES` (default
+  `shell.exec`) the runtime derives `evidence.shell` from the action's own
+  argv/command, unwrapping env/sudo/timeout/xargs/nice/find -exec/busybox and
+  nested `sh -c`. Callers cannot author it.
+- Default deny, no policy needed: unparseable commands, inline code
+  (`sh -c`, interpreter `-c/-e`, `eval`, `$(...)`, shell reading stdin) and
+  network tools given credential-like files are BLOCKed
+  (`triggered_by=shell_guard`). `PV_SHELL_ALLOW_INLINE=1` lifts only inline.
+- Policy operators `any_in` / `any_not_in` for list fields;
+  `examples/config/shell-policy.json`.
+- `PV_UNGRANTED_DECISION=block|require_approval`; secure profile defaults to
+  block for capabilities with no grant.
+
+### Fixed — MCP gateway works with standard MCP clients (external test, 2026-10-15)
+
+- `python -m agent_dna.gateway` now loads `RuntimeConfig.from_env()`; it
+  previously ignored `PV_POLICY_FILE`, `PV_GRANTS_FILE`, `PV_DB_PATH` and the
+  trusted keys. Bad configuration exits 1 with a message.
+- stdio speaks newline-delimited JSON (MCP spec) by default on both the
+  client and upstream side; `--framing content-length` keeps legacy clients.
+- Upstream replies already buffered in the pipe are no longer mistaken for
+  a timeout (raw-fd reads); upstream stderr no longer fills an unread pipe.
+- Notifications get no response (JSON-RPC 2.0).
+- `data/privatevault.db` is no longer tracked; `examples/config/grants.json`
+  shows the `PV_GRANTS_FILE` format and the loader error points to it.
 
 ### Live refund agent demo: real Claude, real services over HTTP
 - `demos/live_checkout/`: a Claude refund agent works a 15-request queue

@@ -201,13 +201,8 @@ class StdioUpstream:
             raise ValueError("StdioUpstream requires a non-empty command")
         if not self.identity:
             self.identity = "stdio:" + " ".join(self.command)
-        if self.framing_mode is FramingMode.NEWLINE:
-            raise ValueError(
-                "StdioUpstream production path rejects newline framing; "
-                "use Content-Length only"
-            )
         self._buffer = FrameBuffer(
-            mode=FramingMode.CONTENT_LENGTH,
+            mode=self.framing_mode,
             max_header_bytes=MAX_HEADER_BYTES,
             max_message_bytes=self.max_message_bytes,
         )
@@ -220,7 +215,11 @@ class StdioUpstream:
             self.command,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            bufsize=0,
+            # Never a PIPE nobody reads: a server that logs each request
+            # (FastMCP does) would fill it and hang. Dropped, not echoed,
+            # so an upstream cannot leak injected credentials to our logs.
+            stderr=subprocess.DEVNULL,
             env=env,
         )
         if self._generation > 0:
@@ -249,6 +248,8 @@ class StdioUpstream:
         deadline = time.monotonic() + timeout_s
         while True:
             ready = buffer.take_message()
+            if ready is not None and not ready.strip():
+                continue  # blank line between newline-framed messages
             if ready is not None:
                 return parse_jsonrpc(
                     ready,
@@ -261,7 +262,10 @@ class StdioUpstream:
             readable, _, _ = select.select([stdout], [], [], remaining)
             if not readable:
                 raise UpstreamTimeoutError("stdio upstream timeout")
-            chunk = stdout.read(1)
+            # Read the raw fd: select() only sees the OS pipe, so bytes
+            # already pulled into a Python-level buffer would never wake it
+            # and a complete reply would look like a timeout.
+            chunk = os.read(stdout.fileno(), 65536)
             if not chunk:
                 self._raise_stdio_eof(buffer)
             try:

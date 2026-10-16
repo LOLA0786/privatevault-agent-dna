@@ -6,7 +6,7 @@ Nodes are directories; numbers are module counts. Solid arrow: imported at impor
 
 ```mermaid
 flowchart LR
-  n0["agent_dna (core modules)<br/>61 modules"]
+  n0["agent_dna (core modules)<br/>67 modules"]
   n1["agent_dna/adapters_framework<br/>2 modules"]
   n2["agent_dna/adapters_policy<br/>5 modules"]
   n3["agent_dna/connector<br/>10 modules"]
@@ -27,12 +27,13 @@ flowchart LR
   n18["examples<br/>29 modules"]
   n19["experimental<br/>62 modules"]
   n20["rust/pv_runtime (PyO3)"]
-  n21["tools<br/>30 modules"]
+  n21["tools<br/>33 modules"]
   n0 -.->|1| n2
   n0 -->|5| n3
   n0 -->|1| n4
   n0 -->|1| n5
   n0 -->|1| n6
+  n0 -->|1| n9
   n0 -->|1| n10
   n0 -->|6| n11
   n0 -->|3| n14
@@ -42,16 +43,16 @@ flowchart LR
   n1 -->|2| n0
   n2 -->|3| n11
   n2 -->|1| n19
-  n3 -->|15| n0
+  n3 -->|16| n0
   n3 -->|5| n9
   n3 -->|1| n12
   n5 -->|1| n0
   n7 -->|6| n0
   n7 -->|4| n3
-  n12 -->|7| n0
+  n12 -->|8| n0
   n13 -->|8| n0
-  n14 -->|1| n0
-  n17 -->|15| n0
+  n14 -->|2| n0
+  n17 -->|17| n0
   n17 -->|1| n3
   n17 -->|3| n10
   n17 -->|1| n14
@@ -65,8 +66,8 @@ flowchart LR
   n18 -->|1| n19
   n19 -->|15| n0
   n19 -->|1| n4
-  n21 -->|37| n0
-  n21 -->|2| n3
+  n21 -->|40| n0
+  n21 -->|3| n3
   n21 -->|1| n11
   n21 -->|3| n13
   n21 -.->|3| n17
@@ -78,9 +79,9 @@ flowchart LR
 
 | Directory | Modules | Lines |
 |---|---:|---:|
+| `agent_dna (core modules)` | 67 |
 | `experimental` | 62 |
-| `agent_dna (core modules)` | 61 |
-| `tools` | 30 |
+| `tools` | 33 |
 | `examples` | 29 |
 | `agent_dna/multi_agent` | 16 |
 | `agent_dna/gateway` | 14 |
@@ -104,19 +105,19 @@ flowchart LR
 
 | Module | Imported by | Imports |
 |---|---:|---:|
-| `agent_dna.authority_v01` | 40 | 0 |
+| `agent_dna.authority_v01` | 42 | 0 |
 | `agent_dna.trace` | 27 | 0 |
-| `agent_dna.decision` | 24 | 6 |
+| `agent_dna.decision` | 26 | 6 |
 | `agent_dna` | 21 | 21 |
 | `agent_dna.execution_v01` | 14 | 4 |
 | `agent_dna.multi_agent.interaction_graph` | 14 | 1 |
 | `agent_dna.multi_agent.base` | 13 | 1 |
+| `agent_dna.advisory` | 12 | 0 |
 | `agent_dna.adapters` | 11 | 1 |
 | `agent_dna.gateway.errors` | 11 | 0 |
-| `agent_dna.advisory` | 10 | 0 |
-| `agent_dna.apikeys` | 9 | 0 |
+| `agent_dna.apikeys` | 10 | 1 |
 | `agent_dna.decision_recorder` | 8 | 5 |
-| `agent_dna.gateway.framing` | 7 | 4 |
+| `agent_dna.gateway.framing` | 8 | 4 |
 | `agent_dna.grants` | 7 | 1 |
 | `agent_dna.manifold` | 7 | 1 |
 

@@ -15,12 +15,19 @@ rescoping, approval-token binding, consent workflows.
 
 from __future__ import annotations
 
+import threading
 import time
 import uuid
 from dataclasses import dataclass, field
 from decimal import Decimal
+from typing import Any
 
-from agent_dna.amount import INVALID_AMOUNT, InvalidAmountError, coerce_amount
+from agent_dna.amount import (
+    INVALID_AMOUNT,
+    INVALID_AMOUNT_REASON,
+    InvalidAmountError,
+    coerce_amount,
+)
 
 
 @dataclass
@@ -49,6 +56,32 @@ class GrantRegistry:
     def __init__(self) -> None:
         self._grants: dict[str, CapabilityGrant] = {}
         self.authorization_mode = "deny_all"
+        # explain() checks the budget before the rest of the decision
+        # runs; record_spend() re-checks under this lock so concurrent
+        # ALLOWs cannot jointly overspend (check-then-act race).
+        self._spend_lock = threading.Lock()
+        # Optional durable ledger (agent_dna.grant_spend). When attached,
+        # spend survives restarts and is shared by every worker on the DB.
+        self.spend_ledger: Any = None
+        # Optional durable revocations (agent_dna.grant_revocation).
+        self.revocation_ledger: Any = None
+
+    def attach_spend_ledger(self, ledger: Any) -> None:
+        self.spend_ledger = ledger
+
+    def attach_revocation_ledger(self, ledger: Any) -> None:
+        self.revocation_ledger = ledger
+
+    def _durable_revocation(self, g: CapabilityGrant) -> dict[str, str] | None:
+        if self.revocation_ledger is None:
+            return None
+        hit: dict[str, str] | None = self.revocation_ledger.is_revoked(g.grant_id)
+        return hit
+
+    def _spent(self, g: CapabilityGrant) -> Decimal:
+        if self.spend_ledger is not None:
+            return Decimal(self.spend_ledger.spent(g.grant_id))
+        return coerce_amount(g.spent)
 
     # ---- lifecycle -----------------------------------------------------
 
@@ -60,9 +93,12 @@ class GrantRegistry:
         granted_by: str,
         expires_at: float | None = None,
         budget: float | None = None,
+        grant_id: str | None = None,
     ) -> CapabilityGrant:
+        if grant_id is not None and grant_id in self._grants:
+            raise ValueError(f"duplicate grant_id {grant_id!r}")
         g = CapabilityGrant(
-            grant_id=f"grant-{uuid.uuid4()}",
+            grant_id=grant_id or f"grant-{uuid.uuid4()}",
             agent_id=agent_id,
             capability=capability,
             granted_by=granted_by,
@@ -105,6 +141,7 @@ class GrantRegistry:
         now = now if now is not None else time.time()
         candidates = self._find(agent_id, capability)
         if not candidates:
+            # decision.NO_GRANT_PREFIX matches this text
             return False, f"no grant exists for '{capability}'", None
 
         coerced_amount = None
@@ -112,12 +149,18 @@ class GrantRegistry:
         if amount is not None:
             try:
                 coerced_amount = coerce_amount(amount)
-            except InvalidAmountError as exc:
-                return False, str(exc), None
+            except InvalidAmountError:
+                return False, INVALID_AMOUNT_REASON, None
         reasons = []
         for g in candidates:
             if g.revoked:
                 reasons.append(f"grant {g.grant_id[:14]} revoked by {g.revoked_by}")
+                continue
+            durable = self._durable_revocation(g)
+            if durable is not None:
+                reasons.append(
+                    f"grant {g.grant_id[:14]} revoked by {durable['revoked_by']}"
+                )
                 continue
             if g.expires_at is not None and now >= g.expires_at:
                 reasons.append(f"grant {g.grant_id[:14]} expired")
@@ -129,7 +172,7 @@ class GrantRegistry:
                     )
                     reasons.append(invalid_amount_reason)
                     continue
-                spent = coerce_amount(g.spent)
+                spent = self._spent(g)
                 budget = coerce_amount(g.budget)
                 projected = spent + coerced_amount
                 if projected > budget:
@@ -147,9 +190,26 @@ class GrantRegistry:
         return False, "; ".join(reasons), None
 
     def record_spend(self, grant_id: str, amount: object) -> None:
+        """Atomically commit spend. Raises (fail closed -> BLOCK in the
+        guarded engine) if the grant was revoked or the spend would
+        exceed the budget since explain() looked at it."""
         delta = coerce_amount(amount)
-        current = coerce_amount(self._grants[grant_id].spent)
-        self._grants[grant_id].spent = current + delta
+        with self._spend_lock:
+            g = self._grants[grant_id]
+            if g.revoked or self._durable_revocation(g) is not None:
+                raise ValueError(f"grant {grant_id[:14]} revoked before spend")
+            if self.spend_ledger is not None:
+                g.spent = self.spend_ledger.commit_spend(grant_id, delta, g.budget)
+                return
+            current = coerce_amount(g.spent)
+            if g.budget is not None:
+                budget = coerce_amount(g.budget)
+                if current + delta > budget:
+                    raise ValueError(
+                        f"grant {grant_id[:14]} budget exceeded at commit "
+                        f"({current + delta} > {budget})"
+                    )
+            g.spent = current + delta
 
     # ---- authorizer protocol (drop-in for allowlist) -------------------
 

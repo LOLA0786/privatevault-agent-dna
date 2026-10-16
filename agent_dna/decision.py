@@ -4,14 +4,63 @@ Unified Runtime Decision Engine.
 
 from __future__ import annotations
 
+import logging
+import os
+import uuid
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Protocol, runtime_checkable
 
 from .advisory import AdvisorySignal, Severity
-from .amount import INVALID_AMOUNT, InvalidAmountError, coerce_amount
+from .amount import (
+    INVALID_AMOUNT,
+    INVALID_AMOUNT_REASON,
+    InvalidAmountError,
+    coerce_amount,
+)
 from .evidence import EvidenceEngine, EvidenceReport
 from .trace import AgentAction
+
+_fault_log = logging.getLogger("pv.engine")
+
+NO_GRANT_PREFIX = "no grant exists"
+UNGRANTED_DECISION_ENV = "PV_UNGRANTED_DECISION"
+
+
+def ungranted_decision() -> str:
+    """'block' or 'require_approval' for a capability with no grant at all.
+
+    Default: block under PV_SECURE_PROFILE, require_approval otherwise.
+    An unrecognised value fails closed to block.
+    """
+    raw = os.environ.get(UNGRANTED_DECISION_ENV, "").strip().lower()
+    if not raw:
+        secure = os.environ.get("PV_SECURE_PROFILE", "0").lower()
+        return "block" if secure in ("1", "true", "yes", "on") else "require_approval"
+    return raw if raw in ("block", "require_approval") else "block"
+
+
+def fault_reason(exc: BaseException, label: str = "engine_fault") -> str:
+    """Auditable reason for a fail-closed fault, without the exception text.
+
+    The reason is sealed into the decision record, returned to the caller
+    and exported to auditors. Exception messages can carry file paths,
+    connection strings or evidence values, so only the exception type, an
+    optional class-level ``public_reason`` constant and a fault id go there;
+    the full exception is logged under the same id.
+    """
+    fault_id = uuid.uuid4().hex[:16]
+    _fault_log.error(
+        "%s fault_id=%s %s: %s",
+        label,
+        fault_id,
+        type(exc).__name__,
+        exc,
+        exc_info=(type(exc), exc, exc.__traceback__),
+    )
+    public = getattr(type(exc), "public_reason", None)
+    detail = f": {public}" if isinstance(public, str) and public else ""
+    return f"{label}: {type(exc).__name__}{detail} (fault_id={fault_id})"
 
 
 class Decision(StrEnum):
@@ -315,7 +364,7 @@ class DecisionEngine:
             return DecisionResult(
                 decision=Decision.BLOCK,
                 triggered_by="engine_fault",
-                reason=f"{type(exc).__name__}: {exc}",
+                reason=fault_reason(exc),
                 capability=action.capability,
                 agent_id=action.agent_id,
                 drift_score=0.0,
@@ -479,11 +528,11 @@ class DecisionEngine:
             if raw_amount is not None:
                 try:
                     amount = coerce_amount(raw_amount)
-                except InvalidAmountError as exc:
+                except InvalidAmountError:
                     return DecisionResult(
                         decision=Decision.BLOCK,
                         triggered_by="authorization",
-                        reason=str(exc),
+                        reason=INVALID_AMOUNT_REASON,
                         capability=action.capability,
                         agent_id=action.agent_id,
                         drift_score=signal.drift_score,
@@ -540,4 +589,14 @@ class DecisionEngine:
         )
         if auth_reason is not None and result.triggered_by == "authorization":
             result.reason = auth_reason
+            if (
+                result.decision is Decision.REQUIRE_APPROVAL
+                and auth_reason.startswith(NO_GRANT_PREFIX)
+                and ungranted_decision() == "block"
+            ):
+                # No grant at all is not a request to escalate: under the
+                # secure profile (or PV_UNGRANTED_DECISION=block) it is a
+                # hard refusal that no approval can turn into an ALLOW.
+                result.decision = Decision.BLOCK
+                result.severity = Severity.CRITICAL
         return result

@@ -31,8 +31,8 @@ from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
 
-from .amount import InvalidAmountError, coerce_amount
-from .decision import Decision, DecisionResult, Severity
+from .amount import INVALID_AMOUNT_REASON, InvalidAmountError, coerce_amount
+from .decision import Decision, DecisionResult, Severity, fault_reason
 
 RESET_CAPABILITY = "breaker.reset"
 RESET_GROUP_CAPABILITY = "breaker.reset_group"
@@ -605,11 +605,11 @@ class GuardedEngine:
         # remaining budget inside the breaker's write transaction.
         try:
             amount = self._amount_fn(action, evidence)
-        except InvalidAmountError as exc:
+        except InvalidAmountError:
             return DecisionResult(
                 decision=Decision.BLOCK,
                 triggered_by="authorization",
-                reason=str(exc),
+                reason=INVALID_AMOUNT_REASON,
                 capability=action.capability,
                 agent_id=action.agent_id,
                 drift_score=0.0,
@@ -617,11 +617,11 @@ class GuardedEngine:
             )
         try:
             reason, rid = self.breaker.reserve(action.agent_id, amount)
-        except InvalidAmountError as exc:
+        except InvalidAmountError:
             return DecisionResult(
                 decision=Decision.BLOCK,
                 triggered_by="authorization",
-                reason=str(exc),
+                reason=INVALID_AMOUNT_REASON,
                 capability=action.capability,
                 agent_id=action.agent_id,
                 drift_score=0.0,
@@ -629,7 +629,7 @@ class GuardedEngine:
             )
         except Exception as exc:
             # a faulting breaker must never become a bypass
-            return self._blocked(action, f"breaker_fault: {type(exc).__name__}: {exc}")
+            return self._blocked(action, fault_reason(exc, "breaker_fault"))
         if reason is not None:
             return self._blocked(action, reason)
         # Every path from here MUST finalize the reservation. Rate and

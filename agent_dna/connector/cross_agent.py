@@ -26,6 +26,8 @@ import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
 
+from agent_dna.identity import fold_agent_id
+
 from ..advisory import Severity
 from ..control_posture import CROSS_AGENT_EXECUTION_ID_REQUIRED
 from ..decision import Decision, DecisionResult
@@ -117,6 +119,10 @@ class CrossAgentEnforcer:
         window and validate the window. Returns the EngineVerdict
         (never raises into the caller's decision path — the
         middleware's fault handler owns exceptions)."""
+        # One identity per agent regardless of case or Unicode form, so
+        # "Maker" cannot approve what "maker" initiated.
+        raw_agent_id = agent_id
+        agent_id = fold_agent_id(agent_id)
         target, target_role = self._target_for(capability)
         approval = is_approve_intent(capability)
         if approval:
@@ -132,7 +138,7 @@ class CrossAgentEnforcer:
             ]
             if self_initiated:
                 target = agent_id
-                target_role = self.config.agent_roles.get(agent_id, "unknown")
+                target_role = self.config.agent_roles.get(raw_agent_id, "unknown")
             elif other_initiators:
                 target = other_initiators[-1]
                 target_role = self.config.agent_roles.get(target, target_role)
@@ -141,7 +147,7 @@ class CrossAgentEnforcer:
             execution_id=execution_id,
             source=agent_id,
             target=target,
-            source_role=self.config.agent_roles.get(agent_id, "unknown"),
+            source_role=self.config.agent_roles.get(raw_agent_id, "unknown"),
             target_role=target_role,
             timestamp=time.time(),
             intent=capability,

@@ -366,4 +366,7 @@ def test_sidecar_without_flag_sends_no_permit(tmp_path):
         tmp_path, bundle, witness_key, transport, attach=False
     ).dispatch(authorization=authorization, wire_bytes=wire, context=context)
     assert result.outcome == OUTCOME_EXECUTED
-    assert transport.last_extra_headers == {}
+    sent = {k.lower(): v for k, v in transport.last_extra_headers.items()}
+    assert PERMIT_HEADER.lower() not in sent
+    # the only per-dispatch header is the permit's bound content type
+    assert sent == {"content-type": authorization["dispatch"]["wire_content_type"]}

@@ -61,6 +61,9 @@ from agent_dna.receiver.receipts import (
     RECEIVER_RECEIPT_SPEC,
     sign_receiver_receipt,
 )
+from agent_dna.revocation_list import (
+    RECEIVER_REVOCATION_LIST_STALE,
+)
 from agent_dna.wire_serialization_v01 import serialize_parameters_wire
 
 RECEIVER_PERMIT_MISSING = "RECEIVER_PERMIT_MISSING"
@@ -84,11 +87,27 @@ RECEIVER_LOCAL_POLICY_REFUSED = "RECEIVER_LOCAL_POLICY_REFUSED"
 RECEIVER_PERMIT_CONSUMED = "RECEIVER_PERMIT_CONSUMED"
 RECEIVER_BODY_TOO_LARGE = "RECEIVER_BODY_TOO_LARGE"
 RECEIVER_CONTENT_ENCODING_REFUSED = "RECEIVER_CONTENT_ENCODING_REFUSED"
+RECEIVER_WIRE_HEADER_MISMATCH = "RECEIVER_WIRE_HEADER_MISMATCH"
 RECEIVER_INTERNAL_ERROR = "RECEIVER_INTERNAL_ERROR"
 RECEIVER_LEDGER_UNAVAILABLE = "RECEIVER_LEDGER_UNAVAILABLE"
 
 _ENUMERATED_METHODS = frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"})
 _READ_ONLY_METHODS = frozenset({"GET", "HEAD"})
+
+# Headers that make common frameworks and proxies act on a method or URL
+# other than the one on the request line. The permit binds METHOD + path,
+# so a request carrying any of these is asking the upstream to do
+# something the permit did not authorise.
+_OVERRIDE_HEADERS = frozenset(
+    {
+        "x-http-method-override",
+        "x-http-method",
+        "x-method-override",
+        "x-original-url",
+        "x-original-method",
+        "x-rewrite-url",
+    }
+)
 
 # A local check sees the verified action and dispatch and returns ``None`` to
 # pass or a short refusal detail. It can only add refusals.
@@ -161,6 +180,10 @@ class ReceiverGate:
     local_checks: Sequence[LocalCheck] = ()
     max_body_bytes: int = 1_048_576
     clock_skew: timedelta = timedelta(0)
+    # Optional RevocationListCache (agent_dna.revocation_list). When set,
+    # listed or suspended permits are refused, and a missing or expired
+    # list refuses everything (fail closed).
+    revocations: Any = None
     _keys: dict[str, Mapping[str, Any]] = field(init=False, repr=False)
     _bundle_digest: str = field(init=False, repr=False)
     _unprotected: frozenset[tuple[str, str]] = field(init=False, repr=False)
@@ -225,7 +248,10 @@ class ReceiverGate:
         """Evaluate one received request. Never raises."""
 
         now = received_at or datetime.now(UTC)
-        method = (method or "").upper()
+        # HTTP methods are case-sensitive and are forwarded as received, so
+        # never normalise: a "post" admitted against a POST permit would be
+        # forwarded as "post" while the receipt says "POST".
+        method = method or ""
         body = bytes(body)
         if (method, path) in self._unprotected and not body:
             return ReceiverDecision(
@@ -283,7 +309,9 @@ class ReceiverGate:
         self._verify_trust(ea)
         self._verify_destination(ea, method, path)
         self._verify_time(ea, now)
+        self._verify_not_revoked(ea, now)
         self._verify_body(ea, body)
+        self._verify_headers(ea, headers)
         self._run_local_checks(ea)
         return ea
 
@@ -368,6 +396,15 @@ class ReceiverGate:
                 RECEIVER_OPERATION_MISMATCH, "received METHOD path not bound", ea=ea
             )
 
+    def _verify_not_revoked(self, ea: Mapping[str, Any], now: datetime) -> None:
+        if self.revocations is None:
+            return
+        hit = self.revocations.refusal(ea, now=now, clock_skew=self.clock_skew)
+        if hit is not None:
+            code, detail = hit
+            status = 503 if code == RECEIVER_REVOCATION_LIST_STALE else 403
+            raise _RefusalError(code, detail, status, ea=ea)
+
     def _verify_time(self, ea: Mapping[str, Any], now: datetime) -> None:
         not_before = _parse_timestamp(ea["not_before"], "not_before")
         expires_at = _parse_timestamp(ea["expires_at"], "expires_at")
@@ -401,6 +438,46 @@ class ReceiverGate:
                 "received body is not the signed action parameters",
                 ea=ea,
             )
+
+    @staticmethod
+    def _verify_headers(
+        ea: Mapping[str, Any],
+        headers: Iterable[tuple[str, str]] | Mapping[str, str],
+    ) -> None:
+        """Bind the headers that change how the upstream reads the bytes."""
+        pairs = list(headers.items()) if isinstance(headers, Mapping) else list(headers)
+        lowered = [(str(k).lower(), str(v)) for k, v in pairs]
+        dispatch = ea["dispatch"]
+        overrides = sorted({k for k, _ in lowered if k in _OVERRIDE_HEADERS})
+        if overrides:
+            raise _RefusalError(
+                RECEIVER_WIRE_HEADER_MISMATCH,
+                f"method/URL override header(s) not bound by permit: {overrides}",
+                ea=ea,
+            )
+        if str(dispatch.get("wire_content_encoding", "identity")).lower() != (
+            "identity"
+        ):
+            raise _RefusalError(
+                RECEIVER_CONTENT_ENCODING_REFUSED,
+                "permit binds an encoded body; only identity is admitted",
+                ea=ea,
+            )
+        content_types = [v for k, v in lowered if k == "content-type"]
+        if len(content_types) > 1:
+            raise _RefusalError(
+                RECEIVER_WIRE_HEADER_MISMATCH, "more than one Content-Type", ea=ea
+            )
+        bound = str(dispatch.get("wire_content_type") or "").split(";")[0]
+        if content_types and bound:
+            received = content_types[0].split(";")[0]
+            if received.strip().lower() != bound.strip().lower():
+                raise _RefusalError(
+                    RECEIVER_WIRE_HEADER_MISMATCH,
+                    f"Content-Type {received.strip()!r} is not the bound "
+                    f"{bound.strip()!r}",
+                    ea=ea,
+                )
 
     def _run_local_checks(self, ea: Mapping[str, Any]) -> None:
         for check in self.local_checks:

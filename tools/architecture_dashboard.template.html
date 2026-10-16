@@ -267,12 +267,15 @@ footer {
 <script>
 (function () {
   const DATA = JSON.parse(document.getElementById("map-data").textContent);
-  const fmt = (n) => new Intl.NumberFormat("en-US").format(n);
-  const short = (name) => name.replace(/^agent_dna\./, "").replace(/^api\./, "api.");
+  // Every value interpolated into innerHTML goes through esc(), numbers too:
+  // the map data is read back out of the DOM, so it is treated as untrusted.
   const esc = (s) => String(s == null ? "" : s)
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  const fmt = (n) => esc(new Intl.NumberFormat("en-US").format(n));
+  const short = (name) => name.replace(/^agent_dna\./, "");
 
-  const noun = (n, one, many) => n + " " + (n === 1 ? one : many);
+  const noun = (n, one, many) => esc(n + " " + (n === 1 ? one : many));
 
   function renderStrip() {
     const p = DATA.pytest;
@@ -302,17 +305,17 @@ footer {
     const i = idx == null ? "—" : String(idx).padStart(2, "0");
     const zero = stage.zeroImportCount ? " has-zero" : "";
     return '<button class="stage' + zero + '" type="button" data-stage="' + esc(stage.id) +
-      '"><span class="idx">' + i + '</span><span class="name">' + esc(stage.id) +
+      '"><span class="idx">' + esc(i) + '</span><span class="name">' + esc(stage.id) +
       '</span><span class="n">' + fmt(stage.tests) + '</span><span class="meta">' +
       noun(stage.moduleCount, "module", "modules") + " · " +
       noun(stage.files, "file", "files") + '</span>' +
-      '<span class="bar"><i style="width:' + pct + '%"></i></span></button>';
+      '<span class="bar"><i style="width:' + esc(pct) + '%"></i></span></button>';
   }
 
   function moduleChips(modules) {
     return '<div class="mods">' + modules.map(function (m) {
       const z = m.testFileImports === 0 ? " zero" : "";
-      return '<span class="chip' + z + '">' + esc(m.name) + "<b>" + m.testFileImports + "</b></span>";
+      return '<span class="chip' + z + '">' + esc(m.name) + "<b>" + esc(m.testFileImports) + "</b></span>";
     }).join("") + "</div>";
   }
 
@@ -362,10 +365,10 @@ footer {
 
   function rankRow(m, maxN, zero) {
     const pct = zero || !maxN ? 0 : Math.max(3, Math.round(100 * m.testFileImports / maxN));
-    const bar = zero ? "" : '<span class="ibar"><i style="width:' + pct + '%"></i></span>';
+    const bar = zero ? "" : '<span class="ibar"><i style="width:' + esc(pct) + '%"></i></span>';
     const path = m.path ? esc(m.path) : "unresolved import";
     return "<li><div>" + esc(m.name) + '<div class="path">' + path + "</div>" + bar +
-      "</div><b>" + m.testFileImports + "</b></li>";
+      "</div><b>" + esc(m.testFileImports) + "</b></li>";
   }
 
   function renderInversion() {
@@ -401,9 +404,9 @@ footer {
       ? "No agent_dna / api import"
       : c.imports.map(short).join(", ");
     const files = c.files.map((f) => "<li><b>" + esc(f.path.replace(/^tests\//, "")) +
-      "</b> · " + f.collected + "</li>").join("");
+      "</b> · " + esc(f.collected) + "</li>").join("");
     return '<article class="cluster' + (c.isolated ? " isolated" : "") + '"><h3>' +
-      esc(title) + '</h3><div class="meta">' + n + " files · " + fmt(tests) +
+      esc(title) + '</h3><div class="meta">' + esc(n) + " files · " + fmt(tests) +
       " collected<br>" + esc(imports) + "</div><ul>" + files + "</ul></article>";
   }
 

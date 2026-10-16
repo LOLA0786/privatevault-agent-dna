@@ -38,7 +38,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 1573+ automated tests, run in CI on every commit
+- 1830+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
@@ -91,6 +91,43 @@ Decision and execution records do — restart-safety here is
 independently tested. Signature envelopes are currently retrievable
 for the producing process's lifetime; persisting them as a
 first-class, restart-safe record kind is on our roadmap, not shipped.
+
+## Shell commands (shell guard)
+
+For capabilities listed in `PV_SHELL_CAPABILITIES` (default `shell.exec`) the
+runtime parses the command itself and derives `evidence.shell`; callers
+cannot supply it (`/v1/decide` refuses the key, the monitor replaces it).
+Built in, with no policy: unparseable commands, code the runtime cannot see
+(`sh -c`, `python -c`, `eval`, `$(...)`, a shell reading stdin), network
+tools handed credential-like files, and credential-like files being copied,
+linked, packed, re-encoded or redirected to another file are blocked. Policy rules can match every
+program the command would run via `any_in` / `any_not_in` on
+`evidence.shell.executables` (`examples/config/shell-policy.json`).
+
+What this does **not** claim:
+
+- It is static analysis of the command text, not a sandbox. A script file
+  (`python script.py`, `make`, `npm run`, `git` hooks/aliases) runs code the
+  guard never sees; only an allowlist of programs bounds that.
+- It sees only the arguments it is given. A wrapper that sends `{"verb":
+  "ls"}` and then runs something else is outside the guard; send the real
+  argv (`argv`, `command`+`args`, or the command string).
+- Tool names other than the configured shell capabilities are not parsed.
+  Name your MCP shell tools in `PV_SHELL_CAPABILITIES`.
+- Credential detection is a filename and variable-name heuristic (`.env`,
+  keys, `~/.ssh`, `~/.aws`, `/proc/*/environ`, `$API_TOKEN`-style variables,
+  bare `env`/`printenv`), not data-loss prevention. A secret that already sits under
+  an innocent name (a symlink or copy made outside the guard) is not
+  recognised; the example policy's approval gate on network tools is what
+  stops it, so an approver who allows it would leak it (external retest
+  2026-10-16, E06/E11).
+- Without a policy, plain destructive programs (`rm`, `/bin/rm`, `env rm`,
+  `xargs rm`, `mv`) are visible in `evidence.shell` but not blocked; that is
+  the policy's job (`examples/config/shell-policy.json`).
+
+An ungranted capability returns `require_approval` by default; under
+`PV_SECURE_PROFILE` (or `PV_UNGRANTED_DECISION=block`) it is a hard BLOCK
+that no approval can turn into an ALLOW.
 
 ## Capability grants
 
@@ -468,10 +505,15 @@ What is shipped and tested (`tests/gateway/`):
   closed: they are not forwarded and the exact method name is recorded.
 - Frame reading is bounded and mode-explicit (`tests/gateway/test_framing.py`):
   header ≤ 8 KiB, body ≤ configurable `max_message_bytes` (default 8 MiB),
-  JSON nesting ≤ `max_json_depth` (default 32), Content-Length framing
-  only in production; trailing bytes after a frame are retained for
-  pipelining; newline framing is test-only. The same size and depth
-  caps apply to upstream bodies, not only client frames.
+  JSON nesting ≤ `max_json_depth` (default 32). stdio uses
+  newline-delimited JSON (the MCP spec; CLI default) or Content-Length
+  (`--framing content-length`, legacy clients), with the same caps in both;
+  trailing bytes after a frame are retained for pipelining. The same size
+  and depth caps apply to upstream bodies, not only client frames.
+- Interoperability with the official MCP Python SDK (client and server) is
+  tested end to end through the real CLI
+  (`tests/gateway/test_gateway_mcp_compat.py`). Other SDKs and clients are
+  not tested.
 - TLS certificate verification is on by default for HTTP/SSE; starting
   with verification disabled requires the operator flag
   `allow_insecure_tls`. Cross-origin HTTP redirects are refused (they

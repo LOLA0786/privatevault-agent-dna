@@ -2,10 +2,14 @@
 // regression fails CI rather than being rediscovered by a reviewer.
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { existsSync, rmSync } from "node:fs";
+import { existsSync, realpathSync, rmSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 
 const CONTRADICTION_PATH = "/tmp/pv-TRIGGER-403-ALLOW.txt";
-const DIGEST_PATH = "/tmp/pv-digest-probe.txt";
+const DIGEST_PATH = process.env.PV_TEST_DIGEST_PATH || "/tmp/pv-digest-probe.txt";
+// The gate decides on the real path (symlinks in the directory resolved),
+// e.g. /private/tmp/... on macOS where /tmp is a symlink.
+const DIGEST_REAL = join(realpathSync(dirname(DIGEST_PATH)), basename(DIGEST_PATH));
 for (const p of [CONTRADICTION_PATH, DIGEST_PATH]) if (existsSync(p)) rmSync(p);
 
 const transport = new StdioClientTransport({
@@ -76,7 +80,7 @@ function check(name, ok, detail) {
   await client.callTool({ name: "pv_write_file", arguments: { path: DIGEST_PATH, content: "BBBB" } });
   const recorded = await (await fetch("http://127.0.0.1:8931/debug/decisions")).json();
   const writes = recorded.filter(
-    (d) => d.capability === "fs.write" && d.arguments?.path === DIGEST_PATH
+    (d) => d.capability === "fs.write" && d.arguments?.path === DIGEST_REAL
   );
   const digests = new Set(writes.map((d) => d.arguments.content_sha256));
   const lengths = new Set(writes.map((d) => d.arguments.bytes));

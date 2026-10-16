@@ -25,6 +25,26 @@ grants:
   - capability: calendar.schedule_viewing
 
 policy:
+  # Where and how the bytes go. evidence.bound.* is the sealed dispatch
+  # (destination, METHOD path) the permit will bind and the receiver will
+  # execute; the agent cannot set it. Anything other than the one endpoint
+  # this tool exists for is blocked before a permit can be minted.
+  - id: wrong-destination
+    capability: payments.request_token
+    outcome: block
+    reason: destination is not the endpoint this tool is approved for
+    condition:
+      field: evidence.bound.destination
+      operator: not_in
+      value: ["https://escrow.partner.example"]
+  - id: wrong-operation
+    capability: payments.request_token
+    outcome: block
+    reason: method and path are not the operation this tool is approved for
+    condition:
+      field: evidence.bound.operation
+      operator: not_in
+      value: ["POST /api/v1/token-requests"]
   - id: payee-not-escrow
     capability: payments.request_token
     outcome: block

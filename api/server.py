@@ -35,7 +35,7 @@ from typing import Annotated, Any, NoReturn
 from fastapi import Depends, FastAPI, Header, HTTPException, Response
 from fastapi.responses import FileResponse, JSONResponse
 from nacl.signing import SigningKey as _SigningKey
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from starlette.background import BackgroundTask
 
 from agent_dna.apikeys import ApiKeyRegistry
@@ -52,6 +52,7 @@ from agent_dna.authorize_binding import (
     AUTHORIZE_APPROVAL_MISMATCH,
     AUTHORIZE_DECISION_NOT_FOUND,
     AUTHORIZE_DECISION_REQUIRED,
+    AUTHORIZE_GRANT_REVOKED,
     AUTHORIZE_PERMIT_ALREADY_CONSUMED,
     AUTHORIZE_PERMIT_BINDING_CONFLICT,
     AUTHORIZE_PERMIT_EXPIRED,
@@ -71,6 +72,17 @@ from agent_dna.control_posture import (
 from agent_dna.decision import Decision
 from agent_dna.execution_v01 import EXECUTION_AUTHORIZATION_SPEC as _PV_EA_SPEC
 from agent_dna.execution_v01 import sign_execution_authorization as _pv_sign_ea
+from agent_dna.lineage import (
+    ALREADY_APPROVED as LINEAGE_ALREADY_APPROVED,
+)
+from agent_dna.lineage import (
+    LINEAGE_EVENT_SPEC,
+    LineageFinding,
+    LineageLedger,
+    escalate_with_lineage,
+    lineage_manifest,
+    lineage_mode,
+)
 from agent_dna.observability.logger import get_logger
 from agent_dna.observability.metrics import MetricsExporter
 from agent_dna.observability.prometheus_bridge import (
@@ -78,10 +90,12 @@ from agent_dna.observability.prometheus_bridge import (
 )
 from agent_dna.observability.prometheus_bridge import observe_decide_latency, set_ready
 from agent_dna.request_bounds import RequestBounds, RequestBoundsMiddleware
+from agent_dna.revocation_list import build_revocation_list
 from agent_dna.runtime import RuntimeMonitor
 from agent_dna.security.loop_discovery import (
     LoopDecision,
     LoopFormatError,
+    LoopPolicy,
     discover_loops,
 )
 from agent_dna.signer import verify_trusted_envelope
@@ -343,6 +357,16 @@ async def lifespan(app: FastAPI):
     state["engine"] = runtime.engine
     state["signer"] = runtime.signer
     state["cross_agent"] = runtime.cross_agent
+    state["lineage_mode"] = lineage_mode()
+    store_path = getattr(runtime.store, "path", None)
+    state["lineage"] = (
+        LineageLedger(store_path, signer=runtime.signer)
+        if state["lineage_mode"] != "off" and store_path is not None
+        else None
+    )
+    runtime.composition["lineage"] = lineage_manifest(
+        state["lineage_mode"], state["lineage"] is not None
+    )
     state["monitors"] = {}
     state["started_at"] = _datetime.now(UTC).isoformat()
     try:
@@ -357,6 +381,8 @@ async def lifespan(app: FastAPI):
     )
     yield
     set_ready(False)
+    if state.get("lineage") is not None:
+        state["lineage"].close()
     state["store"].close()
     state.clear()
 
@@ -384,6 +410,20 @@ def _monitor_for(agent_id: str) -> RuntimeMonitor:
 
 
 # ---------- request models -------------------------------------------------
+
+
+class LineageRef(BaseModel):
+    """ADR 0021: link this decide to decisions the server already sealed.
+
+    Never a caller-chosen flow id: only references to recorded decisions,
+    which the server resolves from its own lineage rows.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+    parent_record_hash: str | None = Field(
+        default=None, pattern=r"^(sha256:)?[0-9a-f]{64}$"
+    )
+    approves: str | None = Field(default=None, pattern=r"^(sha256:)?[0-9a-f]{64}$")
 
 
 class DecideRequest(BaseModel):
@@ -415,6 +455,8 @@ class DecideRequest(BaseModel):
         default=None, pattern=r"^sha256:[0-9a-f]{64}$"
     )
     expected_wire_bytes_length: int | None = Field(default=None, ge=0)
+    # ADR 0021 server-derived lineage (PV_LINEAGE=shadow|enforce).
+    lineage: LineageRef | None = None
 
 
 class OutcomeRequest(BaseModel):
@@ -630,9 +672,36 @@ def decide(req: DecideRequest, principal: FullPrincipal):
     approval_context = _approval_context_for(req, principal, execution_action)
     monitor = _monitor_for(req.agent_id)
     started = _time.perf_counter()
+    evidence = dict(req.evidence or {})
+    if execution_action is not None and dispatch_context is not None:
+        # The sealed destination, METHOD+path and resource are what the
+        # permit will bind and the receiver will execute. Expose them to
+        # customer policy under a reserved key that callers cannot supply,
+        # so rules can match on where and how the bytes are sent, e.g.
+        #   {"field": "evidence.bound.operation", "operator": "not_in",
+        #    "value": ["POST /v1/refunds"]}  -> block
+        evidence["bound"] = {
+            "destination": dispatch_context["destination"],
+            "operation": dispatch_context["operation"],
+            "transport": dispatch_context["transport"],
+            "wire_content_type": dispatch_context["wire_content_type"],
+            "resource": execution_action["resource"],
+            "subject_principal": execution_action["subject_principal"],
+            "action": execution_action["action"],
+        }
+    elif "bound" in evidence:
+        raise HTTPException(
+            status_code=422,
+            detail="evidence.bound is reserved for sealed dispatch values",
+        )
+    if "shell" in evidence:
+        raise HTTPException(
+            status_code=422,
+            detail="evidence.shell is reserved; the runtime derives it",
+        )
     result = monitor.process(
         action,
-        evidence=req.evidence or None,
+        evidence=evidence or None,
         approval=req.approval,
         approval_context=approval_context,
     )
@@ -644,6 +713,33 @@ def decide(req: DecideRequest, principal: FullPrincipal):
         result=result,
     )
     observe_decide_latency(_time.perf_counter() - started)
+
+    # ADR 0021: server-derived lineage. Escalate-only; enforce blocks on
+    # any finding, shadow reports without changing the verdict.
+    ledger: LineageLedger | None = state.get("lineage")
+    mode = state.get("lineage_mode", "off")
+    lineage_ctx = None
+    lineage_claimed = False
+    if ledger is not None:
+        lineage_ctx = ledger.resolve(
+            agent_id=req.agent_id,
+            capability=req.capability,
+            lineage=req.lineage.model_dump() if req.lineage else None,
+        )
+        if mode == "enforce":
+            result = escalate_with_lineage(result, lineage_ctx.findings)
+            if (
+                result.decision is Decision.ALLOW
+                and lineage_ctx.approves_record_hash is not None
+            ):
+                lineage_claimed = ledger.claim_approval(lineage_ctx)
+                if not lineage_claimed:
+                    finding = LineageFinding(
+                        LINEAGE_ALREADY_APPROVED,
+                        "this initiate has already been approved once",
+                    )
+                    lineage_ctx.findings.append(finding)
+                    result = escalate_with_lineage(result, [finding])
 
     enforcer = state.get("cross_agent")
     require_eid = bool(
@@ -662,6 +758,7 @@ def decide(req: DecideRequest, principal: FullPrincipal):
             "loop_events_required": bool(
                 getattr(runtime, "loop_events_required", False)
             ),
+            "lineage_mode": mode,
         },
     )
 
@@ -672,16 +769,23 @@ def decide(req: DecideRequest, principal: FullPrincipal):
         dispatch_context=dispatch_context,
     )
 
-    return JSONResponse(
-        status_code=STATUS_MAP[result.decision],
-        content={
-            "decision": result.decision.value,
-            "triggered_by": result.triggered_by,
-            "reason": result.reason,
-            "execution_id": execution_id,
-            "record": record.to_dict(),
-        },
-    )
+    content: dict[str, Any] = {
+        "decision": result.decision.value,
+        "triggered_by": result.triggered_by,
+        "reason": result.reason,
+        "execution_id": execution_id,
+        "record": record.to_dict(),
+    }
+    if ledger is not None and lineage_ctx is not None:
+        ledger.record(
+            lineage_ctx,
+            record_hash=record.record_hash,
+            decision_id=record.decision_id,
+            decision=result.decision.value,
+            claimed=lineage_claimed,
+        )
+        content["lineage"] = lineage_ctx.report(mode)
+    return JSONResponse(status_code=STATUS_MAP[result.decision], content=content)
 
 
 @app.post("/v1/outcome")
@@ -757,6 +861,40 @@ def lineage(
 
 
 # ---------- audit surface -------------------------------------------------------
+
+
+@app.get("/v1/revocations", dependencies=[Depends(require_audit_or_full_key)])
+def revocations():
+    """Signed list of revoked permits, suspended agents and organisation.
+
+    Signed with the execution-authorization key receivers already pin, so a
+    receiver gate verifies it like a permit. Short validity: receivers must
+    refresh, and refuse everything when their copy expires.
+    """
+    signer = _pv_load_signer()
+    ttl = int(os.environ.get("PV_REVOCATION_LIST_TTL_SECONDS", "30"))
+    return build_revocation_list(
+        state["store"],
+        organisation_id=signer["trust_bundle"]["organisation_id"],
+        signing_key=signer["signing_key"],
+        signer_key_id=signer["key_id"],
+        validity=_timedelta(seconds=max(1, ttl)),
+    )
+
+
+@app.get("/v1/flows/{flow_id}", dependencies=[Depends(require_audit_or_full_key)])
+def flow_export(flow_id: str):
+    """ADR 0021: sealed lineage events of one multi-agent flow.
+
+    Audit or full scope. Verify offline with tools/verify_lineage.py.
+    """
+    ledger: LineageLedger | None = state.get("lineage")
+    if ledger is None:
+        raise HTTPException(status_code=404, detail="lineage is not enabled")
+    events = ledger.export_flow(flow_id)
+    if not events:
+        raise HTTPException(status_code=404, detail="unknown flow")
+    return {"flow_id": flow_id, "spec": LINEAGE_EVENT_SPEC, "events": events}
 
 
 @app.get("/v1/envelope/{record_hash}", dependencies=[Depends(require_api_key)])
@@ -919,12 +1057,13 @@ def ready():
         store.ping()
     except Exception as exc:
         set_ready(False)
+        _log.error("readiness: store ping failed", exc_info=exc)
         return JSONResponse(
             status_code=503,
             content={
                 "status": "not_ready",
                 "reason": "store_unavailable",
-                "detail": str(exc),
+                "detail": type(exc).__name__,
             },
         )
     set_ready(True)
@@ -1129,7 +1268,7 @@ def _authorize_loop_gate(
     security_events: list[dict[str, Any]],
 ) -> dict[str, Any]:
     try:
-        report = discover_loops(security_events)
+        report = discover_loops(security_events, LoopPolicy(normalize_agent_ids=True))
     except LoopFormatError as exc:
         raise HTTPException(
             status_code=422,
@@ -1150,6 +1289,22 @@ def _authorize_loop_gate(
     return loop_report
 
 
+_NO_APPROVAL_DIGEST = "sha256:" + "0" * 64
+
+
+def _revoked_grant_for(record: dict[str, Any]) -> str | None:
+    """Grant id of a sealed decision if that grant is durably revoked."""
+    if record.get("triggered_by") == TRIGGERED_BY_APPROVAL:
+        return None  # approval_ref names an approval artifact, not a grant
+    grant_id = record.get("approval_ref")
+    engine = state.get("engine")
+    authorizer = getattr(engine, "authorizer", None)
+    ledger = getattr(authorizer, "revocation_ledger", None)
+    if ledger is None or not isinstance(grant_id, str):
+        return None
+    return grant_id if ledger.is_revoked(grant_id) is not None else None
+
+
 @app.post("/v1/authorize")
 def authorize(req: AuthorizeRequest, principal: FullPrincipal):  # noqa: C901
     """Issue execution authority bound to a sealed ALLOW and exact bytes."""
@@ -1165,6 +1320,25 @@ def authorize(req: AuthorizeRequest, principal: FullPrincipal):  # noqa: C901
             403,
             AUTHORIZE_APPROVAL_MISMATCH,
             "approval-triggered ALLOW mints only with its sealed approval digest",
+        )
+    if record.get("triggered_by") != TRIGGERED_BY_APPROVAL and (
+        req.approval_artifact_digest not in (None, _NO_APPROVAL_DIGEST)
+    ):
+        # A permit must never claim a human approval that did not happen.
+        # null or the all-zero placeholder (used by shipped partner and
+        # receiver kits) both mean "no approval"; any real digest is refused.
+        _authorize_refusal(
+            403,
+            AUTHORIZE_APPROVAL_MISMATCH,
+            "approval_artifact_digest is only valid for an approval-triggered ALLOW",
+        )
+
+    revoked_grant = _revoked_grant_for(record)
+    if revoked_grant is not None:
+        _authorize_refusal(
+            403,
+            AUTHORIZE_GRANT_REVOKED,
+            f"the grant behind this decision was revoked ({revoked_grant})",
         )
 
     signer = _pv_load_signer()
@@ -1298,6 +1472,24 @@ def authorize(req: AuthorizeRequest, principal: FullPrincipal):  # noqa: C901
     mint_status = mint_result[0]
     authorization = mint_result[1]
     stored_bundle = mint_result[2] if len(mint_result) > 2 else None
+
+    # Revocation that committed while this mint was being claimed: the
+    # revoke scan may not have seen this permit, so suspend it here and
+    # refuse to hand it out (grant_revocation module docstring).
+    late_revocation = _revoked_grant_for(record)
+    if late_revocation is not None and isinstance(authorization, dict):
+        store.suspend(
+            "authorization",
+            str(authorization.get("execution_authorization_id")),
+            reason=f"grant revoked during mint ({late_revocation})",
+            suspended_by="authorize",
+            suspended_at=minted_at,
+        )
+        _authorize_refusal(
+            403,
+            AUTHORIZE_GRANT_REVOKED,
+            f"the grant behind this decision was revoked ({late_revocation})",
+        )
 
     if mint_status == "conflict":
         _authorize_refusal(

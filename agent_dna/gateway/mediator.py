@@ -40,10 +40,11 @@ from agent_dna.gateway.framing import (
     MCP_UNKNOWN_METHOD,
     MCP_UNMATCHED_ID,
     MCP_UPSTREAM_DEAD,
+    FramingMode,
     build_prompts_get_message,
     build_resource_message,
     encode_jsonrpc_message,
-    frame_stdio,
+    frame_message,
     freeze_jsonrpc_bytes,
     freeze_tools_call_bytes,
     mcp_error_response,
@@ -106,6 +107,7 @@ class GatewayMediator:
         agent_api_key: str,
         upstream_timeout_s: float = 5.0,
         framed: bool = True,
+        framing_mode: FramingMode = FramingMode.CONTENT_LENGTH,
         max_message_bytes: int = DEFAULT_MAX_MESSAGE_BYTES,
         max_json_depth: int = MAX_JSON_DEPTH,
         fail_closed_on_unattributed: bool = True,
@@ -120,6 +122,7 @@ class GatewayMediator:
         self.agent_api_key = agent_api_key
         self.upstream_timeout_s = upstream_timeout_s
         self.framed = framed
+        self.framing_mode = framing_mode
         self.max_message_bytes = max_message_bytes
         self.max_json_depth = max_json_depth
         self.fail_closed_on_unattributed = fail_closed_on_unattributed
@@ -147,6 +150,9 @@ class GatewayMediator:
         self._pending_responses.clear()
         self.upstream.close()
 
+    def _frame(self, payload: bytes) -> bytes:
+        return frame_message(payload, self.framing_mode) if self.framed else payload
+
     def handle_raw(self, raw: bytes | str) -> bytes:
         """Handle one client JSON-RPC message; return exact response bytes."""
         message = parse_jsonrpc(
@@ -155,8 +161,12 @@ class GatewayMediator:
             max_json_depth=self.max_json_depth,
         )
         result = self.handle_message(message)
+        if "id" not in message:
+            # JSON-RPC 2.0: a notification never gets a response. Writing
+            # one ({"result": null} with no id) breaks strict clients.
+            return b""
         payload = encode_jsonrpc_message(result.client_message)
-        out = frame_stdio(payload) if self.framed else payload
+        out = self._frame(payload)
         text = out.decode("utf-8", errors="replace")
         assert_text_has_no_secrets(text, self.credentials)
         return out
@@ -247,9 +257,7 @@ class GatewayMediator:
                     message="upstream identity changed — session does not carry over",
                 )
             )
-        wire = encode_jsonrpc_message(message)
-        if self.framed:
-            wire = frame_stdio(wire)
+        wire = self._frame(encode_jsonrpc_message(message))
         assert_text_has_no_secrets(
             wire.decode("utf-8", errors="replace"), self.credentials
         )
@@ -440,20 +448,25 @@ class GatewayMediator:
                 tool_name=capability,
                 arguments=dict(arguments),
                 framed=self.framed,
+                mode=self.framing_mode,
             )
         elif method == "prompts/get":
             frozen = build_prompts_get_message(
                 request_id=request_id,
                 name=str(arguments.get("name", "")),
             )
-            wire_bytes, wire_digest = freeze_jsonrpc_bytes(frozen, framed=self.framed)
+            wire_bytes, wire_digest = freeze_jsonrpc_bytes(
+                frozen, framed=self.framed, mode=self.framing_mode
+            )
         else:
             frozen = build_resource_message(
                 method=method,
                 request_id=request_id,
                 uri=str(arguments.get("uri", "")),
             )
-            wire_bytes, wire_digest = freeze_jsonrpc_bytes(frozen, framed=self.framed)
+            wire_bytes, wire_digest = freeze_jsonrpc_bytes(
+                frozen, framed=self.framed, mode=self.framing_mode
+            )
         assert_text_has_no_secrets(
             wire_bytes.decode("utf-8", errors="replace"),
             self.credentials,
@@ -522,6 +535,7 @@ class GatewayMediator:
                 tool_name=pending.tool_name,
                 arguments=arguments_override,
                 framed=self.framed,
+                mode=self.framing_mode,
             )
             return alt
         if pending.method == "prompts/get":
@@ -529,14 +543,18 @@ class GatewayMediator:
                 request_id=pending.request_id,
                 name=str(arguments_override.get("name", "")),
             )
-            alt, _ = freeze_jsonrpc_bytes(frozen, framed=self.framed)
+            alt, _ = freeze_jsonrpc_bytes(
+                frozen, framed=self.framed, mode=self.framing_mode
+            )
             return alt
         frozen = build_resource_message(
             method=pending.method,
             request_id=pending.request_id,
             uri=str(arguments_override.get("uri", "")),
         )
-        alt, _ = freeze_jsonrpc_bytes(frozen, framed=self.framed)
+        alt, _ = freeze_jsonrpc_bytes(
+            frozen, framed=self.framed, mode=self.framing_mode
+        )
         return alt
 
     def forward_pending(
@@ -1181,9 +1199,7 @@ class GatewayMediator:
         )
 
     def _write_to_upstream(self, message: dict[str, Any]) -> None:
-        wire = encode_jsonrpc_message(message)
-        if self.framed:
-            wire = frame_stdio(wire)
+        wire = self._frame(encode_jsonrpc_message(message))
         assert_text_has_no_secrets(
             wire.decode("utf-8", errors="replace"), self.credentials
         )
