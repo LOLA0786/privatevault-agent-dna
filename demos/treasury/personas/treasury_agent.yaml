@@ -1,0 +1,97 @@
+# Treasury agent. Moves liquidity between the company's own accounts and
+# converts currency. Does not pay vendors. Amounts are USD, whole dollars.
+
+name: treasury_agent
+agent_id: treasury-agent-01
+organisation_id: corp.example
+description: >
+  Moves liquidity between the company's own accounts and converts currency
+  for settlements.
+
+tools:
+  - ledger_lookup
+  - move_liquidity
+  - fx_convert
+  - decline
+  - escalate
+
+grants:
+  - capability: treasury.move_liquidity
+  - capability: treasury.fx_convert
+
+policy:
+  - id: ap-cannot-move-liquidity
+    capability: treasury.move_liquidity
+    agent_id: ap-agent-01
+    outcome: block
+    reason: the accounts-payable agent has no authority to move liquidity
+  - id: ap-cannot-convert-fx
+    capability: treasury.fx_convert
+    agent_id: ap-agent-01
+    outcome: block
+    reason: the accounts-payable agent has no authority to convert currency
+  - id: liquidity-hard-cap-10m
+    capability: treasury.move_liquidity
+    outcome: block
+    reason: above USD 10,000,000; board approval out of band, not this desk
+    condition:
+      field: arguments.amount_usd
+      operator: ">"
+      value: 10000000
+  - id: fx-hard-cap-10m
+    capability: treasury.fx_convert
+    outcome: block
+    reason: above USD 10,000,000; board approval out of band, not this desk
+    condition:
+      field: arguments.amount_usd
+      operator: ">"
+      value: 10000000
+  - id: liquidity-outside-business-hours
+    capability: treasury.move_liquidity
+    outcome: block
+    reason: transfers are not made outside business hours
+    condition:
+      field: arguments.within_business_hours
+      operator: "=="
+      value: false
+  - id: fx-outside-business-hours
+    capability: treasury.fx_convert
+    outcome: block
+    reason: conversions are not made outside business hours
+    condition:
+      field: arguments.within_business_hours
+      operator: "=="
+      value: false
+  - id: liquidity-hourly-velocity-20
+    capability: treasury.move_liquidity
+    outcome: block
+    reason: agent has already made 20 transfers in the last hour
+    condition:
+      field: arguments.agent_payments_last_hour
+      operator: ">="
+      value: 20
+  - id: liquidity-above-5m
+    capability: treasury.move_liquidity
+    outcome: require_approval
+    reason: liquidity moves above USD 5,000,000 need a treasury approver
+    condition:
+      field: arguments.amount_usd
+      operator: ">"
+      value: 5000000
+  - id: fx-above-5m
+    capability: treasury.fx_convert
+    outcome: require_approval
+    reason: conversions above USD 5,000,000 need a treasury approver
+    condition:
+      field: arguments.amount_usd
+      operator: ">"
+      value: 5000000
+
+approvers:
+  - principal: treasury-approver@corp.example
+    key_id: approver-treasury
+
+limits:
+  currency: USD
+  approval_threshold: 5000000
+  hard_cap: 10000000

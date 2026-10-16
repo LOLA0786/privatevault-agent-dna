@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Treasury Desk Live</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: a trading-desk ledger. Summary strip on top, one line per queue action filling in as Claude works. */
+:root {
+  --paper: #f4f6f5; --sheet: #ffffff; --ink: #13202a; --ink-2: #4b5a66; --rule: #d6dde1;
+  --accent: #1d5f8c; --allow: #1f7a52; --hold: #a86a0c; --block: #b3362f; --claude: #8a4b2a;
+  --allow-bg: #e3f2ea; --hold-bg: #fbf0db; --block-bg: #f8e3e1; --claude-bg: #f6ebe4; --muted-bg: #eaeff1;
+  --display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #0e151b; --sheet: #151e26; --ink: #e4eaee; --ink-2: #9fb0bd; --rule: #2a3742;
+    --accent: #6fb3e0; --allow: #5fc596; --hold: #e2a947; --block: #f07a70; --claude: #e0a07c;
+    --allow-bg: #15302a; --hold-bg: #33280f; --block-bg: #3a1c1b; --claude-bg: #35241b; --muted-bg: #1c2731;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--paper); color: var(--ink); font: 15px/1.5 var(--body); padding: 24px max(16px, 3vw) 48px; }
+.wrap { max-width: 1240px; margin: 0 auto; display: grid; gap: 18px; }
+h1 { font: 700 1.9rem/1.1 var(--display); margin: 0; }
+.mono { font-family: var(--mono); }
+.small { font-size: 0.84rem; }
+.muted { color: var(--ink-2); }
+header { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: end; justify-content: space-between; border-bottom: 2px solid var(--ink); padding-bottom: 12px; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 18px; font: 400 0.82rem/1.4 var(--mono); color: var(--ink-2); }
+.status { display: inline-flex; align-items: center; gap: 8px; font: 600 0.8rem/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; padding: 7px 10px; border-radius: 4px; }
+.status.live { background: var(--block-bg); color: var(--block); }
+.status.done { background: var(--allow-bg); color: var(--allow); }
+.status.idle { background: var(--muted-bg); color: var(--ink-2); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.status.live .dot { animation: pulse 1.2s infinite; }
+@keyframes pulse { 50% { opacity: .25; } }
+.svc { display: flex; gap: 12px; font: 400 0.78rem/1 var(--mono); color: var(--ink-2); }
+.svc span::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; background: var(--block); vertical-align: 1px; }
+.svc span.up::before { background: var(--allow); }
+
+.tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; background: var(--sheet); border: 1px solid var(--rule); border-radius: 6px; }
+.tile { padding: 14px 16px; display: grid; gap: 4px; }
+.tile + .tile { border-left: 1px solid var(--rule); }
+.tile .n { font: 700 1.75rem/1 var(--display); font-variant-numeric: tabular-nums; }
+.tile .l { font-size: 0.8rem; color: var(--ink-2); }
+.good { color: var(--allow); } .bad { color: var(--block); } .cl { color: var(--claude); }
+@media (max-width: 900px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .tile + .tile { border-left: 0; } .tile { border-top: 1px solid var(--rule); } }
+
+.banner { display: none; gap: 6px; padding: 14px 16px; border-radius: 6px; background: var(--hold-bg); color: var(--hold); border: 1px solid currentColor; }
+.banner.on { display: grid; }
+.banner b { font: 700 1.05rem/1.2 var(--display); color: var(--ink); }
+.now { display: none; padding: 12px 16px; border-radius: 6px; background: var(--sheet); border: 1px dashed var(--accent); gap: 4px; }
+.now.on { display: grid; }
+.now .lbl { font: 500 0.75rem/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
+
+.ledger { background: var(--sheet); border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+.row { display: grid; grid-template-columns: 40px minmax(0, 1.6fr) minmax(0, 1.3fr) minmax(0, 1.2fr) 110px; gap: 14px; padding: 12px 14px; border-top: 1px solid var(--rule); align-items: start; }
+.row:first-child { border-top: 0; }
+.row.head { background: var(--muted-bg); font: 500 0.7rem/1.2 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-2); padding-block: 8px; }
+.row.todo { opacity: .38; }
+.row.working { background: var(--hold-bg); opacity: 1; }
+.row.fresh { animation: flash 1.6s ease-out; }
+@keyframes flash { from { background: var(--hold-bg); } to { background: transparent; } }
+.id { font: 500 0.85rem/1.5 var(--mono); color: var(--ink-2); }
+.who { font: 500 0.72rem/1.2 var(--mono); color: var(--accent); margin-bottom: 3px; }
+.why { font-size: 0.8rem; color: var(--ink-2); margin-top: 4px; }
+.cell { display: grid; gap: 5px; justify-items: start; min-width: 0; font-size: 0.84rem; }
+.money { font: 500 0.92rem/1.4 var(--mono); text-align: right; font-variant-numeric: tabular-nums; }
+.money small { display: block; font-size: 0.72rem; color: var(--block); }
+.v { display: inline-block; padding: 3px 8px; border-radius: 4px; font: 500 0.74rem/1.35 var(--mono); overflow-wrap: anywhere; }
+.v-allow { background: var(--allow-bg); color: var(--allow); }
+.v-hold { background: var(--hold-bg); color: var(--hold); }
+.v-block { background: var(--block-bg); color: var(--block); }
+.v-claude { background: var(--claude-bg); color: var(--claude); }
+.v-none { background: var(--muted-bg); color: var(--ink-2); }
+@media (max-width: 860px) {
+  .row { grid-template-columns: 32px minmax(0, 1fr) 92px; }
+  .row .c3, .row .c4 { grid-column: 2 / 4; }
+  .row .money { grid-column: 3; grid-row: 1; }
+  .row.head .c3, .row.head .c4 { display: none; }
+}
+
+.proof { display: none; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.proof.on { display: grid; }
+.proof div { background: var(--sheet); border: 1px solid var(--rule); border-radius: 6px; padding: 14px 16px; display: grid; gap: 6px; }
+.proof h3 { margin: 0; font: 600 1rem/1.2 var(--display); }
+@media (max-width: 860px) { .proof { grid-template-columns: 1fr; } }
+footer { font-size: 0.8rem; color: var(--ink-2); }
+@media (prefers-reduced-motion: reduce) { .status.live .dot, .row.fresh { animation: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div style="display:grid;gap:6px">
+      <span class="small muted mono">PrivateVault · enterprise treasury desk</span>
+      <h1>Two Claude agents, real money rules, live</h1>
+      <div class="meta"><span id="m-model">model —</span><span id="m-mode">mode —</span><span id="m-file">no run yet</span><span id="m-cost"></span></div>
+    </div>
+    <div style="display:grid;gap:8px;justify-items:end">
+      <span class="status idle" id="status"><span class="dot"></span><span id="status-t">waiting for a run</span></span>
+      <div class="svc" id="svc"></div>
+    </div>
+  </header>
+
+  <div class="tiles" id="tiles"></div>
+
+  <div class="banner" id="banner" role="status"></div>
+  <div class="now" id="now"><span class="lbl">Claude is working on</span><span id="now-t"></span></div>
+
+  <div class="ledger" id="ledger">
+    <div class="row head"><span>#</span><span>Desk request</span><span class="c3">Claude did</span><span class="c4">PrivateVault and bank gateway</span><span style="text-align:right">Moved</span></div>
+  </div>
+
+  <div class="proof" id="proof"></div>
+  <footer>Read-only view of <span class="mono">demos/treasury/runs/</span>. Approvals are signed in the approver terminal with the approver's own key. The bank API and vendor master are mocks; everything else is the shipped PrivateVault stack.</footer>
+</div>
+
+<script>
+(function () {
+  var esc = function (s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); };
+  var usd = function (n) { return "$" + Number(n || 0).toLocaleString("en-US"); };
+  var short = function (n) {
+    n = Number(n || 0);
+    if (n >= 1e6) return "$" + (n / 1e6).toFixed(2).replace(/\.?0+$/, "") + "M";
+    return usd(n);
+  };
+  var agentName = function (a) { return a === "ap-agent-01" ? "AP agent · ap-agent-01" : a === "treasury-agent-01" ? "Treasury agent · treasury-agent-01" : esc(a || ""); };
+  var seen = {};
+  var lastFile = null;
+
+  function claudeCell(r) {
+    var a = r.claude_args || {}, amt = a.amount_usd ? " " + usd(a.amount_usd) : "";
+    if (r.claude_decision === "none") return '<span class="v v-none">attack, not a Claude action</span>';
+    if (r.claude_decision === "escalate") return '<span class="v v-claude">escalated</span>';
+    if (r.claude_decision === "decline") return '<span class="v v-claude">declined</span>';
+    return '<span class="v v-none">' + esc(String(r.claude_decision || "").replace(/_/g, " ")) + amt + "</span>";
+  }
+  function pvCell(r) {
+    var out = [];
+    if (r.pv_first_decision === "require_approval" || r.pv_decision === "require_approval") {
+      var ap = r.approval;
+      var label = ap === "approved" ? "approved by treasury approver" : ap === "denied" ? "denied by treasury approver" : ap === "refused" ? "approval rejected by the bridge" : ap;
+      out.push('<span class="v v-hold">202 ' + esc(r.pv_policy || "approval required") + " → " + esc(label) + "</span>");
+    } else if (r.pv_decision === "allow") out.push('<span class="v v-allow">200 allow</span>');
+    if (r.pv_decision === "block") out.push('<span class="v v-block">403 ' + esc(r.pv_policy || "block") + '</span><span class="small muted">' + esc(r.pv_reason) + "</span>");
+    if (r.kind === "compromised_target") out.push('<span class="v v-block">tool rewrote beneficiary to ' + esc((r.dispatched || {}).beneficiary_account) + '</span><span class="mono small">sidecar ' + esc(r.sidecar_reason || r.sidecar_outcome) + " · gate " + esc(r.gate_status) + " " + esc(r.gate_reason) + "</span>");
+    else if (r.kind === "cross_agent") out.push('<span class="v v-block">treasury agent tried AP\'s permit for ' + usd(r.would_have_sent) + '</span><span class="mono small">sidecar ' + esc(r.sidecar_reason) + " · gate " + esc(r.gate_status) + " " + esc(r.gate_reason) + "</span>");
+    else if (String(r.kind || "").indexOf("replay") === 0) out.push('<span class="v v-block">replayed permit · gate ' + esc(r.gate_status) + '</span><span class="mono small">' + esc(r.gate_reason) + "</span>");
+    else if (r.gate_status === 201) out.push('<span class="v v-allow">gate admitted · bank executed</span>');
+    else if (r.gate_status) out.push('<span class="v v-block">gate ' + esc(r.gate_status) + " " + esc(r.gate_reason) + "</span>");
+    if (!out.length) out.push('<span class="small muted">never reached PrivateVault</span>');
+    return out.join("");
+  }
+
+  function tiles(rows) {
+    var requested = 0, without = 0, moved = 0, claude = 0, claudeN = 0, stopped = 0, stoppedN = 0;
+    rows.forEach(function (r) {
+      var ask = (r.ask || {}).amount_usd || 0;
+      requested += r.claude_decision === "none" ? 0 : ask;
+      without += r.would_have_sent || 0;
+      moved += r.moved || 0;
+      if (r.credited_to_claude) { claude += ask; claudeN++; }
+      (r.prevented || []).forEach(function (p) { stopped += p.amount || 0; });
+      if ((r.prevented || []).length) stoppedN++;
+    });
+    var t = [
+      [short(requested), "requested by the desk so far", ""],
+      [short(without), "would have left the bank without PrivateVault", "bad"],
+      [short(moved), "actually moved", "good"],
+      [short(claude), claudeN + " held back by Claude's own judgment", "cl"],
+      [short(stopped), stoppedN + " stopped by PrivateVault and the gateway", "good"]
+    ];
+    document.getElementById("tiles").innerHTML = t.map(function (x) {
+      return '<div class="tile"><span class="n ' + x[2] + '">' + x[0] + '</span><span class="l">' + esc(x[1]) + "</span></div>";
+    }).join("");
+  }
+
+  function render(s) {
+    var run = s.run || {}, meta = run.meta || {}, rows = run.rows || [], summary = run.summary;
+    if (run.file !== lastFile) { seen = {}; lastFile = run.file; }
+    document.getElementById("m-model").textContent = "model " + (meta.model || "—");
+    document.getElementById("m-mode").textContent = "prompt " + (meta.mode || "—");
+    document.getElementById("m-file").textContent = run.file || "no run yet";
+    document.getElementById("m-cost").textContent = summary && summary.cost_usd ? "Anthropic cost $" + Number(summary.cost_usd).toFixed(3) : "";
+
+    var st = document.getElementById("status"), stt = document.getElementById("status-t");
+    if (!run.file) { st.className = "status idle"; stt.textContent = "waiting for a run"; }
+    else if (summary) { st.className = "status done"; stt.textContent = "run finished"; }
+    else { st.className = "status live"; stt.textContent = "live"; }
+
+    var svc = s.services || {};
+    document.getElementById("svc").innerHTML = Object.keys(svc).map(function (k) {
+      return '<span class="' + (svc[k] ? "up" : "") + '">' + esc(k) + "</span>";
+    }).join("");
+
+    tiles(rows);
+
+    var byId = {};
+    rows.forEach(function (r) { byId[r.id] = r; });
+    var queue = (s.queue || []).filter(function (q) { return !q.optional || byId[q.id]; });
+    var next = summary ? null : queue.find(function (q) { return !byId[q.id]; });
+
+    var pend = s.pending || [];
+    var banner = document.getElementById("banner");
+    if (pend.length && !summary) {
+      var p = pend[0];
+      banner.className = "banner on";
+      banner.innerHTML = "<b>Waiting for the treasury approver: " + esc(p.action) + " " + short(p.amount_usd) + (p.counterparty ? " to " + esc(p.counterparty) : "") + "</b><span class=\"small\">" + esc(p.reason) + " · requested by " + esc(p.agent) + ". Approve or deny in the approver terminal.</span>";
+    } else banner.className = "banner";
+
+    var now = document.getElementById("now");
+    if (next && run.file && !pend.length) {
+      now.className = "now on";
+      document.getElementById("now-t").innerHTML = "#" + next.id + " · " + (next.agent ? agentName(next.agent) + " · " : "") + esc(next.text);
+    } else now.className = "now";
+
+    var ledger = document.getElementById("ledger");
+    var head = ledger.firstElementChild;
+    var html = queue.map(function (q) {
+      var r = byId[q.id];
+      if (!r) {
+        var cls = next && next.id === q.id ? "row working" : "row todo";
+        return '<div class="' + cls + '"><span class="id">' + q.id + '</span><div><div class="who">' + (q.agent ? agentName(q.agent) : "attack") + "</div>" + esc(q.text) + '</div><div class="cell c3"><span class="small muted">' + (cls === "row working" ? (pend.length ? "PrivateVault: 202, waiting for the treasury approver" : "Claude is deciding…") : "queued") + '</span></div><div class="cell c4"></div><div class="money">—</div></div>';
+      }
+      var fresh = !seen[q.id]; seen[q.id] = true;
+      var who = r.claude_decision === "none" ? "attack" : agentName(r.agent);
+      return '<div class="row' + (fresh ? " fresh" : "") + '"><span class="id">' + r.id + '</span><div><div class="who">' + who + "</div>" + esc(r.text) + "</div>" +
+        '<div class="cell c3">' + claudeCell(r) + (r.claude_decision !== "none" ? '<div class="why">' + esc(r.claude_reason) + "</div>" : "") + "</div>" +
+        '<div class="cell c4">' + pvCell(r) + "</div>" +
+        '<div class="money">' + (r.moved ? short(r.moved) : "—") + (!r.moved && r.would_have_sent ? "<small>" + short(r.would_have_sent) + " stopped</small>" : "") + "</div></div>";
+    }).join("");
+    ledger.innerHTML = "";
+    ledger.appendChild(head);
+    ledger.insertAdjacentHTML("beforeend", html);
+
+    var proof = document.getElementById("proof");
+    var v = summary && summary.verification;
+    if (v) {
+      var rc = v.receipts || {}, dc = v.decisions || {}, rp = summary.replay_check || {};
+      proof.className = "proof on";
+      proof.innerHTML =
+        '<div><h3>Bank receipts</h3><span class="mono small good">' + esc(rc.ok_output) + '</span><span class="mono small bad">one byte changed: ' + esc(String(rc.tampered_output || "").split("\n")[0]) + "</span></div>" +
+        '<div><h3>Sealed decisions</h3><span class="mono small good">' + esc(dc.count) + " decisions · " + esc(dc.ok_output) + '</span><span class="mono small bad">one byte changed: ' + esc(dc.tampered_output) + "</span></div>" +
+        '<div><h3>Policy replay</h3><span class="mono small ' + (rp.same_verdicts ? "good" : "bad") + '">' + (rp.same_verdicts ? "every verdict reproduced from the sealed inputs" : "verdicts differ, see the summary") + "</span><span class=\"small muted\">" + esc((rp.lifted_by_approval || []).length) + " lifted by a human approval</span></div>";
+    } else proof.className = "proof";
+  }
+
+  function poll() {
+    fetch("/state", { cache: "no-store" }).then(function (r) { return r.json(); }).then(render).catch(function () {
+      var st = document.getElementById("status");
+      st.className = "status idle";
+      document.getElementById("status-t").textContent = "dashboard server not reachable";
+    });
+  }
+  poll();
+  setInterval(poll, 900);
+})();
+</script>
+</body>
+</html>
