@@ -2765,6 +2765,26 @@
    "lazy"
   ],
   [
+   "tools.init_secure_profile",
+   "agent_dna.apikeys",
+   "top"
+  ],
+  [
+   "tools.init_secure_profile",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "tools.init_secure_profile",
+   "agent_dna.connector.adapters.execution_trust",
+   "top"
+  ],
+  [
+   "tools.init_secure_profile",
+   "agent_dna.signer_python",
+   "top"
+  ],
+  [
    "tools.make_evidence_bundle",
    "agent_dna.composition",
    "top"
@@ -2886,10 +2906,10 @@
   "agent_dna.advisory": 12,
   "agent_dna.allowlist": 1,
   "agent_dna.amount": 6,
-  "agent_dna.apikeys": 9,
+  "agent_dna.apikeys": 10,
   "agent_dna.approval_bridge": 3,
   "agent_dna.approval_v01": 1,
-  "agent_dna.authority_v01": 41,
+  "agent_dna.authority_v01": 42,
   "agent_dna.authorization": 3,
   "agent_dna.authorize_binding": 6,
   "agent_dna.change_management": 1,
@@ -2899,7 +2919,7 @@
   "agent_dna.confidence": 1,
   "agent_dna.connector": 2,
   "agent_dna.connector.adapters.exact_byte_http": 3,
-  "agent_dna.connector.adapters.execution_trust": 3,
+  "agent_dna.connector.adapters.execution_trust": 4,
   "agent_dna.connector.adapters.mcp": 1,
   "agent_dna.connector.adapters.sidecar_transport": 2,
   "agent_dna.connector.cross_agent": 3,
@@ -3000,7 +3020,7 @@
   "agent_dna.shell_guard": 1,
   "agent_dna.signer": 6,
   "agent_dna.signer_bridge": 1,
-  "agent_dna.signer_python": 4,
+  "agent_dna.signer_python": 5,
   "agent_dna.similarity": 3,
   "agent_dna.sqlite_store": 6,
   "agent_dna.store.grants": 1,
@@ -3207,6 +3227,7 @@
   "tools.init_campfire_blackbox": 5,
   "tools.init_execution_signer": 1,
   "tools.init_platform_keys": 1,
+  "tools.init_secure_profile": 4,
   "tools.make_evidence_bundle": 2,
   "tools.platform_demo": 2,
   "tools.pv_authority_cli": 1,
@@ -4253,6 +4274,10 @@
   "tools.init_platform_keys": {
    "group": "tools",
    "path": "tools/init_platform_keys.py"
+  },
+  "tools.init_secure_profile": {
+   "group": "tools",
+   "path": "tools/init_secure_profile.py"
   },
   "tools.make_evidence_bundle": {
    "group": "tools",

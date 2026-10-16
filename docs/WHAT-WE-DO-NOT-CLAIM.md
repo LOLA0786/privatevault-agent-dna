@@ -38,7 +38,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 1800+ automated tests, run in CI on every commit
+- 1830+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
@@ -114,8 +114,9 @@ What this does **not** claim:
   argv (`argv`, `command`+`args`, or the command string).
 - Tool names other than the configured shell capabilities are not parsed.
   Name your MCP shell tools in `PV_SHELL_CAPABILITIES`.
-- Credential detection is a filename heuristic (`.env`, keys, `~/.ssh`,
-  `~/.aws`, ...), not data-loss prevention. A secret that already sits under
+- Credential detection is a filename and variable-name heuristic (`.env`,
+  keys, `~/.ssh`, `~/.aws`, `/proc/*/environ`, `$API_TOKEN`-style variables,
+  bare `env`/`printenv`), not data-loss prevention. A secret that already sits under
   an innocent name (a symlink or copy made outside the guard) is not
   recognised; the example policy's approval gate on network tools is what
   stops it, so an approver who allows it would leak it (external retest

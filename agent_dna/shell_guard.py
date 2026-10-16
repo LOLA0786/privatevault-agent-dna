@@ -193,6 +193,7 @@ _SENSITIVE = re.compile(
     r"(^|/)(\.env(\.[^/]*)?|\.netrc|\.npmrc|\.pypirc|\.git-credentials|"
     r"id_(rsa|dsa|ecdsa|ed25519)[^/]*|credentials(\.json)?|[^/]*\.(pem|key|p12|pfx))$"
     r"|(^|/)\.(ssh|aws|gnupg|kube|docker)(/|$)"
+    r"|^/proc/[^/]+/environ$"
     r"|secret",
     re.IGNORECASE,
 )
@@ -234,10 +235,29 @@ def _canon(word: str) -> str:
     return name
 
 
+# A secret passed by environment variable ("$API_TOKEN") is as sensitive as
+# a .env file (external retest 2026-10-16, N12).
+_SECRET_VAR = re.compile(
+    r"\$\{?[A-Za-z0-9_]*(TOKEN|SECRET|PASSW|API_?KEY|PRIVATE_?KEY|CREDENTIAL|"
+    r"ACCESS_?KEY|AUTH)[A-Za-z0-9_]*\}?",
+    re.IGNORECASE,
+)
+
+
 def _note_sensitive(token: str, acc: _Acc) -> None:
+    if _SECRET_VAR.search(token):
+        if token not in acc.sensitive_args:
+            acc.sensitive_args.append(token)
+        return
     if "://" in token:
         return  # a URL, not a local file
-    for part in (token, token.split("=", 1)[-1], token.lstrip("@")):
+    # name@file (curl --data-urlencode) and @file forms, external retest N16
+    for part in (
+        token,
+        token.split("=", 1)[-1],
+        token.lstrip("@"),
+        token.split("@", 1)[-1],
+    ):
         if part and _SENSITIVE.search(part):
             if token not in acc.sensitive_args:
                 acc.sensitive_args.append(token)
@@ -271,7 +291,9 @@ def _skip_wrapper(name: str, argv: list[str]) -> list[str]:
     return argv[i:]
 
 
-def _curl_wget_reads(name: str, argv: list[str], acc: _Acc) -> None:
+def _curl_wget_reads(  # noqa: C901 - ordered option checklist
+    name: str, argv: list[str], acc: _Acc
+) -> None:
     data_opts = {"-d", "--data", "--data-binary", "--data-ascii", "--data-urlencode"}
     i = 1
     while i < len(argv):
@@ -280,6 +302,9 @@ def _curl_wget_reads(name: str, argv: list[str], acc: _Acc) -> None:
         if name == "curl":
             if tok in data_opts and nxt.startswith("@"):
                 acc.reads_files.append(nxt[1:])
+            elif tok == "--data-urlencode" and "@" in nxt:
+                # name@file or @file: curl reads and sends the file
+                acc.reads_files.append(nxt.split("@", 1)[1])
             elif tok in {"-F", "--form"} and "=@" in nxt:
                 acc.reads_files.append(nxt.split("=@", 1)[1].split(";", 1)[0])
             elif tok in {"-T", "--upload-file"} and nxt:
@@ -359,6 +384,8 @@ def _analyze_argv(argv: list[str], acc: _Acc, depth: int) -> None:  # noqa: C901
                     _analyze_string(argv[j + 1], acc, depth + 1)
                     return
         inner = _skip_wrapper(name, argv)
+        if not inner and name == "env":
+            acc.sensitive_args.append("env")  # bare env dumps every secret
         if inner:
             _analyze_argv(inner, acc, depth + 1)
         elif name in {"sudo", "doas"} and any(t in {"-s", "-i"} for t in argv[1:]):
@@ -389,6 +416,19 @@ def _analyze_argv(argv: list[str], acc: _Acc, depth: int) -> None:  # noqa: C901
     if name in EVAL_WORDS:
         acc.inline_code = True
         return
+
+    if name == "printenv":
+        acc.sensitive_args.append(name)  # dumps every secret in the env
+        return
+
+    if name == "tar" and any(t == "--remove-files" for t in argv[1:]):
+        acc.destructive_flags = True
+    if name == "rsync" and any(
+        t == "--remove-source-files" or t.startswith("--delete") for t in argv[1:]
+    ):
+        acc.destructive_flags = True
+    if name == "git" and "clean" in argv[1:2]:
+        acc.destructive_flags = True
 
     if name == "find":
         for j, tok in enumerate(argv):

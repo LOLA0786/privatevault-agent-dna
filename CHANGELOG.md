@@ -5,6 +5,19 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Added — secure profile in one command; retest 2 (2026-10-16) findings
+
+- `tools/init_secure_profile.py` provisions API keys, grants, the execution
+  signer, an independent dispatch-witness/closure key, the trust bundle and a
+  0600 `secure.env`; the API starts under `PV_SECURE_PROFILE=1` from it and
+  `tools/verify_deployment.py` passes (tested end to end). Nothing secret is
+  printed; existing directories are refused unless `--replace-existing`.
+- Shell guard: `curl --data-urlencode name@file` (N16), secrets in
+  environment variables such as `"$API_TOKEN"` (N12), bare `env`/`printenv`
+  and `/proc/*/environ` count as secret egress; `tar --remove-files`,
+  `rsync --remove-source-files/--delete*` and `git clean` set `destructive`.
+  The 19 new variants are pinned in `tests/test_shell_guard.py`.
+
 ### Fixed — external retest findings (2026-10-16)
 
 - Shell guard blocks credential staging (`cp`/`ln`/`tar`/`base64`/... or a

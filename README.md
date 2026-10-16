@@ -23,7 +23,7 @@ agent ──► POST /v1/decide ──► precedence engine ──► 200 / 202 
 
 ```bash
 pip install -e ".[dev]"
-python -m pytest -q                    # 1800+ tests
+python -m pytest -q                    # 1830+ tests
 ```
 
 Three properties worth checking before reading further:
@@ -299,6 +299,17 @@ startup unless API keys, grants, receipt signer, trust roots, and
 and authorize-time loop events are forced on. `PV_ALLOW_NO_AUTH=1` remains
 for local development and prints an explicit UNSAFE banner — it is
 incompatible with the secure profile.
+
+Provision everything it needs in one step, start it, and check it:
+
+```bash
+uv run python tools/init_secure_profile.py --out ~/.privatevault/secure \
+  --org acme.example --grant treasury-agent=payments.pay_invoice
+set -a; . ~/.privatevault/secure/secure.env; set +a
+uv run uvicorn api.server:app --port 8000 &
+uv run python tools/verify_deployment.py --url http://127.0.0.1:8000 \
+  --api-key "$PV_OPERATOR_KEY" --agent-id operator   # VERDICT: PASS
+```
 
 ## Authorization window
 
