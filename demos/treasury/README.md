@@ -94,6 +94,7 @@ uv sync --locked --extra dev --extra live
 # ANTHROPIC_API_KEY in demos/treasury/.env (demos/live_checkout/.env is also read)
 make -C demos/treasury demo        # bootstrap, services up, both modes with the scripted model
 make -C demos/treasury approve     # terminal 2: the treasury approver (live runs)
+make -C demos/treasury dashboard   # terminal 3: live browser view on http://127.0.0.1:8765
 make -C demos/treasury live        # both modes with the real model; approvals pause for terminal 2
 make -C demos/treasury replay      # re-render the latest saved run, no services, no API
 make -C demos/treasury down

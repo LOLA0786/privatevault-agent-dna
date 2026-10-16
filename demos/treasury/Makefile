@@ -6,12 +6,13 @@ RUN_DIR ?= $(HERE).run
 export PV_TREASURY_RUN_DIR := $(RUN_DIR)
 AGENT := cd $(REPO) && uv run python demos/treasury/agent.py --run-dir "$(RUN_DIR)" --compromised-tool $(EXTRA)
 
-.PHONY: help bootstrap up down status logs approve scripted live naive policy replay demo clean
+.PHONY: help bootstrap up down status logs approve dashboard scripted live naive policy replay demo clean
 
 help:
 	@echo "bootstrap   keys, bundles, merged policy and grants into $(RUN_DIR)"
 	@echo "up / down   the three services (privatevault, gate, bank-api) as local processes"
 	@echo "approve     the treasury approver terminal"
+	@echo "dashboard   live browser view of the newest run on http://127.0.0.1:8765"
 	@echo "scripted    both prompt modes with the deterministic model and an auto approver (no API, no human)"
 	@echo "live        both prompt modes with the real model; approvals pause for approve.py"
 	@echo "naive/policy one live mode"
@@ -36,6 +37,9 @@ logs:
 
 approve:
 	cd $(REPO) && uv run python demos/treasury/approve.py --run-dir "$(RUN_DIR)"
+
+dashboard:
+	cd $(REPO) && uv run python demos/treasury/dashboard.py
 
 scripted:
 	$(AGENT) --model scripted --approver auto --prompt naive
