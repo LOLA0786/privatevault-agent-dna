@@ -5,6 +5,19 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Fixed — external retest findings (2026-10-16)
+
+- Shell guard blocks credential staging (`cp`/`ln`/`tar`/`base64`/... or a
+  redirect writing a credential-like file): retest E06 (symlink) and E10/E11
+  (copy-then-send) no longer get a clean path.
+- `examples/config/shell-policy.json`: `destructive` flag rule (`find -delete`,
+  V10), unlisted programs blocked before approval rules, interpreters running
+  script files need approval (V11). The full retest bypass table is pinned in
+  `tests/test_shell_guard.py`.
+- Test collection no longer aborts when the `docker` binary is missing.
+- `tools/platform_demo.py` configures its own grants and ignores `PV_*`
+  settings left in the caller's shell.
+
 ### Added — shell guard (external test findings S07, S11c, S12)
 
 - `agent_dna/shell_guard.py`: for `PV_SHELL_CAPABILITIES` (default

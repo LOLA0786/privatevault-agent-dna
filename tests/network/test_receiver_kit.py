@@ -476,12 +476,20 @@ def test_env_file_reader(tmp_path):
     assert send_test.read_env_file(tmp_path / "missing") == {}
 
 
+def _docker_compose_available() -> bool:
+    try:
+        return (
+            subprocess.run(
+                ["docker", "compose", "version"], capture_output=True, check=False
+            ).returncode
+            == 0
+        )
+    except OSError:  # no docker binary: skip, never abort collection
+        return False
+
+
 @pytest.mark.skipif(
-    subprocess.run(
-        ["docker", "compose", "version"], capture_output=True, check=False
-    ).returncode
-    != 0,
-    reason="docker compose not available",
+    not _docker_compose_available(), reason="docker compose not available"
 )
 def test_compose_file_is_valid():
     kit = REPO / "network" / "receiver_kit"

@@ -38,7 +38,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 1770+ automated tests, run in CI on every commit
+- 1800+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
@@ -98,8 +98,9 @@ For capabilities listed in `PV_SHELL_CAPABILITIES` (default `shell.exec`) the
 runtime parses the command itself and derives `evidence.shell`; callers
 cannot supply it (`/v1/decide` refuses the key, the monitor replaces it).
 Built in, with no policy: unparseable commands, code the runtime cannot see
-(`sh -c`, `python -c`, `eval`, `$(...)`, a shell reading stdin) and network
-tools handed credential-like files are blocked. Policy rules can match every
+(`sh -c`, `python -c`, `eval`, `$(...)`, a shell reading stdin), network
+tools handed credential-like files, and credential-like files being copied,
+linked, packed, re-encoded or redirected to another file are blocked. Policy rules can match every
 program the command would run via `any_in` / `any_not_in` on
 `evidence.shell.executables` (`examples/config/shell-policy.json`).
 
@@ -114,7 +115,14 @@ What this does **not** claim:
 - Tool names other than the configured shell capabilities are not parsed.
   Name your MCP shell tools in `PV_SHELL_CAPABILITIES`.
 - Credential detection is a filename heuristic (`.env`, keys, `~/.ssh`,
-  `~/.aws`, ...), not data-loss prevention.
+  `~/.aws`, ...), not data-loss prevention. A secret that already sits under
+  an innocent name (a symlink or copy made outside the guard) is not
+  recognised; the example policy's approval gate on network tools is what
+  stops it, so an approver who allows it would leak it (external retest
+  2026-10-16, E06/E11).
+- Without a policy, plain destructive programs (`rm`, `/bin/rm`, `env rm`,
+  `xargs rm`, `mv`) are visible in `evidence.shell` but not blocked; that is
+  the policy's job (`examples/config/shell-policy.json`).
 
 An ungranted capability returns `require_approval` by default; under
 `PV_SECURE_PROFILE` (or `PV_UNGRANTED_DECISION=block`) it is a hard BLOCK
