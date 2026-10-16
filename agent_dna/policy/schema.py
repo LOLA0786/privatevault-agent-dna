@@ -14,7 +14,19 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-VALID_OPERATORS = {">", ">=", "<", "<=", "==", "!=", "in", "not_in"}
+VALID_OPERATORS = {
+    ">",
+    ">=",
+    "<",
+    "<=",
+    "==",
+    "!=",
+    "in",
+    "not_in",
+    # list fields (e.g. evidence.shell.executables):
+    "any_in",  # some element is in value (blocklist)
+    "any_not_in",  # some element is outside value (allowlist)
+}
 VALID_OUTCOMES = {"block", "require_approval"}
 
 

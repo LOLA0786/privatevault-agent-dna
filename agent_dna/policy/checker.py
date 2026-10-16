@@ -89,6 +89,13 @@ def _evaluate_condition(  # noqa: C901
             return actual in val
         if op == "not_in":
             return actual not in val
+        if op in {"any_in", "any_not_in"}:
+            # list field vs list value; anything else is unevaluable (skip)
+            if not isinstance(actual, list) or not isinstance(val, list):
+                return None
+            if op == "any_in":
+                return any(item in val for item in actual)
+            return any(item not in val for item in actual)
     except TypeError:
         # incomparable types (e.g. comparing str > int) -- treat as
         # unevaluable, not as a match. Never silently coerce.

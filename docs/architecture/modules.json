@@ -1666,6 +1666,11 @@
   ],
   [
    "agent_dna.runtime",
+   "agent_dna.shell_guard",
+   "top"
+  ],
+  [
+   "agent_dna.runtime",
    "agent_dna.trace",
    "top"
   ],
@@ -1767,6 +1772,16 @@
   [
    "agent_dna.security.loop_discovery",
    "agent_dna.identity",
+   "top"
+  ],
+  [
+   "agent_dna.shell_guard",
+   "agent_dna.advisory",
+   "top"
+  ],
+  [
+   "agent_dna.shell_guard",
+   "agent_dna.decision",
    "top"
   ],
   [
@@ -2868,7 +2883,7 @@
   "agent_dna.adapters_policy.local": 2,
   "agent_dna.adapters_policy.opa": 2,
   "agent_dna.adapters_policy.skill_adapter": 1,
-  "agent_dna.advisory": 11,
+  "agent_dna.advisory": 12,
   "agent_dna.allowlist": 1,
   "agent_dna.amount": 6,
   "agent_dna.apikeys": 9,
@@ -2897,7 +2912,7 @@
   "agent_dna.consensus.signing": 6,
   "agent_dna.consensus.weighted_quorum": 1,
   "agent_dna.control_posture": 4,
-  "agent_dna.decision": 25,
+  "agent_dna.decision": 26,
   "agent_dna.decision_graph": 3,
   "agent_dna.decision_record": 6,
   "agent_dna.decision_recorder": 8,
@@ -2982,6 +2997,7 @@
   "agent_dna.scorer": 3,
   "agent_dna.security": 1,
   "agent_dna.security.loop_discovery": 4,
+  "agent_dna.shell_guard": 1,
   "agent_dna.signer": 6,
   "agent_dna.signer_bridge": 1,
   "agent_dna.signer_python": 4,
@@ -3112,7 +3128,7 @@
   "agent_dna.receiver.receipts": 1,
   "agent_dna.request_bounds": 1,
   "agent_dna.revocation_list": 1,
-  "agent_dna.runtime": 5,
+  "agent_dna.runtime": 6,
   "agent_dna.scan": 2,
   "agent_dna.scan.ingest": 1,
   "agent_dna.scan.inventory": 1,
@@ -3120,6 +3136,7 @@
   "agent_dna.scorer": 6,
   "agent_dna.security": 1,
   "agent_dna.security.loop_discovery": 2,
+  "agent_dna.shell_guard": 2,
   "agent_dna.signer": 2,
   "agent_dna.signer_bridge": 1,
   "agent_dna.similarity": 1,
@@ -3744,6 +3761,10 @@
   "agent_dna.shadow": {
    "group": "agent_dna (core modules)",
    "path": "agent_dna/shadow.py"
+  },
+  "agent_dna.shell_guard": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/shell_guard.py"
   },
   "agent_dna.signer": {
    "group": "agent_dna (core modules)",

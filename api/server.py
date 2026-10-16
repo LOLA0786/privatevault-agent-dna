@@ -694,6 +694,11 @@ def decide(req: DecideRequest, principal: FullPrincipal):
             status_code=422,
             detail="evidence.bound is reserved for sealed dispatch values",
         )
+    if "shell" in evidence:
+        raise HTTPException(
+            status_code=422,
+            detail="evidence.shell is reserved; the runtime derives it",
+        )
     result = monitor.process(
         action,
         evidence=evidence or None,

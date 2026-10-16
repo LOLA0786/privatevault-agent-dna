@@ -141,6 +141,7 @@ class GrantRegistry:
         now = now if now is not None else time.time()
         candidates = self._find(agent_id, capability)
         if not candidates:
+            # decision.NO_GRANT_PREFIX matches this text
             return False, f"no grant exists for '{capability}'", None
 
         coerced_amount = None

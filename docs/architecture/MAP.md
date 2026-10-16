@@ -6,7 +6,7 @@ Nodes are directories; numbers are module counts. Solid arrow: imported at impor
 
 ```mermaid
 flowchart LR
-  n0["agent_dna (core modules)<br/>66 modules"]
+  n0["agent_dna (core modules)<br/>67 modules"]
   n1["agent_dna/adapters_framework<br/>2 modules"]
   n2["agent_dna/adapters_policy<br/>5 modules"]
   n3["agent_dna/connector<br/>10 modules"]
@@ -79,7 +79,7 @@ flowchart LR
 
 | Directory | Modules | Lines |
 |---|---:|---:|
-| `agent_dna (core modules)` | 66 |
+| `agent_dna (core modules)` | 67 |
 | `experimental` | 62 |
 | `tools` | 32 |
 | `examples` | 29 |
@@ -107,13 +107,13 @@ flowchart LR
 |---|---:|---:|
 | `agent_dna.authority_v01` | 41 | 0 |
 | `agent_dna.trace` | 27 | 0 |
-| `agent_dna.decision` | 25 | 6 |
+| `agent_dna.decision` | 26 | 6 |
 | `agent_dna` | 21 | 21 |
 | `agent_dna.execution_v01` | 14 | 4 |
 | `agent_dna.multi_agent.interaction_graph` | 14 | 1 |
 | `agent_dna.multi_agent.base` | 13 | 1 |
+| `agent_dna.advisory` | 12 | 0 |
 | `agent_dna.adapters` | 11 | 1 |
-| `agent_dna.advisory` | 11 | 0 |
 | `agent_dna.gateway.errors` | 11 | 0 |
 | `agent_dna.apikeys` | 9 | 1 |
 | `agent_dna.decision_recorder` | 8 | 5 |
