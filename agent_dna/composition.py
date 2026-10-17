@@ -38,7 +38,7 @@ import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .adapters import synthetic_normal_trace
 from .apikeys import ApiKeyRegistry
@@ -72,6 +72,11 @@ from .signer_python import (
     parse_trusted_keys,
 )
 from .sqlite_store import SQLiteDecisionStore
+
+if TYPE_CHECKING:
+    from .pg_store import PostgresDecisionStore
+
+    DecisionStoreBackend = SQLiteDecisionStore | PostgresDecisionStore
 from .trace import AgentAction, ExecutionTrace
 from .uaal_layer import UAALConstraintChecker
 
@@ -98,6 +103,7 @@ def _csv_frozenset(name: str) -> frozenset[str]:
 @dataclass
 class RuntimeConfig:
     db_path: str = "data/privatevault.db"
+    database_url: str | None = None  # PV_DATABASE_URL: decision ledger on PostgreSQL
     keys_file: str | None = None
     policy_file: str | None = None  # customer YAML/JSON rules
     opa_endpoint: str | None = None  # OPA adapter (policy_file wins)
@@ -130,6 +136,7 @@ class RuntimeConfig:
     def from_env(cls) -> RuntimeConfig:
         return cls(
             db_path=os.environ.get("PV_DB_PATH", "data/privatevault.db"),
+            database_url=os.getenv("PV_DATABASE_URL") or None,
             keys_file=os.getenv("PV_API_KEYS_FILE"),
             policy_file=os.getenv("PV_POLICY_FILE"),
             opa_endpoint=os.getenv("PV_OPA_ENDPOINT"),
@@ -169,11 +176,31 @@ class RuntimeConfig:
         )
 
 
+def _redact_dsn(dsn: str | None) -> str:
+    """host:port/db of a PostgreSQL URL, never the password."""
+    if not dsn:
+        return ""
+    from urllib.parse import urlsplit
+
+    parts = urlsplit(dsn)
+    host = parts.hostname or "?"
+    port = f":{parts.port}" if parts.port else ""
+    return f"{host}{port}{parts.path}"
+
+
+def _open_decision_store(cfg: RuntimeConfig) -> DecisionStoreBackend:
+    if cfg.database_url:
+        from .pg_store import PostgresDecisionStore
+
+        return PostgresDecisionStore(cfg.database_url)
+    return SQLiteDecisionStore(cfg.db_path)
+
+
 @dataclass
 class ProductionRuntime:
     engine: GuardedEngine
     recorder: DecisionRecorder
-    store: SQLiteDecisionStore
+    store: DecisionStoreBackend
     signer: ReceiptSigner | None
     apikeys: ApiKeyRegistry
     breaker: CircuitBreaker
@@ -184,6 +211,7 @@ class ProductionRuntime:
     loop_events_required: bool = False
     execution_trust_bundle: dict[str, Any] | None = None
     egress_sidecar: ExactByteHttpDispatcher | None = None
+    local_db_path: str | None = None  # ledgers still on SQLite (lineage)
 
     def monitor(self) -> RuntimeMonitor:
         """A per-agent monitor bound to this runtime's recorder --
@@ -415,7 +443,7 @@ def _load_approver_trust_bundle(path: str | None) -> dict[str, Any] | None:
 
 
 def _attach_approvals(
-    cfg: RuntimeConfig, engine_core: DecisionEngine, store: SQLiteDecisionStore
+    cfg: RuntimeConfig, engine_core: DecisionEngine, store: DecisionStoreBackend
 ) -> dict[str, str]:
     """Pin the approver bundle on the engine; manifest entry either way."""
     approver_bundle = _load_approver_trust_bundle(cfg.approver_trust_bundle_file)
@@ -719,7 +747,7 @@ def build_production_runtime(
             "refusing self-attested signing mode"
         )
 
-    store = SQLiteDecisionStore(cfg.db_path)
+    store = _open_decision_store(cfg)
     _attach_durable_spend(authorizer, cfg, comp)
 
     # ---- approvals (ADR 0020): operator-pinned approver trust bundle ----
@@ -743,7 +771,12 @@ def build_production_runtime(
     )
     comp["persistence"] = {
         "status": "attached",
-        "detail": f"SQLite {cfg.db_path}"
+        "detail": (
+            f"PostgreSQL decision ledger ({_redact_dsn(cfg.database_url)}); "
+            f"other ledgers SQLite {cfg.db_path}"
+            if cfg.database_url
+            else f"SQLite {cfg.db_path}"
+        )
         + (" (multi-writer safe)" if cfg.multi_writer else ""),
     }
 
@@ -843,6 +876,7 @@ def build_production_runtime(
         engine=engine,
         recorder=recorder,
         store=store,
+        local_db_path=cfg.db_path,
         signer=signer,
         apikeys=apikeys,
         breaker=breaker,
@@ -858,7 +892,7 @@ def build_production_runtime(
 
 def _compose_egress_sidecar(
     cfg: RuntimeConfig,
-    store: SQLiteDecisionStore,
+    store: DecisionStoreBackend,
     secure: bool,
     comp: dict[str, dict[str, Any]],
 ) -> tuple[dict[str, Any] | None, ExactByteHttpDispatcher | None]:

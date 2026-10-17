@@ -23,7 +23,7 @@ agent ──► POST /v1/decide ──► precedence engine ──► 200 / 202 
 
 ```bash
 pip install -e ".[dev]"
-python -m pytest -q                    # 1860+ tests
+python -m pytest -q                    # 1880+ tests
 ```
 
 Three properties worth checking before reading further:
@@ -191,6 +191,14 @@ JSONL), `/metrics` (Prometheus). API keys are SHA-256-hashed at rest
 and scoped; an audit-scoped key cannot call `/v1/decide`
 (`test_api_audit_scope.py`).
 
+Persistence: SQLite by default (`PV_DB_PATH`). Set
+`PV_DATABASE_URL=postgresql://...` (install the `postgres` extra) to keep
+the decision ledger -- records, envelopes, permit and approval claims,
+mints, suspensions -- in PostgreSQL with the same guarantees, proven
+against a live server in CI (`tests/test_pg_store.py`). Spend, revocation,
+lineage, breaker and replay ledgers stay on SQLite for now, so run one
+API instance per deployment until they move too.
+
 ## MCP
 
 Two integration layers:
@@ -250,7 +258,7 @@ DriftScorer ──► AdvisorySignal (score, severity, reasons)
 DecisionEngine          L0..L7 precedence, fail-closed
 RuntimeMonitor          enforcing streaming path
 DecisionRecorder        sealed, hash-chained records
-DecisionStore           append-only (JSONL or SQLite/WAL)
+DecisionStore           append-only (JSONL, SQLite/WAL, or PostgreSQL via PV_DATABASE_URL)
 ReceiptSigner           optional Ed25519 over record_hash
 ExecutionEvents         executor feedback, anchored per decision
 DecisionGraph           lineage, blocked, divergence queries

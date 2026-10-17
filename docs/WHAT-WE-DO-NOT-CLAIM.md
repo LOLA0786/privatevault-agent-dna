@@ -38,7 +38,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 1860+ automated tests, run in CI on every commit
+- 1880+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
@@ -85,6 +85,16 @@ suite, root-caused, and pinned —
 process restart (test-covered). **We still do not claim horizontally
 scaled multi-instance deployment**: no load-balancer story, no
 concurrent-load benchmark, no shared-nothing design decided.
+
+**PostgreSQL decision ledger (`PV_DATABASE_URL`) is shipped and tested
+against a live server** (`tests/test_pg_store.py`): byte-identical export
+versus SQLite, no chain fork under 20 concurrent writers, single-use
+consume and approval claims under races, one mint per decision, and
+suspension and execution-outcome ordering enforced by transaction
+advisory locks (each lock is proven necessary by a test that fails
+without it). **We do not yet claim multi-instance deployment**: the
+grant-spend, grant-revocation, lineage, circuit-breaker and replay
+ledgers are still per-instance SQLite files.
 
 **We do not claim signature envelopes persist across restarts today.**
 Decision and execution records do — restart-safety here is

@@ -441,6 +441,11 @@
   ],
   [
    "agent_dna.composition",
+   "agent_dna.pg_store",
+   "top"
+  ],
+  [
+   "agent_dna.composition",
    "agent_dna.policy.checker",
    "lazy"
   ],
@@ -1517,6 +1522,36 @@
   [
    "agent_dna.observability.metrics",
    "agent_dna.observability.prometheus_bridge",
+   "top"
+  ],
+  [
+   "agent_dna.pg_store",
+   "agent_dna.authority_v01",
+   "lazy"
+  ],
+  [
+   "agent_dna.pg_store",
+   "agent_dna.authorize_binding",
+   "lazy"
+  ],
+  [
+   "agent_dna.pg_store",
+   "agent_dna.decision_graph",
+   "top"
+  ],
+  [
+   "agent_dna.pg_store",
+   "agent_dna.decision_record",
+   "top"
+  ],
+  [
+   "agent_dna.pg_store",
+   "agent_dna.execution_record",
+   "top"
+  ],
+  [
+   "agent_dna.pg_store",
+   "agent_dna.sqlite_store",
    "top"
   ],
   [
@@ -2947,9 +2982,9 @@
   "agent_dna.audit_connector.client": 4,
   "agent_dna.audit_connector.oauth": 1,
   "agent_dna.audit_connector.server": 2,
-  "agent_dna.authority_v01": 42,
+  "agent_dna.authority_v01": 43,
   "agent_dna.authorization": 3,
-  "agent_dna.authorize_binding": 6,
+  "agent_dna.authorize_binding": 7,
   "agent_dna.change_management": 1,
   "agent_dna.circuit_breaker": 4,
   "agent_dna.closure_v01": 3,
@@ -2971,8 +3006,8 @@
   "agent_dna.consensus.weighted_quorum": 1,
   "agent_dna.control_posture": 4,
   "agent_dna.decision": 26,
-  "agent_dna.decision_graph": 3,
-  "agent_dna.decision_record": 6,
+  "agent_dna.decision_graph": 4,
+  "agent_dna.decision_record": 7,
   "agent_dna.decision_recorder": 8,
   "agent_dna.decision_store": 3,
   "agent_dna.diff": 1,
@@ -2985,7 +3020,7 @@
   "agent_dna.economics": 3,
   "agent_dna.economics.cost_check": 1,
   "agent_dna.evidence": 2,
-  "agent_dna.execution_record": 5,
+  "agent_dna.execution_record": 6,
   "agent_dna.execution_v01": 14,
   "agent_dna.fingerprint": 5,
   "agent_dna.gateway.credentials": 5,
@@ -3031,6 +3066,7 @@
   "agent_dna.observability.metrics": 2,
   "agent_dna.observability.prometheus_bridge": 2,
   "agent_dna.open_authorizer": 2,
+  "agent_dna.pg_store": 1,
   "agent_dna.policy.checker": 6,
   "agent_dna.policy.loader": 4,
   "agent_dna.policy.schema": 5,
@@ -3060,7 +3096,7 @@
   "agent_dna.signer_bridge": 1,
   "agent_dna.signer_python": 5,
   "agent_dna.similarity": 3,
-  "agent_dna.sqlite_store": 6,
+  "agent_dna.sqlite_store": 7,
   "agent_dna.store.grants": 1,
   "agent_dna.timeline": 1,
   "agent_dna.trace": 27,
@@ -3110,7 +3146,7 @@
   "agent_dna.circuit_breaker": 2,
   "agent_dna.cli": 8,
   "agent_dna.closure_v01": 3,
-  "agent_dna.composition": 30,
+  "agent_dna.composition": 31,
   "agent_dna.confidence": 1,
   "agent_dna.connector": 2,
   "agent_dna.connector.adapters": 2,
@@ -3176,6 +3212,7 @@
   "agent_dna.multi_agent.trust": 2,
   "agent_dna.multi_agent.world_state": 2,
   "agent_dna.observability.metrics": 1,
+  "agent_dna.pg_store": 6,
   "agent_dna.policy": 3,
   "agent_dna.policy.checker": 1,
   "agent_dna.policy.loader": 1,
@@ -3736,6 +3773,10 @@
   "agent_dna.open_authorizer": {
    "group": "agent_dna (core modules)",
    "path": "agent_dna/open_authorizer.py"
+  },
+  "agent_dna.pg_store": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/pg_store.py"
   },
   "agent_dna.policy": {
    "group": "agent_dna/policy",
