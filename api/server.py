@@ -358,10 +358,10 @@ async def lifespan(app: FastAPI):
     state["signer"] = runtime.signer
     state["cross_agent"] = runtime.cross_agent
     state["lineage_mode"] = lineage_mode()
-    store_path = getattr(runtime.store, "path", None) or runtime.local_db_path
+    lineage_db = runtime.lineage_db or getattr(runtime.store, "path", None)
     state["lineage"] = (
-        LineageLedger(store_path, signer=runtime.signer)
-        if state["lineage_mode"] != "off" and store_path is not None
+        LineageLedger(lineage_db, signer=runtime.signer)
+        if state["lineage_mode"] != "off" and lineage_db is not None
         else None
     )
     runtime.composition["lineage"] = lineage_manifest(

@@ -30,9 +30,11 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
+from typing import Any
 
 from .amount import INVALID_AMOUNT_REASON, InvalidAmountError, coerce_amount
 from .decision import Decision, DecisionResult, Severity, fault_reason
+from .pg_compat import PgCompatConnection
 
 RESET_CAPABILITY = "breaker.reset"
 RESET_GROUP_CAPABILITY = "breaker.reset_group"
@@ -69,14 +71,24 @@ class BreakerConfig:
     group_volume_caps: dict[str, float] | None = None
 
 
+# Portable upsert (SQLite >= 3.24 and PostgreSQL), not INSERT OR REPLACE.
+_UPSERT_STATE = (
+    "INSERT INTO breaker_state (agent_id, tripped, reason, tripped_at) "
+    "VALUES (?, 1, ?, ?) ON CONFLICT (agent_id) DO UPDATE SET "
+    "tripped = excluded.tripped, reason = excluded.reason, "
+    "tripped_at = excluded.tripped_at"
+)
+
+
 class CircuitBreaker:
-    """SQLite-backed per-agent circuit breaker with a hash-chained
-    trip/reset log. In-memory state is deliberately not offered:
-    a restart must never clear a trip (restart-as-evasion)."""
+    """Per-agent circuit breaker with a hash-chained trip/reset log, in
+    SQLite or (given a PgCompatConnection) PostgreSQL shared by every
+    instance. In-memory state is deliberately not offered: a restart must
+    never clear a trip (restart-as-evasion)."""
 
     def __init__(
         self,
-        path: str | Path,
+        path: str | Path | PgCompatConnection,
         config: BreakerConfig | None = None,
         clock: Callable[[], float] = time.time,
     ) -> None:
@@ -92,7 +104,8 @@ class CircuitBreaker:
             for group_id, cap in (config.group_volume_caps or {}).items()
         }
         self._clock = clock
-        self._path = str(path)
+        self._pg = path if isinstance(path, PgCompatConnection) else None
+        self._path = "" if self._pg is not None else str(path)
         # Thread-local connections — same rationale as
         # SQLiteDecisionStore: sqlite3 connections are not
         # thread-safe; a pre_gate read racing an observe write on a
@@ -227,8 +240,7 @@ class CircuitBreaker:
 
     def _trip(self, agent_id: str, reason: str, now: float) -> None:
         self._conn.execute(
-            "INSERT OR REPLACE INTO breaker_state "
-            "(agent_id, tripped, reason, tripped_at) VALUES (?, 1, ?, ?)",
+            _UPSERT_STATE,
             (agent_id, reason, now),
         )
         self._append_log(agent_id, "trip", reason, actor="system:breaker", ts=now)
@@ -312,12 +324,11 @@ class CircuitBreaker:
         conn.execute("BEGIN IMMEDIATE")
         try:
             now = self._clock()
-            cur = conn.execute(
+            rid = conn.execute(
                 "INSERT INTO breaker_events (agent_id, ts, decision, amount) "
-                "VALUES (?, ?, 'reserved', ?)",
+                "VALUES (?, ?, 'reserved', ?) RETURNING id",
                 (agent_id, now, stored),
-            )
-            rid = cur.lastrowid
+            ).fetchone()[0]
             reason = self._evaluate(agent_id, now)  # projected
             breach = None
             if reason is None:
@@ -381,8 +392,7 @@ class CircuitBreaker:
         zero new enforcement machinery."""
         for m in members:
             self._conn.execute(
-                "INSERT OR REPLACE INTO breaker_state "
-                "(agent_id, tripped, reason, tripped_at) VALUES (?, 1, ?, ?)",
+                _UPSERT_STATE,
                 (m, reason, now),
             )
         self._append_log(gid, "group_trip", reason, actor="system:breaker", ts=now)
@@ -516,7 +526,9 @@ class CircuitBreaker:
         return self.pre_gate(agent_id) is not None
 
     @property
-    def _conn(self) -> sqlite3.Connection:
+    def _conn(self) -> Any:  # sqlite3.Connection or PgCompatConnection
+        if self._pg is not None:
+            return self._pg
         conn = getattr(self._local, "conn", None)
         if conn is None:
             conn = sqlite3.connect(self._path)
@@ -526,6 +538,9 @@ class CircuitBreaker:
         return conn
 
     def close(self) -> None:
+        if self._pg is not None:  # the pool belongs to the decision store
+            self._pg.rollback()
+            return
         conn = getattr(self._local, "conn", None)
         if conn is not None:
             conn.close()

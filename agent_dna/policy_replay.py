@@ -40,6 +40,8 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
+from .pg_compat import connect_url, is_database_url
+
 
 @dataclass
 class ReplayInputStore:
@@ -50,7 +52,13 @@ class ReplayInputStore:
     retain_fields: list[str]  # the declared allowlist; empty => off
 
     def __post_init__(self) -> None:
-        self._conn = sqlite3.connect(self.path, check_same_thread=False)
+        # A postgresql:// path keeps the retained inputs in that (separate)
+        # database, shared by every API instance.
+        self._conn: Any = (
+            connect_url(self.path, "replay")
+            if is_database_url(self.path)
+            else sqlite3.connect(self.path, check_same_thread=False)
+        )
         self._conn.execute("""
             CREATE TABLE IF NOT EXISTS replay_inputs (
                 decision_id   TEXT PRIMARY KEY,
@@ -83,9 +91,12 @@ class ReplayInputStore:
             k: v for k, v in (arguments or {}).items() if k in self.retain_fields
         }
         self._conn.execute(
-            "INSERT OR REPLACE INTO replay_inputs "
+            "INSERT INTO replay_inputs "
             "(decision_id, ts, agent_id, capability, retained, field_scope) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
+            "VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (decision_id) DO UPDATE SET "
+            "ts = excluded.ts, agent_id = excluded.agent_id, "
+            "capability = excluded.capability, retained = excluded.retained, "
+            "field_scope = excluded.field_scope",
             (
                 decision_id,
                 time.time(),
