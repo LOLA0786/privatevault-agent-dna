@@ -296,6 +296,11 @@
   ],
   [
    "agent_dna.cli",
+   "agent_dna.pg_store",
+   "lazy"
+  ],
+  [
+   "agent_dna.cli",
    "agent_dna.policy_gate",
    "lazy"
   ],
@@ -1526,6 +1531,11 @@
   ],
   [
    "agent_dna.pg_store",
+   "agent_dna.amount",
+   "top"
+  ],
+  [
+   "agent_dna.pg_store",
    "agent_dna.authority_v01",
    "lazy"
   ],
@@ -1547,6 +1557,16 @@
   [
    "agent_dna.pg_store",
    "agent_dna.execution_record",
+   "top"
+  ],
+  [
+   "agent_dna.pg_store",
+   "agent_dna.grant_revocation",
+   "top"
+  ],
+  [
+   "agent_dna.pg_store",
+   "agent_dna.grant_spend",
    "top"
   ],
   [
@@ -2975,7 +2995,7 @@
   "agent_dna.adapters_policy.skill_adapter": 1,
   "agent_dna.advisory": 12,
   "agent_dna.allowlist": 1,
-  "agent_dna.amount": 6,
+  "agent_dna.amount": 7,
   "agent_dna.apikeys": 10,
   "agent_dna.approval_bridge": 3,
   "agent_dna.approval_v01": 1,
@@ -3037,8 +3057,8 @@
   "agent_dna.gateway.upstream": 3,
   "agent_dna.governance.evaluate": 1,
   "agent_dna.governance.pack": 2,
-  "agent_dna.grant_revocation": 2,
-  "agent_dna.grant_spend": 1,
+  "agent_dna.grant_revocation": 3,
+  "agent_dna.grant_spend": 2,
   "agent_dna.grants": 7,
   "agent_dna.identity": 5,
   "agent_dna.intent_adapter": 1,
@@ -3066,7 +3086,7 @@
   "agent_dna.observability.metrics": 2,
   "agent_dna.observability.prometheus_bridge": 2,
   "agent_dna.open_authorizer": 2,
-  "agent_dna.pg_store": 1,
+  "agent_dna.pg_store": 2,
   "agent_dna.policy.checker": 6,
   "agent_dna.policy.loader": 4,
   "agent_dna.policy.schema": 5,
@@ -3144,7 +3164,7 @@
   "agent_dna.authorize_binding": 5,
   "agent_dna.change_management": 1,
   "agent_dna.circuit_breaker": 2,
-  "agent_dna.cli": 8,
+  "agent_dna.cli": 9,
   "agent_dna.closure_v01": 3,
   "agent_dna.composition": 31,
   "agent_dna.confidence": 1,
@@ -3212,7 +3232,7 @@
   "agent_dna.multi_agent.trust": 2,
   "agent_dna.multi_agent.world_state": 2,
   "agent_dna.observability.metrics": 1,
-  "agent_dna.pg_store": 6,
+  "agent_dna.pg_store": 9,
   "agent_dna.policy": 3,
   "agent_dna.policy.checker": 1,
   "agent_dna.policy.loader": 1,

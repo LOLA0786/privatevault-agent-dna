@@ -20,6 +20,7 @@ import json
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 EXIT_OK, EXIT_FAIL, EXIT_USAGE = 0, 1, 2
 
@@ -640,13 +641,25 @@ def cmd_discovery_run(args: argparse.Namespace) -> int:  # noqa: C901
     return EXIT_FAIL if result.status is DiscoveryStatus.STRUCTURAL_BLOCK else EXIT_OK
 
 
-def cmd_grants_revoke(args: argparse.Namespace) -> int:
-    """Operator-only: needs the database, never an agent API key."""
+def _revocation_backend(db: str) -> tuple[Any, Any]:
+    """(ledger, decision store) for a SQLite path or a postgresql:// URL."""
+    if db.startswith(("postgresql://", "postgres://")):
+        from agent_dna.pg_store import (
+            PostgresDecisionStore,
+            PostgresGrantRevocationLedger,
+        )
+
+        pg = PostgresDecisionStore(db)
+        return PostgresGrantRevocationLedger(pg.pool), pg
     from agent_dna.grant_revocation import GrantRevocationLedger
     from agent_dna.sqlite_store import SQLiteDecisionStore
 
-    ledger = GrantRevocationLedger(args.db)
-    store = SQLiteDecisionStore(args.db)
+    return GrantRevocationLedger(db), SQLiteDecisionStore(db)
+
+
+def cmd_grants_revoke(args: argparse.Namespace) -> int:
+    """Operator-only: needs the database, never an agent API key."""
+    ledger, store = _revocation_backend(args.db)
     try:
         result = ledger.revoke(
             args.grant_id, revoked_by=args.by, reason=args.reason, store=store
@@ -663,13 +676,12 @@ def cmd_grants_revoke(args: argparse.Namespace) -> int:
 
 
 def cmd_grants_revoked(args: argparse.Namespace) -> int:
-    from agent_dna.grant_revocation import GrantRevocationLedger
-
-    ledger = GrantRevocationLedger(args.db)
+    ledger, store = _revocation_backend(args.db)
     try:
         rows = ledger.revoked()
     finally:
         ledger.close()
+        store.close()
     print(json.dumps(rows, indent=2))
     return EXIT_OK
 
@@ -818,12 +830,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="durably revoke a grant and suspend every permit minted under it",
     )
     revoke.add_argument("grant_id")
-    revoke.add_argument("--db", required=True, help="PrivateVault SQLite database")
+    revoke.add_argument(
+        "--db", required=True, help="SQLite database path or postgresql:// URL"
+    )
     revoke.add_argument("--by", required=True, help="who is revoking (recorded)")
     revoke.add_argument("--reason", required=True, help="why (recorded)")
     revoke.set_defaults(func=cmd_grants_revoke)
     revoked = gsub.add_parser("revoked", help="list durable revocations")
-    revoked.add_argument("--db", required=True, help="PrivateVault SQLite database")
+    revoked.add_argument(
+        "--db", required=True, help="SQLite database path or postgresql:// URL"
+    )
     revoked.set_defaults(func=cmd_grants_revoked)
 
     loop = sub.add_parser(

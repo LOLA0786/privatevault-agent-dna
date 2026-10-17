@@ -120,8 +120,8 @@ flowchart LR
 | `agent_dna.apikeys` | 10 | 1 |
 | `agent_dna.decision_recorder` | 8 | 5 |
 | `agent_dna.gateway.framing` | 8 | 4 |
+| `agent_dna.amount` | 7 | 0 |
 | `agent_dna.authorize_binding` | 7 | 5 |
-| `agent_dna.decision_record` | 7 | 4 |
 
 ## Import-time cycles
 

@@ -306,16 +306,32 @@ def _stable_grant_id(
 
 
 def _attach_durable_spend(
-    authorizer: object, cfg: RuntimeConfig, comp: dict[str, Any]
+    authorizer: object,
+    cfg: RuntimeConfig,
+    comp: dict[str, Any],
+    store: DecisionStoreBackend | None = None,
 ) -> None:
     """Durable, cross-worker grant spend and revocation in the store's DB."""
     if isinstance(authorizer, GrantRegistry) and (
         authorizer.authorization_mode == "grants_file"
     ):
-        authorizer.attach_spend_ledger(GrantSpendLedger(cfg.db_path))
-        authorizer.attach_revocation_ledger(GrantRevocationLedger(cfg.db_path))
-        comp["authorization"]["spend"] = "durable (sqlite)"
-        comp["authorization"]["revocation"] = "durable (sqlite)"
+        if store is not None and hasattr(store, "pool"):
+            from .pg_store import (
+                PostgresGrantRevocationLedger,
+                PostgresGrantSpendLedger,
+            )
+
+            authorizer.attach_spend_ledger(PostgresGrantSpendLedger(store.pool))
+            authorizer.attach_revocation_ledger(
+                PostgresGrantRevocationLedger(store.pool)
+            )
+            backend = "postgresql"
+        else:
+            authorizer.attach_spend_ledger(GrantSpendLedger(cfg.db_path))
+            authorizer.attach_revocation_ledger(GrantRevocationLedger(cfg.db_path))
+            backend = "sqlite"
+        comp["authorization"]["spend"] = f"durable ({backend})"
+        comp["authorization"]["revocation"] = f"durable ({backend})"
 
 
 def _load_grants(path: str) -> GrantRegistry:
@@ -748,7 +764,7 @@ def build_production_runtime(
         )
 
     store = _open_decision_store(cfg)
-    _attach_durable_spend(authorizer, cfg, comp)
+    _attach_durable_spend(authorizer, cfg, comp, store)
 
     # ---- approvals (ADR 0020): operator-pinned approver trust bundle ----
     # Attached after the store exists because the bridge claims each

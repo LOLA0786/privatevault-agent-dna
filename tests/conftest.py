@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import os
 import sys
+import uuid
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 import pytest
 
@@ -45,3 +47,27 @@ def _suite_opts_into_no_auth():
     """
     os.environ.setdefault("PV_ALLOW_NO_AUTH", "1")
     yield
+
+
+# ---- PostgreSQL (tests/pg_support.py) -------------------------------------
+
+_PG_ADMIN_URL = os.environ.get("TEST_DATABASE_URL", "")
+
+
+def _with_db(url: str, dbname: str) -> str:
+    parts = urlsplit(url)
+    return urlunsplit((parts.scheme, parts.netloc, f"/{dbname}", parts.query, ""))
+
+
+@pytest.fixture
+def dsn():
+    import psycopg
+
+    name = f"pvtest_{uuid.uuid4().hex[:12]}"
+    with psycopg.connect(_PG_ADMIN_URL, autocommit=True) as admin:
+        admin.execute(f'CREATE DATABASE "{name}"')
+    try:
+        yield _with_db(_PG_ADMIN_URL, name)
+    finally:
+        with psycopg.connect(_PG_ADMIN_URL, autocommit=True) as admin:
+            admin.execute(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
