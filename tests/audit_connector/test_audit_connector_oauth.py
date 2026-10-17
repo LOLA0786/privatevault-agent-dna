@@ -359,8 +359,8 @@ def test_login_page_lets_the_browser_follow_the_redirect_to_claude(hosted):
     _, challenge = _pkce()
     login = _start_login(hosted, client_id, challenge)
     csp = hosted["web"].get(login).headers["content-security-policy"]
-    form_action = next(d for d in csp.split(";") if d.strip().startswith("form-action"))
-    assert "'self'" in form_action and "https://claude.ai" in form_action
+    directives = {d.split()[0]: d.split()[1:] for d in csp.split(";") if d.strip()}
+    assert directives["form-action"] == ["'self'", "https://claude.ai"]
     assert "frame-ancestors 'none'" in csp
 
     assert _sign_in(hosted, login, hosted["audit_key"]).status_code == 302
