@@ -9,7 +9,7 @@ flowchart LR
   n0["agent_dna (core modules)<br/>67 modules"]
   n1["agent_dna/adapters_framework<br/>2 modules"]
   n2["agent_dna/adapters_policy<br/>5 modules"]
-  n3["agent_dna/audit_connector<br/>4 modules"]
+  n3["agent_dna/audit_connector<br/>5 modules"]
   n4["agent_dna/connector<br/>10 modules"]
   n5["agent_dna/consensus<br/>6 modules"]
   n6["agent_dna/eav<br/>2 modules"]
@@ -90,8 +90,8 @@ flowchart LR
 | `agent_dna/consensus` | 6 |
 | `agent_dna/receiver` | 6 |
 | `agent_dna/adapters_policy` | 5 |
+| `agent_dna/audit_connector` | 5 |
 | `agent_dna/validation` | 5 |
-| `agent_dna/audit_connector` | 4 |
 | `agent_dna/policy` | 4 |
 | `agent_dna/scan` | 4 |
 | `agent_dna/governance` | 3 |

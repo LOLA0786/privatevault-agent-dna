@@ -208,10 +208,17 @@ Two integration layers:
    Claude answer "which agent actions were blocked, who approved this,
    does the trail verify" from the sealed records. Six tools, all
    `readOnlyHint`; it holds only an audit-scoped key, which the API
-   refuses on every enforcement endpoint. No user authentication yet, so
-   it binds to loopback only. Run with
-   `PV_AUDIT_API_KEY=<audit key> python -m agent_dna.audit_connector`
-   (`tests/audit_connector/`).
+   refuses on every enforcement endpoint. Two modes:
+   - local: one operator-held audit key, loopback only:
+     `PV_AUDIT_API_KEY=<audit key> python -m agent_dna.audit_connector`
+   - hosted, with OAuth 2.0 sign-in (Dynamic Client Registration, PKCE
+     S256, rotating refresh tokens): each user signs in with their
+     organisation's audit-scoped key, checked live against the API; a
+     full-scope key is refused. Redirects are limited to Claude's callback
+     and loopback.
+     `python -m agent_dna.audit_connector --public-url https://audit.example.com --host 0.0.0.0`
+     behind your TLS proxy; users add `https://audit.example.com/mcp` to Claude.
+   (`tests/audit_connector/`)
 
 ## Model validation
 

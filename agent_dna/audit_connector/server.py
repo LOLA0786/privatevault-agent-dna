@@ -15,18 +15,34 @@ from __future__ import annotations
 
 import inspect
 from collections import Counter
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any
 
+import httpx
+from mcp.server.auth.middleware.auth_context import get_access_token
+from mcp.server.auth.settings import (
+    AuthSettings,
+    ClientRegistrationOptions,
+    RevocationOptions,
+)
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import ToolAnnotations
+from pydantic import AnyHttpUrl
 
 from agent_dna.audit_connector.client import AuditApiClient, AuditApiError
+from agent_dna.audit_connector.oauth import (
+    LOGIN_PATH,
+    SCOPE,
+    AuditOAuthProvider,
+    KeyCheck,
+    pv_key_check,
+)
 
 SERVER_NAME = "privatevault-audit"
 MAX_LIMIT = 100
 MAX_EVIDENCE_ITEMS = 20
+DOCS_URL = "https://github.com/LOLA0786/privatevault-agent-dna#mcp"
 
 INSTRUCTIONS = (
     "Read-only access to a PrivateVault deployment's sealed decision records: "
@@ -88,8 +104,12 @@ class AuditTools:
     """The connector's tools. Each method is one MCP tool; its docstring is
     the tool description Claude reads."""
 
-    def __init__(self, client: AuditApiClient) -> None:
-        self._client = client
+    def __init__(self, client_for: Callable[[], AuditApiClient]) -> None:
+        self._client_for = client_for
+
+    @property
+    def _client(self) -> AuditApiClient:
+        return self._client_for()
 
     def _decisions(self) -> list[dict[str, Any]]:
         records = _api(self._client.records)
@@ -193,14 +213,7 @@ _TITLES = {
 }
 
 
-def build_server(client: AuditApiClient) -> MCPServer:
-    server: MCPServer = MCPServer(
-        SERVER_NAME,
-        title="PrivateVault Audit",
-        instructions=INSTRUCTIONS,
-        website_url="https://privatevault.ai",
-    )
-    tools = AuditTools(client)
+def _register(server: MCPServer, tools: AuditTools) -> MCPServer:
     for name, title in _TITLES.items():
         fn = getattr(tools, name)
         server.add_tool(
@@ -217,3 +230,71 @@ def build_server(client: AuditApiClient) -> MCPServer:
             ),
         )
     return server
+
+
+def _new_server(**kwargs: Any) -> MCPServer:
+    return MCPServer(
+        SERVER_NAME,
+        title="PrivateVault Audit",
+        instructions=INSTRUCTIONS,
+        website_url="https://privatevault.ai",
+        **kwargs,
+    )
+
+
+def build_server(client: AuditApiClient) -> MCPServer:
+    """Local mode: one operator-held audit key, no user sign-in (loopback only)."""
+    return _register(_new_server(), AuditTools(lambda: client))
+
+
+def build_oauth_server(
+    pv_url: str,
+    public_url: str,
+    *,
+    path: str = "/mcp",
+    key_check: KeyCheck | None = None,
+    http: httpx.Client | None = None,
+    extra_redirect_uris: Sequence[str] = (),
+) -> tuple[MCPServer, AuditOAuthProvider]:
+    """Hosted mode: each user signs in with their organisation's audit key
+    (OAuth 2.0, DCR, PKCE S256). Tools run with the signed-in user's key."""
+    public_url = public_url.rstrip("/")
+    resource_url = public_url + path
+    provider = AuditOAuthProvider(
+        public_url,
+        resource_url,
+        key_check or pv_key_check(pv_url, http),
+        extra_redirect_uris,
+    )
+    clients: dict[str, AuditApiClient] = {}
+
+    def client_for() -> AuditApiClient:
+        token = get_access_token()
+        api_key = provider.api_key_for(token.token) if token is not None else None
+        if api_key is None:
+            raise ToolError(
+                "not signed in, or the session expired; reconnect the connector"
+            )
+        client = clients.get(api_key)
+        if client is None:
+            client = clients.setdefault(
+                api_key, AuditApiClient(pv_url, api_key, http=http)
+            )
+        return client
+
+    server = _new_server(
+        auth_server_provider=provider,
+        auth=AuthSettings(
+            issuer_url=AnyHttpUrl(public_url),
+            resource_server_url=AnyHttpUrl(resource_url),
+            service_documentation_url=AnyHttpUrl(DOCS_URL),
+            client_registration_options=ClientRegistrationOptions(
+                enabled=True, valid_scopes=[SCOPE], default_scopes=[SCOPE]
+            ),
+            revocation_options=RevocationOptions(enabled=True),
+            required_scopes=[SCOPE],
+            validate_token_resource=False,  # load_access_token checks the resource
+        ),
+    )
+    server.custom_route(LOGIN_PATH, methods=["GET", "POST"])(provider.login_page)
+    return _register(server, AuditTools(client_for)), provider

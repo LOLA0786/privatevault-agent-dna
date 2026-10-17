@@ -79,6 +79,16 @@ class AuditApiClient:
                 out.append(row)
         return out
 
+    def is_enforcement_key(self) -> bool:
+        """True if this key passes an enforcement-only endpoint (full scope,
+        or a deployment with authentication disabled). An audit-scoped key
+        is refused there with 401."""
+        try:
+            response = self._http.get("/v1/runtime", headers=self._headers)
+        except httpx.HTTPError:
+            return True  # cannot prove it is audit-only: treat as not acceptable
+        return response.status_code != 401
+
     def verify(self) -> dict[str, Any]:
         return dict(self._get("/v1/verify").json())
 

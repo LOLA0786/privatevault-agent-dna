@@ -5,6 +5,20 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### PrivateVault Audit connector: OAuth 2.0 sign-in
+- `agent_dna/audit_connector/oauth.py`, `--public-url`: the connector is its
+  own authorization server. Unauthenticated MCP calls get `401` with a
+  `resource_metadata` pointer; protected-resource and authorization-server
+  metadata are served; clients register by DCR; `/authorize` requires PKCE
+  S256; users sign in with their organisation's audit-scoped key, checked
+  live against the API (a full-scope key is refused); codes are single use;
+  refresh tokens rotate and the old pair is revoked; tools run with the
+  signed-in user's key, which never leaves the server. Registration accepts
+  only Claude's callback, loopback redirects, or operator-listed URIs.
+  Hosted mode requires an https public URL. Token state is in memory
+  (restart signs users out). (`tests/audit_connector/test_audit_connector_oauth.py`,
+  end to end over HTTP with the official MCP client)
+
 ### PrivateVault Audit: read-only MCP connector
 - `agent_dna/audit_connector/`: Streamable HTTP MCP server over the
   audit-scope API (`/v1/audit/export`, `/v1/verify`, `/v1/ops/summary`,

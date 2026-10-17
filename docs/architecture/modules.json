@@ -220,8 +220,18 @@
    "top"
   ],
   [
+   "agent_dna.audit_connector.oauth",
+   "agent_dna.audit_connector.client",
+   "top"
+  ],
+  [
    "agent_dna.audit_connector.server",
    "agent_dna.audit_connector.client",
+   "top"
+  ],
+  [
+   "agent_dna.audit_connector.server",
+   "agent_dna.audit_connector.oauth",
    "top"
   ],
   [
@@ -2934,7 +2944,8 @@
   "agent_dna.apikeys": 10,
   "agent_dna.approval_bridge": 3,
   "agent_dna.approval_v01": 1,
-  "agent_dna.audit_connector.client": 3,
+  "agent_dna.audit_connector.client": 4,
+  "agent_dna.audit_connector.oauth": 1,
   "agent_dna.audit_connector.server": 2,
   "agent_dna.authority_v01": 42,
   "agent_dna.authorization": 3,
@@ -3091,7 +3102,8 @@
   "agent_dna.approval_v01": 1,
   "agent_dna.audit_connector": 2,
   "agent_dna.audit_connector.__main__": 2,
-  "agent_dna.audit_connector.server": 1,
+  "agent_dna.audit_connector.oauth": 1,
+  "agent_dna.audit_connector.server": 2,
   "agent_dna.authorization": 1,
   "agent_dna.authorize_binding": 5,
   "agent_dna.change_management": 1,
@@ -3344,6 +3356,10 @@
   "agent_dna.audit_connector.client": {
    "group": "agent_dna/audit_connector",
    "path": "agent_dna/audit_connector/client.py"
+  },
+  "agent_dna.audit_connector.oauth": {
+   "group": "agent_dna/audit_connector",
+   "path": "agent_dna/audit_connector/oauth.py"
   },
   "agent_dna.audit_connector.server": {
    "group": "agent_dna/audit_connector",
