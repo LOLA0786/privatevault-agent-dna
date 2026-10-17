@@ -23,7 +23,7 @@ agent ──► POST /v1/decide ──► precedence engine ──► 200 / 202 
 
 ```bash
 pip install -e ".[dev]"
-python -m pytest -q                    # 1830+ tests
+python -m pytest -q                    # 1860+ tests
 ```
 
 Three properties worth checking before reading further:
@@ -203,6 +203,15 @@ Two integration layers:
    server so every `tools/call` passes through the precedence line
    before the tool executes, with per-session agent identity and
    signed refusals in-band (`tests/connector/`).
+3. Read-only audit connector for risk and audit teams
+   (`agent_dna/audit_connector/`): a Streamable HTTP MCP server that lets
+   Claude answer "which agent actions were blocked, who approved this,
+   does the trail verify" from the sealed records. Six tools, all
+   `readOnlyHint`; it holds only an audit-scoped key, which the API
+   refuses on every enforcement endpoint. No user authentication yet, so
+   it binds to loopback only. Run with
+   `PV_AUDIT_API_KEY=<audit key> python -m agent_dna.audit_connector`
+   (`tests/audit_connector/`).
 
 ## Model validation
 
