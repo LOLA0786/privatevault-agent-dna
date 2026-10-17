@@ -100,6 +100,21 @@ make -C demos/treasury replay      # re-render the latest saved run, no services
 make -C demos/treasury down
 ```
 
+### Ask Claude about the run (PrivateVault Audit connector)
+
+```sh
+make -C demos/treasury audit          # local MCP server: http://127.0.0.1:8790/mcp (Claude Code, MCP Inspector)
+make -C demos/treasury audit-tunnel   # OAuth sign-in on a public https URL (brew install cloudflared)
+```
+
+`audit-tunnel` prints a `https://….trycloudflare.com/mcp` URL. In Claude, add it
+under Settings > Connectors > Add custom connector, then sign in with the
+demo's audit-scoped key (copied to your clipboard on macOS). Then ask, for
+example: "Which treasury agent actions were blocked, and why?" or "Does the
+audit trail verify?". The connector is read-only and only it is exposed
+through the tunnel; the PrivateVault API stays on localhost. The quick-tunnel
+URL changes on every start, so the connector has to be added again.
+
 `agent.py` options: `--prompt naive|policy`, `--model <id>|scripted`,
 `--compromised-tool`, `--late-replay`, `--approver human|auto`, `--only 7,16`,
 `--replay FILE`, `--keep-ledger`, `--no-verify`.

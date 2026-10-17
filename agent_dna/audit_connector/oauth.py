@@ -46,7 +46,7 @@ from agent_dna.audit_connector.client import AuditApiClient, AuditApiError
 
 SCOPE = "audit:read"
 LOGIN_PATH = "/login"
-LOGIN_TTL_S = 600
+LOGIN_TTL_S = 1800
 CODE_TTL_S = 300
 ACCESS_TTL_S = 3600
 REFRESH_TTL_S = 30 * 24 * 3600
@@ -140,6 +140,7 @@ class AuditOAuthProvider:
         self._lock = threading.Lock()
         self._clients: dict[str, OAuthClientInformationFull] = {}
         self._logins: dict[str, _Login] = {}
+        self._completed: dict[str, float] = {}  # txn -> when it was used
         self._codes: dict[str, tuple[AuthorizationCode, _Grant]] = {}
         self._access: dict[str, tuple[AccessToken, _Grant]] = {}
         self._refresh: dict[str, tuple[RefreshToken, _Grant]] = {}
@@ -199,6 +200,10 @@ class AuditOAuthProvider:
             del self._logins[txn]
         for code in [c for c, (ac, _) in self._codes.items() if ac.expires_at < now]:
             del self._codes[code]
+        for txn in [
+            t for t, used in self._completed.items() if used + LOGIN_TTL_S < now
+        ]:
+            del self._completed[txn]
 
     def _pending(self, txn: str) -> _Login | None:
         login = self._logins.get(txn)
@@ -210,7 +215,19 @@ class AuditOAuthProvider:
         txn = request.query_params.get("txn", "")
         login = self._pending(txn)
         if login is None:
-            return _page("Sign-in link expired", "<p>Start again from Claude.</p>", 400)
+            if txn in self._completed:
+                return _page(
+                    "Already signed in",
+                    "<p>This sign-in was completed. Go back to Claude; if the connector "
+                    "is not shown as connected, click Connect there again.</p>",
+                    400,
+                )
+            return _page(
+                "Sign-in link expired",
+                "<p>Each sign-in link works once and for 30 minutes. Close this tab and "
+                "click Connect in Claude again to get a new one.</p>",
+                400,
+            )
         if request.method == "GET":
             return _login_form(txn, login, error=None)
 
@@ -227,6 +244,7 @@ class AuditOAuthProvider:
                 return _page(
                     "Sign-in link already used", "<p>Start again from Claude.</p>", 400
                 )
+            self._completed[txn] = time.time()
             code = _token()
             grant = _Grant(
                 api_key=api_key,
@@ -251,7 +269,7 @@ class AuditOAuthProvider:
         target = construct_redirect_uri(
             str(login.params.redirect_uri), code=code, state=login.params.state
         )
-        return RedirectResponse(target, status_code=302, headers=_SECURITY_HEADERS)
+        return RedirectResponse(target, status_code=302, headers=_headers())
 
     # ---- tokens -------------------------------------------------------------
 
@@ -373,16 +391,32 @@ class AuditOAuthProvider:
 
 # ---- login page -------------------------------------------------------------
 
-_SECURITY_HEADERS = {
-    "X-Frame-Options": "DENY",
-    "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; "
-    "form-action 'self'; frame-ancestors 'none'",
-    "Cache-Control": "no-store",
-    "Referrer-Policy": "no-referrer",
-}
+
+def _origin(uri: str) -> str:
+    parsed = urlparse(uri)
+    return f"{parsed.scheme}://{parsed.netloc}"
 
 
-def _page(title: str, body: str, status: int = 200) -> HTMLResponse:
+def _headers(redirect_uri: str | None = None) -> dict[str, str]:
+    """Security headers. The sign-in form's CSP must allow the redirect
+    target: browsers apply form-action to the redirect that follows a form
+    submission, so 'self' alone would stop the user on our page after a
+    successful sign-in."""
+    form_action = "'self'"
+    if redirect_uri:
+        form_action += " " + _origin(redirect_uri)
+    return {
+        "X-Frame-Options": "DENY",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; "
+        f"form-action {form_action}; frame-ancestors 'none'",
+        "Cache-Control": "no-store",
+        "Referrer-Policy": "no-referrer",
+    }
+
+
+def _page(
+    title: str, body: str, status: int = 200, redirect_uri: str | None = None
+) -> HTMLResponse:
     doc = (
         "<!doctype html><html><head><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width,initial-scale=1'>"
@@ -393,7 +427,7 @@ def _page(title: str, body: str, status: int = 200) -> HTMLResponse:
         ".err{color:#b42318}.host{font-weight:600}</style></head><body>"
         f"<h1>{html.escape(title)}</h1>{body}</body></html>"
     )
-    return HTMLResponse(doc, status_code=status, headers=_SECURITY_HEADERS)
+    return HTMLResponse(doc, status_code=status, headers=_headers(redirect_uri))
 
 
 def _login_form(txn: str, login: _Login, error: str | None) -> HTMLResponse:
@@ -409,4 +443,9 @@ def _login_form(txn: str, login: _Login, error: str | None) -> HTMLResponse:
         "<input id='k' name='api_key' type='password' autocomplete='off' required>"
         "<button type='submit'>Allow read-only access</button></form>"
     )
-    return _page("Sign in to PrivateVault Audit", body, 401 if error else 200)
+    return _page(
+        "Sign in to PrivateVault Audit",
+        body,
+        401 if error else 200,
+        redirect_uri=str(login.params.redirect_uri),
+    )

@@ -349,3 +349,20 @@ def test_operator_can_allow_extra_redirects():
     inspector = "http://inspector.internal:6274/oauth/callback"
     assert not redirect_allowed(inspector)
     assert redirect_allowed(inspector, [inspector])
+
+
+def test_login_page_lets_the_browser_follow_the_redirect_to_claude(hosted):
+    """Browsers apply CSP form-action to the redirect after a form POST.
+    With form-action 'self' only, a successful sign-in left the user on our
+    page and every retry said "expired" (seen with claude.ai, 2026-10-17)."""
+    client_id = _register(hosted)
+    _, challenge = _pkce()
+    login = _start_login(hosted, client_id, challenge)
+    csp = hosted["web"].get(login).headers["content-security-policy"]
+    directives = {d.split()[0]: d.split()[1:] for d in csp.split(";") if d.strip()}
+    assert directives["form-action"] == ["'self'", "https://claude.ai"]
+    assert "frame-ancestors 'none'" in csp
+
+    assert _sign_in(hosted, login, hosted["audit_key"]).status_code == 302
+    after = hosted["web"].get(login)
+    assert after.status_code == 400 and "Already signed in" in after.text

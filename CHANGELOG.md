@@ -5,6 +5,15 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Fixed: audit connector sign-in stuck in the browser
+- The sign-in page's CSP allowed form submission only to itself; browsers
+  apply `form-action` to the redirect that follows the POST, so after a
+  successful sign-in the user stayed on our page and retries said
+  "expired". `form-action` now also allows the registered redirect origin.
+  Sign-in links last 30 minutes, and a used link says "Already signed in".
+  (`test_login_page_lets_the_browser_follow_the_redirect_to_claude`; also
+  checked in headless Chromium)
+
 ### PrivateVault Audit connector: OAuth 2.0 sign-in
 - `agent_dna/audit_connector/oauth.py`, `--public-url`: the connector is its
   own authorization server. Unauthenticated MCP calls get `401` with a
