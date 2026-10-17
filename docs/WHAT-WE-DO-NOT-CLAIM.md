@@ -224,6 +224,16 @@ ground truth and do not establish production detection accuracy. Optional
 authority-reachability analyses do not gate proposals until their schemas and
 independent verifiers are stable.
 
+## PrivateVault Audit connector (OAuth)
+
+We DO ship: OAuth 2.0 sign-in for the read-only audit MCP connector (DCR,
+PKCE S256, single-use codes, rotating refresh tokens, audit-scope-only
+keys, redirect allowlist). We do NOT claim: durable token storage (state
+is in memory; a restart signs users out; one process per deployment),
+Client ID Metadata Documents (Claude falls back to DCR), enterprise SSO,
+rate limiting of sign-in attempts, or a Claude connectors directory
+listing (not submitted or reviewed).
+
 ## Connector & transport security
 
 **We do not claim transport encryption.** Connector identity binds
