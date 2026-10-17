@@ -5,6 +5,18 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### PrivateVault Audit: read-only MCP connector
+- `agent_dna/audit_connector/`: Streamable HTTP MCP server over the
+  audit-scope API (`/v1/audit/export`, `/v1/verify`, `/v1/ops/summary`,
+  `/v1/revocations`). Tools: `list_blocked_actions`, `list_agent_actions`,
+  `get_decision`, `verify_audit_trail`, `activity_summary`,
+  `list_revocations`; each has a title and `readOnlyHint`. Read-only is
+  enforced by the credential too: the server holds an audit-scoped key.
+  API failures reach the user as actionable tool errors that never echo
+  the key. Binds to loopback only until user authentication (OAuth) is
+  added. (`tests/audit_connector/test_audit_connector.py`, including an
+  end-to-end run with the official MCP client over Streamable HTTP)
+
 ### Enterprise treasury demo on the existing stack
 - `demos/treasury/`: two Claude agents with their own identities, API keys
   and grants (accounts payable, treasury) work a 16-action queue at USD
