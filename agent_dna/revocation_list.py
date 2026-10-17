@@ -91,14 +91,7 @@ def build_revocation_list(
 ) -> dict[str, Any]:
     """Sign the current suspensions of this organisation for receivers."""
     now = now or datetime.now(UTC)
-    conn = store._conn
-    rows = conn.execute("SELECT scope_kind, scope_id FROM suspensions").fetchall()
-    expiries = dict(
-        conn.execute(
-            "SELECT execution_authorization_id, expires_at "
-            "FROM execution_authorization_mint"
-        ).fetchall()
-    )
+    rows, expiries = store.revocation_rows()
     authorizations: set[str] = set()
     agents: set[str] = set()
     org_suspended = False

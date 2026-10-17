@@ -134,6 +134,64 @@ def _check_scopes(scopes: tuple[tuple[str, str], ...]) -> None:
             raise ValueError(f"suspension scope {kind!r} needs a non-empty id")
 
 
+MINT_COLUMNS = (
+    "decision_id, organisation_id, agent_id, principal_id, "
+    "bindings_digest, execution_authorization_id, authorization_json, "
+    "expires_at, minted_at, trust_bundle_json, trust_bundle_digest"
+)
+
+
+def classify_mint_row(
+    row: tuple[Any, ...],
+    *,
+    execution_status: Callable[[str], str | None],
+    is_consumed: Callable[[str], bool],
+    bindings_digest: str,
+    principal_id: str,
+    now: datetime,
+) -> tuple[str, dict[str, Any] | None, dict[str, Any] | None]:
+    """Classify an existing mint row: replay it, or say why it cannot be.
+
+    Shared by every store backend so the replay rules cannot drift apart.
+    ``row`` is in MINT_COLUMNS order.
+    """
+    from agent_dna.authority_v01 import sha256_digest
+
+    (
+        stored_decision_id,
+        _org,
+        _agent,
+        stored_principal,
+        stored_bindings,
+        auth_id,
+        authorization_json,
+        expires_at,
+        _minted_at,
+        trust_bundle_json,
+        trust_bundle_digest,
+    ) = row
+    if execution_status(stored_decision_id) == "indeterminate":
+        return "indeterminate", None, None
+    if is_consumed(auth_id):
+        return "consumed", None, None
+    if _rfc3339_expired(expires_at, now):
+        return "expired", None, None
+    if stored_bindings != bindings_digest or stored_principal != principal_id:
+        return "conflict", None, None
+    authorization = json.loads(authorization_json)
+    if not trust_bundle_json or not trust_bundle_digest:
+        return "missing_trust_bundle", None, None
+    try:
+        stored_bundle = json.loads(trust_bundle_json)
+    except json.JSONDecodeError:
+        return "missing_trust_bundle", None, None
+    actual_digest = sha256_digest(stored_bundle)
+    auth_digest = authorization.get("trust_bundle_digest")
+    if actual_digest != trust_bundle_digest or actual_digest != auth_digest:
+        return "trust_bundle_digest_mismatch", None, None
+    return "replay", authorization, stored_bundle
+
+
 class SQLiteDecisionStore:
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
@@ -507,41 +565,31 @@ class SQLiteDecisionStore:
         principal_id: str,
         now: datetime,
     ) -> tuple[str, dict[str, Any] | None, dict[str, Any] | None]:
-        from agent_dna.authority_v01 import sha256_digest
+        return classify_mint_row(
+            row,
+            execution_status=self.decision_execution_status,
+            is_consumed=self.is_execution_authorization_consumed,
+            bindings_digest=bindings_digest,
+            principal_id=principal_id,
+            now=now,
+        )
 
-        (
-            stored_decision_id,
-            _org,
-            _agent,
-            stored_principal,
-            stored_bindings,
-            auth_id,
-            authorization_json,
-            expires_at,
-            _minted_at,
-            trust_bundle_json,
-            trust_bundle_digest,
-        ) = row
-        if self.decision_execution_status(stored_decision_id) == "indeterminate":
-            return "indeterminate", None, None
-        if self.is_execution_authorization_consumed(auth_id):
-            return "consumed", None, None
-        if _rfc3339_expired(expires_at, now):
-            return "expired", None, None
-        if stored_bindings != bindings_digest or stored_principal != principal_id:
-            return "conflict", None, None
-        authorization = json.loads(authorization_json)
-        if not trust_bundle_json or not trust_bundle_digest:
-            return "missing_trust_bundle", None, None
-        try:
-            stored_bundle = json.loads(trust_bundle_json)
-        except json.JSONDecodeError:
-            return "missing_trust_bundle", None, None
-        actual_digest = sha256_digest(stored_bundle)
-        auth_digest = authorization.get("trust_bundle_digest")
-        if actual_digest != trust_bundle_digest or actual_digest != auth_digest:
-            return "trust_bundle_digest_mismatch", None, None
-        return "replay", authorization, stored_bundle
+    def revocation_rows(self) -> tuple[list[tuple[str, str]], dict[str, str]]:
+        """(suspensions as (scope_kind, scope_id), permit id -> expires_at)
+        for build_revocation_list, without exposing the connection."""
+        conn = self._conn
+        rows = [
+            (str(k), str(i))
+            for k, i in conn.execute("SELECT scope_kind, scope_id FROM suspensions")
+        ]
+        expiries = {
+            str(a): str(e)
+            for a, e in conn.execute(
+                "SELECT execution_authorization_id, expires_at "
+                "FROM execution_authorization_mint"
+            )
+        }
+        return rows, expiries
 
     def claim_or_replay_mint(  # noqa: C901
         self,

@@ -5,6 +5,21 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### PostgreSQL decision ledger (production readiness, phase 1 step 1)
+- `agent_dna/pg_store.py`, `PV_DATABASE_URL`: the decision ledger (records,
+  signature envelopes, permit and approval single-use claims, one mint per
+  decision, suspensions, chain heads) on PostgreSQL with the SQLite store's
+  contract. Canonical record bodies are stored verbatim, so exports are
+  byte-identical. Uniqueness is enforced by the same constraints; where
+  SQLite relied on BEGIN IMMEDIATE serialising all writers, narrow
+  transaction advisory locks order mint against execution outcome (per
+  decision) and suspension against consume (per scope). Mint replay rules
+  are now one shared function for both backends, and the revocation list
+  reads through the store instead of its connection. Optional extra
+  `postgres`; CI runs the suite against PostgreSQL 16.
+  (`tests/test_pg_store.py`, 16 tests including two that fail without the
+  locks)
+
 ### Fixed: audit connector sign-in stuck in the browser
 - The sign-in page's CSP allowed form submission only to itself; browsers
   apply `form-action` to the redirect that follows the POST, so after a
