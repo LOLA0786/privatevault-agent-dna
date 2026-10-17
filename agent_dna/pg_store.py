@@ -26,14 +26,19 @@ Connections come from a pool; every method is one transaction.
 from __future__ import annotations
 
 import json
+import time
 from collections.abc import Callable, Iterator
-from datetime import datetime
+from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+from .amount import coerce_amount
 from .decision_graph import DecisionGraph
 from .decision_record import GENESIS_HASH, DecisionRecord
 from .execution_record import ExecutionEvent
+from .grant_revocation import RevocationResult
+from .grant_spend import GrantBudgetExceededError
 from .sqlite_store import MINT_COLUMNS, _check_scopes, classify_mint_row
 
 try:  # optional dependency: pip install 'privatevault-agent-dna[postgres]'
@@ -174,6 +179,11 @@ class PostgresDecisionStore:
         with self._pool.connection() as conn, conn.cursor() as cur:
             _lock(cur, _SCHEMA_LOCK)
             cur.execute(_SCHEMA)
+
+    @property
+    def pool(self) -> Any:
+        """The connection pool, shared by the grant ledgers below."""
+        return self._pool
 
     # ---- helpers ----------------------------------------------------------
 
@@ -599,3 +609,158 @@ class PostgresDecisionStore:
 
     def close(self) -> None:
         self._pool.close()
+
+
+# ---- grant ledgers -----------------------------------------------------------
+
+_GRANTS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS grant_spend (
+    grant_id   TEXT PRIMARY KEY,
+    spent      TEXT NOT NULL,
+    updated_at DOUBLE PRECISION NOT NULL
+);
+CREATE TABLE IF NOT EXISTS grant_revocations (
+    grant_id    TEXT PRIMARY KEY,
+    revoked_at  TEXT NOT NULL,
+    revoked_by  TEXT NOT NULL,
+    reason      TEXT NOT NULL
+);
+"""
+
+
+def _ensure_grants_schema(pool: Any) -> None:
+    with pool.connection() as conn, conn.cursor() as cur:
+        _lock(cur, "pv:schema:grants")
+        cur.execute(_GRANTS_SCHEMA)
+
+
+class PostgresGrantSpendLedger:
+    """GrantSpendLedger on PostgreSQL: one budget across every instance.
+
+    The grant's row is locked (SELECT ... FOR UPDATE) for the check-and-add,
+    so concurrent spends against one grant serialise and the budget can
+    never be exceeded; spends on different grants do not wait on each
+    other. Amounts are canonical decimal strings, never floats.
+    """
+
+    def __init__(self, pool: Any) -> None:
+        self._pool = pool
+        _ensure_grants_schema(pool)
+
+    def close(self) -> None:  # the pool belongs to the decision store
+        return None
+
+    def spent(self, grant_id: str) -> Decimal:
+        with self._pool.connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                "SELECT spent FROM grant_spend WHERE grant_id = %s", (grant_id,)
+            )
+            row = cur.fetchone()
+        return Decimal(row[0]) if row else Decimal("0")
+
+    def commit_spend(
+        self, grant_id: str, amount: object, budget: object | None
+    ) -> Decimal:
+        delta = coerce_amount(amount)
+        with self._pool.connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO grant_spend (grant_id, spent, updated_at) "
+                "VALUES (%s, '0', %s) ON CONFLICT (grant_id) DO NOTHING",
+                (grant_id, time.time()),
+            )
+            cur.execute(
+                "SELECT spent FROM grant_spend WHERE grant_id = %s FOR UPDATE",
+                (grant_id,),
+            )
+            row = cur.fetchone()
+            new = Decimal(row[0]) + delta
+            if budget is not None and new > coerce_amount(budget):
+                conn.rollback()
+                raise GrantBudgetExceededError(
+                    f"grant {grant_id[:14]} budget exceeded at commit "
+                    f"({new} > {coerce_amount(budget)})"
+                )
+            cur.execute(
+                "UPDATE grant_spend SET spent = %s, updated_at = %s WHERE grant_id = %s",
+                (str(new), time.time(), grant_id),
+            )
+        return new
+
+
+class PostgresGrantRevocationLedger:
+    """GrantRevocationLedger on PostgreSQL, same enforcement boundary.
+
+    The revocation row commits first; then every permit minted under the
+    grant is suspended in the decision store (same database), and a mint
+    racing the revocation re-checks and suspends itself, as with SQLite.
+    """
+
+    def __init__(self, pool: Any) -> None:
+        self._pool = pool
+        _ensure_grants_schema(pool)
+
+    def close(self) -> None:
+        return None
+
+    def is_revoked(self, grant_id: str | None) -> dict[str, str] | None:
+        if not grant_id:
+            return None
+        with self._pool.connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                "SELECT revoked_at, revoked_by, reason FROM grant_revocations "
+                "WHERE grant_id = %s",
+                (grant_id,),
+            )
+            row = cur.fetchone()
+        if row is None:
+            return None
+        return {"revoked_at": row[0], "revoked_by": row[1], "reason": row[2]}
+
+    def revoked(self) -> list[dict[str, str]]:
+        with self._pool.connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                "SELECT grant_id, revoked_at, revoked_by, reason FROM "
+                "grant_revocations ORDER BY revoked_at, grant_id"
+            )
+            rows = cur.fetchall()
+        keys = ("grant_id", "revoked_at", "revoked_by", "reason")
+        return [dict(zip(keys, row, strict=True)) for row in rows]
+
+    def outstanding_authorizations(self, grant_id: str) -> list[str]:
+        with self._pool.connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                "SELECT m.execution_authorization_id "
+                "FROM execution_authorization_mint AS m "
+                "JOIN records AS r ON r.record_id = m.decision_id "
+                "WHERE r.kind = 'decision' "
+                "AND (r.body::jsonb ->> 'approval_ref') = %s "
+                "ORDER BY m.execution_authorization_id",
+                (grant_id,),
+            )
+            return [row[0] for row in cur.fetchall()]
+
+    def revoke(
+        self, grant_id: str, *, revoked_by: str, reason: str, store: Any
+    ) -> RevocationResult:
+        if not grant_id or not revoked_by or not reason:
+            raise ValueError("grant_id, revoked_by and reason are required")
+        at = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+        with self._pool.connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO grant_revocations (grant_id, revoked_at, revoked_by, reason) "
+                "VALUES (%s, %s, %s, %s) ON CONFLICT DO NOTHING",
+                (grant_id, at, revoked_by, reason),
+            )
+            newly = cur.rowcount == 1
+        existing = self.is_revoked(grant_id) or {"revoked_at": at}
+        suspended = []
+        for ea_id in self.outstanding_authorizations(grant_id):
+            store.suspend(
+                "authorization",
+                ea_id,
+                reason=f"grant {grant_id} revoked: {reason}",
+                suspended_by=revoked_by,
+                suspended_at=existing["revoked_at"],
+            )
+            suspended.append(ea_id)
+        return RevocationResult(grant_id, newly, existing["revoked_at"], suspended)

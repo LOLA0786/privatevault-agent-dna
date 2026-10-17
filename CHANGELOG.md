@@ -5,6 +5,17 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### PostgreSQL grant spend and revocation (production readiness, phase 1 step 2)
+- With `PV_DATABASE_URL` set, grant budgets and grant revocations live in
+  the same PostgreSQL database as the decision ledger, so every API
+  instance shares one budget and one revocation list. Spend is a
+  check-and-add under a row lock (`SELECT ... FOR UPDATE`), amounts stay
+  canonical decimal strings, and revoking suspends every permit already
+  minted under the grant. `pv grants revoke|revoked --db` accepts a
+  `postgresql://` URL. The runtime manifest reports `durable (postgresql)`.
+  (`tests/test_pg_grants.py`, 7 tests; the budget test fails without the
+  row lock)
+
 ### PostgreSQL decision ledger (production readiness, phase 1 step 1)
 - `agent_dna/pg_store.py`, `PV_DATABASE_URL`: the decision ledger (records,
   signature envelopes, permit and approval single-use claims, one mint per

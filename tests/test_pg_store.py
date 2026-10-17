@@ -13,12 +13,10 @@ runtime selecting Postgres from PV_DATABASE_URL.
 from __future__ import annotations
 
 import json
-import os
 import threading
 import time
 import uuid
 from datetime import UTC, datetime
-from urllib.parse import urlsplit, urlunsplit
 
 import pytest
 
@@ -28,12 +26,10 @@ from agent_dna.decision import DecisionEngine
 from agent_dna.decision_recorder import DecisionRecorder
 from agent_dna.sqlite_store import SQLiteDecisionStore
 from agent_dna.trace import AgentAction
+from tests.pg_support import requires_pg
 
-ADMIN_URL = os.environ.get("TEST_DATABASE_URL", "")
 psycopg = pytest.importorskip("psycopg")
-pytestmark = pytest.mark.skipif(
-    not ADMIN_URL, reason="set TEST_DATABASE_URL to run the PostgreSQL store tests"
-)
+pytestmark = requires_pg
 
 from agent_dna.pg_store import PostgresDecisionStore  # noqa: E402
 
@@ -55,23 +51,6 @@ class _Scorer:
 
 def _engine() -> DecisionEngine:
     return DecisionEngine(scorer=_Scorer())
-
-
-def _with_db(url: str, dbname: str) -> str:
-    parts = urlsplit(url)
-    return urlunsplit((parts.scheme, parts.netloc, f"/{dbname}", parts.query, ""))
-
-
-@pytest.fixture
-def dsn():
-    name = f"pvtest_{uuid.uuid4().hex[:12]}"
-    with psycopg.connect(ADMIN_URL, autocommit=True) as admin:
-        admin.execute(f'CREATE DATABASE "{name}"')
-    try:
-        yield _with_db(ADMIN_URL, name)
-    finally:
-        with psycopg.connect(ADMIN_URL, autocommit=True) as admin:
-            admin.execute(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
 
 
 @pytest.fixture

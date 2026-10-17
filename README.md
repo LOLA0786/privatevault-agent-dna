@@ -23,7 +23,7 @@ agent ──► POST /v1/decide ──► precedence engine ──► 200 / 202 
 
 ```bash
 pip install -e ".[dev]"
-python -m pytest -q                    # 1880+ tests
+python -m pytest -q                    # 1900+ tests
 ```
 
 Three properties worth checking before reading further:
@@ -195,9 +195,11 @@ Persistence: SQLite by default (`PV_DB_PATH`). Set
 `PV_DATABASE_URL=postgresql://...` (install the `postgres` extra) to keep
 the decision ledger -- records, envelopes, permit and approval claims,
 mints, suspensions -- in PostgreSQL with the same guarantees, proven
-against a live server in CI (`tests/test_pg_store.py`). Spend, revocation,
-lineage, breaker and replay ledgers stay on SQLite for now, so run one
-API instance per deployment until they move too.
+against a live server in CI (`tests/test_pg_store.py`). Grant spend and
+grant revocation move with it, so every instance shares one budget and
+one kill switch (`tests/test_pg_grants.py`). Lineage, breaker and replay
+ledgers stay on SQLite for now, so run one API instance per deployment
+until they move too.
 
 ## MCP
 
