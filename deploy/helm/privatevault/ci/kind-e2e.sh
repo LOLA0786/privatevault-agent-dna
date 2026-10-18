@@ -15,7 +15,7 @@ dump() {
   kubectl -n "$NS" describe pods || true
   kubectl -n "$NS" logs -l app.kubernetes.io/name=privatevault --all-containers --tail=200 || true
 }
-trap 'dump' ERR
+trap 'echo "kind-e2e: failed at line $LINENO: $BASH_COMMAND"; dump' ERR
 
 docker build -t "$IMAGE" .
 kind load docker-image "$IMAGE" --name "${KIND_CLUSTER:-pv}"

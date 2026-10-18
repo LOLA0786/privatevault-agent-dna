@@ -6,7 +6,9 @@ metadata:
     {{- include "privatevault.labels" . | nindent 4 }}
   annotations:
     "helm.sh/hook": test
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    # Not hook-succeeded: helm test --logs reads the pod after it succeeds,
+    # and fails if the pod is already gone. The next run replaces it.
+    "helm.sh/hook-delete-policy": before-hook-creation
 spec:
   restartPolicy: Never
   securityContext:
