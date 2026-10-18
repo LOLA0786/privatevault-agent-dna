@@ -233,6 +233,15 @@ class GateSettings:
     pinned_at: str = DEFAULT_PINNED_AT
     max_body_bytes: int = 1_048_576
     trust_bundle_file: Path | None = None
+    # mTLS (ADR 0022): served by network/receiver_kit/serve.py when set.
+    tls_cert_file: Path | None = None
+    tls_key_file: Path | None = None
+    tls_client_ca_file: Path | None = None
+    require_presenter: bool = False
+
+    @property
+    def mtls(self) -> bool:
+        return self.tls_cert_file is not None
 
     @property
     def trust_bundle(self) -> dict[str, Any]:
@@ -282,6 +291,36 @@ def _int(env: Mapping[str, str], name: str, default: int, minimum: int) -> int:
     return value
 
 
+_TLS_VARS = ("PV_RECEIVER_TLS_CERT", "PV_RECEIVER_TLS_KEY", "PV_RECEIVER_CLIENT_CA")
+
+
+def _tls_settings(env: Mapping[str, str]) -> dict[str, Any]:
+    """mTLS is all three files or none; presenters need mTLS."""
+    values = {name: env.get(name, "").strip() for name in _TLS_VARS}
+    given = [name for name, value in values.items() if value]
+    if given and len(given) != len(_TLS_VARS):
+        missing = sorted(set(_TLS_VARS) - set(given))
+        raise ConfigError(
+            f"mTLS needs all of {', '.join(_TLS_VARS)}; missing {missing}"
+        )
+    require_presenter = _flag(env, "PV_RECEIVER_REQUIRE_PRESENTER")
+    if require_presenter and not given:
+        raise ConfigError(
+            "PV_RECEIVER_REQUIRE_PRESENTER=1 needs mTLS (PV_RECEIVER_TLS_CERT, "
+            "PV_RECEIVER_TLS_KEY, PV_RECEIVER_CLIENT_CA): without a client "
+            "certificate no presenter can be authenticated"
+        )
+    for name in given:
+        if not Path(values[name]).is_file():
+            raise ConfigError(f"{name}: {values[name]} is not a readable file")
+    return {
+        "tls_cert_file": Path(values["PV_RECEIVER_TLS_CERT"]) if given else None,
+        "tls_key_file": Path(values["PV_RECEIVER_TLS_KEY"]) if given else None,
+        "tls_client_ca_file": Path(values["PV_RECEIVER_CLIENT_CA"]) if given else None,
+        "require_presenter": require_presenter,
+    }
+
+
 def settings_from_env(env: Mapping[str, str] | None = None) -> GateSettings:
     source = os.environ if env is None else env
     bundle_file = source.get("PV_TRUST_BUNDLE_FILE", "").strip()
@@ -316,6 +355,7 @@ def settings_from_env(env: Mapping[str, str] | None = None) -> GateSettings:
         pinned_at=source.get("PV_TRUST_BUNDLE_PINNED_AT", "").strip()
         or DEFAULT_PINNED_AT,
         max_body_bytes=_int(source, "PV_MAX_BODY_BYTES", 1_048_576, 0),
+        **_tls_settings(source),
     )
     # Fail at configuration time, not at the first request: a pinned bundle
     # file that cannot be loaded or disagrees with the issuer values refuses
@@ -339,6 +379,7 @@ def build_gate(settings: GateSettings) -> ReceiverGate:
         receipt_key_id=settings.receipt_key_id,
         unprotected_operations=frozenset(settings.unprotected_operations),
         max_body_bytes=settings.max_body_bytes,
+        require_presenter=settings.require_presenter,
     )
 
 
@@ -365,5 +406,12 @@ def describe(settings: GateSettings, gate: ReceiverGate) -> str:
         f"  ledger               {settings.ledger_path}",
         f"  upstream             {settings.upstream}",
         f"  unprotected          {'; '.join(settings.unprotected_operations) or '(none)'}",
+        "  client TLS           "
+        + (
+            f"required, CA {settings.tls_client_ca_file}"
+            if settings.mtls
+            else "off (presenters cannot be authenticated)"
+        ),
+        f"  presenter            {'required' if settings.require_presenter else 'checked when a permit binds one'}",
     ]
     return "\n".join(lines)

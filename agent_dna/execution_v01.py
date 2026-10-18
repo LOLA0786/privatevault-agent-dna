@@ -66,6 +66,26 @@ _AUTHORIZATION_FIELDS = frozenset(
     }
 )
 
+# 0.2 adds one field: the presenter the receiver gate must authenticate
+# (agent_dna.presenter_identity, ADR 0022). Everything else is unchanged and
+# 0.1 permits stay valid where a presenter is not required.
+EXECUTION_AUTHORIZATION_SPEC_V02 = "pv-execution-authorization/0.2-experimental"
+_AUTHORIZATION_FIELDS_V02 = _AUTHORIZATION_FIELDS | {
+    "expected_presenter_identity_digest"
+}
+_FIELDS_BY_SPEC = {
+    EXECUTION_AUTHORIZATION_SPEC: _AUTHORIZATION_FIELDS,
+    EXECUTION_AUTHORIZATION_SPEC_V02: _AUTHORIZATION_FIELDS_V02,
+}
+
+
+def bound_presenter_digest(authorization: Mapping[str, Any]) -> str | None:
+    """The presenter a validated permit binds, or None for a 0.1 permit."""
+    if authorization.get("spec") == EXECUTION_AUTHORIZATION_SPEC_V02:
+        return str(authorization["expected_presenter_identity_digest"])
+    return None
+
+
 _DISPATCH_FIELDS = frozenset(
     {
         "transport",
@@ -171,14 +191,20 @@ def validate_execution_authorization(  # noqa: C901
     """Strictly validate an execution authorization."""
 
     value = _require_object(authorization, path)
+    spec = value.get("spec")
+    fields = _FIELDS_BY_SPEC.get(spec) if isinstance(spec, str) else None
+    if fields is None:
+        raise AuthorityFormatError(f"{path}.spec: unsupported spec")
     _require_exact_fields(
         value,
-        _AUTHORIZATION_FIELDS,
+        fields,
         path,
     )
-
-    if value["spec"] != EXECUTION_AUTHORIZATION_SPEC:
-        raise AuthorityFormatError(f"{path}.spec: unsupported spec")
+    if fields is _AUTHORIZATION_FIELDS_V02:
+        _require_digest(
+            value["expected_presenter_identity_digest"],
+            f"{path}.expected_presenter_identity_digest",
+        )
 
     if value["canonicalization"] != CANONICALIZATION:
         raise AuthorityFormatError(f"{path}.canonicalization: unsupported")

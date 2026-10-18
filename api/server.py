@@ -59,6 +59,9 @@ from agent_dna.authorize_binding import (
     AUTHORIZE_PERMIT_INDETERMINATE,
     AUTHORIZE_PERMIT_TRUST_BUNDLE_DIGEST_MISMATCH,
     AUTHORIZE_PERMIT_TRUST_BUNDLE_MISSING,
+    AUTHORIZE_PRESENTER_NOT_PINNED,
+    AUTHORIZE_PRESENTER_REQUIRED,
+    AUTHORIZE_PRESENTER_UNCONFIGURED,
     AUTHORIZE_STORE_UNAVAILABLE,
     bind_authorize_to_sealed_allow,
     mint_bindings_digest,
@@ -72,6 +75,9 @@ from agent_dna.control_posture import (
 from agent_dna.decision import Decision
 from agent_dna.decision_graph import DecisionGraph
 from agent_dna.execution_v01 import EXECUTION_AUTHORIZATION_SPEC as _PV_EA_SPEC
+from agent_dna.execution_v01 import (
+    EXECUTION_AUTHORIZATION_SPEC_V02 as _PV_EA_SPEC_V02,
+)
 from agent_dna.execution_v01 import sign_execution_authorization as _pv_sign_ea
 from agent_dna.lineage import (
     ALREADY_APPROVED as LINEAGE_ALREADY_APPROVED,
@@ -90,6 +96,11 @@ from agent_dna.observability.prometheus_bridge import (
     generate_latest as _prom_generate_latest,
 )
 from agent_dna.observability.prometheus_bridge import observe_decide_latency, set_ready
+from agent_dna.presenter_identity import (
+    PresenterBundle,
+    PresenterIdentityError,
+    load_presenter_bundle,
+)
 from agent_dna.request_bounds import RequestBounds, RequestBoundsMiddleware
 from agent_dna.revocation_list import build_revocation_list
 from agent_dna.runtime import RuntimeMonitor
@@ -272,6 +283,35 @@ def _authorization_window(env: Any = None) -> AuthorizationWindow:
     )
 
 
+def _presenter_bundle(env: Any = None) -> PresenterBundle | None:
+    """PV_PRESENTER_BUNDLE: operator-pinned TLS presenters per agent (ADR
+    0022). A configured bundle that cannot be read stops start-up: serving
+    without it would mint permits any process could present."""
+    source = os.environ if env is None else env
+    path = source.get("PV_PRESENTER_BUNDLE", "")
+    if not path:
+        return None
+    try:
+        return load_presenter_bundle(path)
+    except PresenterIdentityError as exc:
+        raise RuntimeError(f"PV_PRESENTER_BUNDLE: {exc}") from exc
+
+
+def _presenter_manifest(bundle: PresenterBundle | None) -> dict[str, str]:
+    if bundle is None:
+        return {
+            "status": "not_configured",
+            "detail": "PV_PRESENTER_BUNDLE unset: permits do not name who may "
+            "present them (spec 0.1); receivers cannot authenticate the presenter",
+        }
+    return {
+        "status": "attached",
+        "detail": f"every permit binds a pinned TLS client key "
+        f"({len(bundle.presenters)} agent(s), bundle {bundle.digest[:19]}); "
+        "spec 0.2",
+    }
+
+
 MAX_REQUEST_BYTES_DEFAULT = 1_048_576
 MAX_REQUEST_BYTES_MIN = 1024
 MAX_REQUEST_BYTES_MAX = 64 * 1_048_576
@@ -352,6 +392,10 @@ async def lifespan(app: FastAPI):
     _assert_auth_configured(runtime.apikeys.enabled)
     _assert_secure_authorize_material()
     state["authorization_window"] = _authorization_window()
+    state["presenter_bundle"] = _presenter_bundle()
+    runtime.composition["presenter_binding"] = _presenter_manifest(
+        state["presenter_bundle"]
+    )
     state["request_bounds"] = _request_bounds()
     state["store"] = runtime.store
     state["recorder"] = runtime.recorder
@@ -1191,6 +1235,9 @@ class AuthorizeRequest(BaseModel):
     expected_wire_bytes_digest: str = Field(pattern=_PV_DIGEST)
     expected_wire_bytes_length: int = Field(ge=0)
     expected_peer_identity_digest: str = Field(pattern=_PV_DIGEST)
+    # The TLS client key that will present this permit (ADR 0022). Required
+    # when PV_PRESENTER_BUNDLE is set, and must be pinned there for the agent.
+    presenter_identity_digest: str | None = Field(default=None, pattern=_PV_DIGEST)
 
     decision_receipt_digest: str = Field(pattern=_PV_DIGEST)
     authority_receipt_digest: str = Field(pattern=_PV_DIGEST)
@@ -1239,6 +1286,37 @@ def _authorize_refusal(status_code: int, reason_code: str, detail: str) -> NoRet
         status_code=status_code,
         detail={"reason_code": reason_code, "detail": detail},
     )
+
+
+def _resolve_presenter(req: AuthorizeRequest) -> str | None:
+    """The presenter to bind, checked against the pinned bundle."""
+    bundle: PresenterBundle | None = state.get("presenter_bundle")
+    requested = req.presenter_identity_digest
+    if bundle is None:
+        if requested is not None:
+            _authorize_refusal(
+                422,
+                AUTHORIZE_PRESENTER_UNCONFIGURED,
+                "presenter binding requested but PV_PRESENTER_BUNDLE is not "
+                "configured; a caller-supplied presenter cannot be vouched for",
+            )
+        return None
+    if requested is None:
+        _authorize_refusal(
+            403,
+            AUTHORIZE_PRESENTER_REQUIRED,
+            "presenter_identity_digest is required: every permit must name "
+            "the TLS client key that will present it",
+        )
+    if bundle.organisation_id != req.organisation_id or requested not in bundle.allowed(
+        req.agent_id
+    ):
+        _authorize_refusal(
+            403,
+            AUTHORIZE_PRESENTER_NOT_PINNED,
+            "presenter_identity_digest is not pinned for this agent",
+        )
+    return requested
 
 
 def _require_sealed_allow_for_authorize(req: AuthorizeRequest) -> dict[str, Any]:
@@ -1409,6 +1487,7 @@ def authorize(req: AuthorizeRequest, principal: FullPrincipal):  # noqa: C901
             status_code=503,
             detail="authorization window is not configured",
         )
+    presenter = _resolve_presenter(req)
     now = _datetime.now(UTC)
     expires_at = _pv_rfc3339(now + _timedelta(seconds=window.ttl_seconds))
     minted_at = _pv_rfc3339(now)
@@ -1428,11 +1507,12 @@ def authorize(req: AuthorizeRequest, principal: FullPrincipal):  # noqa: C901
         state_snapshot_digest=req.state_snapshot_digest,
         policy_bundle_digest=req.policy_bundle_digest,
         obligations_digest=req.obligations_digest,
+        expected_presenter_identity_digest=presenter,
     )
 
     def _mint_authorization() -> dict[str, Any]:
         unsigned = {
-            "spec": _PV_EA_SPEC,
+            "spec": _PV_EA_SPEC if presenter is None else _PV_EA_SPEC_V02,
             "canonicalization": _PV_CANON,
             "execution_authorization_id": f"eauth-{_uuid.uuid4()}",
             "organisation_id": req.organisation_id,
@@ -1457,6 +1537,8 @@ def authorize(req: AuthorizeRequest, principal: FullPrincipal):  # noqa: C901
             "max_uses": 1,
             "signer_key_id": signer["key_id"],
         }
+        if presenter is not None:
+            unsigned["expected_presenter_identity_digest"] = presenter
         return _pv_sign_ea(unsigned, signer["signing_key"])
 
     try:

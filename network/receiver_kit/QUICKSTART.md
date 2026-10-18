@@ -182,6 +182,8 @@ cd network/receiver_kit && docker compose down
 | `PV_UNPROTECTED_OPERATIONS` | `GET`/`HEAD` routes that bypass the gate, `;` separated. Writes cannot be unprotected. |
 | `PV_GATE_UID`, `PV_GATE_GID` | Optional. The uid and gid the entrypoint drops to after copying the key (default 10001). |
 | `PV_TRUST_BUNDLE_VERSION`, `PV_TRUST_BUNDLE_PINNED_AT` | Optional; both sides must agree. A pinned bundle file replaces these in Phase 2. |
+| `PV_RECEIVER_TLS_CERT`, `PV_RECEIVER_TLS_KEY`, `PV_RECEIVER_CLIENT_CA` | Optional, all three or none: serve HTTPS and require a client certificate from that CA. Run `python -m network.receiver_kit.serve` (the default command serves plain HTTP). |
+| `PV_RECEIVER_REQUIRE_PRESENTER` | `1` refuses permits that do not name a presenter (ADR 0022). Needs the three TLS variables. A permit that names one is always checked. |
 
 ## What this does not show
 

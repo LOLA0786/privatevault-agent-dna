@@ -721,3 +721,102 @@ def test_trust_bundle_file_refuses_malformed_or_mismatched(tmp_path):
     )
     with pytest.raises(config.ConfigError, match="cannot read"):
         config.settings_from_env(env)
+
+
+def test_mtls_settings_are_all_or_nothing(tmp_path):
+    env = _env(tmp_path, SigningKey.generate(), SigningKey.generate())
+    cert = tmp_path / "tls.pem"
+    cert.write_text("x")
+    with pytest.raises(config.ConfigError, match="mTLS needs all of"):
+        config.settings_from_env({**env, "PV_RECEIVER_TLS_CERT": str(cert)})
+    full = {
+        **env,
+        "PV_RECEIVER_TLS_CERT": str(cert),
+        "PV_RECEIVER_TLS_KEY": str(cert),
+        "PV_RECEIVER_CLIENT_CA": str(cert),
+        "PV_RECEIVER_REQUIRE_PRESENTER": "1",
+    }
+    settings = config.settings_from_env(full)
+    assert settings.mtls and settings.require_presenter
+    assert config.build_gate(settings).require_presenter is True
+    with pytest.raises(config.ConfigError, match="not a readable file"):
+        config.settings_from_env(
+            {**full, "PV_RECEIVER_CLIENT_CA": str(tmp_path / "nope")}
+        )
+
+
+def test_requiring_presenters_without_mtls_refuses_to_start(tmp_path):
+    env = {
+        **_env(tmp_path, SigningKey.generate(), SigningKey.generate()),
+        "PV_RECEIVER_REQUIRE_PRESENTER": "1",
+    }
+    with pytest.raises(config.ConfigError, match="needs mTLS"):
+        config.settings_from_env(env)
+
+
+def test_serve_launcher_requires_client_certificates(tmp_path):
+    """`python -m network.receiver_kit.serve` with the TLS variables serves
+    HTTPS that a CA-signed client reaches and others cannot."""
+    import http.client
+    import os
+    import socket
+    import ssl
+    import time
+
+    from tests.receiver._pki import Pki
+
+    pki = Pki(tmp_path / "pki")
+    server, client = pki.leaf("gate", server=True), pki.leaf("agent")
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    env = _env(
+        tmp_path,
+        SigningKey.generate(),
+        SigningKey.generate(),
+        PV_RECEIVER_TLS_CERT=str(server.cert),
+        PV_RECEIVER_TLS_KEY=str(server.key),
+        PV_RECEIVER_CLIENT_CA=str(pki.ca_cert),
+        PV_RECEIVER_REQUIRE_PRESENTER="1",
+        PV_RECEIVER_HOST="127.0.0.1",
+        PV_RECEIVER_PORT=str(port),
+    )
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "network.receiver_kit.serve"],
+        env={**{k: v for k, v in os.environ.items() if not k.startswith("PV_")}, **env},
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+
+    def post(with_cert: bool) -> tuple[int, bytes]:
+        ctx = ssl.create_default_context(cafile=str(pki.ca_cert))
+        if with_cert:
+            ctx.load_cert_chain(str(client.cert), str(client.key))
+        conn = http.client.HTTPSConnection("127.0.0.1", port, context=ctx, timeout=5)
+        try:
+            conn.request("POST", "/v1/payments", body=b"{}")
+            r = conn.getresponse()
+            return r.status, r.read()
+        finally:
+            conn.close()
+
+    try:
+        deadline = time.monotonic() + 20
+        while True:
+            try:
+                status, body = post(with_cert=True)
+                break
+            except (ConnectionRefusedError, ssl.SSLError, OSError) as exc:
+                if proc.poll() is not None or time.monotonic() > deadline:
+                    raise AssertionError(
+                        proc.stdout.read().decode() if proc.stdout else ""
+                    ) from exc
+                time.sleep(0.2)
+        assert status == 403 and b"RECEIVER_PERMIT_MISSING" in body
+        with pytest.raises((ssl.SSLError, ConnectionError, OSError)):
+            post(with_cert=False)
+    finally:
+        proc.terminate()
+        out = proc.communicate(timeout=10)[0].decode()
+    assert "client TLS           required" in out
+    assert "presenter            required" in out

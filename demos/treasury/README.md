@@ -177,10 +177,10 @@ goes here once recorded:
   roles or two-of-three.
 - **No sanctions or watchlist screening, no beneficiary name matching.**
   The master says on or off; nothing else is checked.
-- **The gate does not authenticate the presenter.** A permit binds the
-  agent, the action and the bytes; the agent's sidecar enforces the
-  agent; the gate enforces bytes and single use. See `docs/ROADMAP.md`
-  for per-agent mTLS client certificates.
+- **This demo's gate does not authenticate the presenter.** It runs plain
+  HTTP on loopback. Presenter binding over mTLS is shipped (ADR 0022,
+  `PV_PRESENTER_BUNDLE`, `python -m network.receiver_kit.serve`) but not
+  wired into this demo.
 - **The 20 per hour velocity rule is present but not triggered** by this
   queue; the fact is shown on each row.
 - **Board approval above 10M is a hard block here.** What happens above

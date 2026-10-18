@@ -3,34 +3,21 @@
 Items here are known gaps, stated so a demo or a pilot does not claim them.
 Each names the control that exists today and what is missing.
 
-## Receiver gate: presenter identity (per-agent mTLS client certificates)
+## Receiver gate: presenter identity (shipped, ADR 0022)
 
-**Today.** A permit is bound to the requesting agent's subject principal
-and key id, the exact action, and the exact wire bytes. The agent's own
-sidecar verifies a permit against the action it is about to dispatch, so a
-permit minted for agent A cannot be used by agent B's sidecar for B's
-action (`EXECUTION_AUTHORIZATION_NON_CONFORMANT`). The receiver gate
-verifies the permit's signer against its pinned bundle, the organisation,
-the audience (the receiver), destination, operation, validity window, the
-exact bytes, and single use through its own ledger.
+Shipped: per-agent mTLS client certificates, the key pinned per agent in
+`PV_PRESENTER_BUNDLE`, bound into permits (spec 0.2) and checked by the gate
+before the ledger. Still open:
 
-**Gap.** The gate does not authenticate who presents a permit. A process
-that obtains agent A's permit and A's exact bytes can present them to the
-gate once if A has not already sent them; the gate admits them because
-they are exactly what A was authorised to send. The demo transport is
-plain HTTP on loopback with a fixed peer label; the production transport
-derives the receiver's identity from the TLS handshake but there is no
-client identity in the other direction.
-
-**Planned.** Per-agent mTLS client certificates, with the client
-certificate's identity bound into the permit (`expected_presenter_identity`
-alongside `expected_peer_identity_digest`) and checked by the gate before
-the ledger. Until then: keep permits and wire bytes inside the sidecar
-process, keep the gate's validity window short (one minute today), and
-treat the sidecar's conformance check as the per-agent control.
-
-Shown honestly in `demos/treasury/` (action #4): the sidecar refusal and
-the consumed refusal are demonstrated; a presenter check is not claimed.
+- The receiver kit's default container command serves plain HTTP; mTLS is
+  `python -m network.receiver_kit.serve` with the three `PV_RECEIVER_TLS_*`
+  variables, and the image has not been run with it in CI.
+- `PV_SECURE_PROFILE=1` does not yet require a presenter bundle.
+- No CRL/OCSP at the gate; a removed key's outstanding permits live until
+  expiry (one minute by default).
+- The sidecar does not refuse locally when a permit names a different
+  presenter; the gate does.
+- The treasury demo still uses plain HTTP on loopback.
 
 ## Policy replay: library only
 

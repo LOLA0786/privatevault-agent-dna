@@ -6,7 +6,7 @@ Nodes are directories; numbers are module counts. Solid arrow: imported at impor
 
 ```mermaid
 flowchart LR
-  n0["agent_dna (core modules)<br/>70 modules"]
+  n0["agent_dna (core modules)<br/>71 modules"]
   n1["agent_dna/adapters_framework<br/>2 modules"]
   n2["agent_dna/adapters_policy<br/>5 modules"]
   n3["agent_dna/audit_connector<br/>5 modules"]
@@ -19,7 +19,7 @@ flowchart LR
   n10["agent_dna/multi_agent<br/>16 modules"]
   n11["agent_dna/observability<br/>3 modules"]
   n12["agent_dna/policy<br/>4 modules"]
-  n13["agent_dna/receiver<br/>6 modules"]
+  n13["agent_dna/receiver<br/>7 modules"]
   n14["agent_dna/scan<br/>4 modules"]
   n15["agent_dna/security<br/>2 modules"]
   n16["agent_dna/store<br/>1 modules"]
@@ -44,16 +44,16 @@ flowchart LR
   n1 -->|2| n0
   n2 -->|3| n12
   n2 -->|1| n20
-  n4 -->|16| n0
+  n4 -->|17| n0
   n4 -->|5| n10
   n4 -->|1| n13
   n6 -->|1| n0
   n8 -->|6| n0
   n8 -->|4| n4
-  n13 -->|8| n0
+  n13 -->|10| n0
   n14 -->|8| n0
   n15 -->|2| n0
-  n18 -->|18| n0
+  n18 -->|19| n0
   n18 -->|1| n4
   n18 -->|3| n11
   n18 -->|1| n15
@@ -80,15 +80,15 @@ flowchart LR
 
 | Directory | Modules | Lines |
 |---|---:|---:|
-| `agent_dna (core modules)` | 70 |
+| `agent_dna (core modules)` | 71 |
 | `experimental` | 62 |
 | `tools` | 33 |
 | `examples` | 29 |
 | `agent_dna/multi_agent` | 16 |
 | `agent_dna/gateway` | 14 |
 | `agent_dna/connector` | 10 |
+| `agent_dna/receiver` | 7 |
 | `agent_dna/consensus` | 6 |
-| `agent_dna/receiver` | 6 |
 | `agent_dna/adapters_policy` | 5 |
 | `agent_dna/audit_connector` | 5 |
 | `agent_dna/validation` | 5 |

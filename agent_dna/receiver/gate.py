@@ -25,6 +25,12 @@ binds what actually arrived:
 7. operator-owned local checks (may only refuse, never admit);
 8. a durable, receiver-owned single-use claim.
 
+Presenter (ADR 0022): a spec 0.2 permit names the TLS client key that may
+present it. The gate then requires the request to have arrived over mTLS
+with that key, checked right after the signature and before anything else
+(a wrong presenter never reaches the ledger, so the permit is not burned).
+With ``require_presenter`` the gate refuses permits that name no presenter.
+
 Every evaluated request yields a signed, hash-chained receiver receipt, so
 refusals are evidence too. Any internal error refuses (fail closed).
 
@@ -52,7 +58,14 @@ from agent_dna.authority_v01 import (
     validate_trust_bundle,
     verify_document_signature,
 )
-from agent_dna.execution_v01 import validate_execution_authorization
+from agent_dna.execution_v01 import (
+    bound_presenter_digest,
+    validate_execution_authorization,
+)
+from agent_dna.presenter_identity import (
+    PresenterIdentityError,
+    presenter_identity_digest,
+)
 from agent_dna.receiver.ledger import ReceiverLedger
 from agent_dna.receiver.permit_header import PERMIT_HEADER_LOWER, decode_permit_header
 from agent_dna.receiver.receipts import (
@@ -90,6 +103,10 @@ RECEIVER_CONTENT_ENCODING_REFUSED = "RECEIVER_CONTENT_ENCODING_REFUSED"
 RECEIVER_WIRE_HEADER_MISMATCH = "RECEIVER_WIRE_HEADER_MISMATCH"
 RECEIVER_INTERNAL_ERROR = "RECEIVER_INTERNAL_ERROR"
 RECEIVER_LEDGER_UNAVAILABLE = "RECEIVER_LEDGER_UNAVAILABLE"
+# Presenter binding (ADR 0022)
+RECEIVER_PRESENTER_REQUIRED = "RECEIVER_PRESENTER_REQUIRED"
+RECEIVER_PRESENTER_MISSING = "RECEIVER_PRESENTER_MISSING"
+RECEIVER_PRESENTER_MISMATCH = "RECEIVER_PRESENTER_MISMATCH"
 
 _ENUMERATED_METHODS = frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"})
 _READ_ONLY_METHODS = frozenset({"GET", "HEAD"})
@@ -184,6 +201,9 @@ class ReceiverGate:
     # listed or suspended permits are refused, and a missing or expired
     # list refuses everything (fail closed).
     revocations: Any = None
+    # Refuse permits that do not bind a presenter (spec 0.1). A permit that
+    # does bind one is always checked, whatever this is set to.
+    require_presenter: bool = False
     _keys: dict[str, Mapping[str, Any]] = field(init=False, repr=False)
     _bundle_digest: str = field(init=False, repr=False)
     _unprotected: frozenset[tuple[str, str]] = field(init=False, repr=False)
@@ -244,8 +264,13 @@ class ReceiverGate:
         headers: Iterable[tuple[str, str]] | Mapping[str, str],
         body: bytes,
         received_at: datetime | None = None,
+        presenter_certificate: bytes | None = None,
     ) -> ReceiverDecision:
-        """Evaluate one received request. Never raises."""
+        """Evaluate one received request. Never raises.
+
+        ``presenter_certificate``: DER of the TLS client certificate the
+        request arrived with, as authenticated by the server's TLS layer;
+        None when there was no client certificate."""
 
         now = received_at or datetime.now(UTC)
         # HTTP methods are case-sensitive and are forwarded as received, so
@@ -260,7 +285,7 @@ class ReceiverGate:
 
         ea: Mapping[str, Any] | None = None
         try:
-            ea = self._verify(method, path, headers, body, now)
+            ea = self._verify(method, path, headers, body, now, presenter_certificate)
         except _RefusalError as refusal:
             return self._refuse(refusal, method, path, body, now, ea_hint=refusal.ea)
         except Exception as exc:  # fail closed on anything unexpected
@@ -299,6 +324,7 @@ class ReceiverGate:
         headers: Iterable[tuple[str, str]] | Mapping[str, str],
         body: bytes,
         now: datetime,
+        presenter_certificate: bytes | None = None,
     ) -> Mapping[str, Any]:
         """Ordered checklist; each step refuses with its own reason code."""
         if len(body) > self.max_body_bytes:
@@ -307,6 +333,7 @@ class ReceiverGate:
             )
         ea = self._permit_from_headers(headers)
         self._verify_trust(ea)
+        self._verify_presenter(ea, presenter_certificate)
         self._verify_destination(ea, method, path)
         self._verify_time(ea, now)
         self._verify_not_revoked(ea, now)
@@ -344,6 +371,35 @@ class ReceiverGate:
             return validate_execution_authorization(decoded)
         except (AuthorityFormatError, TypeError, ValueError) as exc:
             raise _RefusalError(RECEIVER_PERMIT_SCHEMA_INVALID, str(exc)) from exc
+
+    def _verify_presenter(
+        self, ea: Mapping[str, Any], certificate: bytes | None
+    ) -> None:
+        bound = bound_presenter_digest(ea)
+        if bound is None:
+            if self.require_presenter:
+                raise _RefusalError(
+                    RECEIVER_PRESENTER_REQUIRED,
+                    "this receiver requires permits that bind a presenter",
+                    ea=ea,
+                )
+            return
+        if not certificate:
+            raise _RefusalError(
+                RECEIVER_PRESENTER_MISSING,
+                "permit binds a presenter; request carried no TLS client certificate",
+                ea=ea,
+            )
+        try:
+            presented = presenter_identity_digest(certificate)
+        except PresenterIdentityError as exc:
+            raise _RefusalError(RECEIVER_PRESENTER_MISMATCH, str(exc), ea=ea) from exc
+        if presented != bound:
+            raise _RefusalError(
+                RECEIVER_PRESENTER_MISMATCH,
+                "TLS client key is not the presenter this permit names",
+                ea=ea,
+            )
 
     def _verify_trust(self, ea: Mapping[str, Any]) -> None:
         if ea["organisation_id"] != self.trust_bundle["organisation_id"]:

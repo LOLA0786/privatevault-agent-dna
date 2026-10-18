@@ -38,7 +38,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 1920+ automated tests, run in CI on every commit
+- 1940+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
@@ -692,8 +692,23 @@ the API's front door**, with signed evidence of the refusal. Tests:
 `test_replay_refused_by_receiver_ledger`,
 `test_concurrent_admit_exactly_once`.
 
+Presenter binding (ADR 0022): with `PV_PRESENTER_BUNDLE` set, every permit
+names the TLS client key that may present it (spec 0.2), chosen from keys
+the operator pinned for that agent, and the gate, served over mTLS,
+refuses that permit from any other key before touching its ledger (the
+permit is not burned). Over real TLS: another agent's valid certificate is
+refused, the bound agent is admitted once, and clients without a
+certificate from the operator's CA cannot connect
+(`tests/receiver/test_presenter_mtls.py`). Separation holds only for
+covered flows where enforcement is enabled and verified.
+
 What we still do NOT claim:
 
+- Presenter authentication where it is not configured: without
+  `PV_PRESENTER_BUNDLE` permits are spec 0.1 and name no presenter; the
+  receiver kit's default container command serves plain HTTP; the gate
+  checks no CRL/OCSP, so a key removed from the bundle keeps its
+  outstanding permits until they expire.
 - That any bank API is gated. Coverage, and making the gate the only
   network path to the upstream, are deployment properties. Operations
   not routed through a gate are exactly as unmediated as before.
