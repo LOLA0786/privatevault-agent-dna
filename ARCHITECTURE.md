@@ -12,6 +12,9 @@ a real definition, and the precedence table must equal the pinned contract.
 The module-level import graph is generated separately in
 `docs/architecture/MAP.md` and enforced by `tests/test_architecture.py`.
 
+The rest of the architecture (repository map, every flow, data, keys,
+deployment, module dependencies) is in `docs/architecture/README.md`.
+
 ## One decision, end to end
 
 ```mermaid
