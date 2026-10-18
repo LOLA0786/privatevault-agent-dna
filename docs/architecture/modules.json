@@ -270,6 +270,26 @@
    "top"
   ],
   [
+   "agent_dna.backup",
+   "agent_dna.authority_v01",
+   "lazy"
+  ],
+  [
+   "agent_dna.backup",
+   "agent_dna.key_custody",
+   "lazy"
+  ],
+  [
+   "agent_dna.backup",
+   "agent_dna.pg_store",
+   "lazy"
+  ],
+  [
+   "agent_dna.backup",
+   "agent_dna.sqlite_store",
+   "lazy"
+  ],
+  [
    "agent_dna.change_management",
    "agent_dna.authorization",
    "top"
@@ -3127,7 +3147,7 @@
   "agent_dna.audit_connector.client": 4,
   "agent_dna.audit_connector.oauth": 1,
   "agent_dna.audit_connector.server": 2,
-  "agent_dna.authority_v01": 43,
+  "agent_dna.authority_v01": 44,
   "agent_dna.authorization": 3,
   "agent_dna.authorize_binding": 7,
   "agent_dna.change_management": 1,
@@ -3189,7 +3209,7 @@
   "agent_dna.intent_adapter": 1,
   "agent_dna.invariant_engine": 2,
   "agent_dna.invariants": 2,
-  "agent_dna.key_custody": 11,
+  "agent_dna.key_custody": 12,
   "agent_dna.lineage": 1,
   "agent_dna.manifold": 7,
   "agent_dna.multi_agent": 4,
@@ -3214,7 +3234,7 @@
   "agent_dna.open_authorizer": 2,
   "agent_dna.pg_compat": 4,
   "agent_dna.pg_shared_state": 1,
-  "agent_dna.pg_store": 2,
+  "agent_dna.pg_store": 3,
   "agent_dna.policy.checker": 6,
   "agent_dna.policy.loader": 4,
   "agent_dna.policy.schema": 5,
@@ -3246,7 +3266,7 @@
   "agent_dna.signer_bridge": 1,
   "agent_dna.signer_python": 5,
   "agent_dna.similarity": 3,
-  "agent_dna.sqlite_store": 7,
+  "agent_dna.sqlite_store": 8,
   "agent_dna.store.grants": 1,
   "agent_dna.timeline": 1,
   "agent_dna.trace": 27,
@@ -3293,6 +3313,7 @@
   "agent_dna.authority_v01": 1,
   "agent_dna.authorization": 1,
   "agent_dna.authorize_binding": 5,
+  "agent_dna.backup": 4,
   "agent_dna.change_management": 1,
   "agent_dna.circuit_breaker": 4,
   "agent_dna.cli": 9,
@@ -3570,6 +3591,10 @@
   "agent_dna.authorize_binding": {
    "group": "agent_dna (core modules)",
    "path": "agent_dna/authorize_binding.py"
+  },
+  "agent_dna.backup": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/backup.py"
   },
   "agent_dna.change_management": {
    "group": "agent_dna (core modules)",

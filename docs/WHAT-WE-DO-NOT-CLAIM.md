@@ -38,7 +38,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 1960+ automated tests, run in CI on every commit
+- 1970+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
@@ -105,6 +105,16 @@ as well (`tests/test_pg_shared_state.py`): an initiate on one instance and
 a self-approval on another are caught, where per-process windows let them
 through, and when the two race, at least one of them is blocked (with
 per-execution serialisation removed, most racing pairs both pass).
+**Ledger backups prove their restores** (`agent_dna/backup.py`,
+`docs/operations/BACKUP.md`): a backup is a dump plus a (signable) manifest
+fingerprinting every table from the same snapshot; a restore goes only into
+an empty target and is reported verified only if every table matches and
+every decision chain verifies. CI backs up a PostgreSQL ledger while it is
+being written and restores it into a fresh database
+(`tests/test_backup.py`). **We do not claim** point-in-time recovery (that
+is the database platform's), scheduled or off-site backups (deployment), or
+protection against an operator holding both the database and the backup key.
+
 **Two API processes on one PostgreSQL are tested in CI**
 (`tests/multi_instance/test_two_processes.py`): concurrent spends across
 both never exceed a budget, one decision mints one permit, a self-approval

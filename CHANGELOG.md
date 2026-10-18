@@ -5,6 +5,19 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Ledger backups that prove their restores (production readiness, phase 1 step 6b)
+- `python -m agent_dna.backup backup|verify|restore`: PostgreSQL
+  (`pg_dump`/`pg_restore`) and SQLite (online backup API). The manifest
+  records the dump's SHA-256 and a per-table fingerprint taken from the
+  same exported snapshot as the dump, so backups under live writes are
+  exact; it can be signed with a local or KMS key. Restore refuses a
+  non-empty target and reports success only if every table matches and
+  every decision chain verifies.
+- CI installs the PostgreSQL 16 client tools and runs the restore drill,
+  including a backup taken while agents keep deciding.
+- Runbook: `docs/operations/BACKUP.md`. Tests: `tests/test_backup.py`
+  (the live-write test fails without the shared snapshot).
+
 ### Signing keys in AWS KMS or Google Cloud KMS (production readiness, phase 1: KMS)
 - `agent_dna/key_custody.py`: one Ed25519 signer interface with local, AWS
   KMS (`ECC_NIST_EDWARDS25519`, `ED25519_SHA_512`, RAW) and Cloud KMS

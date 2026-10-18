@@ -6,7 +6,7 @@ Nodes are directories; numbers are module counts. Solid arrow: imported at impor
 
 ```mermaid
 flowchart LR
-  n0["agent_dna (core modules)<br/>72 modules"]
+  n0["agent_dna (core modules)<br/>73 modules"]
   n1["agent_dna/adapters_framework<br/>2 modules"]
   n2["agent_dna/adapters_policy<br/>5 modules"]
   n3["agent_dna/audit_connector<br/>5 modules"]
@@ -80,7 +80,7 @@ flowchart LR
 
 | Directory | Modules | Lines |
 |---|---:|---:|
-| `agent_dna (core modules)` | 72 |
+| `agent_dna (core modules)` | 73 |
 | `experimental` | 62 |
 | `tools` | 34 |
 | `examples` | 29 |
@@ -107,7 +107,7 @@ flowchart LR
 
 | Module | Imported by | Imports |
 |---|---:|---:|
-| `agent_dna.authority_v01` | 43 | 1 |
+| `agent_dna.authority_v01` | 44 | 1 |
 | `agent_dna.trace` | 27 | 0 |
 | `agent_dna.decision` | 26 | 6 |
 | `agent_dna` | 21 | 21 |
@@ -115,13 +115,13 @@ flowchart LR
 | `agent_dna.multi_agent.interaction_graph` | 14 | 1 |
 | `agent_dna.multi_agent.base` | 13 | 1 |
 | `agent_dna.advisory` | 12 | 0 |
+| `agent_dna.key_custody` | 12 | 0 |
 | `agent_dna.adapters` | 11 | 1 |
 | `agent_dna.gateway.errors` | 11 | 0 |
-| `agent_dna.key_custody` | 11 | 0 |
 | `agent_dna.apikeys` | 10 | 1 |
 | `agent_dna.decision_recorder` | 8 | 5 |
 | `agent_dna.gateway.framing` | 8 | 4 |
-| `agent_dna.amount` | 7 | 0 |
+| `agent_dna.sqlite_store` | 8 | 5 |
 
 ## Import-time cycles
 
