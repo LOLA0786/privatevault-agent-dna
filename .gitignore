@@ -52,3 +52,9 @@ deploy/partners/campfire-blackbox/runtime/
 
 # Local gate evidence (not a committed proof format)
 .artifacts/
+
+# Rust build output
+rust/target/
+
+# Local treasury demo runs (the committed examples stay tracked)
+demos/treasury/runs/*.jsonl
