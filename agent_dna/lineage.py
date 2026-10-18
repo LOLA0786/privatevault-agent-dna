@@ -48,6 +48,7 @@ from .advisory import Severity
 from .decision import Decision, DecisionResult
 from .identity import fold_agent_id
 from .multi_agent.dual_control import is_approve_intent, is_initiate_intent
+from .pg_compat import PgCompatConnection
 
 LINEAGE_ENV = "PV_LINEAGE"
 LINEAGE_MODES = ("off", "shadow", "enforce")
@@ -193,10 +194,14 @@ class LineageContext:
 
 
 class LineageLedger:
-    """Durable lineage rows next to the decision store (same SQLite file)."""
+    """Durable lineage rows next to the decision store: the same SQLite
+    file, or the same PostgreSQL database via a PgCompatConnection."""
 
-    def __init__(self, path: str | Path, signer: Any = None) -> None:
-        self.path = Path(path)
+    def __init__(
+        self, path: str | Path | PgCompatConnection, signer: Any = None
+    ) -> None:
+        self._pg = path if isinstance(path, PgCompatConnection) else None
+        self.path = None if self._pg is not None else Path(str(path))
         self.signer = signer  # ReceiptSigner-compatible (sign_hash), or None
         self._local = threading.local()
         self._conn.executescript(_SCHEMA)
@@ -215,15 +220,21 @@ class LineageLedger:
         self._conn.commit()
 
     @property
-    def _conn(self) -> sqlite3.Connection:
+    def _conn(self) -> Any:  # sqlite3.Connection or PgCompatConnection
+        if self._pg is not None:
+            return self._pg
         conn = getattr(self._local, "conn", None)
         if conn is None:
+            assert self.path is not None
             conn = sqlite3.connect(self.path, timeout=30)
             conn.execute("PRAGMA journal_mode=WAL")
             self._local.conn = conn
         return conn
 
     def close(self) -> None:
+        if self._pg is not None:  # the pool belongs to the decision store
+            self._pg.rollback()
+            return
         conn = getattr(self._local, "conn", None)
         if conn is not None:
             conn.close()
@@ -366,17 +377,17 @@ class LineageLedger:
             return True
         conn = self._conn
         try:
-            conn.execute(
+            cur = conn.execute(
                 "INSERT INTO lineage_dual_control "
                 "(initiate_record_hash, approver_agent_norm, claimed_at) "
-                "VALUES (?, ?, ?)",
+                "VALUES (?, ?, ?) ON CONFLICT (initiate_record_hash) DO NOTHING",
                 (ctx.approves_record_hash, ctx.agent_norm, time.time()),
             )
             conn.commit()
-            return True
-        except sqlite3.IntegrityError:
+        except Exception:
             conn.rollback()
-            return False
+            raise
+        return bool(cur.rowcount == 1)
 
     def record(
         self,

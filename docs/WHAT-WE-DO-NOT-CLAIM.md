@@ -96,8 +96,16 @@ without it). Grant spend and grant revocation also live in PostgreSQL
 when it is configured (`tests/test_pg_grants.py`): 20 concurrent spends
 from two separate instances never exceed the budget (the row lock is
 proven necessary by that test), and a revocation suspends permits already
-minted. **We do not yet claim multi-instance deployment**: the lineage,
-circuit-breaker and replay ledgers are still per-instance SQLite files.
+minted. The lineage and circuit-breaker ledgers run the same code on
+PostgreSQL through a compatibility layer that keeps SQLite's one-writer-
+per-ledger rule with an advisory lock (`tests/test_pg_ledgers.py`): breaker
+results and log hashes match SQLite, a volume cap holds under 20
+concurrent reservations from two instances, and a lineage chain written
+from two instances never forks (both fail without the lock). **We do not
+yet claim multi-instance deployment**: per-agent drift monitors and the
+cross-agent (CABI) window are still per process, so behind a load balancer
+each instance would see only its own traffic, and nothing has been
+load-tested across instances.
 
 **We do not claim signature envelopes persist across restarts today.**
 Decision and execution records do — restart-safety here is

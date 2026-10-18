@@ -197,9 +197,11 @@ the decision ledger -- records, envelopes, permit and approval claims,
 mints, suspensions -- in PostgreSQL with the same guarantees, proven
 against a live server in CI (`tests/test_pg_store.py`). Grant spend and
 grant revocation move with it, so every instance shares one budget and
-one kill switch (`tests/test_pg_grants.py`). Lineage, breaker and replay
-ledgers stay on SQLite for now, so run one API instance per deployment
-until they move too.
+one kill switch (`tests/test_pg_grants.py`), and so do the lineage and
+circuit-breaker ledgers (`tests/test_pg_ledgers.py`); opt-in replay inputs
+can go to a separate PostgreSQL database via `PV_REPLAY_DB`. Drift monitors
+and the cross-agent window are still per process, so run one API instance
+per deployment until that is resolved and load-tested.
 
 ## MCP
 

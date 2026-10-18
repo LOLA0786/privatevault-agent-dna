@@ -5,6 +5,19 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### PostgreSQL lineage, circuit breaker and replay (production readiness, phase 1 step 3)
+- With `PV_DATABASE_URL` set, the lineage and circuit-breaker ledgers live
+  in the same PostgreSQL database as the decision ledger; no SQLite file is
+  created. They keep one copy of their logic: `agent_dna/pg_compat.py`
+  gives them a connection-shaped view of the pool and keeps SQLite's
+  "one writer per ledger" rule with a transaction advisory lock, released
+  even if a statement fails. Ledger SQL is now portable (`ON CONFLICT`
+  upserts, `RETURNING`). `PV_REPLAY_DB` accepts a `postgresql://` URL for
+  opt-in replay inputs (kept in a separate database). The breaker now opens
+  after the decision store.
+  (`tests/test_pg_ledgers.py`, 10 tests; the cap and chain tests fail
+  without the lock)
+
 ### PostgreSQL grant spend and revocation (production readiness, phase 1 step 2)
 - With `PV_DATABASE_URL` set, grant budgets and grant revocations live in
   the same PostgreSQL database as the decision ledger, so every API

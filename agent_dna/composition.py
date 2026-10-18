@@ -63,6 +63,7 @@ from .grant_spend import GrantSpendLedger
 from .grants import GrantRegistry
 from .manifold import CapabilityManifold
 from .open_authorizer import OpenAuthorizer
+from .pg_compat import PgCompatConnection, is_database_url
 from .runtime import RuntimeMonitor
 from .scorer import DriftScorer
 from .signer_python import (
@@ -211,7 +212,7 @@ class ProductionRuntime:
     loop_events_required: bool = False
     execution_trust_bundle: dict[str, Any] | None = None
     egress_sidecar: ExactByteHttpDispatcher | None = None
-    local_db_path: str | None = None  # ledgers still on SQLite (lineage)
+    lineage_db: Any = None  # PgCompatConnection on PostgreSQL; else store.path
 
     def monitor(self) -> RuntimeMonitor:
         """A per-agent monitor bound to this runtime's recorder --
@@ -721,8 +722,23 @@ def build_production_runtime(
         authorizer=authorizer,
     )
 
+    # ---- persistence + signing ----
+    signer = ReceiptSigner() if os.getenv(KEY_ENV) else None
+    if signer is not None and signer.public_key not in cfg.trusted_public_keys:
+        raise RuntimeError(
+            f"{TRUSTED_KEYS_ENV} must include the active signing public key; "
+            "refusing self-attested signing mode"
+        )
+
+    store = _open_decision_store(cfg)
+    pool = getattr(store, "pool", None)  # PostgreSQL: one database, all ledgers
+
     # ---- breaker: always attached; unconfigured thresholds are inert ----
-    breaker_db = cfg.breaker_db or f"{cfg.db_path}.breaker.db"
+    breaker_db: str | PgCompatConnection = (
+        PgCompatConnection(pool, "breaker")
+        if pool is not None
+        else cfg.breaker_db or f"{cfg.db_path}.breaker.db"
+    )
     groups, group_caps = _breaker_groups_from(cfg.breaker_groups_file)
     breaker = CircuitBreaker(
         breaker_db,
@@ -754,16 +770,6 @@ def build_production_runtime(
     }
     engine = GuardedEngine(engine_core, breaker)
 
-    # ---- persistence + signing ----
-    signer = ReceiptSigner() if os.getenv(KEY_ENV) else None
-    if signer is not None and signer.public_key not in cfg.trusted_public_keys:
-        breaker.close()
-        raise RuntimeError(
-            f"{TRUSTED_KEYS_ENV} must include the active signing public key; "
-            "refusing self-attested signing mode"
-        )
-
-    store = _open_decision_store(cfg)
     _attach_durable_spend(authorizer, cfg, comp, store)
 
     # ---- approvals (ADR 0020): operator-pinned approver trust bundle ----
@@ -788,8 +794,8 @@ def build_production_runtime(
     comp["persistence"] = {
         "status": "attached",
         "detail": (
-            f"PostgreSQL decision ledger ({_redact_dsn(cfg.database_url)}); "
-            f"other ledgers SQLite {cfg.db_path}"
+            f"PostgreSQL ({_redact_dsn(cfg.database_url)}): decision, grant, "
+            "lineage and circuit-breaker ledgers"
             if cfg.database_url
             else f"SQLite {cfg.db_path}"
         )
@@ -799,6 +805,7 @@ def build_production_runtime(
     apikeys = ApiKeyRegistry(cfg.keys_file)
     if secure and not apikeys.enabled:
         breaker.close()
+        store.close()
         raise RuntimeError(
             "PV_SECURE_PROFILE=1 requires at least one API key in "
             "PV_API_KEYS_FILE (registry empty or unreadable)"
@@ -816,8 +823,9 @@ def build_production_runtime(
     if cfg.replay_fields:
         from .policy_replay import ReplayInputStore
 
+        replay_path = cfg.replay_db or f"{cfg.db_path}.replay.db"
         replay_store = ReplayInputStore(
-            path=cfg.replay_db or f"{cfg.db_path}.replay.db",
+            path=replay_path,
             retain_fields=cfg.replay_fields,
         )
         recorder.replay_capture = replay_store.capture
@@ -827,6 +835,12 @@ def build_production_runtime(
                 f"OPT-IN retrospective replay; retaining fields "
                 f"{sorted(cfg.replay_fields)} in a SEPARATE store "
                 f"(privacy boundary: docs/POLICY-REPLAY.md)"
+                + (
+                    "; per-instance SQLite (set PV_REPLAY_DB to a "
+                    "postgresql:// URL to share it)"
+                    if cfg.database_url and not is_database_url(replay_path)
+                    else ""
+                )
             ),
         }
     else:
@@ -892,7 +906,7 @@ def build_production_runtime(
         engine=engine,
         recorder=recorder,
         store=store,
-        local_db_path=cfg.db_path,
+        lineage_db=PgCompatConnection(pool, "lineage") if pool is not None else None,
         signer=signer,
         apikeys=apikeys,
         breaker=breaker,
