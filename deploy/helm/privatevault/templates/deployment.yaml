@@ -1,0 +1,206 @@
+{{- include "privatevault.validate" . -}}
+{{- $secretDir := "/etc/privatevault/secrets" -}}
+{{- $configDir := "/etc/privatevault/config" -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "privatevault.fullname" . }}
+  labels:
+    {{- include "privatevault.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  revisionHistoryLimit: 5
+  strategy:
+    {{- if .Values.postgres.enabled }}
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+    {{- else }}
+    # One pod owns the SQLite volume: never run two at once.
+    type: Recreate
+    {{- end }}
+  selector:
+    matchLabels:
+      {{- include "privatevault.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "privatevault.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "privatevault.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      {{- if .Values.topologySpread.enabled }}
+      topologySpreadConstraints:
+        - maxSkew: {{ .Values.topologySpread.maxSkew }}
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              {{- include "privatevault.selectorLabels" . | nindent 14 }}
+        - maxSkew: {{ .Values.topologySpread.maxSkew }}
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              {{- include "privatevault.selectorLabels" . | nindent 14 }}
+      {{- end }}
+      containers:
+        - name: api
+          image: {{ include "privatevault.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          env:
+            - name: PV_SECURE_PROFILE
+              value: {{ ternary "1" "0" .Values.secureProfile | quote }}
+            - name: PV_LINEAGE
+              value: {{ .Values.lineage | quote }}
+            - name: PV_UNGRANTED_DECISION
+              value: {{ .Values.ungrantedDecision | quote }}
+            - name: PV_DB_PATH
+              value: /data/privatevault.db
+            - name: PV_API_KEYS_FILE
+              value: {{ printf "%s/%s" $secretDir .Values.secrets.apiKeysKey | quote }}
+            - name: PV_GRANTS_FILE
+              value: {{ printf "%s/%s" $configDir .Values.config.grantsKey | quote }}
+            - name: PV_TRUST_BUNDLE
+              value: {{ printf "%s/%s" $configDir .Values.config.trustBundleKey | quote }}
+            - name: PV_EXECUTION_TRUST_BUNDLE_FILE
+              value: {{ printf "%s/%s" $configDir .Values.config.trustBundleKey | quote }}
+            - name: PV_EXECUTION_SIGNER_KEY
+              value: {{ default (printf "%s/%s" $secretDir .Values.secrets.executionSignerKey) .Values.signing.executionSignerKmsRef | quote }}
+            - name: PV_DISPATCH_WITNESS_KEY
+              value: {{ default (printf "%s/%s" $secretDir .Values.secrets.witnessKey) .Values.signing.witnessKmsRef | quote }}
+            {{- if .Values.signing.receiptSignerKmsRef }}
+            - name: PV_RECEIPT_SIGNING_KEY
+              value: {{ .Values.signing.receiptSignerKmsRef | quote }}
+            {{- else }}
+            - name: PV_RECEIPT_SIGNING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.name }}
+                  key: {{ .Values.secrets.receiptSeedKey }}
+            {{- end }}
+            - name: PV_TRUSTED_PUBLIC_KEYS
+              value: {{ .Values.signing.trustedPublicKeys | quote }}
+            {{- if .Values.postgres.enabled }}
+            - name: PV_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.name }}
+                  key: {{ .Values.secrets.databaseUrlKey }}
+            - name: PV_DATABASE_POOL_SIZE
+              value: {{ .Values.postgres.poolSize | quote }}
+            - name: PV_DATABASE_TIMEOUT
+              value: {{ .Values.postgres.timeoutSeconds | quote }}
+            {{- end }}
+            {{- if .Values.config.presenterBundleKey }}
+            - name: PV_PRESENTER_BUNDLE
+              value: {{ printf "%s/%s" $configDir .Values.config.presenterBundleKey | quote }}
+            {{- end }}
+            {{- if .Values.config.policyKey }}
+            - name: PV_POLICY_FILE
+              value: {{ printf "%s/%s" $configDir .Values.config.policyKey | quote }}
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 3
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: secrets
+              mountPath: {{ $secretDir }}
+              readOnly: true
+            - name: config
+              mountPath: {{ $configDir }}
+              readOnly: true
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: secrets
+          secret:
+            secretName: {{ .Values.secrets.name }}
+            defaultMode: 0440
+            items:
+              - key: {{ .Values.secrets.apiKeysKey }}
+                path: {{ .Values.secrets.apiKeysKey }}
+              {{- if not .Values.signing.executionSignerKmsRef }}
+              - key: {{ .Values.secrets.executionSignerKey }}
+                path: {{ .Values.secrets.executionSignerKey }}
+              {{- end }}
+              {{- if not .Values.signing.witnessKmsRef }}
+              - key: {{ .Values.secrets.witnessKey }}
+                path: {{ .Values.secrets.witnessKey }}
+              {{- end }}
+        - name: config
+          configMap:
+            name: {{ .Values.config.name }}
+        - name: data
+          {{- if and .Values.persistence.enabled (not .Values.postgres.enabled) }}
+          persistentVolumeClaim:
+            claimName: {{ include "privatevault.fullname" . }}-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: tmp
+          emptyDir:
+            sizeLimit: 256Mi
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

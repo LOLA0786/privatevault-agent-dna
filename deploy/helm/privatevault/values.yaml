@@ -1,0 +1,114 @@
+# PrivateVault API. Secrets and configuration are created by the operator
+# (for example from `python tools/init_secure_profile.py`); this chart only
+# references them. See README.md in this directory.
+
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 2
+
+image:
+  repository: ghcr.io/lola0786/privatevault-agent-dna
+  # Defaults to the chart's appVersion.
+  tag: ""
+  # Pin an exact image: sha256:<64 hex>. Takes precedence over tag.
+  digest: ""
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+# PV_SECURE_PROFILE=1: the API refuses to start without API keys, grants,
+# signed decisions, trusted keys and the execution trust bundle. The chart
+# checks the same things when it renders.
+secureProfile: true
+lineage: enforce          # off | shadow | enforce
+ungrantedDecision: block  # what an ungranted capability gets
+
+# Shared state for every replica. Required when replicaCount > 1 or
+# autoscaling is enabled: SQLite cannot be shared between pods.
+postgres:
+  enabled: true
+  poolSize: 10
+  timeoutSeconds: 5
+
+# Single-replica SQLite only (postgres.enabled=false). Without it the ledger
+# would live in the pod and be lost on restart, so the chart refuses.
+persistence:
+  enabled: false
+  size: 5Gi
+  storageClass: ""
+
+# An existing Secret. Only the keys this configuration uses are mounted.
+secrets:
+  name: ""
+  apiKeysKey: keys.json
+  databaseUrlKey: database-url
+  executionSignerKey: execution-signer.key
+  witnessKey: dispatch-witness.key
+  receiptSeedKey: receipt-signing-key
+
+# An existing ConfigMap with non-secret configuration.
+config:
+  name: ""
+  grantsKey: grants.json
+  trustBundleKey: trust-bundle.json
+  # Optional: set to the key holding a presenter bundle (ADR 0022).
+  presenterBundleKey: ""
+  # Optional: set to the key holding a policy file.
+  policyKey: ""
+
+# Signing keys in a KMS (ADR 0023). A reference here replaces the matching
+# seed in the Secret. Give the ServiceAccount KMS sign permission (IRSA /
+# Workload Identity annotations below).
+signing:
+  executionSignerKmsRef: ""   # awskms:arn:... or gcpkms:projects/...
+  witnessKmsRef: ""
+  receiptSignerKmsRef: ""
+  # Hex Ed25519 public keys of the decision receipt signer, comma separated.
+  trustedPublicKeys: ""
+
+extraEnv: []
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+  # eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT:role/privatevault
+  # iam.gke.io/gcp-service-account: privatevault@PROJECT.iam.gserviceaccount.com
+
+podAnnotations: {}
+podLabels: {}
+
+service:
+  type: ClusterIP
+  port: 8000
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 256Mi
+  limits:
+    memory: 512Mi
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+
+# Ingress to the API only from these peers (NetworkPolicy "from" entries).
+# Empty: pods in the release's namespace only.
+networkPolicy:
+  enabled: true
+  ingressFrom: []
+
+topologySpread:
+  enabled: true
+  maxSkew: 1
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

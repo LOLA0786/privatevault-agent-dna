@@ -105,6 +105,15 @@ as well (`tests/test_pg_shared_state.py`): an initiate on one instance and
 a self-approval on another are caught, where per-process windows let them
 through, and when the two race, at least one of them is blocked (with
 per-execution serialisation removed, most racing pairs both pass).
+**A Helm chart is shipped and installed in CI** (`deploy/helm/privatevault`):
+two replicas on PostgreSQL with the secure profile, non-root, read-only
+root filesystem, no capabilities, disruption budget, NetworkPolicy; unsafe
+configurations (several replicas on SQLite, SQLite without a volume, the
+secure profile without trust roots) are refused at render time. CI installs
+it on kind and runs `helm test` and `tools/verify_deployment.py` against the
+running pods. **We do not claim** it has run on a managed Kubernetes
+service, behind a production ingress or with KMS keys from inside a cluster.
+
 **Ledger backups prove their restores** (`agent_dna/backup.py`,
 `docs/operations/BACKUP.md`): a backup is a dump plus a (signable) manifest
 fingerprinting every table from the same snapshot; a restore goes only into

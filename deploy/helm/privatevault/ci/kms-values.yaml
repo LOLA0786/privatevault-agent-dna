@@ -1,0 +1,23 @@
+# CI: keys in AWS KMS through IRSA, presenter binding, pinned image digest
+image:
+  digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+secrets:
+  name: pv-secrets
+config:
+  name: pv-config
+  presenterBundleKey: presenters.json
+signing:
+  executionSignerKmsRef: "awskms:arn:aws:kms:eu-west-1:111122223333:key/11111111-2222-3333-4444-555555555555"
+  witnessKmsRef: "awskms:arn:aws:kms:eu-west-1:111122223333:key/66666666-7777-8888-9999-000000000000"
+  receiptSignerKmsRef: "awskms:arn:aws:kms:eu-west-1:111122223333:key/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+  trustedPublicKeys: "0000000000000000000000000000000000000000000000000000000000000000"
+serviceAccount:
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::111122223333:role/privatevault
+autoscaling:
+  enabled: true
+networkPolicy:
+  ingressFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: agents

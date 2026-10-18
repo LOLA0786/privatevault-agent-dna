@@ -12,7 +12,17 @@ RUN groupadd --system --gid 10001 privatevault \
     && install -d -o privatevault -g privatevault /data
 
 COPY --chown=privatevault:privatevault requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+# PV_DATABASE_URL (several replicas, the Helm chart's default) needs the
+# PostgreSQL driver: the `postgres` extra in pyproject.toml.
+ARG PV_DB_PACKAGES="psycopg[binary]>=3.2 psycopg-pool>=3.2"
+# Signing keys in a KMS (ADR 0023) need the cloud SDK in the image. AWS by
+# default; for Google Cloud KMS build with
+#   --build-arg PV_KMS_PACKAGES="boto3>=1.40 google-cloud-kms>=3"
+# and with PV_KMS_PACKAGES="" for an image without KMS support.
+ARG PV_KMS_PACKAGES="boto3>=1.40"
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir $PV_DB_PACKAGES \
+    && if [ -n "$PV_KMS_PACKAGES" ]; then pip install --no-cache-dir $PV_KMS_PACKAGES; fi
 
 COPY --chown=privatevault:privatevault agent_dna/ agent_dna/
 COPY --chown=privatevault:privatevault api/ api/

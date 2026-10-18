@@ -35,6 +35,9 @@ from typing import Any
 
 Transport = Callable[[str, str, dict[str, Any] | None], tuple[int, Any]]
 
+# Durable stores the runtime reports for grant spend and revocation.
+_DURABLE = frozenset({"durable (sqlite)", "durable (postgresql)"})
+
 INITIATE = "pv.selftest.initiate"
 APPROVE = "pv.selftest.approve"
 LINEAGE = "lineage_invariant"
@@ -101,12 +104,12 @@ def run_checks(call: Transport, agent: str, probe: bool) -> list[tuple[str, bool
     check("grants from file", auth.get("mode") == "grants_file", str(auth.get("mode")))
     check(
         "durable grant spend",
-        auth.get("spend") == "durable (sqlite)",
+        auth.get("spend") in _DURABLE,
         str(auth.get("spend")),
     )
     check(
         "durable grant revocation",
-        auth.get("revocation") == "durable (sqlite)",
+        auth.get("revocation") in _DURABLE,
         str(auth.get("revocation")),
     )
 

@@ -1,0 +1,7 @@
+.DS_Store
+*.swp
+*.bak
+*.tmp
+.git/
+ci/
+README.md.orig

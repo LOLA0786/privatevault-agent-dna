@@ -5,6 +5,25 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Helm chart (production readiness, phase 1 step 6a)
+- `deploy/helm/privatevault`: the API as two replicas on PostgreSQL with
+  the secure profile; non-root, read-only root filesystem, all
+  capabilities dropped, RuntimeDefault seccomp, probes on `/health` and
+  `/ready`, PodDisruptionBudget, optional HPA, NetworkPolicy, topology
+  spread, IRSA/Workload Identity annotations for KMS, `helm test`.
+  Secrets and keys are referenced, never generated. Unsafe configurations
+  are refused at render time (`ci/check-refusals.sh`).
+- CI job `helm`: `helm lint --strict` and render for every CI values file,
+  kubeconform strict validation, the refusal checks, and an install on kind
+  verified with `helm test` and `tools/verify_deployment.py`.
+- The image now includes the PostgreSQL driver (`PV_DB_PACKAGES`) and the
+  AWS KMS client (`PV_KMS_PACKAGES`). Without the driver every pod on
+  PostgreSQL failed at start-up, which the kind install found
+  (`tests/test_image_dependencies.py`, CI `docker` job).
+- Fixed: `tools/verify_deployment.py` failed every PostgreSQL deployment
+  (it accepted only `durable (sqlite)`). Found by running the API with the
+  chart's environment. (`test_a_postgresql_deployment_passes`)
+
 ### Ledger backups that prove their restores (production readiness, phase 1 step 6b)
 - `python -m agent_dna.backup backup|verify|restore`: PostgreSQL
   (`pg_dump`/`pg_restore`) and SQLite (online backup API). The manifest

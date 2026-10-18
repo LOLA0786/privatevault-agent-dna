@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "privatevault.fullname" . }}-test-ready
+  labels:
+    {{- include "privatevault.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+    # Not hook-succeeded: helm test --logs reads the pod after it succeeds,
+    # and fails if the pod is already gone. The next run replaces it.
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  restartPolicy: Never
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: ready
+      image: {{ include "privatevault.image" . | quote }}
+      command:
+        - python
+        - -c
+        - |
+          import json, urllib.request
+          url = "http://{{ include "privatevault.fullname" . }}:{{ .Values.service.port }}/ready"
+          body = json.load(urllib.request.urlopen(url, timeout=10))
+          assert body["status"] == "ready", body
+          assert body["auth_enabled"] and body["signing_enabled"], body
+          print("ready:", body)
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: [ALL]

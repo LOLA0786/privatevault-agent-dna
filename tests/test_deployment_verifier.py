@@ -116,3 +116,15 @@ def test_default_without_secure_profile_is_unchanged(monkeypatch):
     monkeypatch.delenv("PV_SECURE_PROFILE", raising=False)
     monkeypatch.delenv("PV_LINEAGE", raising=False)
     assert lineage_mode() == "off"
+
+
+@pytest.mark.skipif(
+    not __import__("os").environ.get("TEST_DATABASE_URL"),
+    reason="set TEST_DATABASE_URL to run the PostgreSQL tests",
+)
+def test_a_postgresql_deployment_passes(deploy, monkeypatch, request):
+    """Found by installing the Helm chart: the verifier only accepted the
+    SQLite wording, so every PostgreSQL deployment failed its own check."""
+    monkeypatch.setenv("PV_DATABASE_URL", request.getfixturevalue("dsn"))
+    checks = deploy("enforce")
+    assert all(checks.values()), checks

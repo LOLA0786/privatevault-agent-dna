@@ -1,0 +1,13 @@
+# CI: single replica on SQLite with a persistent volume
+replicaCount: 1
+postgres:
+  enabled: false
+persistence:
+  enabled: true
+  size: 1Gi
+secrets:
+  name: pv-secrets
+config:
+  name: pv-config
+signing:
+  trustedPublicKeys: "0000000000000000000000000000000000000000000000000000000000000000"

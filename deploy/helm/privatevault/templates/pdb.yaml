@@ -1,0 +1,13 @@
+{{- if and .Values.podDisruptionBudget.enabled .Values.postgres.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "privatevault.fullname" . }}
+  labels:
+    {{- include "privatevault.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "privatevault.selectorLabels" . | nindent 6 }}
+{{- end }}

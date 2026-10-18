@@ -1,0 +1,16 @@
+# CI: two replicas on PostgreSQL with secrets from tools/init_secure_profile.py
+replicaCount: 2
+image:
+  repository: privatevault-agent-dna
+  tag: ci
+  pullPolicy: Never
+secrets:
+  name: pv-secrets
+config:
+  name: pv-config
+signing:
+  trustedPublicKeys: "0000000000000000000000000000000000000000000000000000000000000000"
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
