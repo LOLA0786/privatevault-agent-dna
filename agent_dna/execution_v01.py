@@ -12,6 +12,8 @@ from nacl.exceptions import BadSignatureError
 if TYPE_CHECKING:
     from nacl.signing import SigningKey
 
+    from agent_dna.key_custody import Ed25519Signer
+
 from agent_dna.action_v01 import (
     execution_action_digest,
     validate_execution_action,
@@ -342,7 +344,7 @@ def validate_execution_authorization(  # noqa: C901
 
 def sign_execution_authorization(
     authorization: Mapping[str, Any],
-    signing_key: SigningKey,
+    signing_key: SigningKey | Ed25519Signer,
 ) -> dict[str, Any]:
     """Sign every execution-authorization field."""
 

@@ -32,6 +32,7 @@ from agent_dna.authority_v01 import (
     sign_document,
     verify_document_signature,
 )
+from agent_dna.key_custody import Ed25519Signer
 
 RECEIVER_RECEIPT_SPEC = "pv-receiver-receipt/0.1-experimental"
 GENESIS_DIGEST = "sha256:" + "0" * 64
@@ -127,7 +128,7 @@ def validate_receiver_receipt(receipt: Any) -> Mapping[str, Any]:
 
 
 def sign_receiver_receipt(
-    unsigned: Mapping[str, Any], signing_key: SigningKey
+    unsigned: Mapping[str, Any], signing_key: SigningKey | Ed25519Signer
 ) -> dict[str, Any]:
     signed = sign_document(unsigned, signing_key, signature_field="signature")
     validate_receiver_receipt(signed)

@@ -36,6 +36,7 @@ from agent_dna.authority_v01 import (
     sha256_digest,
     validate_trust_bundle,
 )
+from agent_dna.key_custody import Ed25519Signer, SignerError, is_kms_ref, kms_signer
 from agent_dna.receiver.asgi import ReceiverGateProxy
 from agent_dna.receiver.gate import ReceiverGate
 from agent_dna.receiver.ledger import ReceiverLedger
@@ -188,6 +189,23 @@ def load_trust_bundle_file(
     return bundle
 
 
+def _key_ref(value: str) -> Path | str:
+    return value if is_kms_ref(value) else Path(value)
+
+
+def load_receipt_signer(
+    ref: Path | str, name: str = "PV_RECEIPT_KEY_FILE"
+) -> SigningKey | Ed25519Signer:
+    """The receiver's receipt key: a local seed file, or a KMS key that the
+    receiver operator controls (agent_dna.key_custody)."""
+    if isinstance(ref, str) and is_kms_ref(ref):
+        try:
+            return kms_signer(ref)
+        except SignerError as exc:
+            raise ConfigError(f"{name}: {exc}") from exc
+    return load_signing_key(Path(ref), name)
+
+
 def load_signing_key(path: Path, name: str = "PV_RECEIPT_KEY_FILE") -> SigningKey:
     """Read a base64 Ed25519 seed from a file that only its owner can read."""
     try:
@@ -223,7 +241,7 @@ class GateSettings:
     destinations: tuple[str, ...]
     organisation_id: str
     issuer_keys: tuple[tuple[str, str], ...]
-    receipt_key_file: Path
+    receipt_key_file: Path | str  # a seed file, or an awskms:/gcpkms: reference
     receipt_key_id: str
     upstream: str
     ledger_path: Path
@@ -339,7 +357,7 @@ def settings_from_env(env: Mapping[str, str] | None = None) -> GateSettings:
         organisation_id=organisation_id,
         issuer_keys=issuer_keys,
         trust_bundle_file=Path(bundle_file) if bundle_file else None,
-        receipt_key_file=Path(_require(source, "PV_RECEIPT_KEY_FILE")),
+        receipt_key_file=_key_ref(_require(source, "PV_RECEIPT_KEY_FILE")),
         receipt_key_id=_require(source, "PV_RECEIPT_KEY_ID"),
         upstream=_require(source, "PV_UPSTREAM"),
         ledger_path=Path(_require(source, "PV_LEDGER_PATH")),
@@ -368,7 +386,7 @@ def build_gate(settings: GateSettings) -> ReceiverGate:
     """Build the gate. ``ReceiverGate`` itself refuses a receipt key that is
     also an issuer key, an unprotected write route, or a bundle without a
     signer key; those errors propagate unchanged."""
-    signing_key = load_signing_key(settings.receipt_key_file)
+    signing_key = load_receipt_signer(settings.receipt_key_file)
     ledger = ReceiverLedger(settings.ledger_path)
     return ReceiverGate(
         receiver_id=settings.receiver_id,

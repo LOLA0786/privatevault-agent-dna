@@ -72,6 +72,7 @@ from agent_dna.execution_v01 import (
     sha256_bytes_digest,
     verify_execution_authorization,
 )
+from agent_dna.key_custody import Ed25519Signer
 from agent_dna.receiver.permit_header import PERMIT_HEADER, encode_permit_header
 
 DISPATCH_WITNESS_CREATE_FAILED = "DISPATCH_WITNESS_CREATE_FAILED"
@@ -139,13 +140,13 @@ class ExactByteContext:
 class WitnessSigner:
     """Sidecar-owned witness/closure key material (not the EA signer)."""
 
-    signing_key: SigningKey
+    signing_key: SigningKey | Ed25519Signer
     signer_key_id: str
     witness_component_id: str
     wire_content_type: str = "application/json"
     wire_content_encoding: str = "identity"
     closure_signer_key_id: str = ""
-    closure_signing_key: SigningKey | None = None
+    closure_signing_key: SigningKey | Ed25519Signer | None = None
 
 
 @dataclass

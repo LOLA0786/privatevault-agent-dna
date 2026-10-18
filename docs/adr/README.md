@@ -50,3 +50,5 @@ no longer lets one agent approve its own initiate.
 0022 binds a permit to the TLS client key that may present it and has the
 receiver gate check that key over mTLS, so a stolen permit and its bytes are
 refused from any other process.
+0023 lets every signing key live in AWS KMS or Google Cloud KMS, with
+signatures identical to local signing and each one verified before use.

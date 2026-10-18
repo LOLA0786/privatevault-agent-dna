@@ -235,6 +235,11 @@
    "top"
   ],
   [
+   "agent_dna.authority_v01",
+   "agent_dna.key_custody",
+   "top"
+  ],
+  [
    "agent_dna.authorization",
    "agent_dna.store.grants",
    "top"
@@ -350,6 +355,11 @@
    "top"
   ],
   [
+   "agent_dna.closure_v01",
+   "agent_dna.key_custody",
+   "top"
+  ],
+  [
    "agent_dna.composition",
    "agent_dna.adapters",
    "top"
@@ -443,6 +453,11 @@
    "agent_dna.composition",
    "agent_dna.grants",
    "top"
+  ],
+  [
+   "agent_dna.composition",
+   "agent_dna.key_custody",
+   "lazy"
   ],
   [
    "agent_dna.composition",
@@ -572,6 +587,11 @@
   [
    "agent_dna.connector.adapters.exact_byte_http",
    "agent_dna.execution_v01",
+   "top"
+  ],
+  [
+   "agent_dna.connector.adapters.exact_byte_http",
+   "agent_dna.key_custody",
    "top"
   ],
   [
@@ -891,6 +911,11 @@
   ],
   [
    "agent_dna.dispatch_v01",
+   "agent_dna.key_custody",
+   "top"
+  ],
+  [
+   "agent_dna.dispatch_v01",
    "agent_dna.wire_serialization_v01",
    "top"
   ],
@@ -927,6 +952,11 @@
   [
    "agent_dna.execution_v01",
    "agent_dna.authorize_binding",
+   "top"
+  ],
+  [
+   "agent_dna.execution_v01",
+   "agent_dna.key_custody",
    "top"
   ],
   [
@@ -1731,6 +1761,11 @@
   ],
   [
    "agent_dna.receiver.gate",
+   "agent_dna.key_custody",
+   "top"
+  ],
+  [
+   "agent_dna.receiver.gate",
    "agent_dna.presenter_identity",
    "top"
   ],
@@ -1777,6 +1812,11 @@
   [
    "agent_dna.receiver.receipts",
    "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "agent_dna.receiver.receipts",
+   "agent_dna.key_custody",
    "top"
   ],
   [
@@ -1950,6 +1990,11 @@
    "top"
   ],
   [
+   "agent_dna.signer_python",
+   "agent_dna.key_custody",
+   "top"
+  ],
+  [
    "agent_dna.similarity",
    "agent_dna.fingerprint",
    "top"
@@ -2102,6 +2147,11 @@
   [
    "api.server",
    "agent_dna.execution_v01",
+   "top"
+  ],
+  [
+   "api.server",
+   "agent_dna.key_custody",
    "top"
   ],
   [
@@ -2945,6 +2995,11 @@
    "top"
   ],
   [
+   "tools.kms_smoke",
+   "agent_dna.key_custody",
+   "top"
+  ],
+  [
    "tools.make_evidence_bundle",
    "agent_dna.composition",
    "top"
@@ -3134,6 +3189,7 @@
   "agent_dna.intent_adapter": 1,
   "agent_dna.invariant_engine": 2,
   "agent_dna.invariants": 2,
+  "agent_dna.key_custody": 11,
   "agent_dna.lineage": 1,
   "agent_dna.manifold": 7,
   "agent_dna.multi_agent": 4,
@@ -3234,17 +3290,18 @@
   "agent_dna.audit_connector.__main__": 2,
   "agent_dna.audit_connector.oauth": 1,
   "agent_dna.audit_connector.server": 2,
+  "agent_dna.authority_v01": 1,
   "agent_dna.authorization": 1,
   "agent_dna.authorize_binding": 5,
   "agent_dna.change_management": 1,
   "agent_dna.circuit_breaker": 4,
   "agent_dna.cli": 9,
-  "agent_dna.closure_v01": 3,
-  "agent_dna.composition": 33,
+  "agent_dna.closure_v01": 4,
+  "agent_dna.composition": 34,
   "agent_dna.confidence": 1,
   "agent_dna.connector": 2,
   "agent_dna.connector.adapters": 2,
-  "agent_dna.connector.adapters.exact_byte_http": 8,
+  "agent_dna.connector.adapters.exact_byte_http": 9,
   "agent_dna.connector.adapters.execution_trust": 1,
   "agent_dna.connector.adapters.mcp": 1,
   "agent_dna.connector.adapters.sidecar_transport": 1,
@@ -3263,12 +3320,12 @@
   "agent_dna.diff": 3,
   "agent_dna.discovery": 6,
   "agent_dna.dispatch_context_v01": 2,
-  "agent_dna.dispatch_v01": 3,
+  "agent_dna.dispatch_v01": 4,
   "agent_dna.dynamics": 1,
   "agent_dna.eav": 1,
   "agent_dna.eav.invariant_engine": 1,
   "agent_dna.economics": 1,
-  "agent_dna.execution_v01": 4,
+  "agent_dna.execution_v01": 5,
   "agent_dna.export_manifest": 1,
   "agent_dna.fingerprint": 2,
   "agent_dna.gateway": 3,
@@ -3318,10 +3375,10 @@
   "agent_dna.rate": 1,
   "agent_dna.receiver": 5,
   "agent_dna.receiver.asgi": 4,
-  "agent_dna.receiver.gate": 8,
+  "agent_dna.receiver.gate": 9,
   "agent_dna.receiver.ledger": 2,
   "agent_dna.receiver.permit_header": 1,
-  "agent_dna.receiver.receipts": 1,
+  "agent_dna.receiver.receipts": 2,
   "agent_dna.receiver.tls": 1,
   "agent_dna.request_bounds": 1,
   "agent_dna.revocation_list": 1,
@@ -3336,6 +3393,7 @@
   "agent_dna.shell_guard": 2,
   "agent_dna.signer": 2,
   "agent_dna.signer_bridge": 1,
+  "agent_dna.signer_python": 1,
   "agent_dna.similarity": 1,
   "agent_dna.sqlite_store": 5,
   "agent_dna.timeline": 2,
@@ -3344,7 +3402,7 @@
   "agent_dna.validation.drift": 1,
   "agent_dna.validation.report": 2,
   "agent_dna.wire_serialization_v01": 1,
-  "api.server": 24,
+  "api.server": 25,
   "examples.amlsim.run_amlsim_sample": 6,
   "examples.authority_blast_radius_demo": 1,
   "examples.authority_derivation_demo": 1,
@@ -3405,6 +3463,7 @@
   "tools.init_execution_signer": 1,
   "tools.init_platform_keys": 1,
   "tools.init_secure_profile": 4,
+  "tools.kms_smoke": 1,
   "tools.make_evidence_bundle": 2,
   "tools.platform_demo": 2,
   "tools.pv_authority_cli": 1,
@@ -3775,6 +3834,10 @@
   "agent_dna.invariants": {
    "group": "agent_dna (core modules)",
    "path": "agent_dna/invariants.py"
+  },
+  "agent_dna.key_custody": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/key_custody.py"
   },
   "agent_dna.key_lifecycle": {
    "group": "agent_dna (core modules)",
@@ -4495,6 +4558,10 @@
   "tools.init_secure_profile": {
    "group": "tools",
    "path": "tools/init_secure_profile.py"
+  },
+  "tools.kms_smoke": {
+   "group": "tools",
+   "path": "tools/kms_smoke.py"
   },
   "tools.make_evidence_bundle": {
    "group": "tools",

@@ -41,6 +41,10 @@ dev = [
     "httpx2>=2.5.0",
     "psycopg[binary]>=3.2",
     "psycopg-pool>=3.2",
+    "boto3>=1.40",
+]
+kms-aws = [
+    "boto3>=1.40",
 ]
 postgres = [
     "psycopg[binary]>=3.2",
@@ -113,7 +117,7 @@ sqlite_cache = false
 exclude = ["tests/"]
 
 [[tool.mypy.overrides]]
-module = ["prometheus_client", "pv_runtime"]
+module = ["prometheus_client", "pv_runtime", "boto3"]
 ignore_missing_imports = true
 
 [dependency-groups]

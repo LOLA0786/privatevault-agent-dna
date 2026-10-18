@@ -174,7 +174,7 @@ cd network/receiver_kit && docker compose down
 | `PV_RECEIVER_DESTINATIONS` | Logical destinations a permit may name, `;` separated. |
 | `PV_ISSUER_ORGANISATION` | The issuing organisation named in permits. |
 | `PV_ISSUER_KEYS` | `key_id=BASE64;...` permit-signing public keys you trust. |
-| `PV_RECEIPT_KEY_FILE` | Path to your Ed25519 seed file (0600). Set by compose. |
+| `PV_RECEIPT_KEY_FILE` | Path to your Ed25519 seed file (0600). Set by compose. Or `awskms:<key ARN>` / `gcpkms:<key version>` to keep the receipt key in your KMS (ADR 0023); check it first with `python tools/kms_smoke.py`. |
 | `PV_RECEIPT_KEY_ID` | The id written into every receipt you sign. |
 | `PV_UPSTREAM` | The system the gate forwards admitted requests to. Set by compose. |
 | `PV_ALLOW_HTTP_UPSTREAM` | `1` only for a loopback upstream inside one host. |

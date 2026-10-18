@@ -11,6 +11,8 @@ from nacl.exceptions import BadSignatureError
 if TYPE_CHECKING:
     from nacl.signing import SigningKey
 
+    from agent_dna.key_custody import Ed25519Signer
+
 from agent_dna.authority_v01 import (
     CANONICALIZATION,
     RFC3339_UTC_RE,
@@ -282,7 +284,7 @@ def create_dispatch_witness(
     observed_dispatch: Any,
     wire_bytes: Any,
     peer_identity_bytes: Any,
-    signing_key: SigningKey,
+    signing_key: SigningKey | Ed25519Signer,
 ) -> dict[str, Any]:
     """Measure and sign evidence at the final dispatch boundary."""
 

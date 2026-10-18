@@ -6,7 +6,7 @@ Nodes are directories; numbers are module counts. Solid arrow: imported at impor
 
 ```mermaid
 flowchart LR
-  n0["agent_dna (core modules)<br/>71 modules"]
+  n0["agent_dna (core modules)<br/>72 modules"]
   n1["agent_dna/adapters_framework<br/>2 modules"]
   n2["agent_dna/adapters_policy<br/>5 modules"]
   n3["agent_dna/audit_connector<br/>5 modules"]
@@ -28,7 +28,7 @@ flowchart LR
   n19["examples<br/>29 modules"]
   n20["experimental<br/>62 modules"]
   n21["rust/pv_runtime (PyO3)"]
-  n22["tools<br/>33 modules"]
+  n22["tools<br/>34 modules"]
   n0 -.->|1| n2
   n0 -->|5| n4
   n0 -->|1| n5
@@ -44,16 +44,16 @@ flowchart LR
   n1 -->|2| n0
   n2 -->|3| n12
   n2 -->|1| n20
-  n4 -->|17| n0
+  n4 -->|18| n0
   n4 -->|5| n10
   n4 -->|1| n13
   n6 -->|1| n0
   n8 -->|6| n0
   n8 -->|4| n4
-  n13 -->|10| n0
+  n13 -->|12| n0
   n14 -->|8| n0
   n15 -->|2| n0
-  n18 -->|19| n0
+  n18 -->|20| n0
   n18 -->|1| n4
   n18 -->|3| n11
   n18 -->|1| n15
@@ -67,7 +67,7 @@ flowchart LR
   n19 -->|1| n20
   n20 -->|15| n0
   n20 -->|1| n5
-  n22 -->|40| n0
+  n22 -->|41| n0
   n22 -->|3| n4
   n22 -->|1| n12
   n22 -->|3| n14
@@ -80,9 +80,9 @@ flowchart LR
 
 | Directory | Modules | Lines |
 |---|---:|---:|
-| `agent_dna (core modules)` | 71 |
+| `agent_dna (core modules)` | 72 |
 | `experimental` | 62 |
-| `tools` | 33 |
+| `tools` | 34 |
 | `examples` | 29 |
 | `agent_dna/multi_agent` | 16 |
 | `agent_dna/gateway` | 14 |
@@ -107,21 +107,21 @@ flowchart LR
 
 | Module | Imported by | Imports |
 |---|---:|---:|
-| `agent_dna.authority_v01` | 43 | 0 |
+| `agent_dna.authority_v01` | 43 | 1 |
 | `agent_dna.trace` | 27 | 0 |
 | `agent_dna.decision` | 26 | 6 |
 | `agent_dna` | 21 | 21 |
-| `agent_dna.execution_v01` | 14 | 4 |
+| `agent_dna.execution_v01` | 14 | 5 |
 | `agent_dna.multi_agent.interaction_graph` | 14 | 1 |
 | `agent_dna.multi_agent.base` | 13 | 1 |
 | `agent_dna.advisory` | 12 | 0 |
 | `agent_dna.adapters` | 11 | 1 |
 | `agent_dna.gateway.errors` | 11 | 0 |
+| `agent_dna.key_custody` | 11 | 0 |
 | `agent_dna.apikeys` | 10 | 1 |
 | `agent_dna.decision_recorder` | 8 | 5 |
 | `agent_dna.gateway.framing` | 8 | 4 |
 | `agent_dna.amount` | 7 | 0 |
-| `agent_dna.authorize_binding` | 7 | 5 |
 
 ## Import-time cycles
 

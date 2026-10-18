@@ -20,7 +20,13 @@ if [ "$(id -u)" != "0" ]; then
   exec "$@"
 fi
 
-if [ -n "${PV_RECEIPT_KEY_FILE:-}" ]; then
+# A KMS reference (awskms:..., gcpkms:...) is not a file: nothing to copy.
+case "${PV_RECEIPT_KEY_FILE:-}" in
+  awskms:*|gcpkms:*) KEY_IN_KMS=1 ;;
+  *) KEY_IN_KMS=0 ;;
+esac
+
+if [ -n "${PV_RECEIPT_KEY_FILE:-}" ] && [ "$KEY_IN_KMS" = "0" ]; then
   if [ ! -r "$PV_RECEIPT_KEY_FILE" ]; then
     echo "entrypoint: PV_RECEIPT_KEY_FILE=$PV_RECEIPT_KEY_FILE is not readable" >&2
     exit 1
