@@ -184,6 +184,8 @@ jobs:
           test "$code" = "200"
           test "$(docker inspect --format '{{.Config.User}}' pv)" = "10001:10001"
           docker stop pv
+      - name: Image carries the PostgreSQL driver and the AWS KMS client
+        run: docker run --rm privatevault-agent-dna python -c "import psycopg, psycopg_pool, boto3"
 
   gate:
     runs-on: ubuntu-latest

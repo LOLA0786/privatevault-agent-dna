@@ -76,7 +76,7 @@ trusted receipt keys or without enforced lineage; an image digest that is not
 | `serviceAccount.annotations` | `{}` | IRSA / Workload Identity for KMS |
 | `podDisruptionBudget`, `autoscaling`, `networkPolicy`, `topologySpread` | on, off, on, on | |
 
-The image includes the AWS KMS client; build with
+The image includes the PostgreSQL driver and the AWS KMS client; build with
 `--build-arg PV_KMS_PACKAGES="boto3>=1.40 google-cloud-kms>=3"` for Cloud KMS.
 
 ## Tested

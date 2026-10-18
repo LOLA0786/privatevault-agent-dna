@@ -16,8 +16,10 @@ and a named test that runs in CI.
 - CI job `helm`: `helm lint --strict` and render for every CI values file,
   kubeconform strict validation, the refusal checks, and an install on kind
   verified with `helm test` and `tools/verify_deployment.py`.
-- The image now includes the AWS KMS client (`PV_KMS_PACKAGES` build
-  argument); without it an `awskms:` key could not start.
+- The image now includes the PostgreSQL driver (`PV_DB_PACKAGES`) and the
+  AWS KMS client (`PV_KMS_PACKAGES`). Without the driver every pod on
+  PostgreSQL failed at start-up, which the kind install found
+  (`tests/test_image_dependencies.py`, CI `docker` job).
 - Fixed: `tools/verify_deployment.py` failed every PostgreSQL deployment
   (it accepted only `durable (sqlite)`). Found by running the API with the
   chart's environment. (`test_a_postgresql_deployment_passes`)
