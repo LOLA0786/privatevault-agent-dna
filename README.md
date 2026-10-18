@@ -23,7 +23,7 @@ agent ──► POST /v1/decide ──► precedence engine ──► 200 / 202 
 
 ```bash
 pip install -e ".[dev]"
-python -m pytest -q                    # 1960+ tests
+python -m pytest -q                    # 1970+ tests
 ```
 
 Three properties worth checking before reading further:
@@ -206,6 +206,9 @@ process. CI runs two real API processes on one database and checks budget,
 single mint, maker≠checker, a process killed mid-load and a database
 outage (`tests/multi_instance/`); numbers and limits are in
 [docs/benchmarks/MULTI-INSTANCE.md](docs/benchmarks/MULTI-INSTANCE.md).
+Backups: `python -m agent_dna.backup` dumps the ledgers with a signed
+manifest and restores only what it can prove identical
+([docs/operations/BACKUP.md](docs/operations/BACKUP.md)).
 Separation holds only for covered flows where enforcement is enabled and
 verified.
 

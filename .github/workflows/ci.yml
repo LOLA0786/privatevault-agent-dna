@@ -40,6 +40,17 @@ jobs:
       - name: Install locked development environment
         run: uv sync --locked --extra dev
 
+      # tests/test_backup.py dumps and restores the PostgreSQL 16 service:
+      # use the client tools of the same major version.
+      - name: PostgreSQL 16 client tools
+        run: |
+          if [ ! -x /usr/lib/postgresql/16/bin/pg_dump ]; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq postgresql-client-16
+          fi
+          echo /usr/lib/postgresql/16/bin >> "$GITHUB_PATH"
+          /usr/lib/postgresql/16/bin/pg_dump --version
+
       - name: Format gate
         run: >-
           uv run ruff format --check agent_dna api tests tools examples
