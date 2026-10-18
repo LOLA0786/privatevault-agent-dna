@@ -34,7 +34,6 @@ from typing import Annotated, Any, NoReturn, cast
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Response
 from fastapi.responses import FileResponse, JSONResponse
-from nacl.signing import SigningKey as _SigningKey
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.background import BackgroundTask
 
@@ -47,6 +46,7 @@ from agent_dna.approval_bridge import (
 )
 from agent_dna.authority_v01 import CANONICALIZATION as _PV_CANON
 from agent_dna.authority_v01 import MAX_JSON_NESTING_DEPTH
+from agent_dna.authority_v01 import encode_public_key as _pv_encode_public_key
 from agent_dna.authority_v01 import sha256_digest as _pv_sha256_digest
 from agent_dna.authorize_binding import (
     AUTHORIZE_APPROVAL_MISMATCH,
@@ -62,6 +62,7 @@ from agent_dna.authorize_binding import (
     AUTHORIZE_PRESENTER_NOT_PINNED,
     AUTHORIZE_PRESENTER_REQUIRED,
     AUTHORIZE_PRESENTER_UNCONFIGURED,
+    AUTHORIZE_SIGNER_UNAVAILABLE,
     AUTHORIZE_STORE_UNAVAILABLE,
     bind_authorize_to_sealed_allow,
     mint_bindings_digest,
@@ -79,6 +80,7 @@ from agent_dna.execution_v01 import (
     EXECUTION_AUTHORIZATION_SPEC_V02 as _PV_EA_SPEC_V02,
 )
 from agent_dna.execution_v01 import sign_execution_authorization as _pv_sign_ea
+from agent_dna.key_custody import SignerError, is_kms_ref, signer_from_seed_file
 from agent_dna.lineage import (
     ALREADY_APPROVED as LINEAGE_ALREADY_APPROVED,
 )
@@ -362,7 +364,7 @@ def _assert_secure_authorize_material() -> None:
         ("PV_EXECUTION_SIGNER_KEY", key),
         ("PV_TRUST_BUNDLE", bundle),
     ):
-        if path is not None and not Path(path).is_file():
+        if path is not None and not is_kms_ref(path) and not Path(path).is_file():
             raise RuntimeError(f"{label} path does not exist: {path}")
 
 
@@ -943,13 +945,18 @@ def revocations():
     """
     signer = _pv_load_signer()
     ttl = int(os.environ.get("PV_REVOCATION_LIST_TTL_SECONDS", "30"))
-    return build_revocation_list(
-        state["store"],
-        organisation_id=signer["trust_bundle"]["organisation_id"],
-        signing_key=signer["signing_key"],
-        signer_key_id=signer["key_id"],
-        validity=_timedelta(seconds=max(1, ttl)),
-    )
+    try:
+        return build_revocation_list(
+            state["store"],
+            organisation_id=signer["trust_bundle"]["organisation_id"],
+            signing_key=signer["signing_key"],
+            signer_key_id=signer["key_id"],
+            validity=_timedelta(seconds=max(1, ttl)),
+        )
+    except SignerError as exc:
+        raise HTTPException(
+            status_code=503, detail="revocation list signer unavailable"
+        ) from exc
 
 
 @app.get("/v1/flows/{flow_id}", dependencies=[Depends(require_audit_or_full_key)])
@@ -1263,17 +1270,36 @@ def _pv_load_signer() -> dict[str, Any]:
         )
 
     try:
-        signing_key = _SigningKey(Path(key_path).read_bytes())
+        # A seed file, or an awskms:/gcpkms: reference (agent_dna.key_custody).
+        signing_key = signer_from_seed_file(key_path)
         trust_bundle = _pv_json.loads(Path(bundle_path).read_text())
-    except (OSError, ValueError, KeyError, TypeError) as exc:
+    except (OSError, ValueError, KeyError, TypeError, SignerError) as exc:
         raise HTTPException(
             status_code=503,
             detail=f"signer material unreadable: {type(exc).__name__}",
         ) from exc
 
+    # The key id comes from the bundle entry that IS this key, with the
+    # signer usage; a key the bundle does not pin would mint permits that
+    # every receiver rejects, so refuse instead.
+    public = _pv_encode_public_key(signing_key)
+    key_ids = [
+        key.get("key_id")
+        for key in trust_bundle.get("keys") or []
+        if isinstance(key, dict)
+        and key.get("public_key") == public
+        and "execution_authorization_signer" in (key.get("usages") or [])
+    ]
+    if len(key_ids) != 1 or not key_ids[0]:
+        raise HTTPException(
+            status_code=503,
+            detail="execution signer key is not pinned as execution_authorization_signer "
+            "in PV_TRUST_BUNDLE",
+        )
+
     _pv_signer_cache["signing_key"] = signing_key
     _pv_signer_cache["trust_bundle"] = trust_bundle
-    _pv_signer_cache["key_id"] = trust_bundle["keys"][0]["key_id"]
+    _pv_signer_cache["key_id"] = key_ids[0]
     return _pv_signer_cache
 
 
@@ -1565,6 +1591,15 @@ def authorize(req: AuthorizeRequest, principal: FullPrincipal):  # noqa: C901
             503,
             AUTHORIZE_STORE_UNAVAILABLE,
             "mint claim ledger is unavailable",
+        )
+    except SignerError as exc:
+        # KMS unreachable, refused, or answered with a bad signature: no
+        # permit, and the mint claim rolled back with the transaction.
+        _log.error("execution signer unavailable: %s", exc)
+        _authorize_refusal(
+            503,
+            AUTHORIZE_SIGNER_UNAVAILABLE,
+            "execution authorization signer is unavailable",
         )
     except (ValueError, TypeError):
         raise HTTPException(

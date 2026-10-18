@@ -38,7 +38,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 1940+ automated tests, run in CI on every commit
+- 1960+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
@@ -279,8 +279,22 @@ rotation envelope and public metadata. The non-secret new public key
 is bound into the authorized action before the rotation is performed
 (`tests/test_key_rotation_provisioned.py`). That does not install the
 new private key as the active signer, update trust roots, or store
-the seed. Omitted seed fails closed. No filesystem secret store,
-cloud KMS, or `secret_ref` is shipped.
+the seed. Omitted seed fails closed. No filesystem secret store or
+`secret_ref` is shipped.
+
+**Signing keys can live in AWS KMS or Google Cloud KMS** (ADR 0023,
+`agent_dna/key_custody.py`): the execution signer, the decision receipt
+signer, the dispatch witness and the receiver kit's receipt key accept an
+`awskms:` or `gcpkms:` reference. Signatures are pure Ed25519, identical
+to what the same key signs locally; each one is verified against the key's
+public key before use, a key the trust bundle does not pin is refused, and
+a KMS outage refuses the mint without stranding the decision
+(`tests/test_key_custody.py`, `tests/test_authorize_kms.py`). **We do not
+claim** a live-KMS test in CI (requests are checked against AWS's
+published API model and a Cloud KMS stand-in; `tools/kms_smoke.py` is the
+operator's live check), HSM attestation, or protection against a
+compromised API host signing while it holds the KMS permission. On AWS a
+permit larger than 4096 bytes canonical is refused rather than pre-hashed.
 
 **The MCP adapter uses a private SDK dispatch surface**:
 `MCPServer._tool_manager`. The supported range is `mcp>=2.2,<3`, with

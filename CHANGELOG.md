@@ -5,6 +5,26 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Signing keys in AWS KMS or Google Cloud KMS (production readiness, phase 1: KMS)
+- `agent_dna/key_custody.py`: one Ed25519 signer interface with local, AWS
+  KMS (`ECC_NIST_EDWARDS25519`, `ED25519_SHA_512`, RAW) and Cloud KMS
+  (`EC_SIGN_ED25519`) custodians. `PV_EXECUTION_SIGNER_KEY`,
+  `PV_RECEIPT_SIGNING_KEY`, `PV_DISPATCH_WITNESS_KEY` and the receiver kit's
+  `PV_RECEIPT_KEY_FILE` accept `awskms:` / `gcpkms:` references. Signatures
+  are byte-identical to local signing; each KMS signature is verified
+  locally before use; Cloud KMS CRC32C fields are checked; AWS documents
+  over 4096 bytes are refused, never pre-hashed.
+- `/v1/authorize` now takes the signer's key id from the bundle entry that
+  is that key with `execution_authorization_signer` (it assumed the first
+  bundle key); a key the bundle does not pin answers 503. A signer failure
+  at mint is `AUTHORIZE_SIGNER_UNAVAILABLE` (503) and leaves no claim.
+- `tools/kms_smoke.py` checks a real KMS key and prints its public key for
+  the trust bundle. Extra `kms-aws` (boto3); Cloud KMS needs
+  `google-cloud-kms`.
+- ADR 0023. Tests: `tests/test_key_custody.py`,
+  `tests/test_authorize_kms.py` (AWS requests validated against AWS's
+  published API model).
+
 ### Receiver gate authenticates who presents a permit (production readiness, phase 1: mTLS)
 - Permit spec `pv-execution-authorization/0.2-experimental` binds
   `expected_presenter_identity_digest`: the SHA-256 of the TLS client key

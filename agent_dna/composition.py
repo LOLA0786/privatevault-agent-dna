@@ -1024,17 +1024,13 @@ def _compose_egress_sidecar(
 
 
 def _witness_signer_from_bundle(bundle: dict[str, Any], key_path: str) -> WitnessSigner:
-    from nacl.signing import SigningKey
-
     from .authority_v01 import encode_public_key
+    from .key_custody import SignerError, signer_from_seed_file
 
-    raw = Path(key_path).read_bytes()
-    try:
-        key = SigningKey(raw)
-    except Exception as exc:
-        raise RuntimeError(
-            f"{DISPATCH_WITNESS_KEY_ENV} is not a valid Ed25519 seed: {exc}"
-        ) from exc
+    try:  # a 32-byte seed file, or an awskms:/gcpkms: reference
+        key = signer_from_seed_file(key_path)
+    except SignerError as exc:
+        raise RuntimeError(f"{DISPATCH_WITNESS_KEY_ENV}: {exc}") from exc
     pub = encode_public_key(key)
     witness_id = ""
     closure_id = ""

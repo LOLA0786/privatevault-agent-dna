@@ -21,6 +21,8 @@ from typing import Any, NoReturn, cast
 from nacl.exceptions import BadSignatureError
 from nacl.signing import SigningKey, VerifyKey
 
+from agent_dna.key_custody import Ed25519Signer, as_signer
+
 TRUST_SPEC = "pv-trust-bundle/0.1-experimental"
 GRANT_SPEC = "pv-grant/0.1-experimental"
 RECEIPT_SPEC = "pv-authority-receipt/0.1-experimental"
@@ -280,23 +282,26 @@ def _public_key_bytes(value: Any) -> bytes:
 
 def sign_document(
     document: Mapping[str, Any],
-    signing_key: SigningKey,
+    signing_key: SigningKey | Ed25519Signer,
     *,
     signature_field: str,
 ) -> dict[str, Any]:
-    """Sign every document field except the detached signature field."""
+    """Sign every document field except the detached signature field.
+
+    ``signing_key`` is a local key or any Ed25519Signer (e.g. a KMS key,
+    agent_dna.key_custody); the signature is pure Ed25519 either way."""
 
     result = dict(document)
     result.pop(signature_field, None)
 
-    signature = signing_key.sign(canonicalize(result)).signature
+    signature = as_signer(signing_key).sign(canonicalize(result))
     result[signature_field] = "ed25519:" + base64.b64encode(signature).decode("ascii")
     return result
 
 
 def sign_grant(
     grant: Mapping[str, Any],
-    signing_key: SigningKey,
+    signing_key: SigningKey | Ed25519Signer,
 ) -> dict[str, Any]:
     return sign_document(
         grant,
@@ -307,7 +312,7 @@ def sign_grant(
 
 def sign_receipt(
     receipt: Mapping[str, Any],
-    signing_key: SigningKey,
+    signing_key: SigningKey | Ed25519Signer,
 ) -> dict[str, Any]:
     return sign_document(
         receipt,
@@ -316,8 +321,8 @@ def sign_receipt(
     )
 
 
-def encode_public_key(signing_key: SigningKey) -> str:
-    return base64.b64encode(bytes(signing_key.verify_key)).decode("ascii")
+def encode_public_key(signing_key: SigningKey | Ed25519Signer) -> str:
+    return base64.b64encode(as_signer(signing_key).public_key).decode("ascii")
 
 
 def _verify_signature(

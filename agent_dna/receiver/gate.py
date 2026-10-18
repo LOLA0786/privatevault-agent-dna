@@ -62,6 +62,7 @@ from agent_dna.execution_v01 import (
     bound_presenter_digest,
     validate_execution_authorization,
 )
+from agent_dna.key_custody import Ed25519Signer
 from agent_dna.presenter_identity import (
     PresenterIdentityError,
     presenter_identity_digest,
@@ -191,7 +192,7 @@ class ReceiverGate:
     destinations: frozenset[str]
     trust_bundle: Mapping[str, Any]
     ledger: ReceiverLedger
-    receipt_signing_key: SigningKey
+    receipt_signing_key: SigningKey | Ed25519Signer
     receipt_key_id: str
     unprotected_operations: frozenset[str] = field(default_factory=frozenset)
     local_checks: Sequence[LocalCheck] = ()

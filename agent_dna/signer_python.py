@@ -28,6 +28,8 @@ from nacl.encoding import HexEncoder
 from nacl.exceptions import BadSignatureError
 from nacl.signing import SigningKey, VerifyKey
 
+from .key_custody import Ed25519Signer, signer_from_hex_seed
+
 KEY_ENV = "PV_RECEIPT_SIGNING_KEY"
 TRUSTED_KEYS_ENV = "PV_TRUSTED_PUBLIC_KEYS"
 
@@ -78,12 +80,24 @@ def parse_trusted_keys(value: str | None) -> frozenset[str]:
 
 
 class ReceiptSigner:
-    def __init__(self, seed_hex: str | None = None, key_id: str | None = None):
-        seed = seed_hex or os.getenv(KEY_ENV)
-        if not seed:
-            raise RuntimeError(f"no signing key: pass seed_hex or set {KEY_ENV}")
-        self._sk = SigningKey(seed.encode("ascii"), encoder=HexEncoder)
-        self.public_key = self._sk.verify_key.encode(encoder=HexEncoder).decode()
+    """``PV_RECEIPT_SIGNING_KEY`` is a 64-hex seed or an ``awskms:`` /
+    ``gcpkms:`` key reference (agent_dna.key_custody); the signature over
+    the 64-character record hash is pure Ed25519 either way."""
+
+    def __init__(
+        self,
+        seed_hex: str | None = None,
+        key_id: str | None = None,
+        *,
+        signer: Ed25519Signer | None = None,
+    ):
+        if signer is None:
+            seed = seed_hex or os.getenv(KEY_ENV)
+            if not seed:
+                raise RuntimeError(f"no signing key: pass seed_hex or set {KEY_ENV}")
+            signer = signer_from_hex_seed(seed)
+        self._signer = signer
+        self.public_key = signer.public_key.hex()
         self.key_id = key_id
 
     def sign_record(self, record) -> SignatureEnvelope:
@@ -99,7 +113,7 @@ class ReceiptSigner:
         artifacts that aren't DecisionRecords (e.g. export manifests)
         but still want the same envelope shape and verify_envelope
         compatibility."""
-        sig = self._sk.sign(hash_hex.encode()).signature.hex()
+        sig = self._signer.sign(hash_hex.encode()).hex()
         return SignatureEnvelope(
             envelope_id=f"sig-{uuid.uuid4()}",
             algorithm="Ed25519",

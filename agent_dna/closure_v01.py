@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING, Any, NoReturn
 if TYPE_CHECKING:
     from nacl.signing import SigningKey
 
+    from agent_dna.key_custody import Ed25519Signer
+
 from nacl.exceptions import BadSignatureError
 
 from agent_dna.authority_v01 import (
@@ -299,7 +301,7 @@ def validate_closure_record(  # noqa: C901
 
 def sign_closure_record(
     closure: Mapping[str, Any],
-    signing_key: SigningKey,
+    signing_key: SigningKey | Ed25519Signer,
 ) -> dict[str, Any]:
     """Sign every closure-record field except the detached signature.
 

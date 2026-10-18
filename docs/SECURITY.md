@@ -81,8 +81,10 @@ actions, plus a tamper-evident evidence layer. Two security goals:
   audit layer will, however, expose the divergence if outcomes are
   reported (G2 catches what G1 cannot reach).
 - **A2 — Host integrity.** The host running the PDP and the signing
-  key (`PV_RECEIPT_SIGNING_KEY`, environment/file-based, never
-  committed) are trusted. A root-level attacker on this host defeats
+  keys (`PV_RECEIPT_SIGNING_KEY`, `PV_EXECUTION_SIGNER_KEY`; a local
+  seed, or a KMS reference per ADR 0023, never committed) are trusted.
+  With KMS custody the private key cannot be copied off the host, but
+  a compromised host can still request signatures while compromised. A root-level attacker on this host defeats
   G1; already-emitted signed records remain verifiable, and forward
   tampering of the chain remains detectable by external copies.
 - **A3 — Policy authorship.** Customer policies are trusted input.
