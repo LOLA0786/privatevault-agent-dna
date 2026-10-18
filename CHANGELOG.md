@@ -5,6 +5,27 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Receiver gate authenticates who presents a permit (production readiness, phase 1: mTLS)
+- Permit spec `pv-execution-authorization/0.2-experimental` binds
+  `expected_presenter_identity_digest`: the SHA-256 of the TLS client key
+  (SPKI, RFC 7469 pin-sha256) that may present it. 0.1 permits stay valid.
+- `PV_PRESENTER_BUNDLE`: the operator pins presenter keys per agent. With
+  it, `/v1/authorize` requires `presenter_identity_digest`, refuses one not
+  pinned for the authenticated agent, and mints 0.2; without it a
+  requested presenter is refused rather than dropped.
+- The receiver gate refuses a 0.2 permit unless the request arrived over
+  mTLS with the bound key (checked after the signature, before the
+  ledger, so a thief's attempt does not burn the permit);
+  `PV_RECEIVER_REQUIRE_PRESENTER=1` also refuses 0.1 permits.
+  `agent_dna/receiver/tls.py` serves the gate over mTLS and exposes the
+  verified client certificate (also read from the ASGI `tls` extension);
+  `python -m network.receiver_kit.serve` runs the kit with it. The TLS
+  sidecar transport takes a client certificate and reports the digest to
+  request.
+- ADR 0022. Tests: `tests/receiver/test_presenter.py`,
+  `tests/receiver/test_presenter_mtls.py` (real TLS handshakes),
+  `tests/test_authorize_presenter.py`.
+
 ### Two API processes on one PostgreSQL, under load and failure (production readiness, phase 1 step 5)
 - `tests/multi_instance/`: a harness that runs real `uvicorn` processes on
   one database and balances requests across them, and six tests: budget,

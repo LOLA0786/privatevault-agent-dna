@@ -400,6 +400,29 @@ class TlsHttpsSidecarTransport:
     ca_file: str | None = None
     max_response_bytes: int = DEFAULT_MAX_RESPONSE_BODY_BYTES
     max_header_bytes: int = DEFAULT_MAX_RESPONSE_HEADER_BYTES
+    # mTLS presenter identity (ADR 0022): this sidecar's client certificate.
+    # A receiver gate admits a permit that binds a presenter only over a
+    # connection authenticated by that certificate's key.
+    client_cert_file: str | None = None
+    client_key_file: str | None = None
+
+    def __post_init__(self) -> None:
+        if (self.client_cert_file is None) != (self.client_key_file is None):
+            raise ValueError("client_cert_file and client_key_file go together")
+
+    @property
+    def presenter_identity_digest(self) -> str | None:
+        """The digest to request at /v1/authorize (presenter_identity_digest)."""
+        if self.client_cert_file is None:
+            return None
+        from agent_dna.presenter_identity import (
+            certificate_der_from_file,
+            presenter_identity_digest,
+        )
+
+        return presenter_identity_digest(
+            certificate_der_from_file(self.client_cert_file)
+        )
 
     def connect(
         self, destination: str, *, credential_audience: str = ""
@@ -417,6 +440,8 @@ class TlsHttpsSidecarTransport:
         ctx = ssl.create_default_context()
         if self.ca_file:
             ctx.load_verify_locations(cafile=self.ca_file)
+        if self.client_cert_file is not None:
+            ctx.load_cert_chain(self.client_cert_file, self.client_key_file)
         headers = dict(self.credentials_headers)
         conn = HTTPSConnection(host, port=port, timeout=self.timeout_s, context=ctx)
         try:

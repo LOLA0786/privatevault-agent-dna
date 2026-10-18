@@ -58,6 +58,11 @@ AUTHORIZE_PERMIT_BINDING_CONFLICT = "AUTHORIZE_PERMIT_BINDING_CONFLICT"
 AUTHORIZE_PERMIT_ALREADY_CONSUMED = "AUTHORIZE_PERMIT_ALREADY_CONSUMED"
 AUTHORIZE_PERMIT_EXPIRED = "AUTHORIZE_PERMIT_EXPIRED"
 AUTHORIZE_PERMIT_INDETERMINATE = "AUTHORIZE_PERMIT_INDETERMINATE"
+# Presenter binding (ADR 0022): the permit names the TLS client key that may
+# present it, chosen from the operator's pinned presenter bundle.
+AUTHORIZE_PRESENTER_REQUIRED = "AUTHORIZE_PRESENTER_REQUIRED"
+AUTHORIZE_PRESENTER_NOT_PINNED = "AUTHORIZE_PRESENTER_NOT_PINNED"
+AUTHORIZE_PRESENTER_UNCONFIGURED = "AUTHORIZE_PRESENTER_UNCONFIGURED"
 AUTHORIZE_PERMIT_TRUST_BUNDLE_MISSING = "AUTHORIZE_PERMIT_TRUST_BUNDLE_MISSING"
 AUTHORIZE_PERMIT_TRUST_BUNDLE_DIGEST_MISMATCH = (
     "AUTHORIZE_PERMIT_TRUST_BUNDLE_DIGEST_MISMATCH"
@@ -302,26 +307,33 @@ def mint_bindings_digest(
     state_snapshot_digest: str,
     policy_bundle_digest: str,
     obligations_digest: str,
+    expected_presenter_identity_digest: str | None = None,
 ) -> str:
-    """Digest of mint-time bindings. Changing any field is a new effect."""
-    return sha256_digest(
-        {
-            "organisation_id": organisation_id,
-            "agent_id": agent_id,
-            "principal_id": principal_id,
-            "action": action,
-            "dispatch": dispatch,
-            "expected_wire_bytes_digest": expected_wire_bytes_digest,
-            "expected_wire_bytes_length": expected_wire_bytes_length,
-            "expected_peer_identity_digest": expected_peer_identity_digest,
-            "decision_receipt_digest": decision_receipt_digest,
-            "authority_receipt_digest": authority_receipt_digest,
-            "approval_artifact_digest": approval_artifact_digest,
-            "state_snapshot_digest": state_snapshot_digest,
-            "policy_bundle_digest": policy_bundle_digest,
-            "obligations_digest": obligations_digest,
-        }
-    )
+    """Digest of mint-time bindings. Changing any field is a new effect.
+
+    The presenter is included only when bound, so digests of permits minted
+    without one are unchanged (replay of earlier mints still matches)."""
+    bindings: dict[str, Any] = {
+        "organisation_id": organisation_id,
+        "agent_id": agent_id,
+        "principal_id": principal_id,
+        "action": action,
+        "dispatch": dispatch,
+        "expected_wire_bytes_digest": expected_wire_bytes_digest,
+        "expected_wire_bytes_length": expected_wire_bytes_length,
+        "expected_peer_identity_digest": expected_peer_identity_digest,
+        "decision_receipt_digest": decision_receipt_digest,
+        "authority_receipt_digest": authority_receipt_digest,
+        "approval_artifact_digest": approval_artifact_digest,
+        "state_snapshot_digest": state_snapshot_digest,
+        "policy_bundle_digest": policy_bundle_digest,
+        "obligations_digest": obligations_digest,
+    }
+    if expected_presenter_identity_digest is not None:
+        bindings["expected_presenter_identity_digest"] = (
+            expected_presenter_identity_digest
+        )
+    return sha256_digest(bindings)
 
 
 def dump_stored_authorization(authorization: dict[str, Any]) -> str:

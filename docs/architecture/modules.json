@@ -590,6 +590,11 @@
    "top"
   ],
   [
+   "agent_dna.connector.adapters.sidecar_transport",
+   "agent_dna.presenter_identity",
+   "lazy"
+  ],
+  [
    "agent_dna.connector.cross_agent",
    "agent_dna.advisory",
    "top"
@@ -1710,6 +1715,11 @@
    "top"
   ],
   [
+   "agent_dna.receiver.asgi",
+   "agent_dna.receiver.tls",
+   "top"
+  ],
+  [
    "agent_dna.receiver.gate",
    "agent_dna.authority_v01",
    "top"
@@ -1717,6 +1727,11 @@
   [
    "agent_dna.receiver.gate",
    "agent_dna.execution_v01",
+   "top"
+  ],
+  [
+   "agent_dna.receiver.gate",
+   "agent_dna.presenter_identity",
    "top"
   ],
   [
@@ -1762,6 +1777,11 @@
   [
    "agent_dna.receiver.receipts",
    "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "agent_dna.receiver.tls",
+   "agent_dna.presenter_identity",
    "top"
   ],
   [
@@ -2102,6 +2122,11 @@
   [
    "api.server",
    "agent_dna.observability.prometheus_bridge",
+   "top"
+  ],
+  [
+   "api.server",
+   "agent_dna.presenter_identity",
    "top"
   ],
   [
@@ -3140,6 +3165,7 @@
   "agent_dna.policy_gate": 2,
   "agent_dna.policy_miner": 2,
   "agent_dna.policy_replay": 3,
+  "agent_dna.presenter_identity": 4,
   "agent_dna.profile_store": 1,
   "agent_dna.rate": 1,
   "agent_dna.receiver.asgi": 1,
@@ -3147,6 +3173,7 @@
   "agent_dna.receiver.ledger": 2,
   "agent_dna.receiver.permit_header": 4,
   "agent_dna.receiver.receipts": 3,
+  "agent_dna.receiver.tls": 1,
   "agent_dna.reference_policies": 1,
   "agent_dna.request_bounds": 1,
   "agent_dna.revocation_list": 2,
@@ -3220,6 +3247,7 @@
   "agent_dna.connector.adapters.exact_byte_http": 8,
   "agent_dna.connector.adapters.execution_trust": 1,
   "agent_dna.connector.adapters.mcp": 1,
+  "agent_dna.connector.adapters.sidecar_transport": 1,
   "agent_dna.connector.cross_agent": 9,
   "agent_dna.connector.middleware": 8,
   "agent_dna.consensus": 3,
@@ -3289,11 +3317,12 @@
   "agent_dna.profile_store": 1,
   "agent_dna.rate": 1,
   "agent_dna.receiver": 5,
-  "agent_dna.receiver.asgi": 3,
-  "agent_dna.receiver.gate": 7,
+  "agent_dna.receiver.asgi": 4,
+  "agent_dna.receiver.gate": 8,
   "agent_dna.receiver.ledger": 2,
   "agent_dna.receiver.permit_header": 1,
   "agent_dna.receiver.receipts": 1,
+  "agent_dna.receiver.tls": 1,
   "agent_dna.request_bounds": 1,
   "agent_dna.revocation_list": 1,
   "agent_dna.runtime": 6,
@@ -3315,7 +3344,7 @@
   "agent_dna.validation.drift": 1,
   "agent_dna.validation.report": 2,
   "agent_dna.wire_serialization_v01": 1,
-  "api.server": 23,
+  "api.server": 24,
   "examples.amlsim.run_amlsim_sample": 6,
   "examples.authority_blast_radius_demo": 1,
   "examples.authority_derivation_demo": 1,
@@ -3883,6 +3912,10 @@
    "group": "agent_dna (core modules)",
    "path": "agent_dna/policy_replay.py"
   },
+  "agent_dna.presenter_identity": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/presenter_identity.py"
+  },
   "agent_dna.profile_store": {
    "group": "agent_dna (core modules)",
    "path": "agent_dna/profile_store.py"
@@ -3914,6 +3947,10 @@
   "agent_dna.receiver.receipts": {
    "group": "agent_dna/receiver",
    "path": "agent_dna/receiver/receipts.py"
+  },
+  "agent_dna.receiver.tls": {
+   "group": "agent_dna/receiver",
+   "path": "agent_dna/receiver/tls.py"
   },
   "agent_dna.reference_policies": {
    "group": "agent_dna (core modules)",

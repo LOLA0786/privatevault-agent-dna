@@ -47,3 +47,6 @@ separation of duties, so the permit names the approval that produced it.
 0021 moves maker != checker from a caller-chosen execution id to lineage the
 server records itself, so splitting, flooding or evicting a correlation window
 no longer lets one agent approve its own initiate.
+0022 binds a permit to the TLS client key that may present it and has the
+receiver gate check that key over mTLS, so a stolen permit and its bytes are
+refused from any other process.

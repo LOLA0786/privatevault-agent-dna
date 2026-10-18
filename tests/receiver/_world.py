@@ -17,6 +17,7 @@ from agent_dna.authority_v01 import (
 )
 from agent_dna.execution_v01 import (
     EXECUTION_AUTHORIZATION_SPEC,
+    EXECUTION_AUTHORIZATION_SPEC_V02,
     sha256_bytes_digest,
     sign_execution_authorization,
 )
@@ -82,7 +83,9 @@ def mint(
     trust_bundle_digest: str | None = None,
     transport: str = "https",
     ea_id: str | None = None,
+    presenter: str | None = None,
 ) -> dict[str, Any]:
+    """``presenter``: bind a presenter identity digest (spec 0.2)."""
     params = dict(PARAMETERS if parameters is None else parameters)
     body = wire_for(params) if wire is None else wire
     action = {
@@ -106,35 +109,36 @@ def mint(
         "retry_policy_digest": ONE,
         "serialization": SERIALIZATION,
     }
-    return sign_execution_authorization(
-        {
-            "spec": EXECUTION_AUTHORIZATION_SPEC,
-            "canonicalization": CANONICALIZATION,
-            "execution_authorization_id": ea_id or f"eauth-{uuid.uuid4()}",
-            "organisation_id": organisation_id,
-            "request_id": "req-1",
-            "issued_at": not_before,
-            "not_before": not_before,
-            "expires_at": expires_at,
-            "nonce": uuid.uuid4().hex,
-            "decision_receipt_digest": Z,
-            "authority_receipt_digest": ONE,
-            "approval_artifact_digest": Z,
-            "action": action,
-            "action_digest": sha256_digest(action),
-            "expected_wire_bytes_digest": sha256_bytes_digest(body),
-            "expected_wire_bytes_length": len(body),
-            "expected_peer_identity_digest": sha256_bytes_digest(PEER),
-            "dispatch": dispatch,
-            "state_snapshot_digest": Z,
-            "policy_bundle_digest": ONE,
-            "trust_bundle_digest": trust_bundle_digest or sha256_digest(bundle),
-            "obligations_digest": Z,
-            "max_uses": 1,
-            "signer_key_id": signer_key_id,
-        },
-        signer,
-    )
+    unsigned: dict[str, Any] = {
+        "spec": EXECUTION_AUTHORIZATION_SPEC,
+        "canonicalization": CANONICALIZATION,
+        "execution_authorization_id": ea_id or f"eauth-{uuid.uuid4()}",
+        "organisation_id": organisation_id,
+        "request_id": "req-1",
+        "issued_at": not_before,
+        "not_before": not_before,
+        "expires_at": expires_at,
+        "nonce": uuid.uuid4().hex,
+        "decision_receipt_digest": Z,
+        "authority_receipt_digest": ONE,
+        "approval_artifact_digest": Z,
+        "action": action,
+        "action_digest": sha256_digest(action),
+        "expected_wire_bytes_digest": sha256_bytes_digest(body),
+        "expected_wire_bytes_length": len(body),
+        "expected_peer_identity_digest": sha256_bytes_digest(PEER),
+        "dispatch": dispatch,
+        "state_snapshot_digest": Z,
+        "policy_bundle_digest": ONE,
+        "trust_bundle_digest": trust_bundle_digest or sha256_digest(bundle),
+        "obligations_digest": Z,
+        "max_uses": 1,
+        "signer_key_id": signer_key_id,
+    }
+    if presenter is not None:
+        unsigned["spec"] = EXECUTION_AUTHORIZATION_SPEC_V02
+        unsigned["expected_presenter_identity_digest"] = presenter
+    return sign_execution_authorization(unsigned, signer)
 
 
 class World:

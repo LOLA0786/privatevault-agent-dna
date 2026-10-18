@@ -30,6 +30,7 @@ import anyio
 from agent_dna.authority_v01 import sha256_digest
 from agent_dna.receiver.gate import ReceiverDecision, ReceiverGate
 from agent_dna.receiver.permit_header import PERMIT_HEADER_LOWER
+from agent_dna.receiver.tls import client_certificate
 
 Scope = MutableMapping[str, Any]
 Message = MutableMapping[str, Any]
@@ -138,12 +139,14 @@ async def _evaluate(
             lambda: gate.refuse_unread_body(method=scope["method"], path=_target(scope))
         )
         return oversize, b""
+    presenter = client_certificate(scope)
     decision = await anyio.to_thread.run_sync(
         lambda: gate.check(
             method=scope["method"],
             path=_target(scope),
             headers=_headers(scope),
             body=body,
+            presenter_certificate=presenter,
         )
     )
     return decision, body
