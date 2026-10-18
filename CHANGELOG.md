@@ -5,6 +5,24 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Shared agent baselines and cross-agent windows (production readiness, phase 1 step 4)
+- With `PV_DATABASE_URL` set, each agent's drift baseline (the last
+  capability it was allowed to run) and the cross-agent (CABI) execution
+  windows live in PostgreSQL, so every API instance evaluates an agent
+  against the same state. Window bounds and LRU eviction match the
+  in-memory store exactly; appends to one execution are serialised, so
+  when an initiate and a self-approval race on two instances, at least one
+  is blocked. `RuntimeMonitor(state=..., max_events=...)` and
+  `CrossAgentEnforcer(window_store=...)` take the storage as a parameter.
+  (`tests/test_pg_shared_state.py`, 6 tests; the race test fails without
+  per-execution serialisation)
+
+### Fixed: API memory grew with every decision
+- The API keeps one monitor per agent for its lifetime, and each monitor
+  kept every event it processed. History is now capped at 256 events per
+  agent; decisions themselves are in the decision store.
+  (`test_event_history_can_be_bounded_for_long_running_servers`)
+
 ### PostgreSQL lineage, circuit breaker and replay (production readiness, phase 1 step 3)
 - With `PV_DATABASE_URL` set, the lineage and circuit-breaker ledgers live
   in the same PostgreSQL database as the decision ledger; no SQLite file is

@@ -130,3 +130,21 @@ def test_every_event_carries_a_decision():
             Decision.BLOCK,
             Decision.REQUIRE_APPROVAL,
         )
+
+
+def test_event_history_can_be_bounded_for_long_running_servers():
+    """The API keeps one monitor per agent for its lifetime; unbounded
+    history grew with every request."""
+    engine = _monitor().engine
+    m = RuntimeMonitor(engine, max_events=3)
+    for _ in range(10):
+        m.process(_action("crm.read"))
+    assert m.event_count == 3
+    assert m.latest is m.events[-1]
+    assert m.previous_capability == "crm.read"
+
+
+def test_api_monitors_are_bounded():
+    import api.server as server
+
+    assert server._MONITOR_EVENTS > 0

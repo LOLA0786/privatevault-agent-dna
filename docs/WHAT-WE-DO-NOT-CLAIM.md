@@ -101,11 +101,15 @@ PostgreSQL through a compatibility layer that keeps SQLite's one-writer-
 per-ledger rule with an advisory lock (`tests/test_pg_ledgers.py`): breaker
 results and log hashes match SQLite, a volume cap holds under 20
 concurrent reservations from two instances, and a lineage chain written
-from two instances never forks (both fail without the lock). **We do not
-yet claim multi-instance deployment**: per-agent drift monitors and the
-cross-agent (CABI) window are still per process, so behind a load balancer
-each instance would see only its own traffic, and nothing has been
-load-tested across instances.
+from two instances never forks (both fail without the lock). Each agent's
+drift baseline and the cross-agent (CABI) windows are shared in PostgreSQL
+as well (`tests/test_pg_shared_state.py`): an initiate on one instance and
+a self-approval on another are caught, where per-process windows let them
+through, and when the two race, at least one of them is blocked (with
+per-execution serialisation removed, most racing pairs both pass).
+**We do not yet claim multi-instance deployment**: the tests run several
+instances inside one process against one database; separate server
+processes behind a load balancer have not been run or load-tested.
 
 **We do not claim signature envelopes persist across restarts today.**
 Decision and execution records do — restart-safety here is

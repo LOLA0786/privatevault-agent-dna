@@ -189,6 +189,22 @@ def _redact_dsn(dsn: str | None) -> str:
     return f"{host}{port}{parts.path}"
 
 
+def _agent_baselines(pool: Any) -> Any:
+    if pool is None:
+        return None
+    from .pg_shared_state import PostgresAgentBaselines
+
+    return PostgresAgentBaselines(pool)
+
+
+def _cabi_windows(pool: Any) -> Any:
+    if pool is None:
+        return None  # in this process
+    from .pg_shared_state import PostgresWindows
+
+    return PostgresWindows(pool)
+
+
 def _open_decision_store(cfg: RuntimeConfig) -> DecisionStoreBackend:
     if cfg.database_url:
         from .pg_store import PostgresDecisionStore
@@ -213,6 +229,7 @@ class ProductionRuntime:
     execution_trust_bundle: dict[str, Any] | None = None
     egress_sidecar: ExactByteHttpDispatcher | None = None
     lineage_db: Any = None  # PgCompatConnection on PostgreSQL; else store.path
+    agent_baselines: Any = None  # PostgresAgentBaselines; None: per process
 
     def monitor(self) -> RuntimeMonitor:
         """A per-agent monitor bound to this runtime's recorder --
@@ -795,7 +812,8 @@ def build_production_runtime(
         "status": "attached",
         "detail": (
             f"PostgreSQL ({_redact_dsn(cfg.database_url)}): decision, grant, "
-            "lineage and circuit-breaker ledgers"
+            "lineage and circuit-breaker ledgers, agent baselines and "
+            "cross-agent windows"
             if cfg.database_url
             else f"SQLite {cfg.db_path}"
         )
@@ -871,12 +889,14 @@ def build_production_runtime(
 
         cross_agent = production_cross_agent(
             require_execution_id=require_execution_id,
+            window_store=_cabi_windows(pool),
         )
         comp["cross_agent"] = {
             "status": "attached",
             "detail": (
                 "definitional dual-control + structural approval invariants; "
                 "escalation-only; attached on HTTP /v1/decide and connector; "
+                + ("windows shared in PostgreSQL; " if pool is not None else "")
                 + (
                     "PV_CROSS_AGENT_REQUIRE_EXECUTION_ID=1 (fail-closed without id "
                     "for configured capability prefixes)"
@@ -907,6 +927,7 @@ def build_production_runtime(
         recorder=recorder,
         store=store,
         lineage_db=PgCompatConnection(pool, "lineage") if pool is not None else None,
+        agent_baselines=_agent_baselines(pool),
         signer=signer,
         apikeys=apikeys,
         breaker=breaker,

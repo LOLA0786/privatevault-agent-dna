@@ -10,11 +10,15 @@ Enforcement invariants:
   Blocked / approval-pending actions never executed, so they must not
   shift the baseline — otherwise rejected probes could walk the
   invariant chain.
+* That state can live outside the process (``state=``, e.g. PostgreSQL),
+  so every API instance scores an agent against the same baseline.
 """
 
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass
+from typing import Protocol
 
 from .advisory import AdvisorySignal
 from .circuit_breaker import GuardedEngine
@@ -31,17 +35,58 @@ class RuntimeEvent:
     decision: DecisionResult
 
 
-class RuntimeMonitor:
-    """Owns the DecisionEngine. The streaming path IS the enforcing path."""
+class AgentState(Protocol):
+    """Where one agent's behavioural baseline is kept."""
 
-    def __init__(self, engine: DecisionEngine | GuardedEngine, recorder=None) -> None:
+    def get(self) -> str | None:
+        """The last capability this agent was allowed to run, if any."""
+
+    def set(self, capability: str | None) -> None:
+        """Record the new baseline (called only after an ALLOW)."""
+
+
+class _LocalState:
+    def __init__(self) -> None:
+        self._value: str | None = None
+
+    def get(self) -> str | None:
+        return self._value
+
+    def set(self, capability: str | None) -> None:
+        self._value = capability
+
+
+class RuntimeMonitor:
+    """Owns the DecisionEngine. The streaming path IS the enforcing path.
+
+    ``state`` keeps the agent's baseline (default: this object's memory).
+    ``max_events`` bounds the in-memory event history; a long-running
+    server must set it, or the history grows with every decision.
+    """
+
+    def __init__(
+        self,
+        engine: DecisionEngine | GuardedEngine,
+        recorder=None,
+        *,
+        state: AgentState | None = None,
+        max_events: int | None = None,
+    ) -> None:
         if engine.scorer is None:
             raise ValueError("RuntimeMonitor requires a DecisionEngine with a scorer")
         self.engine = engine
         self.recorder = recorder  # optional DecisionRecorder; never required
         self.metrics = MetricsExporter()
-        self.previous_capability: str | None = None
-        self.events: list[RuntimeEvent] = []
+        self._state: AgentState = state if state is not None else _LocalState()
+        self.events: deque[RuntimeEvent] = deque(maxlen=max_events)
+
+    @property
+    def previous_capability(self) -> str | None:
+        return self._state.get()
+
+    @previous_capability.setter
+    def previous_capability(self, capability: str | None) -> None:
+        self._state.set(capability)
 
     def process(
         self,
@@ -61,9 +106,8 @@ class RuntimeMonitor:
         # Shell guard: evidence.shell is derived here from the action's own
         # arguments (never caller-authored), then any finding escalates.
         evidence = attach_shell_evidence(action.capability, action.arguments, evidence)
-        result = self.engine.decide(
-            action, self.previous_capability, evidence=evidence, **extra
-        )
+        previous = self.previous_capability  # read once: one baseline per decision
+        result = self.engine.decide(action, previous, evidence=evidence, **extra)
         result = escalate_with_shell(result, (evidence or {}).get("shell"))
 
         # decide() already scored internally and is itself fail-closed.
@@ -71,7 +115,7 @@ class RuntimeMonitor:
         # a second, redundant scoring call bypass fail-closed behavior
         # that decide() already enforced.
         try:
-            signal = self.engine.scorer.score(action, self.previous_capability)
+            signal = self.engine.scorer.score(action, previous)
         except Exception:
             # decide() already produced the authoritative (fault-closed)
             # result above; the advisory rebuild is best-effort only.

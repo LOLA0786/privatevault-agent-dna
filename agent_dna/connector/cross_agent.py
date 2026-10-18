@@ -17,6 +17,9 @@ Scope, stated honestly:
     forbidden interaction is signal, not noise.
   * Production default attaches definitional dual-control + structural
     approval invariants (no corpus required).
+  * Windows live in this process by default; a ``window_store`` (e.g.
+    PostgreSQL) shares them across every API instance with the same
+    bounds (events per execution, LRU executions).
 """
 
 from __future__ import annotations
@@ -25,6 +28,7 @@ import threading
 import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
+from typing import Protocol
 
 from agent_dna.identity import fold_agent_id
 
@@ -55,10 +59,55 @@ _DEFAULT_TOOL_TARGETS: dict[str, tuple[str, str]] = {
 }
 
 
+class WindowStore(Protocol):
+    """Execution windows: the recent interaction events per execution."""
+
+    def window(self, execution_id: str) -> list[InteractionEvent]:
+        """The current window of one execution, oldest first."""
+
+    def append(
+        self,
+        event: InteractionEvent,
+        *,
+        max_window_events: int,
+        max_executions: int,
+    ) -> list[InteractionEvent]:
+        """Append, apply both bounds, return the window after appending."""
+
+
+class InMemoryWindows:
+    def __init__(self) -> None:
+        self._windows: OrderedDict[str, list[InteractionEvent]] = OrderedDict()
+        self._lock = threading.Lock()  # executions span agents; the
+        # per-agent middleware locks cannot protect a shared window
+
+    def window(self, execution_id: str) -> list[InteractionEvent]:
+        with self._lock:
+            return list(self._windows.get(execution_id, []))
+
+    def append(
+        self,
+        event: InteractionEvent,
+        *,
+        max_window_events: int,
+        max_executions: int,
+    ) -> list[InteractionEvent]:
+        with self._lock:
+            window = self._windows.setdefault(event.execution_id, [])
+            window.append(event)
+            if len(window) > max_window_events:
+                del window[0]
+            self._windows.move_to_end(event.execution_id)
+            while len(self._windows) > max_executions:
+                self._windows.popitem(last=False)
+            return list(window)
+
+
 def production_cross_agent(
     config: CrossAgentConfig | None = None,
     *,
     require_execution_id: bool = False,
+    window_store: WindowStore | None = None,
 ) -> CrossAgentEnforcer:
     """Definitional CABI attached by default in production composition."""
     cfg = config or CrossAgentConfig(tool_targets=dict(_DEFAULT_TOOL_TARGETS))
@@ -73,6 +122,7 @@ def production_cross_agent(
         RuntimeValidator(definitional_engine()),
         config=cfg,
         require_execution_id=require_execution_id,
+        window_store=window_store,
     )
 
 
@@ -83,14 +133,14 @@ class CrossAgentEnforcer:
         config: CrossAgentConfig | None = None,
         *,
         require_execution_id: bool = False,
+        window_store: WindowStore | None = None,
     ) -> None:
         self.validator = validator
         self.config = config or CrossAgentConfig()
         self.require_execution_id = require_execution_id
-        self._windows: OrderedDict[str, list[InteractionEvent]] = OrderedDict()
-        self._lock = threading.Lock()  # executions span agents; the
-        # per-agent middleware locks
-        # cannot protect a shared window
+        self.windows: WindowStore = (
+            window_store if window_store is not None else InMemoryWindows()
+        )
 
     def requires_execution_id_for(self, capability: str) -> bool:
         """True when operator require-mode is on and capability is in
@@ -126,8 +176,7 @@ class CrossAgentEnforcer:
         target, target_role = self._target_for(capability)
         approval = is_approve_intent(capability)
         if approval:
-            with self._lock:
-                prior = list(self._windows.get(execution_id, []))
+            prior = self.windows.window(execution_id)
             self_initiated = any(
                 e.source == agent_id and is_initiate_intent(e.intent) for e in prior
             )
@@ -154,15 +203,11 @@ class CrossAgentEnforcer:
             approval=approval,
             metadata={"is_signoff": True} if approval else {},
         )
-        with self._lock:
-            window = self._windows.setdefault(execution_id, [])
-            window.append(event)
-            if len(window) > self.config.max_window_events:
-                del window[0]
-            self._windows.move_to_end(execution_id)
-            while len(self._windows) > self.config.max_executions:
-                self._windows.popitem(last=False)
-            snapshot = list(window)
+        snapshot = self.windows.append(
+            event,
+            max_window_events=self.config.max_window_events,
+            max_executions=self.config.max_executions,
+        )
         return self.validator.validate_events(snapshot)
 
 
