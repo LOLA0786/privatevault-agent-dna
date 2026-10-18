@@ -94,6 +94,56 @@ jobs:
           uv run python tools/verify_records.py /tmp/ci_vecs/clean.jsonl
           git diff --exit-code spec/test-vectors/
 
+  helm:
+    # deploy/helm/privatevault: lint and render every CI values file, strict
+    # Kubernetes schema validation, unsafe configurations refused at render
+    # time, then a real install on kind: two replicas on PostgreSQL with the
+    # secure profile, helm test, and tools/verify_deployment.py.
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.4
+
+      - name: Lint and render every CI values file
+        run: |
+          set -euo pipefail
+          for f in deploy/helm/privatevault/ci/*-values.yaml; do
+            helm lint --strict deploy/helm/privatevault -f "$f"
+            helm template pv deploy/helm/privatevault -f "$f" > "/tmp/rendered-$(basename "$f")"
+          done
+
+      - name: Kubernetes schema validation (kubeconform, strict)
+        run: |
+          curl -sSfL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz \
+            | tar xz -C /tmp kubeconform
+          /tmp/kubeconform -strict -summary -kubernetes-version 1.31.0 \
+            /tmp/rendered-*.yaml deploy/helm/privatevault/ci/postgres.yaml
+
+      - name: Unsafe configurations are refused at render time
+        env:
+          RENDER: helm template pv deploy/helm/privatevault -f
+        run: bash deploy/helm/privatevault/ci/check-refusals.sh
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Install locked development environment
+        run: uv sync --locked --extra dev
+
+      - uses: helm/kind-action@v1
+        with:
+          cluster_name: pv
+
+      - name: Install on kind and verify the deployment
+        env:
+          KIND_CLUSTER: pv
+        run: uv run bash deploy/helm/privatevault/ci/kind-e2e.sh
+
   dashboard:
     runs-on: ubuntu-latest
     timeout-minutes: 10

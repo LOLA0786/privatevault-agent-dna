@@ -206,6 +206,9 @@ process. CI runs two real API processes on one database and checks budget,
 single mint, maker≠checker, a process killed mid-load and a database
 outage (`tests/multi_instance/`); numbers and limits are in
 [docs/benchmarks/MULTI-INSTANCE.md](docs/benchmarks/MULTI-INSTANCE.md).
+Kubernetes: a Helm chart (`deploy/helm/privatevault`) installs it as two
+hardened replicas on PostgreSQL; CI installs it on kind and verifies the
+running deployment ([chart README](deploy/helm/privatevault/README.md)).
 Backups: `python -m agent_dna.backup` dumps the ledgers with a signed
 manifest and restores only what it can prove identical
 ([docs/operations/BACKUP.md](docs/operations/BACKUP.md)).

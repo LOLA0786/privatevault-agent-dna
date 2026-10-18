@@ -1,0 +1,9 @@
+PrivateVault {{ .Chart.AppVersion }} is deploying as {{ include "privatevault.fullname" . }}
+({{ if .Values.autoscaling.enabled }}autoscaled{{ else }}{{ .Values.replicaCount }} replica(s){{ end }}, {{ if .Values.postgres.enabled }}PostgreSQL{{ else }}SQLite on a persistent volume{{ end }}, secure profile {{ if .Values.secureProfile }}on{{ else }}OFF{{ end }}).
+
+Check what it enforces, not only that it is up:
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "privatevault.fullname" . }} 8000:{{ .Values.service.port }}
+  python tools/verify_deployment.py --url http://127.0.0.1:8000 --api-key "$PV_OPERATOR_KEY" --agent-id operator
+
+  helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
