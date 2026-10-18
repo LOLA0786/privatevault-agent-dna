@@ -28,6 +28,7 @@ from agent_dna.amount import (
     InvalidAmountError,
     coerce_amount,
 )
+from agent_dna.grant_spend import GrantBudgetExceededError
 
 
 @dataclass
@@ -205,7 +206,7 @@ class GrantRegistry:
             if g.budget is not None:
                 budget = coerce_amount(g.budget)
                 if current + delta > budget:
-                    raise ValueError(
+                    raise GrantBudgetExceededError(
                         f"grant {grant_id[:14]} budget exceeded at commit "
                         f"({current + delta} > {budget})"
                     )

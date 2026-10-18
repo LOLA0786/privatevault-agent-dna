@@ -281,6 +281,11 @@
   ],
   [
    "agent_dna.circuit_breaker",
+   "agent_dna.grant_spend",
+   "top"
+  ],
+  [
+   "agent_dna.circuit_breaker",
    "agent_dna.pg_compat",
    "top"
   ],
@@ -1220,6 +1225,11 @@
    "top"
   ],
   [
+   "agent_dna.grants",
+   "agent_dna.grant_spend",
+   "top"
+  ],
+  [
    "agent_dna.intent_adapter",
    "agent_dna.trace",
    "top"
@@ -2057,6 +2067,11 @@
   [
    "api.server",
    "agent_dna.decision",
+   "top"
+  ],
+  [
+   "api.server",
+   "agent_dna.decision_graph",
    "top"
   ],
   [
@@ -3056,7 +3071,7 @@
   "agent_dna.consensus.weighted_quorum": 1,
   "agent_dna.control_posture": 4,
   "agent_dna.decision": 26,
-  "agent_dna.decision_graph": 4,
+  "agent_dna.decision_graph": 5,
   "agent_dna.decision_record": 7,
   "agent_dna.decision_recorder": 8,
   "agent_dna.decision_store": 3,
@@ -3088,7 +3103,7 @@
   "agent_dna.governance.evaluate": 1,
   "agent_dna.governance.pack": 2,
   "agent_dna.grant_revocation": 3,
-  "agent_dna.grant_spend": 2,
+  "agent_dna.grant_spend": 4,
   "agent_dna.grants": 7,
   "agent_dna.identity": 5,
   "agent_dna.intent_adapter": 1,
@@ -3195,7 +3210,7 @@
   "agent_dna.authorization": 1,
   "agent_dna.authorize_binding": 5,
   "agent_dna.change_management": 1,
-  "agent_dna.circuit_breaker": 3,
+  "agent_dna.circuit_breaker": 4,
   "agent_dna.cli": 9,
   "agent_dna.closure_v01": 3,
   "agent_dna.composition": 33,
@@ -3241,7 +3256,7 @@
   "agent_dna.gateway.upstream": 3,
   "agent_dna.governance.evaluate": 1,
   "agent_dna.grant_spend": 1,
-  "agent_dna.grants": 1,
+  "agent_dna.grants": 2,
   "agent_dna.intent_adapter": 1,
   "agent_dna.invariant_engine": 1,
   "agent_dna.invariants": 1,
@@ -3300,7 +3315,7 @@
   "agent_dna.validation.drift": 1,
   "agent_dna.validation.report": 2,
   "agent_dna.wire_serialization_v01": 1,
-  "api.server": 22,
+  "api.server": 23,
   "examples.amlsim.run_amlsim_sample": 6,
   "examples.authority_blast_radius_demo": 1,
   "examples.authority_derivation_demo": 1,

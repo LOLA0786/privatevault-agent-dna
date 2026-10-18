@@ -5,6 +5,31 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Two API processes on one PostgreSQL, under load and failure (production readiness, phase 1 step 5)
+- `tests/multi_instance/`: a harness that runs real `uvicorn` processes on
+  one database and balances requests across them, and six tests: budget,
+  one permit per decision, maker≠checker across processes, SIGKILL of a
+  process mid-load, a database outage, and an outcome reported on the
+  other process. Sandbox latency and throughput in
+  `docs/benchmarks/MULTI-INSTANCE.md`.
+- Fixed, found by these tests:
+  - With PostgreSQL, two processes deciding for one agent forked the
+    decision chain and the store refused the second write (HTTP 500).
+    `PV_DATABASE_URL` now always uses the multi-writer recorder (chain head
+    read and extended inside the store transaction).
+  - In multi-writer mode, `/v1/outcome`, `/v1/lineage`, `/v1/records`,
+    `/v1/blocked`, `/v1/divergent` and `/v1/verify` read a per-process
+    snapshot taken at start-up: an outcome for a newer decision returned
+    404, and `/v1/verify` reported integrity without checking new records.
+    They now read the store.
+  - A request that lost a race for the last of a grant's budget was
+    BLOCKed with "agent suspended: grant_spend_fault", although nothing was
+    suspended. It now gets the ordinary budget refusal (require_approval).
+    A real spend fault still blocks, without claiming a suspension.
+  - While the database refused connections, each request waited 30 s for
+    a connection. `PV_DATABASE_TIMEOUT` (default 5 s) bounds the wait;
+    `PV_DATABASE_POOL_SIZE` (default 10) sets the per-process pool.
+
 ### Shared agent baselines and cross-agent windows (production readiness, phase 1 step 4)
 - With `PV_DATABASE_URL` set, each agent's drift baseline (the last
   capability it was allowed to run) and the cross-agent (CABI) execution

@@ -34,6 +34,7 @@ from typing import Any
 
 from .amount import INVALID_AMOUNT_REASON, InvalidAmountError, coerce_amount
 from .decision import Decision, DecisionResult, Severity, fault_reason
+from .grant_spend import GrantBudgetExceededError
 from .pg_compat import PgCompatConnection
 
 RESET_CAPABILITY = "breaker.reset"
@@ -547,6 +548,34 @@ class CircuitBreaker:
             self._local.conn = None
 
 
+def _budget_refusal(result: DecisionResult, reason: str) -> DecisionResult:
+    return DecisionResult(
+        decision=Decision.REQUIRE_APPROVAL,
+        triggered_by="authorization",
+        reason=reason,
+        capability=result.capability,
+        agent_id=result.agent_id,
+        drift_score=result.drift_score,
+        severity=result.severity,
+        advisory_reasons=list(result.advisory_reasons),
+        evidence=result.evidence,
+    )
+
+
+def _spend_fault(result: DecisionResult, exc: Exception) -> DecisionResult:
+    """Fail closed when the spend could not be recorded. The agent is NOT
+    suspended (the breaker did not trip), so the reason must not say so."""
+    return DecisionResult(
+        decision=Decision.BLOCK,
+        triggered_by="circuit_breaker",
+        reason=f"grant_spend_fault: {type(exc).__name__}: {exc}",
+        capability=result.capability,
+        agent_id=result.agent_id,
+        drift_score=0.0,
+        severity=Severity.CRITICAL,
+    )
+
+
 def _default_amount(action, evidence: dict | None) -> object | None:
     amt = getattr(action, "amount", None)
     if amt is None:
@@ -605,6 +634,35 @@ class GuardedEngine:
             drift_score=0.0,
             severity=Severity.CRITICAL,
         )
+
+    def _commit_spend(
+        self, result: DecisionResult, amount: object | None
+    ) -> DecisionResult:
+        """Audit set 4: record budget spend for ALLOWed, grant-covered,
+        amount-bearing actions. record_spend existed but was wired into
+        nothing -- budgets were checked against a ledger nobody wrote to.
+        A failing spend write fails CLOSED: an unrecorded spend would
+        silently widen every future budget check."""
+        if (
+            result.decision is not Decision.ALLOW
+            or not getattr(result, "grant_id", None)
+            or amount is None
+        ):
+            return result
+        authorizer = getattr(self.engine, "authorizer", None)
+        if authorizer is None or not hasattr(authorizer, "record_spend"):
+            return result
+        try:
+            authorizer.record_spend(result.grant_id, amount)
+        except GrantBudgetExceededError as exc:
+            # Lost a race for the last of the budget: another request (or
+            # instance) spent it after explain() looked. That is the
+            # ordinary budget refusal, not a fault: answer as the pre-check
+            # would have.
+            return _budget_refusal(result, str(exc))
+        except Exception as exc:
+            return _spend_fault(result, exc)
+        return result
 
     def decide(
         self,
@@ -665,27 +723,8 @@ class GuardedEngine:
             )
             result = self.engine.decide(action, prev_capability, evidence, **extra)
             verdict = result.decision.value
-            # Audit set 4: record budget spend for ALLOWed, grant-covered,
-            # amount-bearing actions. record_spend existed but was wired
-            # into nothing -- budgets were checked against a ledger nobody
-            # wrote to. A failing spend write fails CLOSED: an unrecorded
-            # spend would silently widen every future budget check.
-            if (
-                result.decision is Decision.ALLOW
-                and getattr(result, "grant_id", None)
-                and amount is not None
-            ):
-                authorizer = getattr(self.engine, "authorizer", None)
-                if authorizer is not None and hasattr(authorizer, "record_spend"):
-                    try:
-                        authorizer.record_spend(result.grant_id, amount)
-                    except Exception as exc:
-                        blocked = self._blocked(
-                            action,
-                            f"grant_spend_fault: {type(exc).__name__}: {exc}",
-                        )
-                        verdict = blocked.decision.value
-                        return blocked
+            result = self._commit_spend(result, amount)
+            verdict = result.decision.value
             return result
         finally:
             if verdict is not None:

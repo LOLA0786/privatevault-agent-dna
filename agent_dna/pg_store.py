@@ -161,7 +161,17 @@ class PostgresDecisionStore:
 
     SUPPORTS_ENVELOPES = True
 
-    def __init__(self, dsn: str, *, min_size: int = 1, max_size: int = 10) -> None:
+    def __init__(
+        self,
+        dsn: str,
+        *,
+        min_size: int = 1,
+        max_size: int = 10,
+        timeout: float = 5.0,
+    ) -> None:
+        """``timeout``: seconds a request waits for a connection. While the
+        database is unreachable every request fails after this long (closed:
+        no verdict without the ledger) instead of holding a server thread."""
         if psycopg is None:
             raise RuntimeError(
                 "PV_DATABASE_URL needs the postgres extra: "
@@ -173,7 +183,8 @@ class PostgresDecisionStore:
             dsn,
             min_size=min_size,
             max_size=max_size,
-            kwargs={"autocommit": False},
+            timeout=timeout,
+            kwargs={"autocommit": False, "connect_timeout": max(1, round(timeout))},
             open=True,
         )
         with self._pool.connection() as conn, conn.cursor() as cur:

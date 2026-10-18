@@ -30,7 +30,7 @@ from datetime import UTC
 from datetime import datetime as _datetime
 from datetime import timedelta as _timedelta
 from pathlib import Path
-from typing import Annotated, Any, NoReturn
+from typing import Annotated, Any, NoReturn, cast
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Response
 from fastapi.responses import FileResponse, JSONResponse
@@ -70,6 +70,7 @@ from agent_dna.control_posture import (
     authorization_mode_of,
 )
 from agent_dna.decision import Decision
+from agent_dna.decision_graph import DecisionGraph
 from agent_dna.execution_v01 import EXECUTION_AUTHORIZATION_SPEC as _PV_EA_SPEC
 from agent_dna.execution_v01 import sign_execution_authorization as _pv_sign_ea
 from agent_dna.lineage import (
@@ -493,9 +494,24 @@ def _enforce_identity(principal: Principal, agent_id: str) -> None:
         )
 
 
+def _graph() -> DecisionGraph:
+    """The decision graph to read from.
+
+    A multi-writer recorder (PostgreSQL, or PV_MULTI_WRITER=1) does not keep
+    its in-memory graph current: other processes write to the store, and the
+    store is authoritative. Reading the in-memory graph there would answer
+    from a startup snapshot (an outcome for a newer decision would 404, and
+    /v1/verify would check nothing new), so read the store instead.
+    """
+    recorder = state["recorder"]
+    if recorder.multi_writer_safe and recorder.store is not None:
+        return cast(DecisionGraph, recorder.store.load_graph())
+    return cast(DecisionGraph, recorder.graph)
+
+
 def _owned_decision(principal: Principal, decision_id: str):
     """Resolve a decision while preventing cross-agent disclosure."""
-    g = state["recorder"].graph
+    g = _graph()
     try:
         record = g.lineage(decision_id)[-1]
     except KeyError:
@@ -836,7 +852,7 @@ def runtime_composition():
 def records(agent_id: str, principal: FullPrincipal):
     if not principal.owns(agent_id):
         raise HTTPException(status_code=404, detail="unknown agent_id")
-    g = state["recorder"].graph
+    g = _graph()
     return {
         "agent_id": agent_id,
         "records": [r.to_dict() for r in g.find_by_agent(agent_id)],
@@ -845,7 +861,7 @@ def records(agent_id: str, principal: FullPrincipal):
 
 @app.get("/v1/blocked")
 def blocked(principal: FullPrincipal):
-    g = state["recorder"].graph
+    g = _graph()
     rows = g.find_blocked()
     if not principal.authentication_disabled:
         rows = [r for r in rows if r.agent_id == principal.agent_id]
@@ -854,7 +870,7 @@ def blocked(principal: FullPrincipal):
 
 @app.get("/v1/divergent")
 def divergent(principal: FullPrincipal):
-    g = state["recorder"].graph
+    g = _graph()
     rows = g.find_divergent()
     if not principal.authentication_disabled:
         rows = [r for r in rows if r.agent_id == principal.agent_id]
@@ -867,9 +883,7 @@ def lineage(
     principal: FullPrincipal,
 ):
     _owned_decision(principal, decision_id)
-    return {
-        "lineage": [r.to_dict() for r in state["recorder"].graph.lineage(decision_id)]
-    }
+    return {"lineage": [r.to_dict() for r in _graph().lineage(decision_id)]}
 
 
 # ---------- audit surface -------------------------------------------------------
@@ -974,7 +988,7 @@ def _verify_runtime_signatures() -> dict[str, object]:
 
 @app.get("/v1/verify", dependencies=[Depends(require_audit_or_full_key)])
 def verify():
-    chains = state["recorder"].graph.verify_all()
+    chains = _graph().verify_all()
     return {
         "chains": chains,
         "chain_integrity_verified": all(chains.values()),

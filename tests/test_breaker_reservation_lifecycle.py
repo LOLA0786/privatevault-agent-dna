@@ -176,3 +176,40 @@ def test_finalize_failure_does_not_change_the_verdict(tmp_path) -> None:
 
     assert result.decision is Decision.ALLOW
     assert result.triggered_by == "baseline"
+
+
+class _RaceLostAuthorizer:
+    """Another request spent the last of the budget after explain()."""
+
+    def record_spend(self, grant_id, amount):
+        from agent_dna.grant_spend import GrantBudgetExceededError
+
+        raise GrantBudgetExceededError(
+            "grant grant-1 budget exceeded at commit (101 > 100)"
+        )
+
+
+def test_losing_a_budget_race_is_a_budget_refusal_not_a_suspension(tmp_path) -> None:
+    """Found under multi-instance load: the loser was BLOCKed with reason
+    'agent suspended: grant_spend_fault', a false statement in the signed
+    record (nothing was suspended). It now gets what the pre-check gives
+    when the budget is gone."""
+    breaker = _breaker(tmp_path)
+    guarded = GuardedEngine(_AllowingEngine(_RaceLostAuthorizer()), breaker)
+
+    result = guarded.decide(_action())
+
+    assert result.decision is Decision.REQUIRE_APPROVAL
+    assert result.triggered_by == "authorization"
+    assert "budget exceeded at commit" in result.reason
+    assert "suspended" not in result.reason
+    assert result.grant_id is None  # no spend was recorded under the grant
+    assert breaker.pre_gate("a1") is None
+    assert _reserved_rows(tmp_path / "breaker.db") == 0
+
+
+def test_a_spend_fault_blocks_without_claiming_a_suspension(tmp_path) -> None:
+    guarded = GuardedEngine(_AllowingEngine(_FaultingAuthorizer()), _breaker(tmp_path))
+    result = guarded.decide(_action())
+    assert result.decision is Decision.BLOCK
+    assert result.reason.startswith("grant_spend_fault: RuntimeError")
