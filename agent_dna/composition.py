@@ -105,6 +105,8 @@ def _csv_frozenset(name: str) -> frozenset[str]:
 class RuntimeConfig:
     db_path: str = "data/privatevault.db"
     database_url: str | None = None  # PV_DATABASE_URL: decision ledger on PostgreSQL
+    database_pool_size: int = 10  # PV_DATABASE_POOL_SIZE, per process
+    database_timeout: float = 5.0  # PV_DATABASE_TIMEOUT: wait for a connection (s)
     keys_file: str | None = None
     policy_file: str | None = None  # customer YAML/JSON rules
     opa_endpoint: str | None = None  # OPA adapter (policy_file wins)
@@ -138,6 +140,8 @@ class RuntimeConfig:
         return cls(
             db_path=os.environ.get("PV_DB_PATH", "data/privatevault.db"),
             database_url=os.getenv("PV_DATABASE_URL") or None,
+            database_pool_size=_env_int("PV_DATABASE_POOL_SIZE") or 10,
+            database_timeout=_env_float("PV_DATABASE_TIMEOUT") or 5.0,
             keys_file=os.getenv("PV_API_KEYS_FILE"),
             policy_file=os.getenv("PV_POLICY_FILE"),
             opa_endpoint=os.getenv("PV_OPA_ENDPOINT"),
@@ -209,7 +213,11 @@ def _open_decision_store(cfg: RuntimeConfig) -> DecisionStoreBackend:
     if cfg.database_url:
         from .pg_store import PostgresDecisionStore
 
-        return PostgresDecisionStore(cfg.database_url)
+        return PostgresDecisionStore(
+            cfg.database_url,
+            max_size=cfg.database_pool_size,
+            timeout=cfg.database_timeout,
+        )
     return SQLiteDecisionStore(cfg.db_path)
 
 
@@ -803,10 +811,13 @@ def build_production_runtime(
             else f"set {KEY_ENV}; decisions will NOT be signed"
         ),
     }
+    # PostgreSQL exists to be shared by several instances, so its chain
+    # heads are always read and extended inside the store's transaction.
+    multi_writer = cfg.multi_writer or bool(cfg.database_url)
     recorder = DecisionRecorder(
         store=store,
         signer=signer,
-        multi_writer_safe=cfg.multi_writer,
+        multi_writer_safe=multi_writer,
     )
     comp["persistence"] = {
         "status": "attached",
@@ -817,7 +828,7 @@ def build_production_runtime(
             if cfg.database_url
             else f"SQLite {cfg.db_path}"
         )
-        + (" (multi-writer safe)" if cfg.multi_writer else ""),
+        + (" (multi-writer safe)" if multi_writer else ""),
     }
 
     apikeys = ApiKeyRegistry(cfg.keys_file)

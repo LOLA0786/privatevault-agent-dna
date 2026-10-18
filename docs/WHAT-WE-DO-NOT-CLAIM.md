@@ -82,9 +82,7 @@ after a real shared-connection cursor race was caught by our own
 suite, root-caused, and pinned —
 `tests/test_multi_writer_safety.py`,
 `tests/test_connection_thread_safety.py`). Chain state survives
-process restart (test-covered). **We still do not claim horizontally
-scaled multi-instance deployment**: no load-balancer story, no
-concurrent-load benchmark, no shared-nothing design decided.
+process restart (test-covered).
 
 **PostgreSQL decision ledger (`PV_DATABASE_URL`) is shipped and tested
 against a live server** (`tests/test_pg_store.py`): byte-identical export
@@ -107,9 +105,17 @@ as well (`tests/test_pg_shared_state.py`): an initiate on one instance and
 a self-approval on another are caught, where per-process windows let them
 through, and when the two race, at least one of them is blocked (with
 per-execution serialisation removed, most racing pairs both pass).
-**We do not yet claim multi-instance deployment**: the tests run several
-instances inside one process against one database; separate server
-processes behind a load balancer have not been run or load-tested.
+**Two API processes on one PostgreSQL are tested in CI**
+(`tests/multi_instance/test_two_processes.py`): concurrent spends across
+both never exceed a budget, one decision mints one permit, a self-approval
+on the other process is blocked, killing a process mid-load never
+overspends, and a database outage fails every request closed within the
+connection timeout and recovers. Separation holds only for covered flows
+where enforcement is enabled and verified. **We do not claim horizontal
+scaling or production load**: the only latency figures
+(docs/benchmarks/MULTI-INSTANCE.md) come from one 2-vCPU VM running
+everything, which is CPU-bound; there is no multi-host run, soak test or
+PostgreSQL failover test, and audit reads load the ledger per call.
 
 **We do not claim signature envelopes persist across restarts today.**
 Decision and execution records do — restart-safety here is

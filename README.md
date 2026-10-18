@@ -202,8 +202,12 @@ circuit-breaker ledgers (`tests/test_pg_ledgers.py`); opt-in replay inputs
 can go to a separate PostgreSQL database via `PV_REPLAY_DB`. Each agent's
 drift baseline and the cross-agent (CABI) windows are shared there too
 (`tests/test_pg_shared_state.py`), so no enforcement state is left in one
-process. Multi-instance deployment is not yet load-tested; until it is,
-run one API instance per deployment.
+process. CI runs two real API processes on one database and checks budget,
+single mint, maker≠checker, a process killed mid-load and a database
+outage (`tests/multi_instance/`); numbers and limits are in
+[docs/benchmarks/MULTI-INSTANCE.md](docs/benchmarks/MULTI-INSTANCE.md).
+Separation holds only for covered flows where enforcement is enabled and
+verified.
 
 ## MCP
 
