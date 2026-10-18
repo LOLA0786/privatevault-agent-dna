@@ -397,6 +397,9 @@ app = FastAPI(
 app.add_middleware(RequestBoundsMiddleware, bounds=lambda: state.get("request_bounds"))
 
 
+_MONITOR_EVENTS = 256
+
+
 def _monitor_for(agent_id: str) -> RuntimeMonitor:
     """Per-agent monitor without an attached recorder.
 
@@ -405,7 +408,16 @@ def _monitor_for(agent_id: str) -> RuntimeMonitor:
     """
     monitors = state["monitors"]
     if agent_id not in monitors:
-        monitors[agent_id] = RuntimeMonitor(state["engine"], recorder=None)
+        baselines = state["runtime"].agent_baselines
+        monitors[agent_id] = RuntimeMonitor(
+            state["engine"],
+            recorder=None,
+            # PostgreSQL: one baseline per agent across every instance.
+            state=baselines.for_agent(agent_id) if baselines is not None else None,
+            # Decisions are recorded in the store; this history is only for
+            # metrics and must not grow with every request.
+            max_events=_MONITOR_EVENTS,
+        )
     return monitors[agent_id]
 
 

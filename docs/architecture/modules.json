@@ -456,6 +456,11 @@
   ],
   [
    "agent_dna.composition",
+   "agent_dna.pg_shared_state",
+   "lazy"
+  ],
+  [
+   "agent_dna.composition",
    "agent_dna.pg_store",
    "top"
   ],
@@ -1542,6 +1547,11 @@
   [
    "agent_dna.observability.metrics",
    "agent_dna.observability.prometheus_bridge",
+   "top"
+  ],
+  [
+   "agent_dna.pg_shared_state",
+   "agent_dna.multi_agent",
    "top"
   ],
   [
@@ -3086,7 +3096,7 @@
   "agent_dna.invariants": 2,
   "agent_dna.lineage": 1,
   "agent_dna.manifold": 7,
-  "agent_dna.multi_agent": 3,
+  "agent_dna.multi_agent": 4,
   "agent_dna.multi_agent.authority": 2,
   "agent_dna.multi_agent.base": 13,
   "agent_dna.multi_agent.consensus": 2,
@@ -3107,6 +3117,7 @@
   "agent_dna.observability.prometheus_bridge": 2,
   "agent_dna.open_authorizer": 2,
   "agent_dna.pg_compat": 4,
+  "agent_dna.pg_shared_state": 1,
   "agent_dna.pg_store": 2,
   "agent_dna.policy.checker": 6,
   "agent_dna.policy.loader": 4,
@@ -3187,7 +3198,7 @@
   "agent_dna.circuit_breaker": 3,
   "agent_dna.cli": 9,
   "agent_dna.closure_v01": 3,
-  "agent_dna.composition": 32,
+  "agent_dna.composition": 33,
   "agent_dna.confidence": 1,
   "agent_dna.connector": 2,
   "agent_dna.connector.adapters": 2,
@@ -3253,6 +3264,7 @@
   "agent_dna.multi_agent.trust": 2,
   "agent_dna.multi_agent.world_state": 2,
   "agent_dna.observability.metrics": 1,
+  "agent_dna.pg_shared_state": 1,
   "agent_dna.pg_store": 9,
   "agent_dna.policy": 3,
   "agent_dna.policy.checker": 1,
@@ -3819,6 +3831,10 @@
   "agent_dna.pg_compat": {
    "group": "agent_dna (core modules)",
    "path": "agent_dna/pg_compat.py"
+  },
+  "agent_dna.pg_shared_state": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/pg_shared_state.py"
   },
   "agent_dna.pg_store": {
    "group": "agent_dna (core modules)",

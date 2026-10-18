@@ -199,9 +199,11 @@ against a live server in CI (`tests/test_pg_store.py`). Grant spend and
 grant revocation move with it, so every instance shares one budget and
 one kill switch (`tests/test_pg_grants.py`), and so do the lineage and
 circuit-breaker ledgers (`tests/test_pg_ledgers.py`); opt-in replay inputs
-can go to a separate PostgreSQL database via `PV_REPLAY_DB`. Drift monitors
-and the cross-agent window are still per process, so run one API instance
-per deployment until that is resolved and load-tested.
+can go to a separate PostgreSQL database via `PV_REPLAY_DB`. Each agent's
+drift baseline and the cross-agent (CABI) windows are shared there too
+(`tests/test_pg_shared_state.py`), so no enforcement state is left in one
+process. Multi-instance deployment is not yet load-tested; until it is,
+run one API instance per deployment.
 
 ## MCP
 
