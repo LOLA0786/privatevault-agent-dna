@@ -50,6 +50,10 @@ from agent_dna.authority_v01 import (  # noqa: E402
 from agent_dna.connector.adapters.execution_trust import (  # noqa: E402
     validate_execution_trust_bundle,
 )
+from agent_dna.operation_registry import (  # noqa: E402
+    OPERATIONS_SPEC,
+    parse_operation_registry,
+)
 from agent_dna.signer_python import generate_keypair  # noqa: E402
 
 OPERATOR = "operator"
@@ -101,6 +105,7 @@ def provision(
     agents: list[str],
     grants: list[dict[str, str]],
     replace_existing: bool = False,
+    operations: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     out = _prepare(out, replace_existing)
     names = list(dict.fromkeys([OPERATOR, *agents]))
@@ -156,6 +161,13 @@ def provision(
         0o644,
     )
 
+    # ADR 0025: the secure profile mints only operations declared here. The
+    # file starts empty, so nothing mints until the operator declares the
+    # exact method, destination and route each capability may use.
+    registry = {"spec": OPERATIONS_SPEC, "operations": list(operations or [])}
+    parse_operation_registry(registry)  # refuse a bad declaration now
+    _write(out / "operations.json", json.dumps(registry, indent=2) + "\n", 0o644)
+
     env = {
         "PV_SECURE_PROFILE": "1",
         "PV_LINEAGE": "enforce",
@@ -163,6 +175,7 @@ def provision(
         "PV_DB_PATH": str(out / "privatevault.db"),
         "PV_API_KEYS_FILE": str(out / "keys.json"),
         "PV_GRANTS_FILE": str(out / "grants.json"),
+        "PV_OPERATIONS_FILE": str(out / "operations.json"),
         "PV_RECEIPT_SIGNING_KEY": receipt["signing_key"],
         "PV_TRUSTED_PUBLIC_KEYS": receipt["public_key"],
         "PV_EXECUTION_SIGNER_KEY": str(out / "execution-signer.key"),

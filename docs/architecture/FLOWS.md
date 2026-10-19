@@ -84,6 +84,9 @@ inside `api/server.py::decide`:
    (`api/server.py::_validate_decide_binding`).
 2. An approval, if one is attached, is checked for whether it can be judged
    at all (`api/server.py::_approval_context_for`).
+   A bound request its capability does not declare in the operations
+   registry is a sealed BLOCK here, before the ladder (ADR 0025,
+   `api/server.py::_decide_or_block_undeclared`).
 3. The sealed destination and operation are exposed to policy as
    `evidence.bound`; callers cannot set it themselves.
 4. Monitor, breaker, engine and precedence ladder
@@ -152,7 +155,9 @@ flowchart TD
   G -- no --> X6[422]
   G -- yes --> T{approval, grant and decision<br/>window still valid?}
   T -- no / unknown --> X7[403]
-  T -- yes --> H[resolve presenter key,<br/>compute bindings digest,<br/>cap expiry at the earliest end]
+  T -- yes --> O{capability declares this<br/>exact operation?}
+  O -- no --> X8[403]
+  O -- yes --> H[resolve presenter key,<br/>compute bindings digest,<br/>cap expiry at the earliest end]
   H --> I[claim the mint row,<br/>sign inside the claim]
   I --> J{grant revoked<br/>while minting?}
   J -- yes --> K[suspend the new permit, refuse]
@@ -165,6 +170,7 @@ flowchart TD
 | Revoked grant | `api/server.py::_revoked_grant_for` |
 | Signer (local seed or KMS) | `api/server.py::_pv_load_signer` |
 | Authority still valid; permit expiry capped (ADR 0024) | `agent_dna/authority_deadline.py::authority_deadline` |
+| Capability declares this exact operation (ADR 0025) | `api/server.py::_require_declared_operation`, `agent_dna/operation_registry.py::OperationRegistry.check` |
 | Presenter key for mTLS (ADR 0022) | `api/server.py::_resolve_presenter` |
 | What the permit binds | `agent_dna/authorize_binding.py::mint_bindings_digest` |
 | One live permit per decision (ADR 0016) | `agent_dna/sqlite_store.py::SQLiteDecisionStore.claim_or_replay_mint`, `agent_dna/pg_store.py::PostgresDecisionStore.claim_or_replay_mint` |

@@ -55,6 +55,9 @@ config:
   presenterBundleKey: ""
   # Optional: set to the key holding a policy file.
   policyKey: ""
+  # The operations each capability may perform (ADR 0025). With the secure
+  # profile on and this empty, the API refuses every mint.
+  operationsKey: ""
 
 # Signing keys in a KMS (ADR 0023). A reference here replaces the matching
 # seed in the Secret. Give the ServiceAccount KMS sign permission (IRSA /
