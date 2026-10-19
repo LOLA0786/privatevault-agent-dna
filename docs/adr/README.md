@@ -33,6 +33,7 @@ explicit statement that no such test exists.
 | [0021](0021-server-derived-lineage.md) | Multi-agent dual control runs on server-derived lineage, not a caller-chosen id | accepted | `tests/test_lineage_dual_control.py::test_split_execution_ids_no_longer_bypass` |
 | [0024](0024-permit-never-outlives-its-authority.md) | A permit never outlives the authority behind its ALLOW | accepted | `tests/test_authority_freshness.py::test_mint_after_approval_expiry_is_refused` |
 | [0025](0025-capabilities-declare-their-operations.md) | A capability covers only the operations the operator declared | accepted | `tests/test_operation_registry.py::test_read_grant_cannot_obtain_a_transfer_permit` |
+| [0026](0026-permit-evidence-is-the-servers.md) | The evidence a permit cites is the server's, not the caller's | accepted | `tests/test_permit_evidence.py::test_secure_profile_refuses_the_reviews_probe` |
 
 0001–0014 are the enforcement-spine decisions. 0015 is the earlier
 loop-discovery placement record, renumbered so the spine could own
@@ -58,3 +59,5 @@ signatures identical to local signing and each one verified before use.
 ALLOW ends, and caps every permit's expiry at that end.
 0025 makes the operator declare the exact operations each capability
 covers; anything else is a sealed BLOCK at decide and refused at mint.
+0026 seals the policy bundle and grant behind each decision and signs those
+into the permit, not the caller's digests.

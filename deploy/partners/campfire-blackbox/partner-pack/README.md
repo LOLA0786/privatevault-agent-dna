@@ -40,7 +40,7 @@ curl -sS -D - "$BASE_URL/v1/decide" \
 
 ## 3. Mint a permit after ALLOW
 
-Do this only after a sealed ALLOW (`200` and `decision=allow`). Copy `record.decision_id` and `record.record_hash` from that response. `decision_receipt_digest` is `sha256:` plus the record hash. Copy `execution_action` from `examples/allow.json` as `action`. Do not send decide `dispatch_context` as `dispatch`. Authorize `dispatch` is the twelve fields below; decide uses six context fields.
+Do this only after a sealed ALLOW (`200` and `decision=allow`). Copy `record.decision_id` and `record.record_hash` from that response. `decision_receipt_digest` is `sha256:` plus the record hash. Copy `execution_action` from `examples/allow.json` as `action`. Do not send decide `dispatch_context` as `dispatch`. Authorize `dispatch` is the twelve fields below; decide uses six context fields. Do not send `policy_bundle_digest`, `authority_receipt_digest`, `state_snapshot_digest` or `obligations_digest`: the server fills them from the sealed decision, and under `PV_SECURE_PROFILE=1` a value that differs is refused (`AUTHORIZE_EVIDENCE_MISMATCH`). The response's `evidence` object shows what was signed.
 
 ```bash
 python3 - <<'PY'
@@ -96,11 +96,7 @@ body = {
     "expected_wire_bytes_length": len(wire),
     "expected_peer_identity_digest": one,
     "decision_receipt_digest": "sha256:" + record["record_hash"],
-    "authority_receipt_digest": one,
     "approval_artifact_digest": z,
-    "state_snapshot_digest": z,
-    "policy_bundle_digest": one,
-    "obligations_digest": z,
 }
 status, minted = call("POST", "/v1/authorize", body)
 assert status == 200, minted

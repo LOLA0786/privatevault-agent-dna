@@ -58,6 +58,7 @@ points at the test file that proves it.
 | Key rotation, secrets-manager integration | **NOT STARTED** | API keys and local seeds are file or environment based; no rotation mechanism |
 | Capability-to-operation binding | **SHIPPED** | ADR 0025: operator-declared operations per capability (`PV_OPERATIONS_FILE`); undeclared requests are a sealed BLOCK at decide and refused at mint; required to mint under the secure profile. `tests/test_operation_registry.py` |
 | Authority freshness at mint | **SHIPPED** | ADR 0024: mint refused after the approval, grant or decision window ends; permit expiry capped at the earliest. `tests/test_authority_freshness.py` |
+| Permit evidence from the server, not the caller | **SHIPPED** | ADR 0026: the policy bundle and grant are sealed at decide and signed into the permit; differing caller values and configuration changes between decide and mint are refused under the secure profile. `tests/test_permit_evidence.py` |
 | Third-party security certification (SOC 2, ISO 27001) | **NOT STARTED** | See `docs/WHAT-WE-DO-NOT-CLAIM.md` — pre-seed, no funded timeline yet. |
 | Penetration testing | **NOT STARTED** | No formal external pentest has been performed. Internal adversarial corpus (`spec/adversarial/`) is not a substitute and is not claimed as one. |
 | Vulnerability disclosure process | **SHIPPED** | `.well-known/security.txt`; contact in `SECURITY.md`. |
@@ -117,10 +118,11 @@ points at the test file that proves it.
 ## What this means for a pilot specifically
 
 A **scoped, single-workflow partner sandbox** (per `PILOT-SCOPE.md`) is
-supportable: both authorization findings from the 19 October 2026 external
+supportable: the authorization findings from the 19 October 2026 external
 review are fixed (authority freshness, ADR 0024; capability-to-operation
-binding, ADR 0025). Run it with the secure profile and a reviewed operations
-file, and see `docs/ROADMAP.md` for the deployment findings still open.
+binding, ADR 0025; server-derived permit evidence, ADR 0026). Run it with
+the secure profile and a reviewed operations file, and see
+`docs/ROADMAP.md` for the deployment findings still open.
 
 A **multi-host, monitored, horizontally-scaled production deployment with
 formal certification** is not supportable today. Multiple instances are

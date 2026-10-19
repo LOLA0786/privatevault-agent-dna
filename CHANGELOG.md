@@ -5,6 +5,26 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### The evidence a permit cites is the server's (ADR 0026, review finding 3)
+- Decide seals the permit evidence in the server-only control-posture item:
+  the policy bundle digest (policy file or OPA endpoint, grants file,
+  operations registry; reported by `/v1/runtime`) and the grant the engine
+  used. State snapshot and obligations are the all-zero digest: the API
+  evaluates neither.
+- `PV_PERMIT_EVIDENCE=server`, the default under `PV_SECURE_PROFILE`:
+  `/v1/authorize` signs the sealed values. A caller value that differs is
+  refused (`AUTHORIZE_EVIDENCE_MISMATCH`), a changed policy, grants or
+  operations configuration since decide refuses the mint
+  (`AUTHORIZE_POLICY_CHANGED`), and a record with no sealed evidence
+  refuses (`AUTHORIZE_EVIDENCE_UNKNOWN`). `caller` is refused at start-up
+  with the secure profile.
+- `caller` (the default otherwise) signs caller values as given and fills
+  omitted ones from the record; the response lists `caller_asserted`.
+- The four request fields are optional. The agent gate and the partner pack
+  no longer send them and read the signed values from the permit.
+- The review's probe (arbitrary digests signed unchanged) is a regression
+  test (`tests/test_permit_evidence.py`).
+
 ### A capability covers only its declared operations (ADR 0025, review finding 1)
 - `PV_OPERATIONS_FILE` (`pv-operations/0.1`): per capability, the
   transport, destination, `METHOD path`, credential audience, resource and

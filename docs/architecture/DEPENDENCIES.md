@@ -14,7 +14,7 @@ flowchart BT
   L1["L1 Contracts and primitives<br/>21 modules"]
   L2["L2 Evidence: records, permits, signatures<br/>14 modules"]
   L3["L3 Ledgers: SQLite and PostgreSQL<br/>12 modules"]
-  L4["L4 Decision engine: the precedence ladder and what it consults<br/>71 modules"]
+  L4["L4 Decision engine: the precedence ladder and what it consults<br/>72 modules"]
   L5["L5 Enforcement runtime: monitor, breaker, recorder, gates, sidecar<br/>31 modules"]
   L6["L6 Composition and entry points<br/>18 modules"]
   L2 -->|23| L1
@@ -29,7 +29,7 @@ flowchart BT
   L6 -->|24| L1
   L6 -->|7| L2
   L6 -->|15| L3
-  L6 -->|48| L4
+  L6 -->|49| L4
   L6 -->|22| L5
   L2 -.->|1 upward| L4
   L3 -.->|4 upward| L4
@@ -58,7 +58,7 @@ flowchart BT
 | `agent_dna.scan.ingest` | Normalize heterogeneous agent logs into AgentAction | `agent_dna.trace` | 2: `agent_dna.scan`, `agent_dna.scan.replay` |
 | `agent_dna.scan.inventory` | What the agents in a log can actually do | `agent_dna.trace` | none |
 | `agent_dna.scan.replay` | Replay a customer's own log through the engine, enforcing nothing | `agent_dna.decision`, `agent_dna.dynamics`, `agent_dna.manifold`, `agent_dna.open_authorizer`, `agent_dna.scan.ingest`, `agent_dna.scorer`, `agent_dna.trace` | 1: `agent_dna.scan` |
-| `api.server` | PrivateVault Agent DNA — Decision Security API | `agent_dna.action_v01`, `agent_dna.apikeys`, `agent_dna.approval_bridge`, `agent_dna.authority_deadline`, `agent_dna.authority_v01`, `agent_dna.authorize_binding`, `agent_dna.composition`, `agent_dna.connector.cross_agent`, `agent_dna.control_posture`, `agent_dna.decision`, `agent_dna.decision_graph`, `agent_dna.dispatch_context_v01`, `agent_dna.execution_v01`, `agent_dna.key_custody`, `agent_dna.lineage`, `agent_dna.observability.logger`, `agent_dna.observability.metrics`, `agent_dna.observability.prometheus_bridge`, `agent_dna.operation_registry`, `agent_dna.presenter_identity`, `agent_dna.request_bounds`, `agent_dna.revocation_list`, `agent_dna.runtime`, `agent_dna.security.loop_discovery`, `agent_dna.signer`, `agent_dna.trace`, `agent_dna.wire_serialization_v01` | none |
+| `api.server` | PrivateVault Agent DNA — Decision Security API | `agent_dna.action_v01`, `agent_dna.apikeys`, `agent_dna.approval_bridge`, `agent_dna.authority_deadline`, `agent_dna.authority_v01`, `agent_dna.authorize_binding`, `agent_dna.composition`, `agent_dna.connector.cross_agent`, `agent_dna.control_posture`, `agent_dna.decision`, `agent_dna.decision_graph`, `agent_dna.dispatch_context_v01`, `agent_dna.execution_v01`, `agent_dna.key_custody`, `agent_dna.lineage`, `agent_dna.observability.logger`, `agent_dna.observability.metrics`, `agent_dna.observability.prometheus_bridge`, `agent_dna.operation_registry`, `agent_dna.permit_evidence`, `agent_dna.presenter_identity`, `agent_dna.request_bounds`, `agent_dna.revocation_list`, `agent_dna.runtime`, `agent_dna.security.loop_discovery`, `agent_dna.signer`, `agent_dna.trace`, `agent_dna.wire_serialization_v01` | none |
 
 ## L5: Enforcement runtime: monitor, breaker, recorder, gates, sidecar
 
@@ -118,7 +118,7 @@ flowchart BT
 | `agent_dna.consensus.secure_quorum` | Trust-weighted quorum over pv-vote/1 signed votes | `agent_dna.consensus.signing` | 2: `agent_dna.consensus.byzantine`, `agent_dna.consensus.checker` |
 | `agent_dna.consensus.signing` | HMAC-SHA256 vote signing | nothing in the core | 2: `agent_dna.consensus.byzantine`, `agent_dna.consensus.secure_quorum` |
 | `agent_dna.consensus.weighted_quorum` | Weighted quorum voting | nothing in the core | 1: `agent_dna.consensus` |
-| `agent_dna.control_posture` | Operator-controlled enforcement posture recorded into decision evidence | `agent_dna.decision`, `agent_dna.evidence` | 4: `agent_dna.connector.cross_agent`, `agent_dna.connector.middleware`, `agent_dna.decision`, `api.server` |
+| `agent_dna.control_posture` | Operator-controlled enforcement posture recorded into decision evidence | `agent_dna.decision`, `agent_dna.evidence` | 5: `agent_dna.connector.cross_agent`, `agent_dna.connector.middleware`, `agent_dna.decision`, `agent_dna.permit_evidence`, `api.server` |
 | `agent_dna.decision` | Unified Runtime Decision Engine | `agent_dna.advisory`, `agent_dna.amount`, `agent_dna.approval_bridge`, `agent_dna.control_posture`, `agent_dna.evidence`, `agent_dna.trace` | 15: `agent_dna`, `agent_dna.adapters_framework.base`, `agent_dna.circuit_breaker`, `agent_dna.composition`, `agent_dna.connector.cross_agent`, ... |
 | `agent_dna.diff` | Behavioral Profile Diff Engine | `agent_dna.authorization`, `agent_dna.fingerprint`, `agent_dna.similarity` | 1: `agent_dna` |
 | `agent_dna.dynamics` | Behavior Dynamics Model (BDM) | `agent_dna.trace` | 5: `agent_dna`, `agent_dna.composition`, `agent_dna.fingerprint`, `agent_dna.scan.replay`, `agent_dna.scorer` |
@@ -150,6 +150,7 @@ flowchart BT
 | `agent_dna.multi_agent.world_state` | World-State Behavioral Invariant | `agent_dna.multi_agent.base`, `agent_dna.multi_agent.interaction_graph` | 2: `agent_dna.multi_agent`, `agent_dna.multi_agent.runtime_validator` |
 | `agent_dna.open_authorizer` | Development-only open authorizer — operator-configured, never caller-toggled | nothing in the core | 2: `agent_dna.composition`, `agent_dna.scan.replay` |
 | `agent_dna.operation_registry` | Which operations a capability may perform (ADR 0025) | `agent_dna.advisory`, `agent_dna.decision` | 1: `api.server` |
+| `agent_dna.permit_evidence` | The evidence a permit cites is the server's, not the caller's (ADR 0026) | `agent_dna.control_posture` | 1: `api.server` |
 | `agent_dna.policy` | Customer-configurable policy layer. Rules are data (YAML/JSON), not | `agent_dna.policy.checker`, `agent_dna.policy.loader`, `agent_dna.policy.schema` | none |
 | `agent_dna.policy.checker` | PolicyChecker — evaluates an action against a customer-supplied | `agent_dna.policy.schema` | 6: `agent_dna.adapters_policy.local`, `agent_dna.adapters_policy.skill_adapter`, `agent_dna.composition`, `agent_dna.discovery`, `agent_dna.policy`, ... |
 | `agent_dna.policy.loader` | Policy file loader — YAML or JSON, auto-detected by extension | `agent_dna.policy.schema` | 3: `agent_dna.adapters_policy.local`, `agent_dna.composition`, `agent_dna.policy` |

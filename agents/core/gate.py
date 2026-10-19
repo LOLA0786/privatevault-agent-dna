@@ -197,10 +197,9 @@ class PrivateVaultGate:
             "expected_wire_bytes_length": len(wire),
             "expected_peer_identity_digest": sha256_bytes_digest(self.peer_identity),
             "decision_receipt_digest": "sha256:" + record["record_hash"],
-            "authority_receipt_digest": ZERO,
-            "state_snapshot_digest": ZERO,
-            "policy_bundle_digest": ZERO,
-            "obligations_digest": ZERO,
+            # The policy, authority-receipt, state and obligations references
+            # are the ones the server sealed at decide time (ADR 0026); the
+            # agent does not assert them.
         }
         if record.get("triggered_by") == "approval":
             body["approval_artifact_digest"] = record["approval_ref"]
@@ -251,18 +250,19 @@ class PrivateVaultGate:
         if self.dispatcher is None:
             raise GateError("no sidecar dispatcher configured")
         body = permit.body
+        signed = permit.authorization
         context = ExactByteContext(
             request_id=permit.request_id,
             observed_action=body["action"],
             observed_dispatch=body["dispatch"],
             decision_receipt_digest=body["decision_receipt_digest"],
-            authority_receipt_digest=body["authority_receipt_digest"],
+            authority_receipt_digest=signed["authority_receipt_digest"],
             # None means no approval; verify accepts it even though the
             # dataclass annotation is narrower.
             approval_artifact_digest=body.get("approval_artifact_digest"),  # type: ignore[arg-type]
-            state_snapshot_digest=body["state_snapshot_digest"],
-            policy_bundle_digest=body["policy_bundle_digest"],
-            obligations_digest=body["obligations_digest"],
+            state_snapshot_digest=signed["state_snapshot_digest"],
+            policy_bundle_digest=signed["policy_bundle_digest"],
+            obligations_digest=signed["obligations_digest"],
             at_time=permit.at_time,
         )
         return self.dispatcher.dispatch(

@@ -127,6 +127,20 @@ class GrantRegistry:
         Raises KeyError for a grant id this registry does not hold."""
         return self._grants[grant_id].expires_at
 
+    def snapshot_of(self, grant_id: str) -> dict[str, Any]:
+        """A configured grant's terms, without spend or revocation state
+        (ADR 0026). Raises KeyError for a grant id this registry does not
+        hold."""
+        g = self._grants[grant_id]
+        return {
+            "grant_id": g.grant_id,
+            "agent_id": g.agent_id,
+            "capability": g.capability,
+            "granted_by": g.granted_by,
+            "expires_at": g.expires_at,
+            "budget": g.budget,
+        }
+
     def _find(self, agent_id: str, capability: str):
         return [
             g

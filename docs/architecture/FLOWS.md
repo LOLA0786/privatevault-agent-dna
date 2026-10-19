@@ -94,10 +94,13 @@ inside `api/server.py::decide`:
 5. Cross-agent escalation (`agent_dna/connector/cross_agent.py::escalate_with_cross_agent`)
    and lineage escalation (`agent_dna/lineage.py::escalate_with_lineage`).
    Both can only tighten.
-6. Seal, sign and store record and envelope together
+6. The control posture, including the permit evidence (policy bundle and
+   grant digests, ADR 0026, `api/server.py::_decided_permit_evidence`), is
+   attached to the result as a server-only evidence item.
+7. Seal, sign and store record and envelope together
    (`agent_dna/decision_recorder.py::DecisionRecorder.record`), then record
    the lineage event (`agent_dna/lineage.py::LineageLedger.record`).
-7. HTTP status from the verdict: 200 allow, 202 approval, 403 block.
+8. HTTP status from the verdict: 200 allow, 202 approval, 403 block.
 
 ## Approval (ADR 0020)
 
@@ -157,7 +160,9 @@ flowchart TD
   T -- no / unknown --> X7[403]
   T -- yes --> O{capability declares this<br/>exact operation?}
   O -- no --> X8[403]
-  O -- yes --> H[resolve presenter key,<br/>compute bindings digest,<br/>cap expiry at the earliest end]
+  O -- yes --> P{sealed permit evidence present,<br/>same configuration, caller<br/>values match, in server mode?}
+  P -- no --> X9[403 / 422]
+  P -- yes --> H[resolve presenter key,<br/>compute bindings digest,<br/>cap expiry at the earliest end]
   H --> I[claim the mint row,<br/>sign inside the claim]
   I --> J{grant revoked<br/>while minting?}
   J -- yes --> K[suspend the new permit, refuse]
@@ -171,6 +176,7 @@ flowchart TD
 | Signer (local seed or KMS) | `api/server.py::_pv_load_signer` |
 | Authority still valid; permit expiry capped (ADR 0024) | `agent_dna/authority_deadline.py::authority_deadline` |
 | Capability declares this exact operation (ADR 0025) | `api/server.py::_require_declared_operation`, `agent_dna/operation_registry.py::OperationRegistry.check` |
+| Permit evidence from the sealed decision (ADR 0026) | `api/server.py::_permit_evidence_for`, `agent_dna/permit_evidence.py::sealed_evidence` |
 | Presenter key for mTLS (ADR 0022) | `api/server.py::_resolve_presenter` |
 | What the permit binds | `agent_dna/authorize_binding.py::mint_bindings_digest` |
 | One live permit per decision (ADR 0016) | `agent_dna/sqlite_store.py::SQLiteDecisionStore.claim_or_replay_mint`, `agent_dna/pg_store.py::PostgresDecisionStore.claim_or_replay_mint` |
