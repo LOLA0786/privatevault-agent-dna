@@ -167,10 +167,6 @@ components:
         - expected_wire_bytes_length
         - expected_peer_identity_digest
         - decision_receipt_digest
-        - authority_receipt_digest
-        - state_snapshot_digest
-        - policy_bundle_digest
-        - obligations_digest
       properties:
         request_id:
           type: string
@@ -196,15 +192,19 @@ components:
           type: string
         authority_receipt_digest:
           type: string
+          description: Omit. The server fills it from the sealed decision; under PV_SECURE_PROFILE=1 a different value is refused.
         approval_artifact_digest:
           type: string
           nullable: true
         state_snapshot_digest:
           type: string
+          description: Omit. The server fills it from the sealed decision; under PV_SECURE_PROFILE=1 a different value is refused.
         policy_bundle_digest:
           type: string
+          description: Omit. The server fills it from the sealed decision; under PV_SECURE_PROFILE=1 a different value is refused.
         obligations_digest:
           type: string
+          description: Omit. The server fills it from the sealed decision; under PV_SECURE_PROFILE=1 a different value is refused.
     OutcomeRequest:
       type: object
       required: [decision_id, status]

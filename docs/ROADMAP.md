@@ -13,7 +13,7 @@ until then `docs/WHAT-WE-DO-NOT-CLAIM.md` states them as open.
 |---|---|---|
 | 1 | Authority freshness: an ALLOW can be minted after its approval or grant expired, and a permit can outlive its approval | **Done** (ADR 0024): server-derived deadline at mint, earliest of approval expiry, grant expiry and the decision window; mint refused after it, permit expiry capped at it |
 | 2 | A grant names a capability, not an operation | **Done** (ADR 0025): operator-declared operations per capability; sealed BLOCK at decide, refused at mint, required to mint under the secure profile; registry digest in `/v1/runtime` and the mint response. Open: path templates, digest inside the permit |
-| 3 | Permit digests for policy, state, authority receipt and obligations are caller assertions | Derive them from stored evidence or refuse; until then name them as caller assertions in the permit contract |
+| 3 | Permit digests for policy, state, authority receipt and obligations are caller assertions | **Done** (ADR 0026): sealed at decide from the server's policy, grants and operations configuration and the grant used; caller values that differ are refused, and a configuration change between decide and mint refuses the mint, under the secure profile. State snapshot and obligations are signed as the all-zero digest (not evaluated). Open: digests inside the permit spec for receivers to check |
 | 4 | Receiver kit is not a hardened deployment by default | One strict reference deployment: mTLS presenters required, revocation refresh wired and fail-closed, private upstream, one receiver host |
 | 5 | Routine reads rebuild the full ledger | Indexed SQL predicates, cursor pagination, streamed exports; full verification stays an explicit audit call |
 

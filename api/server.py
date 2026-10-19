@@ -62,6 +62,9 @@ from agent_dna.authorize_binding import (
     AUTHORIZE_AUTHORITY_UNKNOWN,
     AUTHORIZE_DECISION_NOT_FOUND,
     AUTHORIZE_DECISION_REQUIRED,
+    AUTHORIZE_EVIDENCE_MISMATCH,
+    AUTHORIZE_EVIDENCE_REQUIRED,
+    AUTHORIZE_EVIDENCE_UNKNOWN,
     AUTHORIZE_GRANT_REVOKED,
     AUTHORIZE_OPERATION_MISMATCH,
     AUTHORIZE_OPERATION_NOT_DECLARED,
@@ -72,6 +75,7 @@ from agent_dna.authorize_binding import (
     AUTHORIZE_PERMIT_INDETERMINATE,
     AUTHORIZE_PERMIT_TRUST_BUNDLE_DIGEST_MISMATCH,
     AUTHORIZE_PERMIT_TRUST_BUNDLE_MISSING,
+    AUTHORIZE_POLICY_CHANGED,
     AUTHORIZE_PRESENTER_NOT_PINNED,
     AUTHORIZE_PRESENTER_REQUIRED,
     AUTHORIZE_PRESENTER_UNCONFIGURED,
@@ -117,6 +121,16 @@ from agent_dna.operation_registry import (
     OperationRegistryError,
     load_operation_registry,
     operation_block,
+)
+from agent_dna.permit_evidence import (
+    PERMIT_EVIDENCE_KEY,
+    SERVER,
+    PermitEvidenceError,
+    decided_evidence,
+    evidence_mode,
+    first_mismatch,
+    policy_bundle_digest,
+    sealed_evidence,
 )
 from agent_dna.presenter_identity import (
     PresenterBundle,
@@ -387,6 +401,45 @@ def _operations_manifest(
     }
 
 
+def _permit_evidence(
+    registry: OperationRegistry | None, env: Any = None
+) -> dict[str, str]:
+    """ADR 0026: where a permit's four evidence references come from, and
+    the digest of the decision configuration this server loaded."""
+    source = os.environ if env is None else env
+    try:
+        return {
+            "mode": evidence_mode(source, secure=_secure_profile_on(source)),
+            "policy_bundle_digest": policy_bundle_digest(
+                source,
+                operations_digest=registry.digest if registry is not None else None,
+            ),
+        }
+    except PermitEvidenceError as exc:
+        raise RuntimeError(str(exc)) from exc
+
+
+def _permit_evidence_manifest(evidence: dict[str, str]) -> dict[str, str]:
+    if evidence["mode"] == SERVER:
+        return {
+            "status": "attached",
+            "mode": SERVER,
+            "policy_bundle_digest": evidence["policy_bundle_digest"],
+            "detail": "permits cite the policy bundle and grant sealed at decide "
+            "time; state snapshot and obligations are the all-zero digest "
+            "(not evaluated); a caller value that differs is refused (ADR 0026)",
+        }
+    return {
+        "status": "not_configured",
+        "mode": "caller",
+        "policy_bundle_digest": evidence["policy_bundle_digest"],
+        "detail": "PV_PERMIT_EVIDENCE=caller: a policy, authority receipt, "
+        "state snapshot or obligations digest the caller sends is signed as "
+        "the caller's assertion, not checked by this server; omitted ones are "
+        "the values sealed at decide time (ADR 0026)",
+    }
+
+
 MAX_REQUEST_BYTES_DEFAULT = 1_048_576
 MAX_REQUEST_BYTES_MIN = 1024
 MAX_REQUEST_BYTES_MAX = 64 * 1_048_576
@@ -471,6 +524,10 @@ async def lifespan(app: FastAPI):
     state["operation_registry"] = _operation_registry()
     runtime.composition["operation_registry"] = _operations_manifest(
         state["operation_registry"], _secure_profile_on()
+    )
+    state["permit_evidence"] = _permit_evidence(state["operation_registry"])
+    runtime.composition["permit_evidence"] = _permit_evidence_manifest(
+        state["permit_evidence"]
     )
     runtime.composition["presenter_binding"] = _presenter_manifest(
         state["presenter_bundle"]
@@ -833,6 +890,28 @@ def _decide_or_block_undeclared(
     )
 
 
+def _decided_permit_evidence(result: DecisionResult) -> dict[str, str]:
+    """ADR 0026: the references a permit for this decision will cite, fixed
+    now from this server's configuration and the grant the engine used."""
+    evidence = state.get("permit_evidence")
+    if evidence is None:
+        evidence = state["permit_evidence"] = _permit_evidence(
+            state.get("operation_registry")
+        )
+    grant_id = getattr(result, "grant_id", None)
+    grant: dict[str, Any] | None = None
+    if isinstance(grant_id, str) and grant_id:
+        authorizer = getattr(state.get("engine"), "authorizer", None)
+        snapshot = getattr(authorizer, "snapshot_of", None)
+        try:
+            grant = snapshot(grant_id) if snapshot is not None else None
+        except KeyError:
+            grant = None
+        if grant is None:
+            grant = {"grant_id": grant_id}
+    return decided_evidence(policy_bundle=evidence["policy_bundle_digest"], grant=grant)
+
+
 @app.post("/v1/decide")
 def decide(req: DecideRequest, principal: FullPrincipal):
     _enforce_identity(principal, req.agent_id)
@@ -942,6 +1021,8 @@ def decide(req: DecideRequest, principal: FullPrincipal):
                 getattr(runtime, "loop_events_required", False)
             ),
             "lineage_mode": mode,
+            # ADR 0026: what a permit for this decision may cite.
+            PERMIT_EVIDENCE_KEY: _decided_permit_evidence(result),
         },
     )
 
@@ -1356,11 +1437,15 @@ class AuthorizeRequest(BaseModel):
     presenter_identity_digest: str | None = Field(default=None, pattern=_PV_DIGEST)
 
     decision_receipt_digest: str = Field(pattern=_PV_DIGEST)
-    authority_receipt_digest: str = Field(pattern=_PV_DIGEST)
     approval_artifact_digest: str | None = Field(default=None, pattern=_PV_DIGEST)
-    state_snapshot_digest: str = Field(pattern=_PV_DIGEST)
-    policy_bundle_digest: str = Field(pattern=_PV_DIGEST)
-    obligations_digest: str = Field(pattern=_PV_DIGEST)
+    # ADR 0026: with PV_PERMIT_EVIDENCE=server (the secure-profile default)
+    # the server fills these from the sealed decision; a caller may omit them
+    # or repeat the sealed values, never replace them. With =caller they are
+    # required and signed as the caller's assertions.
+    authority_receipt_digest: str | None = Field(default=None, pattern=_PV_DIGEST)
+    state_snapshot_digest: str | None = Field(default=None, pattern=_PV_DIGEST)
+    policy_bundle_digest: str | None = Field(default=None, pattern=_PV_DIGEST)
+    obligations_digest: str | None = Field(default=None, pattern=_PV_DIGEST)
     # Multi-agent authority boundary: when supplied, discover_loops must ALLOW
     security_events: list[dict[str, Any]] | None = None
 
@@ -1593,6 +1678,73 @@ def _require_declared_operation(
     return {"operation_id": str(match.operation_id), "registry_digest": registry.digest}
 
 
+def _permit_evidence_for(
+    record: dict[str, Any], req: AuthorizeRequest
+) -> tuple[dict[str, str], list[str]]:
+    """ADR 0026: the four evidence references the permit will carry, and
+    which of them are the caller's assertions rather than sealed values."""
+    evidence = state.get("permit_evidence")
+    if evidence is None:
+        evidence = state["permit_evidence"] = _permit_evidence(
+            state.get("operation_registry")
+        )
+    supplied = {
+        "policy_bundle_digest": req.policy_bundle_digest,
+        "authority_receipt_digest": req.authority_receipt_digest,
+        "state_snapshot_digest": req.state_snapshot_digest,
+        "obligations_digest": req.obligations_digest,
+    }
+    sealed = sealed_evidence(record)
+    if evidence["mode"] != SERVER:
+        # Legacy: a caller value is signed as given; an omitted one falls
+        # back to the sealed value.
+        chosen: dict[str, str] = {}
+        missing = []
+        for name, value in supplied.items():
+            if value is not None:
+                chosen[name] = value
+            elif sealed is not None:
+                chosen[name] = sealed[name]
+            else:
+                missing.append(name)
+        if missing:
+            _authorize_refusal(
+                422,
+                AUTHORIZE_EVIDENCE_REQUIRED,
+                "this decision carries no sealed permit evidence; "
+                "PV_PERMIT_EVIDENCE=caller requires " + ", ".join(missing),
+            )
+        asserted = [
+            name
+            for name, value in supplied.items()
+            if value is not None and (sealed is None or value != sealed[name])
+        ]
+        return chosen, asserted
+    if sealed is None:
+        _authorize_refusal(
+            403,
+            AUTHORIZE_EVIDENCE_UNKNOWN,
+            "this decision carries no sealed permit evidence (decided before "
+            "ADR 0026, or not through /v1/decide); decide again",
+        )
+    if sealed["policy_bundle_digest"] != evidence["policy_bundle_digest"]:
+        _authorize_refusal(
+            403,
+            AUTHORIZE_POLICY_CHANGED,
+            "the policy, grants or operations configuration differs from the "
+            "one that made this decision; decide again",
+        )
+    mismatch = first_mismatch(sealed, supplied)
+    if mismatch is not None:
+        _authorize_refusal(
+            403,
+            AUTHORIZE_EVIDENCE_MISMATCH,
+            f"{mismatch.field} {mismatch.supplied} is not the sealed "
+            f"{mismatch.sealed}; omit it to use the sealed value",
+        )
+    return sealed, []
+
+
 @app.post("/v1/authorize")
 def authorize(req: AuthorizeRequest, principal: FullPrincipal):  # noqa: C901
     """Issue execution authority bound to a sealed ALLOW and exact bytes."""
@@ -1685,6 +1837,7 @@ def authorize(req: AuthorizeRequest, principal: FullPrincipal):  # noqa: C901
             f"{_pv_rfc3339(authority_end)} ({deadline.basis}); decide again",
         )
     operation = _require_declared_operation(record, req)
+    evidence, caller_asserted = _permit_evidence_for(record, req)
     # A permit never outlives the approval, grant or decision behind it.
     expires_at = _pv_rfc3339(
         min(now + _timedelta(seconds=window.ttl_seconds), authority_end)
@@ -1701,11 +1854,11 @@ def authorize(req: AuthorizeRequest, principal: FullPrincipal):  # noqa: C901
         expected_wire_bytes_length=req.expected_wire_bytes_length,
         expected_peer_identity_digest=req.expected_peer_identity_digest,
         decision_receipt_digest=req.decision_receipt_digest,
-        authority_receipt_digest=req.authority_receipt_digest,
+        authority_receipt_digest=evidence["authority_receipt_digest"],
         approval_artifact_digest=req.approval_artifact_digest,
-        state_snapshot_digest=req.state_snapshot_digest,
-        policy_bundle_digest=req.policy_bundle_digest,
-        obligations_digest=req.obligations_digest,
+        state_snapshot_digest=evidence["state_snapshot_digest"],
+        policy_bundle_digest=evidence["policy_bundle_digest"],
+        obligations_digest=evidence["obligations_digest"],
         expected_presenter_identity_digest=presenter,
     )
 
@@ -1721,7 +1874,7 @@ def authorize(req: AuthorizeRequest, principal: FullPrincipal):  # noqa: C901
             "expires_at": expires_at,
             "nonce": _uuid.uuid4().hex,
             "decision_receipt_digest": req.decision_receipt_digest,
-            "authority_receipt_digest": req.authority_receipt_digest,
+            "authority_receipt_digest": evidence["authority_receipt_digest"],
             "approval_artifact_digest": req.approval_artifact_digest,
             "action": req.action,
             "action_digest": _pv_sha256_digest(req.action),
@@ -1729,10 +1882,10 @@ def authorize(req: AuthorizeRequest, principal: FullPrincipal):  # noqa: C901
             "expected_wire_bytes_length": req.expected_wire_bytes_length,
             "expected_peer_identity_digest": req.expected_peer_identity_digest,
             "dispatch": req.dispatch,
-            "state_snapshot_digest": req.state_snapshot_digest,
-            "policy_bundle_digest": req.policy_bundle_digest,
+            "state_snapshot_digest": evidence["state_snapshot_digest"],
+            "policy_bundle_digest": evidence["policy_bundle_digest"],
             "trust_bundle_digest": _pv_sha256_digest(trust_bundle),
-            "obligations_digest": req.obligations_digest,
+            "obligations_digest": evidence["obligations_digest"],
             "max_uses": 1,
             "signer_key_id": signer["key_id"],
         }
@@ -1853,6 +2006,12 @@ def authorize(req: AuthorizeRequest, principal: FullPrincipal):  # noqa: C901
         "authorization": authorization,
         # ADR 0025: which declared operation this permit was checked against.
         "operation": operation,
+        # ADR 0026: who chose the permit's four evidence references.
+        "evidence": {
+            "mode": state["permit_evidence"]["mode"],
+            **evidence,
+            "caller_asserted": caller_asserted,
+        },
         "trust_bundle": stored_bundle if stored_bundle is not None else trust_bundle,
         "at_time": _pv_rfc3339(now),
         # Operator posture: whether loop discovery ran (EA schema is closed;

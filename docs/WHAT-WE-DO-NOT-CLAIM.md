@@ -38,7 +38,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 2070+ automated tests, run in CI on every commit
+- 2090+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
@@ -869,16 +869,24 @@ Fixed since: capability-to-operation binding (ADR 0025, see Capability
 grants), and authority freshness (ADR 0024). A permit is minted only while
 the approval, grant and decision window behind its ALLOW are all still
 valid, and it expires no later than the earliest of them
-(`tests/test_authority_freshness.py`). **We do not claim** that a changed
-policy, changed enterprise state or tightened budget invalidates an ALLOW
-already made: it stays mintable until that deadline, five minutes by
-default (`PV_DECISION_MINT_WINDOW_SECONDS`).
+(`tests/test_authority_freshness.py`). **We do not claim** that changed
+enterprise state or spend invalidates an ALLOW already made: it stays
+mintable until that deadline, five minutes by default
+(`PV_DECISION_MINT_WINDOW_SECONDS`).
 
-- **Four permit digests are caller assertions.** `/v1/authorize` copies
-  the caller's policy, state-snapshot, authority-receipt and obligations
-  digests into the signed permit without resolving them to stored
-  evidence. A signed reference alone does not prove that policy or state
-  was checked.
+Also fixed: the four permit evidence digests (ADR 0026). With
+`PV_PERMIT_EVIDENCE=server`, the default under the secure profile, the
+policy-bundle and authority-receipt digests are the server's policy, grants
+and operations configuration and the grant sealed at decide time; a caller
+value that differs is refused, and a configuration changed between decide
+and mint refuses the mint (`tests/test_permit_evidence.py`). **We do not
+claim** that the permit proves an enterprise state snapshot or obligations
+were checked: the API evaluates neither, and signs the all-zero digest for
+both. For an OPA endpoint the policy digest names the endpoint and path,
+not the remote policy's content. Without the secure profile
+(`PV_PERMIT_EVIDENCE=caller`) a digest the caller sends is still signed as
+given; the mint response lists it under `caller_asserted`.
+
 - **The receiver kit is not a hardened deployment by default.** Its
   container serves plain HTTP unless started with the mTLS entry point,
   its gate constructor does not attach the revocation list, the secure
