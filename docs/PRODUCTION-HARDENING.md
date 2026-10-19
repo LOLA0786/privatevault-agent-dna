@@ -33,7 +33,7 @@ points at the test file that proves it.
 | Single-writer correctness | **SHIPPED** | All existing tests assume one process; correct in that mode |
 | Multi-writer safety (concurrent processes, same store) | **SHIPPED** | Atomic chain-head via `append_atomic`/`get_chain_head` in one store transaction; thread-local SQLite connections after a shared-connection cursor race was caught, root-caused, and pinned. `tests/test_multi_writer_safety.py`, `tests/test_connection_thread_safety.py` |
 | Multiple app instances on one PostgreSQL (correctness) | **SHIPPED** | Budgets, one permit per decision, self-approval, a killed instance and a database outage across two processes: `tests/multi_instance/test_two_processes.py`; Helm chart runs two replicas (`deploy/helm/privatevault`) |
-| Horizontal scaling (performance across hosts) | **NOT MEASURED** | No multi-host run, soak test or failover test. Routine reads rebuild the full ledger per call in multi-writer mode (external review finding 4) |
+| Horizontal scaling (performance across hosts) | **NOT MEASURED** | No multi-host run, soak test or failover test. Routine reads are indexed queries, one page at a time (ADR 0029); `/v1/verify`, exports and backups read the whole ledger by design |
 | Throughput benchmark, single process | **SHIPPED** | `tools/benchmark.py` — stated methodology, rerunnable, no unverified numbers cited |
 | Throughput benchmark, concurrent load | **PARTIAL** | Two instances on one 2-vCPU VM: `docs/benchmarks/MULTI-INSTANCE.md`. No production-scale or large-ledger figures |
 

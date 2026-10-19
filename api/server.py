@@ -92,12 +92,23 @@ from agent_dna.control_posture import (
 )
 from agent_dna.decision import Decision, DecisionResult
 from agent_dna.decision_graph import DecisionGraph
+from agent_dna.decision_record import DecisionRecord
 from agent_dna.execution_v01 import EXECUTION_AUTHORIZATION_SPEC as _PV_EA_SPEC
 from agent_dna.execution_v01 import (
     EXECUTION_AUTHORIZATION_SPEC_V02 as _PV_EA_SPEC_V02,
 )
 from agent_dna.execution_v01 import sign_execution_authorization as _pv_sign_ea
 from agent_dna.key_custody import SignerError, is_kms_ref, signer_from_seed_file
+from agent_dna.ledger_reads import (
+    CursorError,
+    LedgerIntegrityError,
+    Page,
+    clamp_limit,
+    decision_from_dict,
+    decode_cursor,
+    lineage_from_rows,
+    page_from_rows,
+)
 from agent_dna.lineage import (
     ALREADY_APPROVED as LINEAGE_ALREADY_APPROVED,
 )
@@ -712,16 +723,94 @@ def _graph() -> DecisionGraph:
     return cast(DecisionGraph, recorder.graph)
 
 
+def _indexed_store() -> Any:
+    """The store, when it answers reads with indexed SQL (ADR 0029). Both
+    ledgers do; the in-memory graph is the fallback only without one."""
+    store = getattr(state.get("recorder"), "store", None)
+    return store if hasattr(store, "decision_rows") else None
+
+
+def _ledger_refusal(exc: LedgerIntegrityError) -> NoReturn:
+    _log.error("ledger read refused: %s", exc)
+    raise HTTPException(
+        status_code=500, detail="a stored record failed verification"
+    ) from None
+
+
+def _decision_lineage(decision_id: str) -> list[DecisionRecord]:
+    """Root-to-node path in one recursive query. KeyError if the decision
+    is unknown."""
+    store = _indexed_store()
+    if store is None:
+        return _graph().lineage(decision_id)
+    try:
+        return lineage_from_rows(store.decision_lineage_rows(decision_id), decision_id)
+    except LedgerIntegrityError as exc:
+        _ledger_refusal(exc)
+
+
 def _owned_decision(principal: Principal, decision_id: str):
     """Resolve a decision while preventing cross-agent disclosure."""
-    g = _graph()
+    store = _indexed_store()
     try:
-        record = g.lineage(decision_id)[-1]
+        if store is not None:
+            stored = store.get_decision(decision_id)
+            if stored is None:
+                raise KeyError(decision_id)
+            record = decision_from_dict(stored)
+        else:
+            record = _graph().get(decision_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="unknown decision_id") from None
+    except LedgerIntegrityError as exc:
+        _ledger_refusal(exc)
     if not principal.owns(record.agent_id):
         raise HTTPException(status_code=404, detail="unknown decision_id")
     return record
+
+
+def _decision_page(
+    *,
+    agent_id: str | None,
+    verdict: str | None,
+    divergent: bool,
+    limit: int | None,
+    cursor: str | None,
+) -> Page:
+    """One page of decisions, oldest first. Indexed SQL on the store; the
+    in-memory graph (no store) pages by position."""
+    try:
+        size = clamp_limit(limit)
+        after = decode_cursor(cursor)
+    except CursorError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+    store = _indexed_store()
+    if store is not None:
+        try:
+            return page_from_rows(
+                store.decision_rows(
+                    agent_id=agent_id,
+                    verdict=verdict,
+                    divergent=divergent,
+                    after_seq=after,
+                    limit=size,
+                ),
+                size,
+            )
+        except LedgerIntegrityError as exc:
+            _ledger_refusal(exc)
+    g = _graph()
+    if divergent:
+        rows = g.find_divergent()
+    elif verdict == "block":
+        rows = g.find_blocked()
+    else:
+        rows = g.find_by_agent(agent_id) if agent_id is not None else []
+    if agent_id is not None:
+        rows = [r for r in rows if r.agent_id == agent_id]
+    shown = rows[after : after + size]
+    more = after + size < len(rows)
+    return Page(shown, str(after + size) if more else None)
 
 
 def _validate_decide_wire_inputs(req: DecideRequest) -> None:
@@ -1107,33 +1196,68 @@ def runtime_composition():
 # ---------- query surface ----------------------------------------------------
 
 
+# Pages are oldest first. `limit` is 1..1000 (default 100); pass a response's
+# `next_cursor` as `cursor` for the next page; `next_cursor` is null on the
+# last page. Each page is an indexed query on the store (ADR 0029).
+
+
 @app.get("/v1/records/{agent_id}")
-def records(agent_id: str, principal: FullPrincipal):
+def records(
+    agent_id: str,
+    principal: FullPrincipal,
+    limit: int | None = None,
+    cursor: str | None = None,
+):
     if not principal.owns(agent_id):
         raise HTTPException(status_code=404, detail="unknown agent_id")
-    g = _graph()
+    page = _decision_page(
+        agent_id=agent_id, verdict=None, divergent=False, limit=limit, cursor=cursor
+    )
     return {
         "agent_id": agent_id,
-        "records": [r.to_dict() for r in g.find_by_agent(agent_id)],
+        "records": [r.to_dict() for r in page.records],
+        "next_cursor": page.next_cursor,
     }
 
 
+def _own_agent_filter(principal: Principal) -> str | None:
+    """Another agent's records are never listed; with authentication
+    disabled (development only) every agent's are."""
+    return None if principal.authentication_disabled else principal.agent_id
+
+
 @app.get("/v1/blocked")
-def blocked(principal: FullPrincipal):
-    g = _graph()
-    rows = g.find_blocked()
-    if not principal.authentication_disabled:
-        rows = [r for r in rows if r.agent_id == principal.agent_id]
-    return {"blocked": [r.to_dict() for r in rows]}
+def blocked(
+    principal: FullPrincipal, limit: int | None = None, cursor: str | None = None
+):
+    page = _decision_page(
+        agent_id=_own_agent_filter(principal),
+        verdict="block",
+        divergent=False,
+        limit=limit,
+        cursor=cursor,
+    )
+    return {
+        "blocked": [r.to_dict() for r in page.records],
+        "next_cursor": page.next_cursor,
+    }
 
 
 @app.get("/v1/divergent")
-def divergent(principal: FullPrincipal):
-    g = _graph()
-    rows = g.find_divergent()
-    if not principal.authentication_disabled:
-        rows = [r for r in rows if r.agent_id == principal.agent_id]
-    return {"divergent": [r.to_dict() for r in rows]}
+def divergent(
+    principal: FullPrincipal, limit: int | None = None, cursor: str | None = None
+):
+    page = _decision_page(
+        agent_id=_own_agent_filter(principal),
+        verdict=None,
+        divergent=True,
+        limit=limit,
+        cursor=cursor,
+    )
+    return {
+        "divergent": [r.to_dict() for r in page.records],
+        "next_cursor": page.next_cursor,
+    }
 
 
 @app.get("/v1/lineage/{decision_id}")
@@ -1142,7 +1266,11 @@ def lineage(
     principal: FullPrincipal,
 ):
     _owned_decision(principal, decision_id)
-    return {"lineage": [r.to_dict() for r in _graph().lineage(decision_id)]}
+    try:
+        path = _decision_lineage(decision_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="unknown decision_id") from None
+    return {"lineage": [r.to_dict() for r in path]}
 
 
 # ---------- audit surface -------------------------------------------------------

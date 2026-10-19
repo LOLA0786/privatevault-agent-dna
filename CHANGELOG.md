@@ -5,6 +5,21 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Routine reads are indexed queries (ADR 0029, review finding 5)
+- `/v1/records`, `/v1/blocked` and `/v1/divergent` are one indexed query
+  per page on both ledgers: `limit` 1 to 1000 (default 100), `cursor` from
+  the previous `next_cursor`. **Behaviour change:** they return the first
+  100 records unless paged.
+- `/v1/lineage` is one recursive query; the `/v1/outcome` ownership check
+  is a single-row lookup. Neither loads the ledger any more.
+- Every record served is rebuilt and seal-checked, lineage links too; a
+  tampered row is a 500, never served.
+- New partial indexes `(agent_id, seq)` and `(decision, seq)` on decision
+  rows, created at start-up on SQLite and PostgreSQL.
+- `tests/test_indexed_reads.py` (equivalence with the full graph on both
+  ledgers, no whole-ledger load, paging, ownership, tamper refusal, index
+  use).
+
 ### The secure profile binds every permit to its presenter (ADR 0028, review finding 4)
 - Under `PV_SECURE_PROFILE` the API refuses to start without
   `PV_PRESENTER_BUNDLE`, or with one for another organisation; every permit

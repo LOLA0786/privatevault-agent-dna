@@ -54,9 +54,9 @@ a route is added without a row here.
 | `POST /v1/outcome` | `api/server.py::outcome` | full | Append what happened after an ALLOW |
 | `POST /v1/authorize` | `api/server.py::authorize` | full | Mint a single-use permit for a sealed, bound ALLOW |
 | `GET /v1/runtime` | `api/server.py::runtime_composition` | full | Which enforcement levels are attached, and why the rest are not |
-| `GET /v1/records/{agent_id}` | `api/server.py::records` | full (own agent) | That agent's records |
-| `GET /v1/blocked` | `api/server.py::blocked` | full (own agent) | Blocked records |
-| `GET /v1/divergent` | `api/server.py::divergent` | full (own agent) | BLOCKed records the executor reported as executed anyway |
+| `GET /v1/records/{agent_id}` | `api/server.py::records` | full (own agent) | That agent's records, one page (ADR 0029) |
+| `GET /v1/blocked` | `api/server.py::blocked` | full (own agent) | Blocked records, one page |
+| `GET /v1/divergent` | `api/server.py::divergent` | full (own agent) | BLOCKed records the executor reported as executed anyway, one page |
 | `GET /v1/lineage/{decision_id}` | `api/server.py::lineage` | full (own agent) | Server-derived lineage of a decision (ADR 0021) |
 | `GET /v1/revocations` | `api/server.py::revocations` | audit or full | Signed revocation list for receivers |
 | `GET /v1/flows/{flow_id}` | `api/server.py::flow_export` | audit or full | Every record in one multi-agent flow |

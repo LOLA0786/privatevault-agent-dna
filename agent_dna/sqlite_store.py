@@ -25,6 +25,7 @@ from typing import Any
 from .decision_graph import DecisionGraph
 from .decision_record import DecisionRecord
 from .execution_record import ExecutionEvent
+from .ledger_reads import READ_INDEXES, decision_rows_query, lineage_query
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS records (
@@ -209,6 +210,7 @@ class SQLiteDecisionStore:
         self._local = threading.local()
         self._migrate_add_prev_hash_column()
         self._conn.executescript(_SCHEMA)
+        self._conn.executescript(READ_INDEXES)
         self._migrate_mint_trust_bundle_columns()
         self._migrate_approval_not_after_column()
         self._conn.commit()
@@ -381,6 +383,40 @@ class SQLiteDecisionStore:
             (decision_id,),
         ).fetchone()
         return json.loads(row[0]) if row else None
+
+    def decision_rows(
+        self,
+        *,
+        agent_id: str | None = None,
+        verdict: str | None = None,
+        divergent: bool = False,
+        after_seq: int = 0,
+        limit: int = 100,
+    ) -> list[tuple[int, str]]:
+        """One page of decision rows (seq, body), indexed (ADR 0029)."""
+        sql, params = decision_rows_query(
+            placeholder="?",
+            execution_ok="json_extract(e.body, '$.status') = 'ok'",
+            agent_id=agent_id,
+            verdict=verdict,
+            divergent=divergent,
+            after_seq=after_seq,
+            limit=limit,
+        )
+        return [
+            (int(seq), str(body))
+            for seq, body in self._conn.execute(sql, params).fetchall()
+        ]
+
+    def decision_lineage_rows(self, decision_id: str) -> list[str]:
+        """Bodies of a decision and its ancestors, root first: one
+        recursive query (ADR 0029)."""
+        sql = lineage_query(
+            placeholder="?", parent_of="json_extract({t}.body, '$.parent_decision')"
+        )
+        return [
+            str(body) for (body,) in self._conn.execute(sql, (decision_id,)).fetchall()
+        ]
 
     def get_decision_by_record_hash(self, record_hash: str) -> dict | None:
         """Load a sealed decision by record_hash (bare hex or sha256:)."""
