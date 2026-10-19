@@ -26,10 +26,27 @@ fn parse_edges(raw: &str) -> PyResult<Value> {
     Ok(v)
 }
 
-// skip_from_py_object: records cross the FFI by reference
-// (Py<T>) only. An implicit by-value FromPyObject would clone a
-// sealed record out of its chain context -- explicitly opted out.
-#[pyclass(skip_from_py_object)]
+// Records cross the FFI by reference (Py<T>) only. A by-value
+// FromPyObject would clone a sealed record out of its chain context.
+// pyo3 0.30 gives a Clone pyclass no by-value extraction unless it says
+// `from_py_object`; the doctests below pin that.
+///
+/// By reference compiles:
+/// ```
+/// use pyo3::prelude::*;
+/// fn by_ref(o: &Bound<'_, PyAny>) -> PyResult<Py<pv_runtime::runtime::execution_record::ExecutionEvent>> {
+///     o.extract().map_err(Into::into)
+/// }
+/// ```
+///
+/// By value must not:
+/// ```compile_fail
+/// use pyo3::prelude::*;
+/// fn by_value(o: &Bound<'_, PyAny>) -> PyResult<pv_runtime::runtime::execution_record::ExecutionEvent> {
+///     o.extract().map_err(Into::into)
+/// }
+/// ```
+#[pyclass]
 #[derive(Debug, Clone)]
 pub struct ExecutionEvent {
     #[pyo3(get)]
