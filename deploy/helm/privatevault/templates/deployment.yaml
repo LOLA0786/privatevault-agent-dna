@@ -120,6 +120,10 @@ spec:
             - name: PV_PRESENTER_BUNDLE
               value: {{ printf "%s/%s" $configDir .Values.config.presenterBundleKey | quote }}
             {{- end }}
+            {{- if .Values.config.operationsKey }}
+            - name: PV_OPERATIONS_FILE
+              value: {{ printf "%s/%s" $configDir .Values.config.operationsKey | quote }}
+            {{- end }}
             {{- if .Values.config.policyKey }}
             - name: PV_POLICY_FILE
               value: {{ printf "%s/%s" $configDir .Values.config.policyKey | quote }}

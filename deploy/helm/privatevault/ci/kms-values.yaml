@@ -6,6 +6,7 @@ secrets:
 config:
   name: pv-config
   presenterBundleKey: presenters.json
+  operationsKey: operations.json
 signing:
   executionSignerKmsRef: "awskms:arn:aws:kms:eu-west-1:111122223333:key/11111111-2222-3333-4444-555555555555"
   witnessKmsRef: "awskms:arn:aws:kms:eu-west-1:111122223333:key/66666666-7777-8888-9999-000000000000"

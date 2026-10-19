@@ -65,6 +65,19 @@ from tests.test_authorize_mint_claim import (  # noqa: F401 - fixture
 )
 
 EXPIRED = "AUTHORIZE_AUTHORITY_EXPIRED"
+# The operation the secure-profile tests declare (ADR 0025).
+PAY_INVOICE_OPERATION = {
+    "operation_id": "pay-invoice-v1",
+    "capability": "payments.pay_invoice",
+    "transport": "https",
+    "destination": "payments.partner.example",
+    "operation": "POST /api/v1/transfers",
+    "resource_prefix": "vendor:",
+    "parameters_schema": {
+        "type": "object",
+        "required": ["amount", "currency", "payee_id"],
+    },
+}
 UNKNOWN = "AUTHORIZE_AUTHORITY_UNKNOWN"
 
 
@@ -200,6 +213,7 @@ def test_secure_profile_refuses_mint_after_approval_expiry(tmp_path, monkeypatch
         org=ORG,
         agents=[AGENT],
         grants=[{"agent_id": AGENT, "capability": "payments.pay_invoice"}],
+        operations=[PAY_INVOICE_OPERATION],
     )
     grant_path = out / "grants.json"
     rows = json.loads(grant_path.read_text())

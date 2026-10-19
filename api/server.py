@@ -63,6 +63,9 @@ from agent_dna.authorize_binding import (
     AUTHORIZE_DECISION_NOT_FOUND,
     AUTHORIZE_DECISION_REQUIRED,
     AUTHORIZE_GRANT_REVOKED,
+    AUTHORIZE_OPERATION_MISMATCH,
+    AUTHORIZE_OPERATION_NOT_DECLARED,
+    AUTHORIZE_OPERATIONS_REQUIRED,
     AUTHORIZE_PERMIT_ALREADY_CONSUMED,
     AUTHORIZE_PERMIT_BINDING_CONFLICT,
     AUTHORIZE_PERMIT_EXPIRED,
@@ -83,7 +86,7 @@ from agent_dna.control_posture import (
     attach_control_posture,
     authorization_mode_of,
 )
-from agent_dna.decision import Decision
+from agent_dna.decision import Decision, DecisionResult
 from agent_dna.decision_graph import DecisionGraph
 from agent_dna.execution_v01 import EXECUTION_AUTHORIZATION_SPEC as _PV_EA_SPEC
 from agent_dna.execution_v01 import (
@@ -108,6 +111,13 @@ from agent_dna.observability.prometheus_bridge import (
     generate_latest as _prom_generate_latest,
 )
 from agent_dna.observability.prometheus_bridge import observe_decide_latency, set_ready
+from agent_dna.operation_registry import (
+    OPERATION_NOT_DECLARED,
+    OperationRegistry,
+    OperationRegistryError,
+    load_operation_registry,
+    operation_block,
+)
 from agent_dna.presenter_identity import (
     PresenterBundle,
     PresenterIdentityError,
@@ -334,6 +344,49 @@ def _presenter_manifest(bundle: PresenterBundle | None) -> dict[str, str]:
     }
 
 
+def _operation_registry(env: Any = None) -> OperationRegistry | None:
+    """PV_OPERATIONS_FILE (ADR 0025): the operations each capability may
+    perform. A configured file that cannot be read stops start-up."""
+    source = os.environ if env is None else env
+    path = source.get("PV_OPERATIONS_FILE", "")
+    if not path:
+        return None
+    try:
+        return load_operation_registry(path)
+    except OperationRegistryError as exc:
+        raise RuntimeError(f"PV_OPERATIONS_FILE: {exc}") from exc
+
+
+def _secure_profile_on(env: Any = None) -> bool:
+    source = os.environ if env is None else env
+    return str(source.get("PV_SECURE_PROFILE", "0")).strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def _operations_manifest(
+    registry: OperationRegistry | None, secure: bool
+) -> dict[str, str]:
+    if registry is None:
+        return {
+            "status": "not_configured",
+            "detail": (
+                "PV_OPERATIONS_FILE unset under the secure profile: every mint is refused"
+                if secure
+                else "PV_OPERATIONS_FILE unset: a capability is not bound to the "
+                "operations it may perform (ADR 0025); constrain them with policy"
+            ),
+        }
+    return {
+        "status": "attached",
+        "detail": f"{registry.size} declared operation(s); a bound request must "
+        f"match one for its capability (registry {registry.digest})",
+    }
+
+
 MAX_REQUEST_BYTES_DEFAULT = 1_048_576
 MAX_REQUEST_BYTES_MIN = 1024
 MAX_REQUEST_BYTES_MAX = 64 * 1_048_576
@@ -415,6 +468,10 @@ async def lifespan(app: FastAPI):
     _assert_secure_authorize_material()
     state["authorization_window"] = _authorization_window()
     state["presenter_bundle"] = _presenter_bundle()
+    state["operation_registry"] = _operation_registry()
+    runtime.composition["operation_registry"] = _operations_manifest(
+        state["operation_registry"], _secure_profile_on()
+    )
     runtime.composition["presenter_binding"] = _presenter_manifest(
         state["presenter_bundle"]
     )
@@ -747,6 +804,35 @@ def _approval_context_for(
     )
 
 
+def _decide_or_block_undeclared(
+    req: DecideRequest,
+    monitor: RuntimeMonitor,
+    action: AgentAction,
+    evidence: dict[str, Any],
+    approval_context: Any,
+    execution_action: dict[str, Any] | None,
+    dispatch_context: dict[str, Any] | None,
+) -> DecisionResult:
+    """ADR 0025: a bound request its capability does not declare is a sealed
+    BLOCK, decided before the engine runs, so it spends no grant budget and
+    consumes no approval. The credential audience is checked again at mint."""
+    registry: OperationRegistry | None = state.get("operation_registry")
+    if (
+        registry is not None
+        and execution_action is not None
+        and dispatch_context is not None
+    ):
+        match = registry.check(req.capability, execution_action, dispatch_context)
+        if not match.ok:
+            return operation_block(req.capability, req.agent_id, match)
+    return monitor.process(
+        action,
+        evidence=evidence or None,
+        approval=req.approval,
+        approval_context=approval_context,
+    )
+
+
 @app.post("/v1/decide")
 def decide(req: DecideRequest, principal: FullPrincipal):
     _enforce_identity(principal, req.agent_id)
@@ -793,11 +879,14 @@ def decide(req: DecideRequest, principal: FullPrincipal):
             status_code=422,
             detail="evidence.shell is reserved; the runtime derives it",
         )
-    result = monitor.process(
+    result = _decide_or_block_undeclared(
+        req,
+        monitor,
         action,
-        evidence=evidence or None,
-        approval=req.approval,
-        approval_context=approval_context,
+        evidence,
+        approval_context,
+        execution_action,
+        dispatch_context,
     )
     result = escalate_with_cross_agent(
         state.get("cross_agent"),
@@ -1479,6 +1568,31 @@ def _authority_deadline_for(
         _authorize_refusal(403, AUTHORIZE_AUTHORITY_UNKNOWN, str(exc))
 
 
+def _require_declared_operation(
+    record: dict[str, Any], req: AuthorizeRequest
+) -> dict[str, str] | None:
+    """ADR 0025: the sealed capability must declare this exact request."""
+    registry: OperationRegistry | None = state.get("operation_registry")
+    if registry is None:
+        if _secure_profile_on():
+            _authorize_refusal(
+                403,
+                AUTHORIZE_OPERATIONS_REQUIRED,
+                "PV_SECURE_PROFILE requires PV_OPERATIONS_FILE to mint",
+            )
+        return None
+    match = registry.check(str(record.get("capability")), req.action, req.dispatch)
+    if not match.ok:
+        _authorize_refusal(
+            403,
+            AUTHORIZE_OPERATION_NOT_DECLARED
+            if match.reason_code == OPERATION_NOT_DECLARED
+            else AUTHORIZE_OPERATION_MISMATCH,
+            match.detail,
+        )
+    return {"operation_id": str(match.operation_id), "registry_digest": registry.digest}
+
+
 @app.post("/v1/authorize")
 def authorize(req: AuthorizeRequest, principal: FullPrincipal):  # noqa: C901
     """Issue execution authority bound to a sealed ALLOW and exact bytes."""
@@ -1570,6 +1684,7 @@ def authorize(req: AuthorizeRequest, principal: FullPrincipal):  # noqa: C901
             f"the authority behind this decision ended at "
             f"{_pv_rfc3339(authority_end)} ({deadline.basis}); decide again",
         )
+    operation = _require_declared_operation(record, req)
     # A permit never outlives the approval, grant or decision behind it.
     expires_at = _pv_rfc3339(
         min(now + _timedelta(seconds=window.ttl_seconds), authority_end)
@@ -1736,6 +1851,8 @@ def authorize(req: AuthorizeRequest, principal: FullPrincipal):  # noqa: C901
 
     body: dict[str, Any] = {
         "authorization": authorization,
+        # ADR 0025: which declared operation this permit was checked against.
+        "operation": operation,
         "trust_bundle": stored_bundle if stored_bundle is not None else trust_bundle,
         "at_time": _pv_rfc3339(now),
         # Operator posture: whether loop discovery ran (EA schema is closed;

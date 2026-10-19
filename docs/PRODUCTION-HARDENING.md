@@ -56,7 +56,7 @@ points at the test file that proves it.
 | Independent tamper verification | **SHIPPED** | `tools/verify_records.py`: standard-library chain verification plus optional trusted Ed25519 verification with PyNaCl; neither mode imports the producing runtime |
 | Signing keys in a KMS | **SHIPPED** | AWS KMS and Google Cloud KMS (ADR 0023): `tests/test_key_custody.py`, `tests/test_authorize_kms.py`. Not run against a live KMS from inside a cluster |
 | Key rotation, secrets-manager integration | **NOT STARTED** | API keys and local seeds are file or environment based; no rotation mechanism |
-| Capability-to-operation binding | **NOT STARTED** | External review finding 1: a grant names a capability, not the method, destination and route it may use. See `docs/WHAT-WE-DO-NOT-CLAIM.md` |
+| Capability-to-operation binding | **SHIPPED** | ADR 0025: operator-declared operations per capability (`PV_OPERATIONS_FILE`); undeclared requests are a sealed BLOCK at decide and refused at mint; required to mint under the secure profile. `tests/test_operation_registry.py` |
 | Authority freshness at mint | **SHIPPED** | ADR 0024: mint refused after the approval, grant or decision window ends; permit expiry capped at the earliest. `tests/test_authority_freshness.py` |
 | Third-party security certification (SOC 2, ISO 27001) | **NOT STARTED** | See `docs/WHAT-WE-DO-NOT-CLAIM.md` — pre-seed, no funded timeline yet. |
 | Penetration testing | **NOT STARTED** | No formal external pentest has been performed. Internal adversarial corpus (`spec/adversarial/`) is not a substitute and is not claimed as one. |
@@ -117,11 +117,10 @@ points at the test file that proves it.
 ## What this means for a pilot specifically
 
 A **scoped, single-workflow partner sandbox** (per `PILOT-SCOPE.md`) is
-supportable once capability-to-operation binding, the remaining
-authorization finding from the 19 October 2026 external review, is fixed
-(NOT STARTED above, plan in `docs/ROADMAP.md`; authority freshness is
-shipped). Until then, constrain the operation with customer policy on
-`evidence.bound` and the receiver's local checks.
+supportable: both authorization findings from the 19 October 2026 external
+review are fixed (authority freshness, ADR 0024; capability-to-operation
+binding, ADR 0025). Run it with the secure profile and a reviewed operations
+file, and see `docs/ROADMAP.md` for the deployment findings still open.
 
 A **multi-host, monitored, horizontally-scaled production deployment with
 formal certification** is not supportable today. Multiple instances are

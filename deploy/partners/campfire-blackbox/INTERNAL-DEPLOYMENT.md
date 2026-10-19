@@ -40,7 +40,7 @@ Point the process at the generated files:
   (`override=true` and the capability list). Unset, the field is
   `override=false` and default grant-plus-drift behaviour is unchanged.
 
-Enable `PV_SECURE_PROFILE=1` only after every required signing, trust, grants, and API-key input exists. If any of those is missing, startup must fail closed.
+Enable `PV_SECURE_PROFILE=1` only after every required signing, trust, grants, operations (`PV_OPERATIONS_FILE`, ADR 0025: the exact routes each capability may use), and API-key input exists. If any of those is missing, startup must fail closed.
 
 Terminate TLS at ingress before exposing the service. Apply rate limits and request-size limits at that ingress. Do not log API keys, complete sensitive payloads, or private signing material.
 

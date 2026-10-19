@@ -1620,6 +1620,16 @@
    "top"
   ],
   [
+   "agent_dna.operation_registry",
+   "agent_dna.advisory",
+   "top"
+  ],
+  [
+   "agent_dna.operation_registry",
+   "agent_dna.decision",
+   "top"
+  ],
+  [
    "agent_dna.pg_shared_state",
    "agent_dna.multi_agent",
    "top"
@@ -2202,6 +2212,11 @@
   [
    "api.server",
    "agent_dna.observability.prometheus_bridge",
+   "top"
+  ],
+  [
+   "api.server",
+   "agent_dna.operation_registry",
    "top"
   ],
   [
@@ -3021,6 +3036,11 @@
   ],
   [
    "tools.init_secure_profile",
+   "agent_dna.operation_registry",
+   "top"
+  ],
+  [
+   "tools.init_secure_profile",
    "agent_dna.signer_python",
    "top"
   ],
@@ -3148,7 +3168,7 @@
   "agent_dna.adapters_policy.local": 2,
   "agent_dna.adapters_policy.opa": 2,
   "agent_dna.adapters_policy.skill_adapter": 1,
-  "agent_dna.advisory": 12,
+  "agent_dna.advisory": 13,
   "agent_dna.allowlist": 1,
   "agent_dna.amount": 7,
   "agent_dna.apikeys": 10,
@@ -3181,7 +3201,7 @@
   "agent_dna.consensus.signing": 6,
   "agent_dna.consensus.weighted_quorum": 1,
   "agent_dna.control_posture": 4,
-  "agent_dna.decision": 26,
+  "agent_dna.decision": 27,
   "agent_dna.decision_graph": 5,
   "agent_dna.decision_record": 7,
   "agent_dna.decision_recorder": 8,
@@ -3243,6 +3263,7 @@
   "agent_dna.observability.metrics": 2,
   "agent_dna.observability.prometheus_bridge": 2,
   "agent_dna.open_authorizer": 2,
+  "agent_dna.operation_registry": 2,
   "agent_dna.pg_compat": 4,
   "agent_dna.pg_shared_state": 1,
   "agent_dna.pg_store": 3,
@@ -3397,6 +3418,7 @@
   "agent_dna.multi_agent.trust": 2,
   "agent_dna.multi_agent.world_state": 2,
   "agent_dna.observability.metrics": 1,
+  "agent_dna.operation_registry": 2,
   "agent_dna.pg_shared_state": 1,
   "agent_dna.pg_store": 9,
   "agent_dna.policy": 3,
@@ -3435,7 +3457,7 @@
   "agent_dna.validation.drift": 1,
   "agent_dna.validation.report": 2,
   "agent_dna.wire_serialization_v01": 1,
-  "api.server": 26,
+  "api.server": 27,
   "examples.amlsim.run_amlsim_sample": 6,
   "examples.authority_blast_radius_demo": 1,
   "examples.authority_derivation_demo": 1,
@@ -3495,7 +3517,7 @@
   "tools.init_campfire_blackbox": 5,
   "tools.init_execution_signer": 1,
   "tools.init_platform_keys": 1,
-  "tools.init_secure_profile": 4,
+  "tools.init_secure_profile": 5,
   "tools.kms_smoke": 1,
   "tools.make_evidence_bundle": 2,
   "tools.platform_demo": 2,
@@ -3975,6 +3997,10 @@
   "agent_dna.open_authorizer": {
    "group": "agent_dna (core modules)",
    "path": "agent_dna/open_authorizer.py"
+  },
+  "agent_dna.operation_registry": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/operation_registry.py"
   },
   "agent_dna.pg_compat": {
    "group": "agent_dna (core modules)",

@@ -72,6 +72,21 @@ def test_secrets_are_private_and_never_printed(provisioned):
 
 def test_secure_profile_starts_and_deployment_verifier_passes(provisioned, monkeypatch):
     out, _ = provisioned
+    # Declare one operation so an ungranted capability reaches the ladder
+    # (ADR 0025: undeclared operations are blocked before it).
+    registry = json.loads((out / "operations.json").read_text(encoding="utf-8"))
+    assert registry["operations"] == []  # the profile starts with none
+    registry["operations"].append(
+        {
+            "operation_id": "fs-delete-probe",
+            "capability": "fs.delete",
+            "transport": "https",
+            "destination": "example.test",
+            "operation": "GET /v1/resource",
+            "parameters_schema": {"type": "object"},
+        }
+    )
+    (out / "operations.json").write_text(json.dumps(registry), encoding="utf-8")
     env = _load_env(out / "secure.env", monkeypatch)
     import api.server as server
 
@@ -98,6 +113,14 @@ def test_secure_profile_starts_and_deployment_verifier_passes(provisioned, monke
         )
         assert ungranted.status_code == 403
         assert "no grant exists" in ungranted.json()["reason"]
+
+        # an operation nobody declared is a sealed BLOCK too, decided first
+        undeclared = client.post(
+            "/v1/decide", json=decide_json("operator", "fs.chmod"), headers=headers
+        )
+        assert undeclared.status_code == 403
+        assert undeclared.json()["triggered_by"] == "operation_registry"
+        assert undeclared.json()["record"]["decision"] == "block"
 
 
 def test_refuses_to_overwrite(provisioned, capsys):

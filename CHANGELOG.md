@@ -5,6 +5,22 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### A capability covers only its declared operations (ADR 0025, review finding 1)
+- `PV_OPERATIONS_FILE` (`pv-operations/0.1`): per capability, the
+  transport, destination, `METHOD path`, credential audience, resource and
+  a JSON Schema for the parameters it may use. Malformed files stop
+  start-up; `/v1/runtime` reports the registry digest.
+- A bound decide its capability does not declare is a sealed BLOCK
+  (`triggered_by: operation_registry`) before the ladder, so it spends no
+  budget and consumes no approval. `/v1/authorize` checks again, including
+  the credential audience, and names the operation and registry digest.
+- Under `PV_SECURE_PROFILE`, minting without the file is refused
+  (`AUTHORIZE_OPERATIONS_REQUIRED`); `init_secure_profile` writes an empty
+  one, so nothing mints until operations are declared. Helm:
+  `config.operationsKey`.
+- The review's probe (read grant, transfer permit admitted) and its
+  acceptance list are regression tests (`tests/test_operation_registry.py`).
+
 ### A permit never outlives its authority (ADR 0024, review finding 2)
 - `/v1/authorize` refuses once the authority behind an ALLOW has ended:
   the verified approval's expiry, the grant's expiry, or the decision's

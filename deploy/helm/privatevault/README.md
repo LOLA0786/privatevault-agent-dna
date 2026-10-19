@@ -24,8 +24,14 @@ kubectl -n privatevault create secret generic pv-secrets \
   --from-literal=database-url='postgresql://USER:PASSWORD@HOST:5432/privatevault'
 kubectl -n privatevault create configmap pv-config \
   --from-file=grants.json=pv-material/grants.json \
-  --from-file=trust-bundle.json=pv-material/trust-bundle.json
+  --from-file=trust-bundle.json=pv-material/trust-bundle.json \
+  --from-file=operations.json=pv-material/operations.json
 ```
+
+Declare in `operations.json` the exact method, destination and route each
+capability may use (ADR 0025), then install with
+`--set config.operationsKey=operations.json`. The file starts empty: until it
+declares an operation, the API refuses every mint.
 
 In production put the signing keys in a KMS instead of the Secret
 (`signing.*KmsRef`, ADR 0023) and give the ServiceAccount permission to sign
@@ -70,7 +76,7 @@ trusted receipt keys or without enforced lineage; an image digest that is not
 | `postgres.poolSize` / `timeoutSeconds` | `10` / `5` | per pod |
 | `persistence.*` | off | SQLite volume, single replica only |
 | `secrets.name` + `*Key` | required | API keys, seeds, database URL |
-| `config.name` + `*Key` | required | grants, trust bundle, optional presenter bundle and policy |
+| `config.name` + `*Key` | required | grants, trust bundle, optional presenter bundle, policy and operations (`operationsKey`; without it the secure profile refuses every mint) |
 | `signing.*KmsRef` | empty | `awskms:` / `gcpkms:` references replacing the seeds |
 | `signing.trustedPublicKeys` | required with the secure profile | hex receipt public keys |
 | `serviceAccount.annotations` | `{}` | IRSA / Workload Identity for KMS |

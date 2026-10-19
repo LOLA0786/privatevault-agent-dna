@@ -41,6 +41,9 @@ flowchart TB
 
 - The chart creates no secrets and generates no keys; you create them once
   (`tools/init_secure_profile.py`) and the chart references them.
+- Mintable operations are declared per capability in an operations file
+  (ADR 0025) in the ConfigMap (`config.operationsKey`). With the secure
+  profile and no file, every mint is refused.
 - It refuses to render an unsafe configuration (SQLite shared by several
   pods or autoscaled, a ledger without a volume, a secure profile without
   trusted keys or with lineage not enforced, an image without a digest):

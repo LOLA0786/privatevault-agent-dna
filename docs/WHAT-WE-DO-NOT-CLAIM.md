@@ -38,7 +38,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 2040+ automated tests, run in CI on every commit
+- 2070+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
@@ -203,13 +203,17 @@ survives restart and two workers draw on one budget
 `tests/test_pg_grants.py`). Revocation history is reconstructable from the
 audit trail alone. Delegation and rescoping are not built.
 
-**We do not claim a grant names an operation.** A grant is agent plus
-capability label. Nothing yet maps a capability to the HTTP method,
-destination, route or parameter schema it may use, so an agent granted a
-read capability can obtain a permit for a write request to a different
-service, and a receiver will admit it (external review, 19 October 2026,
-finding 1). Until that mapping ships, the operation must be constrained by
-customer policy on `evidence.bound` or by the receiver's own local checks.
+**A capability covers only the operations the operator declared** (ADR
+0025). `PV_OPERATIONS_FILE` maps each capability to its transport,
+destination, `METHOD path`, credential audience, resource and a parameter
+schema. A bound request outside that is a sealed BLOCK at decide and refused
+at mint; under the secure profile, minting without the file is refused
+(`tests/test_operation_registry.py`). **We do not claim**: path templates
+(routes are exact strings); that the registry's digest is inside the signed
+permit (it is in the mint response); or that a wrong entry in the file is
+caught. The file is operator configuration, and reviewing it is the control.
+Without the secure profile and without the file, a capability is still not
+bound to its operations.
 
 ## Behavioral accuracy
 
@@ -861,7 +865,8 @@ An independent review reproduced the following at commit `f96804e`. Each
 is open until a fix lands with regression tests; status is tracked in
 `docs/ROADMAP.md`.
 
-Fixed since: authority freshness (ADR 0024). A permit is minted only while
+Fixed since: capability-to-operation binding (ADR 0025, see Capability
+grants), and authority freshness (ADR 0024). A permit is minted only while
 the approval, grant and decision window behind its ALLOW are all still
 valid, and it expires no later than the earliest of them
 (`tests/test_authority_freshness.py`). **We do not claim** that a changed
@@ -869,7 +874,6 @@ policy, changed enterprise state or tightened budget invalidates an ALLOW
 already made: it stays mintable until that deadline, five minutes by
 default (`PV_DECISION_MINT_WINDOW_SECONDS`).
 
-- **Capabilities are not bound to operations** (see Capability grants).
 - **Four permit digests are caller assertions.** `/v1/authorize` copies
   the caller's policy, state-snapshot, authority-receipt and obligations
   digests into the signed permit without resolving them to stored
