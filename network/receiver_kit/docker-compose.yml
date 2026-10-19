@@ -47,6 +47,11 @@ services:
       PV_RECEIPT_KEY_FILE: /keys/receiver.key
       PV_LEDGER_PATH: /data/receiver.db
       PV_UNPROTECTED_OPERATIONS: "GET /_health"
+      # LOCAL DEMO ONLY. The gate refuses to start without these two: a real
+      # receiver serves mutual TLS and pulls the signed revocation list
+      # (QUICKSTART.md, "Run it for real").
+      PV_RECEIVER_ALLOW_PLAINTEXT: "1"
+      PV_RECEIVER_ALLOW_NO_REVOCATION: "1"
       PV_GATE_UID: "${PV_GATE_UID:-10001}"   # the uid the entrypoint drops to
       PV_GATE_GID: "${PV_GATE_GID:-10001}"
     volumes:

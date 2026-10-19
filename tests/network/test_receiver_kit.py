@@ -77,6 +77,9 @@ def _env(
         "PV_UPSTREAM": "http://127.0.0.1:1",
         "PV_ALLOW_HTTP_UPSTREAM": "1",
         "PV_LEDGER_PATH": str(tmp_path / "receiver.db"),
+        # the demo relaxations; hardened-default tests clear them
+        "PV_RECEIVER_ALLOW_PLAINTEXT": "1",
+        "PV_RECEIVER_ALLOW_NO_REVOCATION": "1",
     }
     env.update(over)
     return env
@@ -729,6 +732,7 @@ def test_mtls_settings_are_all_or_nothing(tmp_path):
     cert.write_text("x")
     with pytest.raises(config.ConfigError, match="mTLS needs all of"):
         config.settings_from_env({**env, "PV_RECEIVER_TLS_CERT": str(cert)})
+    env["PV_RECEIVER_ALLOW_PLAINTEXT"] = ""
     full = {
         **env,
         "PV_RECEIVER_TLS_CERT": str(cert),
@@ -777,6 +781,7 @@ def test_serve_launcher_requires_client_certificates(tmp_path):
         PV_RECEIVER_TLS_CERT=str(server.cert),
         PV_RECEIVER_TLS_KEY=str(server.key),
         PV_RECEIVER_CLIENT_CA=str(pki.ca_cert),
+        PV_RECEIVER_ALLOW_PLAINTEXT="",
         PV_RECEIVER_REQUIRE_PRESENTER="1",
         PV_RECEIVER_HOST="127.0.0.1",
         PV_RECEIVER_PORT=str(port),

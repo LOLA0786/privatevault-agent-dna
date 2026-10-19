@@ -25,4 +25,5 @@ COPY --chmod=0755 network/receiver_kit/entrypoint.sh /entrypoint.sh
 EXPOSE 8080
 
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["uvicorn", "network.receiver_kit.app:app", "--host", "0.0.0.0", "--port", "8080"]
+# Mutual TLS unless PV_RECEIVER_ALLOW_PLAINTEXT=1 (local demo); see serve.py.
+CMD ["python", "-m", "network.receiver_kit.serve"]

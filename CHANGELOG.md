@@ -5,6 +5,21 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### The receiver kit is hardened by default (ADR 0027, review finding 4)
+- The gate serves mutual TLS only; `PV_RECEIVER_ALLOW_PLAINTEXT=1` is the
+  explicit demo opt-out. The image runs `serve.py`; `app.py` (uvicorn)
+  refuses TLS settings it cannot honour.
+- With mTLS, presenter-bound permits are required unless
+  `PV_RECEIVER_REQUIRE_PRESENTER=0`.
+- `build_gate` attaches the signed revocation list. `revocations.py`
+  refreshes it from `PV_REVOCATION_URL` with `PV_REVOCATION_API_KEY_FILE`;
+  the gate refuses every permit (503) until a verified list is installed
+  and after it expires. Required unless `PV_RECEIVER_ALLOW_NO_REVOCATION=1`.
+- The entrypoint hands the TLS key and the revocation API key to the gate
+  user like the receipt key. QUICKSTART gains "Run it for real"; the demo
+  compose file sets both demo flags under "LOCAL DEMO ONLY".
+- `tests/network/test_receiver_hardened.py`.
+
 ### The evidence a permit cites is the server's (ADR 0026, review finding 3)
 - Decide seals the permit evidence in the server-only control-posture item:
   the policy bundle digest (policy file or OPA endpoint, grants file,
