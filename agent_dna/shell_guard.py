@@ -403,11 +403,25 @@ def _assignment_is_secret(value: str) -> bool:
     return not re.fullmatch(r"[a-z_]+(\.[a-z_]+)*", value)  # code identifiers
 
 
+# Cheap substring pre-filters: the regexes only run when one could match,
+# which keeps a large ordinary file at one linear scan per marker.
+_TOKEN_MARKERS = (
+    "AKIA", "ASIA", "ghp_", "gho_", "ghu_", "ghs_", "ghr_", "github_pat_",
+    "glpat-", "xox", "_live_", "sk-", "AIza", "npm_", "pypi-", "PRIVATE KEY",
+    "eyJ", "://",
+)  # fmt: skip
+_ASSIGNMENT_MARKERS = (
+    "secret", "token", "passw", "passphrase", "api", "private", "access",
+    "credential", "auth", "client",
+)  # fmt: skip
+
+
 def content_reveals_secret(text: str, *, entropy: bool = False) -> bool:
     """True if text contains a credential by content, not by file name."""
-    if _TOKEN_PATTERNS.search(text):
+    if any(m in text for m in _TOKEN_MARKERS) and _TOKEN_PATTERNS.search(text):
         return True
-    if any(
+    lowered = text.lower()
+    if any(m in lowered for m in _ASSIGNMENT_MARKERS) and any(
         _assignment_is_secret(m.group(1)) for m in _SECRET_ASSIGNMENT.finditer(text)
     ):
         return True
@@ -483,7 +497,19 @@ def _load_secret_files(
 
 def _is_secret_path(path: str) -> bool:
     """A real path that is credential-like by name, or is a configured
-    secret file (same inode: hard links), or contains a known secret."""
+    secret file (same inode: hard links), or contains a known secret.
+    Memoised per analysis: one command names the same file several ways."""
+    pins = _PINS.get()
+    cache = pins.setdefault("secret_path", {}) if pins is not None else None
+    if cache is not None and path in cache:
+        return bool(cache[path])
+    verdict = _is_secret_path_uncached(path)
+    if cache is not None:
+        cache[path] = verdict
+    return verdict
+
+
+def _is_secret_path_uncached(path: str) -> bool:
     if _SENSITIVE.search(path):
         return True
     values, _, inodes = _secret_material()
