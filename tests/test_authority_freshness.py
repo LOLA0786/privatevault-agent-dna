@@ -204,7 +204,7 @@ def test_secure_profile_refuses_mint_after_approval_expiry(tmp_path, monkeypatch
     from tests.approval_world import ApproverWorld
     from tests.decide_binding import decide_json, dispatch_context_for
     from tests.test_authorize_mint_claim import ORG
-    from tests.test_init_secure_profile import _load_env
+    from tests.test_init_secure_profile import _load_env, presenter_digest
     from tools.init_secure_profile import provision
 
     out = tmp_path / "secure"
@@ -275,6 +275,7 @@ def test_secure_profile_refuses_mint_after_approval_expiry(tmp_path, monkeypatch
         mint_body["approval_artifact_digest"] = approval_artifact_digest(
             approval["artifact"]
         )
+        mint_body["presenter_identity_digest"] = presenter_digest(out, AGENT)
         mint_body["security_events"] = [
             {
                 "spec": "pv-agent-security-event/1.0",

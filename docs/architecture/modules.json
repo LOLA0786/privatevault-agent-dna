@@ -3051,6 +3051,11 @@
   ],
   [
    "tools.init_secure_profile",
+   "agent_dna.presenter_identity",
+   "top"
+  ],
+  [
+   "tools.init_secure_profile",
    "agent_dna.signer_python",
    "top"
   ],
@@ -3284,7 +3289,7 @@
   "agent_dna.policy_gate": 2,
   "agent_dna.policy_miner": 2,
   "agent_dna.policy_replay": 3,
-  "agent_dna.presenter_identity": 4,
+  "agent_dna.presenter_identity": 5,
   "agent_dna.profile_store": 1,
   "agent_dna.rate": 1,
   "agent_dna.receiver.asgi": 1,
@@ -3529,7 +3534,7 @@
   "tools.init_campfire_blackbox": 5,
   "tools.init_execution_signer": 1,
   "tools.init_platform_keys": 1,
-  "tools.init_secure_profile": 5,
+  "tools.init_secure_profile": 6,
   "tools.kms_smoke": 1,
   "tools.make_evidence_bundle": 2,
   "tools.platform_demo": 2,

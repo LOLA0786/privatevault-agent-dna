@@ -5,6 +5,20 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### The secure profile binds every permit to its presenter (ADR 0028, review finding 4)
+- Under `PV_SECURE_PROFILE` the API refuses to start without
+  `PV_PRESENTER_BUNDLE`, or with one for another organisation; every permit
+  is spec 0.2 and names the agent's TLS client key.
+- `tools/init_secure_profile.py` issues a client CA and one client
+  certificate per API-key holder in `presenters/`, writes
+  `presenter-bundle.json` and sets `PV_PRESENTER_BUNDLE`. Receivers use
+  `presenters/client-ca.pem` as `PV_RECEIVER_CLIENT_CA`.
+- Helm: the secure profile needs `config.presenterBundleKey`; the CI values
+  and kind install supply it.
+- `cryptography` is a declared dependency (it was already installed through
+  `mcp`).
+- `tests/test_secure_profile_presenters.py`.
+
 ### The receiver kit is hardened by default (ADR 0027, review finding 4)
 - The gate serves mutual TLS only; `PV_RECEIVER_ALLOW_PLAINTEXT=1` is the
   explicit demo opt-out. The image runs `serve.py`; `app.py` (uvicorn)

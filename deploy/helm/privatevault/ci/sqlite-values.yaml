@@ -9,5 +9,6 @@ secrets:
   name: pv-secrets
 config:
   name: pv-config
+  presenterBundleKey: presenter-bundle.json
 signing:
   trustedPublicKeys: "0000000000000000000000000000000000000000000000000000000000000000"

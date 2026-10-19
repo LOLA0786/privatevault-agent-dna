@@ -441,6 +441,7 @@ def _secure_profile_manifest(secure: bool) -> dict[str, str]:
                 "PV_SECURE_PROFILE=1: API keys + grants required; "
                 "receipt signer + trust roots required; "
                 f"{EXECUTION_TRUST_BUNDLE_ENV} required; "
+                "presenter bundle required, every permit binds its presenter; "
                 "cross-agent execution_id and loop events required; "
                 "PV_ALLOW_NO_AUTH refused"
             ),

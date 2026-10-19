@@ -51,7 +51,9 @@ config:
   name: ""
   grantsKey: grants.json
   trustBundleKey: trust-bundle.json
-  # Optional: set to the key holding a presenter bundle (ADR 0022).
+  # The key holding the presenter bundle (ADR 0022). Required with the
+  # secure profile (ADR 0028): tools/init_secure_profile.py writes
+  # presenter-bundle.json.
   presenterBundleKey: ""
   # Optional: set to the key holding a policy file.
   policyKey: ""

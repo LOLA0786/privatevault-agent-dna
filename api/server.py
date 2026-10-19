@@ -472,11 +472,15 @@ def _assert_secure_authorize_material() -> None:
         return
     key = os.getenv("PV_EXECUTION_SIGNER_KEY")
     bundle = os.getenv("PV_TRUST_BUNDLE")
+    # ADR 0028: every permit names the TLS client key that may present it,
+    # so a receiver with default settings (ADR 0027) can admit it.
+    presenters = os.getenv("PV_PRESENTER_BUNDLE")
     missing = [
         name
         for name, value in (
             ("PV_EXECUTION_SIGNER_KEY", key),
             ("PV_TRUST_BUNDLE", bundle),
+            ("PV_PRESENTER_BUNDLE", presenters),
         )
         if not value
     ]
@@ -484,14 +488,32 @@ def _assert_secure_authorize_material() -> None:
         raise RuntimeError(
             "PV_SECURE_PROFILE=1 requires execution mint material: "
             + ", ".join(missing)
-            + " (see tools/init_execution_signer.py)"
+            + " (tools/init_secure_profile.py writes all of it)"
         )
     for label, path in (
         ("PV_EXECUTION_SIGNER_KEY", key),
         ("PV_TRUST_BUNDLE", bundle),
+        ("PV_PRESENTER_BUNDLE", presenters),
     ):
         if path is not None and not is_kms_ref(path) and not Path(path).is_file():
             raise RuntimeError(f"{label} path does not exist: {path}")
+
+
+def _assert_presenters_match_trust_bundle(bundle: PresenterBundle | None) -> None:
+    """The presenter bundle must pin presenters for the organisation that
+    signs permits; otherwise every mint would be refused as not pinned."""
+    path = os.getenv("PV_TRUST_BUNDLE", "")
+    if bundle is None or not path or not Path(path).is_file():
+        return
+    try:
+        org = _pv_json.loads(Path(path).read_text())["organisation_id"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return  # the signer reports an unreadable trust bundle at mint
+    if bundle.organisation_id != org:
+        raise RuntimeError(
+            f"PV_PRESENTER_BUNDLE is for organisation {bundle.organisation_id!r}, "
+            f"PV_TRUST_BUNDLE for {org!r}"
+        )
 
 
 @asynccontextmanager
@@ -521,6 +543,7 @@ async def lifespan(app: FastAPI):
     _assert_secure_authorize_material()
     state["authorization_window"] = _authorization_window()
     state["presenter_bundle"] = _presenter_bundle()
+    _assert_presenters_match_trust_bundle(state["presenter_bundle"])
     state["operation_registry"] = _operation_registry()
     runtime.composition["operation_registry"] = _operations_manifest(
         state["operation_registry"], _secure_profile_on()

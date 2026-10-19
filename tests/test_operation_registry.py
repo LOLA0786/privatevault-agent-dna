@@ -54,6 +54,7 @@ from tests.test_authorize_mint_claim import (
     _dispatch,
     build_mint_env,
 )
+from tests.test_init_secure_profile import presenter_digest
 
 READ_CONTACT = {
     "operation_id": "crm-read-contact-v1",
@@ -333,7 +334,7 @@ def test_secure_profile_starts_with_an_empty_registry(tmp_path, monkeypatch):
 def test_secure_profile_refuses_to_mint_without_a_registry(tmp_path, monkeypatch):
     from fastapi.testclient import TestClient
 
-    server, key, _out = _secure(tmp_path, monkeypatch, operations=[PAY])
+    server, key, out = _secure(tmp_path, monkeypatch, operations=[PAY])
     monkeypatch.delenv("PV_OPERATIONS_FILE")
     importlib.reload(server)
     server._pv_signer_cache.clear()
@@ -363,6 +364,7 @@ def test_secure_profile_refuses_to_mint_without_a_registry(tmp_path, monkeypatch
             ),
             action=action,
         )
+        body["presenter_identity_digest"] = presenter_digest(out, AGENT)
         body["security_events"] = [
             {
                 "spec": "pv-agent-security-event/1.0",

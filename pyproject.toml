@@ -27,6 +27,9 @@ dependencies = [
     "PyYAML>=6.0",
     "mcp>=2.2,<3",
     "prometheus-client>=0.20",
+    # agent TLS client certificates (tools/init_secure_profile.py, ADR 0028);
+    # already installed through mcp -> pyjwt[crypto]
+    "cryptography>=44",
 ]
 
 [project.optional-dependencies]

@@ -26,6 +26,18 @@ import init_secure_profile as isp  # noqa: E402
 import verify_deployment as vd  # noqa: E402
 
 
+def presenter_digest(out: Path, agent: str) -> str:
+    """The presenter an agent's provisioned client certificate proves."""
+    from agent_dna.presenter_identity import (
+        certificate_der_from_file,
+        presenter_identity_digest,
+    )
+
+    return presenter_identity_digest(
+        certificate_der_from_file(out / "presenters" / f"{agent}.pem")
+    )
+
+
 def _load_env(path: Path, monkeypatch) -> dict[str, str]:
     for name in [n for n in os.environ if n.startswith("PV_")]:
         monkeypatch.delenv(name)

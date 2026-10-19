@@ -64,6 +64,7 @@ from tests.test_authorize_mint_claim import (
     _dispatch,
     build_mint_env,
 )
+from tests.test_init_secure_profile import presenter_digest
 from tests.test_operation_registry import (
     PAY,
     READ_CONTACT,
@@ -335,7 +336,7 @@ def test_caller_mode_needs_values_when_nothing_is_sealed(caller_env, monkeypatch
 # ---- the secure profile -------------------------------------------------------------
 
 
-def _secure_mint_body(decided, **overrides):
+def _secure_mint_body(decided, out, **overrides):
     record = decided.json()["record"]
     action = execution_action_for(
         AGENT, "payments.pay_invoice", {"amount": 100}, resource="vendor:V-100", org=ORG
@@ -352,6 +353,7 @@ def _secure_mint_body(decided, **overrides):
             action=action,
         )
     )
+    body["presenter_identity_digest"] = presenter_digest(out, AGENT)
     body["security_events"] = [
         {
             "spec": "pv-agent-security-event/1.0",
@@ -373,7 +375,7 @@ def _secure_mint_body(decided, **overrides):
 
 def test_secure_profile_refuses_the_reviews_probe(tmp_path, monkeypatch):
     monkeypatch.delenv("PV_PERMIT_EVIDENCE", raising=False)
-    server, key, _out = _secure(tmp_path, monkeypatch, operations=[PAY])
+    server, key, out = _secure(tmp_path, monkeypatch, operations=[PAY])
     with TestClient(server.app) as client:
         decided = _pay(client, key, 100)
         assert decided.status_code == 200, decided.text
@@ -381,6 +383,7 @@ def test_secure_profile_refuses_the_reviews_probe(tmp_path, monkeypatch):
         # The review's probe: arbitrary digests in, expecting them signed.
         probe = _secure_mint_body(
             decided,
+            out,
             policy_bundle_digest=ONE,
             authority_receipt_digest=ONE,
             state_snapshot_digest=ONE,
@@ -392,7 +395,7 @@ def test_secure_profile_refuses_the_reviews_probe(tmp_path, monkeypatch):
         honest = client.post(
             "/v1/authorize",
             headers={"X-API-Key": key},
-            json=_secure_mint_body(decided),
+            json=_secure_mint_body(decided, out),
         )
         assert honest.status_code == 200, honest.text
         permit = honest.json()["authorization"]
