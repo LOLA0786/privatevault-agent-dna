@@ -887,14 +887,15 @@ not the remote policy's content. Without the secure profile
 (`PV_PERMIT_EVIDENCE=caller`) a digest the caller sends is still signed as
 given; the mint response lists it under `caller_asserted`.
 
-- **The API's secure profile does not require presenter keys.** The
-  receiver kit is now hardened by default (ADR 0027): mutual TLS only,
-  presenters required, and a signed revocation list it refreshes and
-  without which it refuses everything (`tests/network/test_receiver_hardened.py`).
-  But an API without `PV_PRESENTER_BUNDLE` still mints spec 0.1 permits,
-  which such a gate refuses. **We do not claim** receiver replicas on
-  separate hosts share one claim: the receiver ledger is SQLite. Run one
-  receiver host.
+- **Receiver replicas on separate hosts.** Fixed since: the receiver kit
+  is hardened by default (ADR 0027): mutual TLS only, presenters required,
+  and a signed revocation list it refreshes and without which it refuses
+  everything (`tests/network/test_receiver_hardened.py`). The secure
+  profile requires a presenter bundle and provisions agent client
+  certificates, so every permit names the key that may present it (ADR
+  0028, `tests/test_secure_profile_presenters.py`). **We do not claim**
+  receiver replicas on separate hosts share one claim: the receiver ledger
+  is SQLite. Run one receiver host.
 - **Reads rebuild the whole ledger.** In multi-writer mode, record,
   lineage, blocked, divergent and outcome-ownership queries load every
   record from the store per call. Cost grows with the ledger.

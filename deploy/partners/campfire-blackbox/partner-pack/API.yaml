@@ -190,6 +190,9 @@ components:
           type: string
         decision_receipt_digest:
           type: string
+        presenter_identity_digest:
+          type: string
+          description: sha256 of the agent's TLS client key (pin-sha256, hex). Required on the hosted evaluation (PV_SECURE_PROFILE=1); we send it with the agent's client certificate.
         authority_receipt_digest:
           type: string
           description: Omit. The server fills it from the sealed decision; under PV_SECURE_PROFILE=1 a different value is refused.

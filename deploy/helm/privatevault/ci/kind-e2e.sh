@@ -37,7 +37,8 @@ kubectl -n "$NS" create secret generic pv-secrets \
   --from-literal=database-url=postgresql://postgres:postgres@pg:5432/postgres
 kubectl -n "$NS" create configmap pv-config \
   --from-file=grants.json="$work/pv/grants.json" \
-  --from-file=trust-bundle.json="$work/pv/trust-bundle.json"
+  --from-file=trust-bundle.json="$work/pv/trust-bundle.json" \
+  --from-file=presenter-bundle.json="$work/pv/presenter-bundle.json"
 
 helm install pv "$CHART" -n "$NS" -f "$CHART/ci/postgres-values.yaml" \
   --set signing.trustedPublicKeys="$PV_TRUSTED_PUBLIC_KEYS" \

@@ -1305,6 +1305,7 @@ name = "privatevault-agent-dna"
 version = "0.4.0"
 source = { editable = "." }
 dependencies = [
+    { name = "cryptography" },
     { name = "fastapi" },
     { name = "jsonschema" },
     { name = "mcp" },
@@ -1370,6 +1371,7 @@ requires-dist = [
     { name = "anthropic", marker = "extra == 'live'", specifier = ">=1.0" },
     { name = "boto3", marker = "extra == 'dev'", specifier = ">=1.40" },
     { name = "boto3", marker = "extra == 'kms-aws'", specifier = ">=1.40" },
+    { name = "cryptography", specifier = ">=44" },
     { name = "fastapi", specifier = ">=0.115.0" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27" },
     { name = "httpx2", marker = "extra == 'dev'", specifier = ">=2.5.0" },

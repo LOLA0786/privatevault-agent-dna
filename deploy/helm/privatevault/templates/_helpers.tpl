@@ -59,6 +59,9 @@ the same rules the API enforces at start-up.
 {{- if and .Values.secureProfile (not .Values.signing.trustedPublicKeys) -}}
 {{- fail "secureProfile needs signing.trustedPublicKeys (hex public key of the decision receipt signer)" -}}
 {{- end -}}
+{{- if and .Values.secureProfile (not .Values.config.presenterBundleKey) -}}
+{{- fail "secureProfile needs config.presenterBundleKey: every permit binds its presenter (ADR 0028; init_secure_profile writes presenter-bundle.json)" -}}
+{{- end -}}
 {{- if and .Values.secureProfile (ne .Values.lineage "enforce") -}}
 {{- fail "secureProfile needs lineage=enforce" -}}
 {{- end -}}

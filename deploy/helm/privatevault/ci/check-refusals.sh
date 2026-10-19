@@ -6,7 +6,7 @@ set -euo pipefail
 : "${RENDER:?set RENDER to a render command that takes a values file}"
 dir=$(mktemp -d)
 base='secrets: {name: s}
-config: {name: c}
+config: {name: c, presenterBundleKey: p}
 signing: {trustedPublicKeys: "00"}'
 
 expect_refusal() {  # name, expected message, extra yaml
@@ -34,5 +34,6 @@ expect_refusal no-secret "secrets.name is required" 'secrets: {name: ""}'
 expect_refusal no-config "config.name is required" 'config: {name: ""}'
 expect_refusal secure-without-trusted-keys "trustedPublicKeys" 'signing: {trustedPublicKeys: ""}'
 expect_refusal secure-without-lineage "lineage=enforce" 'lineage: shadow'
+expect_refusal secure-without-presenters "presenterBundleKey" 'config: {name: c, presenterBundleKey: ""}'
 expect_refusal bad-digest "image.digest must be" 'image: {digest: "latest"}'
 echo "all unsafe configurations refused"

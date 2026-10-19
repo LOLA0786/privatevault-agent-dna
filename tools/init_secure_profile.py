@@ -10,6 +10,14 @@ fixtures (external retests, 2026-10-15/16). It writes:
   execution-signer.key   0600  Ed25519 seed that mints execution permits
   dispatch-witness.key   0600  independent seed: dispatch witness + closure
   trust-bundle.json            public keys (execution + receiver trust root)
+  operations.json              the operations each capability covers (empty)
+  presenters/client-ca.pem     CA for agent TLS client certificates; give it
+                               to receivers as PV_RECEIVER_CLIENT_CA
+  presenters/client-ca.key 0600  its key: issue more agents with it, then
+                               store it offline
+  presenters/<agent>.pem/.key  one TLS client certificate per API-key holder
+                               (key 0600), for that agent's sidecar
+  presenter-bundle.json        pins each agent's client key (ADR 0022/0028)
   secure.env             0600  every PV_* setting, including plaintext API
                                keys and the receipt-signing seed
 
@@ -31,7 +39,7 @@ import json
 import os
 import shlex
 import sys
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -39,6 +47,10 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from cryptography import x509  # noqa: E402
+from cryptography.hazmat.primitives import hashes, serialization  # noqa: E402
+from cryptography.hazmat.primitives.asymmetric import ec  # noqa: E402
+from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID  # noqa: E402
 from nacl.signing import SigningKey  # noqa: E402
 
 from agent_dna.apikeys import generate_key  # noqa: E402
@@ -54,11 +66,109 @@ from agent_dna.operation_registry import (  # noqa: E402
     OPERATIONS_SPEC,
     parse_operation_registry,
 )
+from agent_dna.presenter_identity import (  # noqa: E402
+    PRESENTER_BUNDLE_SPEC,
+    presenter_identity_digest,
+    validate_presenter_bundle,
+)
 from agent_dna.signer_python import generate_keypair  # noqa: E402
 
 OPERATOR = "operator"
 AUDITOR = "auditor"
 SELFTEST_CAPABILITIES = ("pv.selftest.initiate", "pv.selftest.approve")
+CA_DAYS = 3 * 365
+CLIENT_DAYS = 365
+
+
+def _name(common_name: str, org: str) -> x509.Name:
+    return x509.Name(
+        [
+            x509.NameAttribute(NameOID.COMMON_NAME, common_name),
+            x509.NameAttribute(NameOID.ORGANIZATION_NAME, org),
+        ]
+    )
+
+
+def _key_pem(key: ec.EllipticCurvePrivateKey) -> bytes:
+    return key.private_bytes(
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.PKCS8,
+        serialization.NoEncryption(),
+    )
+
+
+def _presenters(out: Path, org: str, agents: list[str]) -> dict[str, list[str]]:
+    """A client CA and one TLS client certificate per agent (ADR 0028).
+
+    Each agent's sidecar presents its certificate to receivers; the presenter
+    bundle pins the certificate's key, so a permit minted for the agent can
+    only be presented by it (ADR 0022). Returns agent -> pinned digests.
+    """
+    now = datetime.now(UTC) - timedelta(minutes=5)
+    directory = out / "presenters"
+    directory.mkdir(mode=0o700)
+    ca_key = ec.generate_private_key(ec.SECP256R1())
+    ca_name = _name(f"PrivateVault agent client CA ({org})", org)
+    ca = (
+        x509.CertificateBuilder()
+        .subject_name(ca_name)
+        .issuer_name(ca_name)
+        .public_key(ca_key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now)
+        .not_valid_after(now + timedelta(days=CA_DAYS))
+        .add_extension(x509.BasicConstraints(ca=True, path_length=0), critical=True)
+        .add_extension(
+            x509.KeyUsage(
+                digital_signature=False,
+                content_commitment=False,
+                key_encipherment=False,
+                data_encipherment=False,
+                key_agreement=False,
+                key_cert_sign=True,
+                crl_sign=True,
+                encipher_only=False,
+                decipher_only=False,
+            ),
+            critical=True,
+        )
+        .sign(ca_key, hashes.SHA256())
+    )
+    _write(directory / "client-ca.key", _key_pem(ca_key), 0o600)
+    _write(
+        directory / "client-ca.pem", ca.public_bytes(serialization.Encoding.PEM), 0o644
+    )
+    pinned: dict[str, list[str]] = {}
+    for agent in agents:
+        key = ec.generate_private_key(ec.SECP256R1())
+        cert = (
+            x509.CertificateBuilder()
+            .subject_name(_name(agent, org))
+            .issuer_name(ca_name)
+            .public_key(key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(now)
+            .not_valid_after(now + timedelta(days=CLIENT_DAYS))
+            .add_extension(
+                x509.BasicConstraints(ca=False, path_length=None), critical=True
+            )
+            .add_extension(
+                x509.ExtendedKeyUsage([ExtendedKeyUsageOID.CLIENT_AUTH]),
+                critical=False,
+            )
+            .sign(ca_key, hashes.SHA256())
+        )
+        stem = "".join(c if c.isalnum() or c in "-._" else "_" for c in agent)
+        _write(directory / f"{stem}.key", _key_pem(key), 0o600)
+        _write(
+            directory / f"{stem}.pem",
+            cert.public_bytes(serialization.Encoding.PEM),
+            0o644,
+        )
+        pinned[agent] = [
+            presenter_identity_digest(cert.public_bytes(serialization.Encoding.DER))
+        ]
+    return pinned
 
 
 def _write(path: Path, data: str | bytes, mode: int) -> None:
@@ -81,6 +191,12 @@ def _prepare(out: Path, replace_existing: bool) -> Path:
         for child in out.iterdir():
             if child.is_file() or child.is_symlink():
                 child.unlink()
+            elif child.name == "presenters" and all(
+                c.is_file() or c.is_symlink() for c in child.iterdir()
+            ):
+                for c in child.iterdir():
+                    c.unlink()  # a symlink is removed, never followed
+                child.rmdir()
             else:
                 raise ValueError(f"refusing to replace unexpected subdirectory {child}")
     else:
@@ -168,6 +284,18 @@ def provision(
     parse_operation_registry(registry)  # refuse a bad declaration now
     _write(out / "operations.json", json.dumps(registry, indent=2) + "\n", 0o644)
 
+    presenters = {
+        "spec": PRESENTER_BUNDLE_SPEC,
+        "organisation_id": org,
+        "presenters": _presenters(out, org, names),
+    }
+    validate_presenter_bundle(presenters)
+    _write(
+        out / "presenter-bundle.json",
+        json.dumps(presenters, indent=2, sort_keys=True) + "\n",
+        0o644,
+    )
+
     env = {
         "PV_SECURE_PROFILE": "1",
         "PV_LINEAGE": "enforce",
@@ -182,6 +310,7 @@ def provision(
         "PV_TRUST_BUNDLE": str(out / "trust-bundle.json"),
         "PV_EXECUTION_TRUST_BUNDLE_FILE": str(out / "trust-bundle.json"),
         "PV_DISPATCH_WITNESS_KEY": str(out / "dispatch-witness.key"),
+        "PV_PRESENTER_BUNDLE": str(out / "presenter-bundle.json"),
         "PV_OPERATOR_KEY": api_keys[OPERATOR]["key"],
         "PV_AUDITOR_KEY": auditor["key"],
     }
@@ -199,6 +328,7 @@ def provision(
         "agents": names,
         "receipt_public_key": receipt["public_key"],
         "env_file": str(out / "secure.env"),
+        "client_ca": str(out / "presenters" / "client-ca.pem"),
     }
 
 
@@ -235,6 +365,10 @@ def main(argv: list[str] | None = None) -> int:
         f"agents with API keys: {', '.join(info['agents'])} (+ {AUDITOR}, audit scope)"
     )
     print(f"receipt public key: {info['receipt_public_key']}")
+    print(
+        f"agent client certificates in {info['out']}/presenters; give receivers "
+        f"{info['client_ca']} as PV_RECEIVER_CLIENT_CA"
+    )
     print("secrets are in secure.env (mode 0600); nothing secret was printed")
     print(f"load it with:  set -a; . {info['env_file']}; set +a")
     return 0

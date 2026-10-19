@@ -46,8 +46,12 @@ flowchart TB
   profile and no file, every mint is refused.
 - It refuses to render an unsafe configuration (SQLite shared by several
   pods or autoscaled, a ledger without a volume, a secure profile without
-  trusted keys or with lineage not enforced, an image without a digest):
+  trusted keys, without a presenter bundle or with lineage not enforced, an
+  image without a digest):
   `deploy/helm/privatevault/ci/check-refusals.sh` checks each refusal.
+- The presenter bundle (ADR 0028, `config.presenterBundleKey`) pins each
+  agent's TLS client key; `init_secure_profile` issues the certificates in
+  `presenters/`, and receivers trust `presenters/client-ca.pem`.
 - Signing keys may be KMS references instead of files
   (`deploy/helm/privatevault/ci/kms-values.yaml`).
 - CI renders the chart, validates it against the Kubernetes schemas, installs
