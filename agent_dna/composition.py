@@ -360,11 +360,28 @@ def _attach_durable_spend(
         comp["authorization"]["revocation"] = f"durable ({backend})"
 
 
+def _looks_like_legacy_grants(obj: dict) -> bool:
+    return bool(obj) and all(
+        isinstance(caps, dict)
+        and caps
+        and all(isinstance(e, dict) and "capability" in e for e in caps.values())
+        for caps in obj.values()
+    )
+
+
 def _load_grants(path: str) -> GrantRegistry:
     """JSON list: [{agent_id, capability, granted_by?, expires_at?,
     budget?}, ...]. Malformed config fails the BUILD (loudly, at
     startup) -- never a silently empty authorizer."""
     entries = json.loads(Path(path).read_text())
+    if isinstance(entries, dict) and _looks_like_legacy_grants(entries):
+        raise ValueError(
+            f"{path}: this is the legacy per-agent grants format "
+            "{agent: {capability: {approved_by, environment, ...}}} (as in "
+            "profiles/grants.json). PV_GRANTS_FILE needs a JSON list; convert "
+            f"it explicitly: python tools/migrate_grants.py {path} "
+            "--environment <env> --out grants.json"
+        )
     if not isinstance(entries, list):
         raise ValueError(
             f"{path}: expected a JSON list of grants "
@@ -747,6 +764,7 @@ def build_production_runtime(
         policy=policy,
         authorizer=authorizer,
     )
+    engine_core.baseline_capabilities = frozenset(baseline_caps)
 
     # ---- persistence + signing ----
     signer = ReceiptSigner() if os.getenv(KEY_ENV) else None

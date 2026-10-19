@@ -222,6 +222,7 @@ def provision(
     grants: list[dict[str, str]],
     replace_existing: bool = False,
     operations: list[dict[str, Any]] | None = None,
+    baseline_from_grants: bool = False,
 ) -> dict[str, Any]:
     out = _prepare(out, replace_existing)
     names = list(dict.fromkeys([OPERATOR, *agents]))
@@ -314,6 +315,13 @@ def provision(
         "PV_OPERATOR_KEY": api_keys[OPERATOR]["key"],
         "PV_AUDITOR_KEY": auditor["key"],
     }
+    granted_caps = sorted({g["capability"] for g in grants})
+    if baseline_from_grants and granted_caps:
+        # Opt-in: treat the explicitly granted capabilities as normal for the
+        # synthetic drift scorer, so a granted first action (e.g. `ls` under
+        # shell.exec) is not held for drift review. Policy, shell guard and
+        # grants still apply; only the novelty signal is relaxed.
+        env["PV_BASELINE_CAPABILITIES"] = ",".join(granted_caps)
     for name in names:
         if name != OPERATOR:
             var = "PV_KEY_" + "".join(c if c.isalnum() else "_" for c in name).upper()
@@ -329,6 +337,8 @@ def provision(
         "receipt_public_key": receipt["public_key"],
         "env_file": str(out / "secure.env"),
         "client_ca": str(out / "presenters" / "client-ca.pem"),
+        "granted_capabilities": granted_caps,
+        "baseline_capabilities": granted_caps if baseline_from_grants else [],
     }
 
 
@@ -347,6 +357,12 @@ def main(argv: list[str] | None = None) -> int:
         help="AGENT=CAPABILITY grant (repeat); the agent gets an API key too",
     )
     parser.add_argument("--replace-existing", action="store_true")
+    parser.add_argument(
+        "--baseline-from-grants",
+        action="store_true",
+        help="write PV_BASELINE_CAPABILITIES from the --grant capabilities, so a "
+        "granted capability is not held for drift review on first use",
+    )
     args = parser.parse_args(argv)
     agents = [*args.agent, *(g["agent_id"] for g in args.grant)]
     try:
@@ -356,6 +372,7 @@ def main(argv: list[str] | None = None) -> int:
             agents=agents,
             grants=args.grant,
             replace_existing=args.replace_existing,
+            baseline_from_grants=args.baseline_from_grants,
         )
     except (FileExistsError, ValueError) as exc:
         print(f"refused: {exc}", file=sys.stderr)
@@ -371,6 +388,19 @@ def main(argv: list[str] | None = None) -> int:
     )
     print("secrets are in secure.env (mode 0600); nothing secret was printed")
     print(f"load it with:  set -a; . {info['env_file']}; set +a")
+    if info["baseline_capabilities"]:
+        print(
+            "drift baseline (PV_BASELINE_CAPABILITIES): "
+            + ",".join(info["baseline_capabilities"])
+        )
+    elif info["granted_capabilities"]:
+        print(
+            "note: granted capabilities ("
+            + ",".join(info["granted_capabilities"])
+            + ") are not in the drift baseline, so their first uses may be held "
+            "for approval (202, triggered_by=drift). Re-run with "
+            "--baseline-from-grants or set PV_BASELINE_CAPABILITIES to accept them."
+        )
     return 0
 
 

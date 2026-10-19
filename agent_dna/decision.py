@@ -166,6 +166,17 @@ class InvariantChecker(Protocol):
 
 
 class DecisionEngine:
+    def _drift_hint(self, capability: str) -> str:
+        base = self.baseline_capabilities
+        if base is None or capability in base:
+            return ""
+        return (
+            f"; capability '{capability}' is not in PV_BASELINE_CAPABILITIES "
+            "(the drift baseline). A grant authorizes it, but drift review still "
+            "holds unfamiliar use; add it to PV_BASELINE_CAPABILITIES to treat "
+            "it as normal"
+        )
+
     def __init__(
         self,
         scorer=None,
@@ -187,6 +198,9 @@ class DecisionEngine:
         self.authorizer = authorizer
 
         self.drift_threshold = drift_threshold
+        # Capabilities trained into the drift baseline (PV_BASELINE_CAPABILITIES);
+        # only used to explain a drift hold. None = not reported.
+        self.baseline_capabilities: frozenset[str] | None = None
 
         self.uaal = uaal
         self.economics = economics
@@ -324,7 +338,8 @@ class DecisionEngine:
             return make(
                 Decision.REQUIRE_APPROVAL,
                 "drift",
-                (f"Behavioral drift {signal.drift_score:.2f}"),
+                (f"Behavioral drift {signal.drift_score:.2f}")
+                + self._drift_hint(capability),
             )
 
         #

@@ -4690,6 +4690,10 @@
    "group": "tools",
    "path": "tools/make_evidence_bundle.py"
   },
+  "tools.migrate_grants": {
+   "group": "tools",
+   "path": "tools/migrate_grants.py"
+  },
   "tools.platform_demo": {
    "group": "tools",
    "path": "tools/platform_demo.py"

@@ -47,9 +47,16 @@ ALLOW_INLINE_ENV = "PV_SHELL_ALLOW_INLINE"
 DEFAULT_SHELL_CAPABILITIES = frozenset({"shell.exec"})
 TRIGGERED_BY_SHELL = "shell_guard"
 
+WORKDIR_ENV = "PV_SHELL_WORKDIR"
+SECRET_FILES_ENV = "PV_SHELL_SECRET_FILES"
+SECRET_VARS_ENV = "PV_SHELL_SECRET_VARS"
+MAX_INSPECT_BYTES = 1_048_576
+MIN_SECRET_VALUE_CHARS = 8
+
 SHELL_UNPARSEABLE = "SHELL_UNPARSEABLE"
 SHELL_INLINE_CODE = "SHELL_INLINE_CODE"
 SHELL_SECRET_EGRESS = "SHELL_SECRET_EGRESS"
+SHELL_SCRIPT_SECRET = "SHELL_SCRIPT_SECRET"
 SHELL_SECRET_STAGING = "SHELL_SECRET_STAGING"
 
 MAX_DEPTH = 4
@@ -213,6 +220,7 @@ class _Acc:
     writes_files: list[str] = field(default_factory=list)
     sensitive_args: list[str] = field(default_factory=list)
     destructive_flags: bool = False
+    script_secret: list[str] = field(default_factory=list)
 
     def note_exe(self, name: str) -> None:
         if name not in self.executables:
@@ -244,7 +252,190 @@ _SECRET_VAR = re.compile(
 )
 
 
+# ---- filesystem- and value-aware checks (external retest 3, 2026-10-16) ----
+# Name patterns miss an existing symlink to .env (E06/X09), a copy made
+# outside the guard (X01), a curl config file (X12), a script that reads a
+# secret (N17), and a secret held in an innocently named variable (X03).
+# These checks need the guard to see the agent's filesystem: they run only
+# when the operator sets PV_SHELL_WORKDIR (the agent's working directory on
+# this host). Callers cannot choose it.
+
+
+def _workdir() -> str | None:
+    wd = os.environ.get(WORKDIR_ENV)
+    return wd if wd and os.path.isdir(wd) else None
+
+
+def _resolve(token: str) -> str | None:
+    """Real path of an existing file named by token, or None."""
+    wd = _workdir()
+    if wd is None or not token or "://" in token or len(token) > 4096:
+        return None
+    path = token if os.path.isabs(token) else os.path.join(wd, token)
+    try:
+        if os.path.lexists(path):
+            return os.path.realpath(path)
+    except (OSError, ValueError):
+        return None
+    return None
+
+
+def _read_limited(path: str) -> bytes | None:
+    try:
+        with open(path, "rb") as fh:
+            return fh.read(MAX_INSPECT_BYTES)
+    except (OSError, ValueError):
+        return None
+
+
+def _secret_material() -> tuple[frozenset[str], frozenset[str], frozenset[tuple[int, int]]]:
+    """(secret values, secret variable names, (dev, inode) of secret files).
+
+    Values come from PV_SHELL_SECRET_FILES (KEY=VALUE lines, e.g. .env);
+    variable names are those keys plus PV_SHELL_SECRET_VARS, plus any
+    variable in this process environment whose value is a known secret.
+    """
+    files_env = os.environ.get(SECRET_FILES_ENV, "")
+    stamp = []
+    for raw in files_env.split(","):
+        try:
+            st = os.stat(raw.strip())
+            stamp.append((raw, st.st_ino, st.st_mtime_ns, st.st_size))
+        except OSError:
+            stamp.append((raw, None, None, None))
+    key = (files_env, os.environ.get(SECRET_VARS_ENV, ""), tuple(stamp))
+    if _SECRET_CACHE.get("key") != key:
+        _SECRET_CACHE["key"] = key
+        _SECRET_CACHE["value"] = _load_secret_files(files_env)
+    values, file_names, inodes = _SECRET_CACHE["value"]
+    names = set(file_names) | {
+        v.strip() for v in os.environ.get(SECRET_VARS_ENV, "").split(",") if v.strip()
+    }
+    if values:
+        names |= {k for k, v in os.environ.items() if v and v in values}
+    return values, frozenset(names), inodes
+
+
+_SECRET_CACHE: dict[str, Any] = {}
+
+
+def _load_secret_files(
+    files_env: str,
+) -> tuple[frozenset[str], frozenset[str], frozenset[tuple[int, int]]]:
+    values: set[str] = set()
+    names: set[str] = set()
+    inodes: set[tuple[int, int]] = set()
+    for raw in files_env.split(","):
+        path = raw.strip()
+        if not path:
+            continue
+        try:
+            st = os.stat(path)
+            inodes.add((st.st_dev, st.st_ino))
+        except OSError:
+            continue
+        data = _read_limited(path) or b""
+        for line in data.decode("utf-8", "replace").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, val = line.partition("=")
+            key = key.strip().removeprefix("export ").strip()
+            val = val.strip().strip("'\"")
+            if key:
+                names.add(key)
+            if len(val) >= MIN_SECRET_VALUE_CHARS:
+                values.add(val)
+    return frozenset(values), frozenset(names), frozenset(inodes)
+
+
+def _is_secret_path(path: str) -> bool:
+    """A real path that is credential-like by name, or is a configured
+    secret file (same inode: hard links), or contains a known secret."""
+    if _SENSITIVE.search(path):
+        return True
+    values, _, inodes = _secret_material()
+    try:
+        st = os.stat(path)
+        if (st.st_dev, st.st_ino) in inodes:
+            return True
+    except OSError:
+        return False
+    if values and os.path.isfile(path):
+        data = _read_limited(path) or b""
+        text = data.decode("utf-8", "replace")
+        return any(v in text for v in values)
+    return False
+
+
+_VAR_REF = re.compile(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)")
+_QUOTED = re.compile(r"[\'\"]([^\'\"\n]{1,512})[\'\"]")
+
+
+def _token_reveals_secret(token: str) -> bool:
+    values, names, _ = _secret_material()
+    if any(v in token for v in values):
+        return True
+    return any(m.group(1) in names for m in _VAR_REF.finditer(token))
+
+
+def _note_fs_sensitive(token: str, acc: _Acc) -> bool:
+    for part in dict.fromkeys(
+        (token, token.split("=", 1)[-1], token.lstrip("@"), token.split("@", 1)[-1])
+    ):
+        real = _resolve(part)
+        if real is not None and _is_secret_path(real):
+            if token not in acc.sensitive_args:
+                acc.sensitive_args.append(token)
+            return True
+    return False
+
+
+def _inspect_script(path_token: str, acc: _Acc) -> None:
+    """A script file the interpreter will run: flag it if its text names a
+    credential-like file, a known secret value or a secret variable."""
+    real = _resolve(path_token)
+    if real is None or not os.path.isfile(real):
+        return
+    text = (_read_limited(real) or b"").decode("utf-8", "replace")
+    hits = [q for q in _QUOTED.findall(text) if _SENSITIVE.search(q) or _note_fs_probe(q)]
+    if hits or _token_reveals_secret(text):
+        acc.script_secret.append(path_token)
+
+
+def _note_fs_probe(token: str) -> bool:
+    real = _resolve(token)
+    return real is not None and _is_secret_path(real)
+
+
+def _curl_config(path_token: str, acc: _Acc) -> None:
+    """curl -K FILE: the options live in the file. Inspect it like argv."""
+    real = _resolve(path_token)
+    data = _read_limited(real) if real else None
+    if data is None:
+        acc.inline_code = True  # options the runtime cannot see
+        return
+    for line in data.decode("utf-8", "replace").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        for tok in re.split(r"[\s=:]+", line, maxsplit=1)[1:] or [line]:
+            tok = tok.strip().strip("'\"")
+            _note_sensitive(tok, acc)
+            if tok.startswith("@"):
+                acc.reads_files.append(tok[1:])
+        if re.match(r"-?-?(upload-file|T)\b", line):
+            target = re.split(r"[\s=:]+", line, maxsplit=1)[-1].strip().strip("'\"")
+            acc.reads_files.append(target)
+
+
 def _note_sensitive(token: str, acc: _Acc) -> None:
+    if _token_reveals_secret(token):
+        if token not in acc.sensitive_args:
+            acc.sensitive_args.append(token)
+        return
+    if _note_fs_sensitive(token, acc):
+        return
     if _SECRET_VAR.search(token):
         if token not in acc.sensitive_args:
             acc.sensitive_args.append(token)
@@ -311,6 +502,10 @@ def _curl_wget_reads(  # noqa: C901 - ordered option checklist
                 acc.reads_files.append(nxt)
             elif tok.startswith("-d@") or tok.startswith("--data-binary=@"):
                 acc.reads_files.append(tok.split("@", 1)[1])
+            elif tok in {"-K", "--config"} and nxt:
+                _curl_config(nxt, acc)
+            elif tok.startswith("--config="):
+                _curl_config(tok.split("=", 1)[1], acc)
         else:
             for opt in ("--post-file", "--body-file"):
                 if tok == opt and nxt:
@@ -401,6 +596,10 @@ def _analyze_argv(argv: list[str], acc: _Acc, depth: int) -> None:  # noqa: C901
             _analyze_string(script, acc, depth + 1)
         elif not has_file:
             acc.inline_code = True  # commands come from stdin / heredoc
+        else:
+            script = next((t for t in argv[1:] if not t.startswith(("-", "+"))), None)
+            if script is not None:
+                _inspect_script(script, acc)
         return
 
     if name in INTERPRETERS:
@@ -411,6 +610,10 @@ def _analyze_argv(argv: list[str], acc: _Acc, depth: int) -> None:  # noqa: C901
             acc.inline_code = True  # program text is an argument
         elif len(argv) == 1 or "-" in argv[1:]:
             acc.inline_code = True  # reads program from stdin
+        else:
+            script = next((t for t in argv[1:] if not t.startswith("-")), None)
+            if script is not None:
+                _inspect_script(script, acc)
         return
 
     if name in EVAL_WORDS:
@@ -535,7 +738,9 @@ def analyze_shell_arguments(arguments: Mapping[str, Any] | None) -> dict[str, An
     except _UnparseableError as exc:
         error = str(exc)
     reads = list(dict.fromkeys(acc.reads_files))
-    sensitive_reads = [p for p in reads if _SENSITIVE.search(p)]
+    sensitive_reads = [
+        p for p in reads if _SENSITIVE.search(p) or _note_fs_probe(p)
+    ]
     network = any(e in NETWORK for e in acc.executables)
     return {
         "parse_ok": error is None,
@@ -553,6 +758,7 @@ def analyze_shell_arguments(arguments: Mapping[str, Any] | None) -> dict[str, An
         "writes_files": list(dict.fromkeys(acc.writes_files)),
         "touches_sensitive": bool(acc.sensitive_args or sensitive_reads),
         "secret_egress": network and bool(acc.sensitive_args or sensitive_reads),
+        "script_secret": list(dict.fromkeys(acc.script_secret)),
         "secret_staging": bool(acc.sensitive_args or sensitive_reads)
         and (any(e in STAGING for e in acc.executables) or bool(acc.writes_files)),
     }
@@ -591,6 +797,13 @@ def shell_findings(shell: Mapping[str, Any] | None) -> list[tuple[str, str]]:
     if shell.get("secret_egress"):
         findings.append(
             (SHELL_SECRET_EGRESS, "network tool handed a credential-like file")
+        )
+    if shell.get("script_secret"):
+        findings.append(
+            (
+                SHELL_SCRIPT_SECRET,
+                "script file names a credential-like file or a known secret",
+            )
         )
     if shell.get("secret_staging"):
         findings.append(
