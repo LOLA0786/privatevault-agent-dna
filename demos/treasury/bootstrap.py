@@ -159,6 +159,10 @@ def _env_lines(root: str, *, upstream: str, capabilities: list[str]) -> str:
         "PV_ALLOW_HTTP_UPSTREAM": "1",
         "PV_LEDGER_PATH": f"{root}/gate/receiver.db",
         "PV_UNPROTECTED_OPERATIONS": cfg.UNPROTECTED_OPERATIONS,
+        # Local demo on loopback: plain HTTP and no revocation list, both
+        # explicit (ADR 0027; a real receiver serves mTLS and pulls the list).
+        "PV_RECEIVER_ALLOW_PLAINTEXT": "1",
+        "PV_RECEIVER_ALLOW_NO_REVOCATION": "1",
     }
     return "".join(f"{k}={v}\n" for k, v in lines.items())
 

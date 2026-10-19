@@ -88,7 +88,7 @@ points at the test file that proves it.
 | Cross-agent invariants at the transport | **SHIPPED** | `tests/connector/test_cross_agent.py` — escalation-only, declared execution windows |
 | No-mocks-on-enforcement-path CI guard | **SHIPPED** | `tests/connector/test_standard_no_mocks.py` (docs/ENGINEERING-STANDARD.md rule 1) |
 | Private SDK surface bounds | **DECLARED** | `MCPServer._tool_manager` — mcp>=2.2,<3, locked to 2.2.0; integration tests cover legacy and modern protocol modes |
-| TLS termination | **NOT STARTED** | Deployment responsibility; bearer keys require TLS in front of the connector. Receiver-side mTLS for presenters is shipped (ADR 0022) but not the receiver kit's default |
+| TLS termination | **NOT STARTED** | Deployment responsibility; bearer keys require TLS in front of the connector. Receiver-side mTLS for presenters is shipped (ADR 0022) and is the receiver kit's default (ADR 0027) |
 | Framework adapters beyond MCP (OpenAI SDK, LangGraph, CrewAI) | **SCOPED** | Same middleware, thin per-framework translation (~40-line adapters); built when a pilot names one |
 
 ## Observability

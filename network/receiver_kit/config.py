@@ -13,6 +13,13 @@ instead: this is how a deployment shares one bundle (signer and witness keys)
 between the PrivateVault API, the sidecar and the gate. When both are given,
 the file wins and the issuer values must agree with it, or the gate does not
 start.
+
+Hardened by default (external review, 19 October 2026): the gate serves only
+mutual TLS, requires every permit to name its presenter, and refuses permits
+unless a fresh signed revocation list is installed. Each relaxation is an
+explicit flag for a local demo: ``PV_RECEIVER_ALLOW_PLAINTEXT=1``,
+``PV_RECEIVER_REQUIRE_PRESENTER=0``, ``PV_RECEIVER_ALLOW_NO_REVOCATION=1``.
+The ledger is SQLite: run one receiver host.
 """
 
 from __future__ import annotations
@@ -40,6 +47,7 @@ from agent_dna.key_custody import Ed25519Signer, SignerError, is_kms_ref, kms_si
 from agent_dna.receiver.asgi import ReceiverGateProxy
 from agent_dna.receiver.gate import ReceiverGate
 from agent_dna.receiver.ledger import ReceiverLedger
+from agent_dna.revocation_list import RevocationListCache
 
 DEFAULT_BUNDLE_VERSION = 1
 DEFAULT_PINNED_AT = "2026-01-01T00:00:00Z"
@@ -256,6 +264,13 @@ class GateSettings:
     tls_key_file: Path | None = None
     tls_client_ca_file: Path | None = None
     require_presenter: bool = False
+    allow_plaintext: bool = False
+    # Signed revocation list (pv-revocation-list/0.1) from the PrivateVault
+    # API's GET /v1/revocations; None only with PV_RECEIVER_ALLOW_NO_REVOCATION.
+    revocation_url: str | None = None
+    revocation_api_key_file: Path | None = None
+    revocation_ca_file: Path | None = None
+    revocation_refresh_seconds: int = 10
 
     @property
     def mtls(self) -> bool:
@@ -296,7 +311,13 @@ def _flag(env: Mapping[str, str], name: str) -> bool:
     raise ConfigError(f"{name} must be 0 or 1")
 
 
-def _int(env: Mapping[str, str], name: str, default: int, minimum: int) -> int:
+def _int(
+    env: Mapping[str, str],
+    name: str,
+    default: int,
+    minimum: int,
+    maximum: int | None = None,
+) -> int:
     raw = env.get(name, "").strip()
     if not raw:
         return default
@@ -306,6 +327,8 @@ def _int(env: Mapping[str, str], name: str, default: int, minimum: int) -> int:
         raise ConfigError(f"{name} must be an integer") from exc
     if value < minimum:
         raise ConfigError(f"{name} must be >= {minimum}")
+    if maximum is not None and value > maximum:
+        raise ConfigError(f"{name} must be <= {maximum}")
     return value
 
 
@@ -313,7 +336,9 @@ _TLS_VARS = ("PV_RECEIVER_TLS_CERT", "PV_RECEIVER_TLS_KEY", "PV_RECEIVER_CLIENT_
 
 
 def _tls_settings(env: Mapping[str, str]) -> dict[str, Any]:
-    """mTLS is all three files or none; presenters need mTLS."""
+    """mTLS is all three files or none, and none needs an explicit
+    PV_RECEIVER_ALLOW_PLAINTEXT=1. With mTLS a presenter is required unless
+    PV_RECEIVER_REQUIRE_PRESENTER=0; presenters need mTLS."""
     values = {name: env.get(name, "").strip() for name in _TLS_VARS}
     given = [name for name, value in values.items() if value]
     if given and len(given) != len(_TLS_VARS):
@@ -321,7 +346,22 @@ def _tls_settings(env: Mapping[str, str]) -> dict[str, Any]:
         raise ConfigError(
             f"mTLS needs all of {', '.join(_TLS_VARS)}; missing {missing}"
         )
-    require_presenter = _flag(env, "PV_RECEIVER_REQUIRE_PRESENTER")
+    allow_plaintext = _flag(env, "PV_RECEIVER_ALLOW_PLAINTEXT")
+    if not given and not allow_plaintext:
+        raise ConfigError(
+            "the gate serves mutual TLS only: set PV_RECEIVER_TLS_CERT, "
+            "PV_RECEIVER_TLS_KEY and PV_RECEIVER_CLIENT_CA, or "
+            "PV_RECEIVER_ALLOW_PLAINTEXT=1 for a local demo (presenters cannot "
+            "be authenticated without client certificates)"
+        )
+    if given and allow_plaintext:
+        raise ConfigError(
+            "PV_RECEIVER_ALLOW_PLAINTEXT=1 contradicts the TLS settings; set one"
+        )
+    explicit = env.get("PV_RECEIVER_REQUIRE_PRESENTER", "").strip()
+    require_presenter = (
+        _flag(env, "PV_RECEIVER_REQUIRE_PRESENTER") if explicit else bool(given)
+    )
     if require_presenter and not given:
         raise ConfigError(
             "PV_RECEIVER_REQUIRE_PRESENTER=1 needs mTLS (PV_RECEIVER_TLS_CERT, "
@@ -336,6 +376,50 @@ def _tls_settings(env: Mapping[str, str]) -> dict[str, Any]:
         "tls_key_file": Path(values["PV_RECEIVER_TLS_KEY"]) if given else None,
         "tls_client_ca_file": Path(values["PV_RECEIVER_CLIENT_CA"]) if given else None,
         "require_presenter": require_presenter,
+        "allow_plaintext": allow_plaintext,
+    }
+
+
+def _revocation_settings(env: Mapping[str, str]) -> dict[str, Any]:
+    """Where the signed revocation list comes from. Required unless
+    PV_RECEIVER_ALLOW_NO_REVOCATION=1: without it a revoked permit is
+    admitted until it expires."""
+    url = env.get("PV_REVOCATION_URL", "").strip()
+    allow_none = _flag(env, "PV_RECEIVER_ALLOW_NO_REVOCATION")
+    if not url:
+        if not allow_none:
+            raise ConfigError(
+                "PV_REVOCATION_URL is required (the PrivateVault API's "
+                "GET /v1/revocations, with PV_REVOCATION_API_KEY_FILE): without "
+                "it a revoked permit is admitted until it expires. Set "
+                "PV_RECEIVER_ALLOW_NO_REVOCATION=1 only for a local demo"
+            )
+        return {}
+    if allow_none:
+        raise ConfigError(
+            "PV_RECEIVER_ALLOW_NO_REVOCATION=1 contradicts PV_REVOCATION_URL; set one"
+        )
+    scheme = url.split("://", 1)[0].lower() if "://" in url else ""
+    if scheme not in {"https", "http"}:
+        raise ConfigError("PV_REVOCATION_URL must be an https:// URL")
+    if scheme == "http" and not _flag(env, "PV_ALLOW_HTTP_REVOCATION"):
+        raise ConfigError(
+            "PV_REVOCATION_URL is http://: the API key would travel in clear. "
+            "Use https, or PV_ALLOW_HTTP_REVOCATION=1 inside one host"
+        )
+    key_file = _require(env, "PV_REVOCATION_API_KEY_FILE")
+    if not Path(key_file).is_file():
+        raise ConfigError(f"PV_REVOCATION_API_KEY_FILE: {key_file} is not a file")
+    ca_file = env.get("PV_REVOCATION_CA_FILE", "").strip()
+    if ca_file and not Path(ca_file).is_file():
+        raise ConfigError(f"PV_REVOCATION_CA_FILE: {ca_file} is not a file")
+    return {
+        "revocation_url": url,
+        "revocation_api_key_file": Path(key_file),
+        "revocation_ca_file": Path(ca_file) if ca_file else None,
+        "revocation_refresh_seconds": _int(
+            env, "PV_REVOCATION_REFRESH_SECONDS", 10, 1, 300
+        ),
     }
 
 
@@ -374,6 +458,7 @@ def settings_from_env(env: Mapping[str, str] | None = None) -> GateSettings:
         or DEFAULT_PINNED_AT,
         max_body_bytes=_int(source, "PV_MAX_BODY_BYTES", 1_048_576, 0),
         **_tls_settings(source),
+        **_revocation_settings(source),
     )
     # Fail at configuration time, not at the first request: a pinned bundle
     # file that cannot be loaded or disagrees with the issuer values refuses
@@ -398,6 +483,14 @@ def build_gate(settings: GateSettings) -> ReceiverGate:
         unprotected_operations=frozenset(settings.unprotected_operations),
         max_body_bytes=settings.max_body_bytes,
         require_presenter=settings.require_presenter,
+        # Fail closed: with a list source configured, nothing is admitted
+        # until a fresh signed list is installed (network/receiver_kit/
+        # revocations.py keeps it fresh).
+        revocations=(
+            RevocationListCache(settings.trust_bundle)
+            if settings.revocation_url is not None
+            else None
+        ),
     )
 
 
@@ -428,8 +521,16 @@ def describe(settings: GateSettings, gate: ReceiverGate) -> str:
         + (
             f"required, CA {settings.tls_client_ca_file}"
             if settings.mtls
-            else "off (presenters cannot be authenticated)"
+            else "off: PLAINTEXT, local demo only (presenters cannot be authenticated)"
         ),
         f"  presenter            {'required' if settings.require_presenter else 'checked when a permit binds one'}",
+        "  revocation list      "
+        + (
+            f"{settings.revocation_url}, refreshed every "
+            f"{settings.revocation_refresh_seconds}s; refuses all permits while stale"
+            if settings.revocation_url
+            else "off (revoked permits are admitted until they expire)"
+        ),
+        "  ledger scope         this host only (SQLite): run one receiver host",
     ]
     return "\n".join(lines)

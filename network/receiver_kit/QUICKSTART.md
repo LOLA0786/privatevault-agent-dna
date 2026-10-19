@@ -8,6 +8,10 @@ What you get at the end: a gate that admitted one permitted transfer, refused
 the same transfer with the amount changed, refused a replay, and a receipt
 chain signed by your key that passes the open verifier.
 
+This demo runs the gate in its two explicit demo relaxations (plain HTTP, no
+revocation list). Without them the gate does not start. For a real
+deployment see [Run it for real](#run-it-for-real).
+
 ## 0. Prerequisites
 
 - Docker with Compose v2
@@ -166,6 +170,36 @@ and refused the altered and replayed ones.
 cd network/receiver_kit && docker compose down
 ```
 
+## Run it for real
+
+The gate's defaults are the hardened deployment (ADR 0027). Leave out both
+demo flags and give it:
+
+1. **Mutual TLS.** `PV_RECEIVER_TLS_CERT` and `PV_RECEIVER_TLS_KEY` (the
+   gate's server certificate), and `PV_RECEIVER_CLIENT_CA` (the CA that
+   signs your callers' client certificates). Every caller must present a
+   certificate, and every permit must name the key of the certificate that
+   presents it (ADR 0022). The issuer mints such permits when its API runs
+   with `PV_PRESENTER_BUNDLE`.
+2. **The revocation list.** `PV_REVOCATION_URL=https://<privatevault-api>/v1/revocations`
+   and `PV_REVOCATION_API_KEY_FILE`, a file holding an audit-scope API key
+   the issuer gives you. Add `PV_REVOCATION_CA_FILE` if the API's
+   certificate is not from a public CA. The gate refreshes every 10 seconds
+   and refuses every permit (503 `RECEIVER_REVOCATION_LIST_STALE`) while it
+   holds no fresh list. If the API is unreachable, your receiver admits
+   nothing.
+3. **A private upstream.** `PV_UPSTREAM` is https and reachable only from
+   the gate; do not publish its port. `PV_ALLOW_HTTP_UPSTREAM=1` only for a
+   loopback upstream on the same host.
+4. **One receiver host.** The consume ledger is SQLite on that host. Two
+   gate hosts would each admit a permit once. Run one replica, with the
+   ledger on a persistent volume.
+
+Mount the key files read-only, as in the demo. The entrypoint gives the
+gate user a private 0400 copy of the receipt key, the TLS key and the API
+key, then drops root. The start-up summary shows `client TLS required`,
+`presenter required` and the revocation source; anything else is a demo.
+
 ## Settings reference
 
 | Variable | Meaning |
@@ -182,12 +216,21 @@ cd network/receiver_kit && docker compose down
 | `PV_UNPROTECTED_OPERATIONS` | `GET`/`HEAD` routes that bypass the gate, `;` separated. Writes cannot be unprotected. |
 | `PV_GATE_UID`, `PV_GATE_GID` | Optional. The uid and gid the entrypoint drops to after copying the key (default 10001). |
 | `PV_TRUST_BUNDLE_VERSION`, `PV_TRUST_BUNDLE_PINNED_AT` | Optional; both sides must agree. A pinned bundle file replaces these in Phase 2. |
-| `PV_RECEIVER_TLS_CERT`, `PV_RECEIVER_TLS_KEY`, `PV_RECEIVER_CLIENT_CA` | Optional, all three or none: serve HTTPS and require a client certificate from that CA. Run `python -m network.receiver_kit.serve` (the default command serves plain HTTP). |
-| `PV_RECEIVER_REQUIRE_PRESENTER` | `1` refuses permits that do not name a presenter (ADR 0022). Needs the three TLS variables. A permit that names one is always checked. |
+| `PV_RECEIVER_TLS_CERT`, `PV_RECEIVER_TLS_KEY`, `PV_RECEIVER_CLIENT_CA` | Required, all three: serve HTTPS and require a client certificate from that CA. The image's command (`python -m network.receiver_kit.serve`) does this. |
+| `PV_RECEIVER_ALLOW_PLAINTEXT` | `1` serves plain HTTP without the TLS variables. Local demo only. |
+| `PV_RECEIVER_REQUIRE_PRESENTER` | Default `1` with mTLS: refuse permits that do not name a presenter (ADR 0022). `0` turns that off. A permit that names one is always checked. |
+| `PV_REVOCATION_URL` | Required: the issuer API's `GET /v1/revocations`, https. |
+| `PV_REVOCATION_API_KEY_FILE` | Required with the URL: file holding an audit-scope API key. Read on every refresh, never logged. |
+| `PV_REVOCATION_CA_FILE` | Optional CA for the API's certificate. |
+| `PV_REVOCATION_REFRESH_SECONDS` | Optional, 1 to 300, default 10. Keep it below the list's validity (30 s by default). |
+| `PV_ALLOW_HTTP_REVOCATION` | `1` allows an http list URL, inside one host only. |
+| `PV_RECEIVER_ALLOW_NO_REVOCATION` | `1` runs without a list: a revoked permit is admitted until it expires. Local demo only. |
 
 ## What this does not show
 
 The pilot upstream is a stub that records requests. Coverage of a real API,
 and making the gate its only network path, are deployment properties of your
 system. Receipts prove what the gate admitted, not what the upstream did with
-it. The ledger is a single SQLite file: one host.
+it. The ledger is a single SQLite file: one host. Without the demo flags the
+gate admits nothing while the issuer API is unreachable for longer than the
+revocation list's validity.

@@ -266,7 +266,9 @@ flowchart TD
 | Presenter (mTLS) | `agent_dna/receiver/gate.py::ReceiverGate._verify_presenter` |
 | Revocation list | `agent_dna/receiver/gate.py::ReceiverGate._verify_not_revoked` |
 | Single-use claim and receipt | `agent_dna/receiver/gate.py::ReceiverGate._admit`, `agent_dna/receiver/ledger.py::ReceiverLedger.record` |
-| HTTP server around the gate | `network/receiver_kit/app.py` |
+| HTTP server around the gate (mTLS; the image's command) | `network/receiver_kit/serve.py` |
+| Plain-HTTP demo entry point | `network/receiver_kit/app.py` |
+| Revocation list refresh, fail closed (ADR 0027) | `network/receiver_kit/revocations.py` |
 
 A wrong presenter is refused before the ledger, so the permit is not burned.
 Every evaluated request, admitted or refused, gets a signed, hash-chained

@@ -92,8 +92,11 @@ the API it protects. It needs the issuer's public keys (or trust bundle),
 its own receipt key, a ledger path, its destinations, and for presenter
 binding a client CA for mTLS. Quick start:
 [network/receiver_kit/QUICKSTART.md](../../network/receiver_kit/QUICKSTART.md).
-The gate refuses everything when its revocation list copy is stale, so it
-must reach `GET /v1/revocations`.
+It serves mutual TLS only, requires presenter-bound permits, and pulls the
+signed revocation list from `GET /v1/revocations` with an audit-scope key,
+refusing everything while its copy is missing or stale (ADR 0027). Plain
+HTTP and running without a list are explicit demo flags. One receiver host:
+its ledger is SQLite.
 
 ## Operations
 
