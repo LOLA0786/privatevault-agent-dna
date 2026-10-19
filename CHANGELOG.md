@@ -5,6 +5,21 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### A permit never outlives its authority (ADR 0024, review finding 2)
+- `/v1/authorize` refuses once the authority behind an ALLOW has ended:
+  the verified approval's expiry, the grant's expiry, or the decision's
+  mint window (`PV_DECISION_MINT_WINDOW_SECONDS`, default 300, measured
+  from the record's sealed server timestamp). The permit's `expires_at` is
+  capped at the earliest of these, so the sidecar and receiver enforce the
+  same end. Refusals: `AUTHORIZE_AUTHORITY_EXPIRED`, and
+  `AUTHORIZE_AUTHORITY_UNKNOWN` when the end cannot be established.
+- The approval's verified expiry is stored with its single-use claim
+  (`approval_consume.not_after`, SQLite and PostgreSQL, migrated in place).
+  Approvals claimed before this change cannot mint; decide again.
+- The review's four probes are inverted as regression tests, with
+  restart, migration, concurrency, PostgreSQL and receiver checks
+  (`tests/test_authority_freshness.py`).
+
 ### Claims corrected after the external review (19 October 2026)
 - `WHAT-WE-DO-NOT-CLAIM.md`: removed three statements the code had
   outgrown (no per-decision mint limit, non-durable grant spend,

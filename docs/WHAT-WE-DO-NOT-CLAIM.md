@@ -38,7 +38,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 2020+ automated tests, run in CI on every commit
+- 2040+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
@@ -861,12 +861,14 @@ An independent review reproduced the following at commit `f96804e`. Each
 is open until a fix lands with regression tests; status is tracked in
 `docs/ROADMAP.md`.
 
-- **Authority does not stay fresh until mint.** Approval and grant
-  validity are checked when deciding, not when minting. The first permit
-  from an old ALLOW can be minted after its approval or grant has expired,
-  and a permit's expiry is set from mint time plus the permit lifetime,
-  so it can outlive the approval it rests on. Grant revocation is
-  re-checked at mint; expiry is not.
+Fixed since: authority freshness (ADR 0024). A permit is minted only while
+the approval, grant and decision window behind its ALLOW are all still
+valid, and it expires no later than the earliest of them
+(`tests/test_authority_freshness.py`). **We do not claim** that a changed
+policy, changed enterprise state or tightened budget invalidates an ALLOW
+already made: it stays mintable until that deadline, five minutes by
+default (`PV_DECISION_MINT_WINDOW_SECONDS`).
+
 - **Capabilities are not bound to operations** (see Capability grants).
 - **Four permit digests are caller assertions.** `/v1/authorize` copies
   the caller's policy, state-snapshot, authority-receipt and obligations

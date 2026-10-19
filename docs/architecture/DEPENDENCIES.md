@@ -15,7 +15,7 @@ flowchart BT
   L2["L2 Evidence: records, permits, signatures<br/>14 modules"]
   L3["L3 Ledgers: SQLite and PostgreSQL<br/>12 modules"]
   L4["L4 Decision engine: the precedence ladder and what it consults<br/>70 modules"]
-  L5["L5 Enforcement runtime: monitor, breaker, recorder, gates, sidecar<br/>30 modules"]
+  L5["L5 Enforcement runtime: monitor, breaker, recorder, gates, sidecar<br/>31 modules"]
   L6["L6 Composition and entry points<br/>18 modules"]
   L2 -->|23| L1
   L3 -->|10| L1
@@ -30,7 +30,7 @@ flowchart BT
   L6 -->|7| L2
   L6 -->|15| L3
   L6 -->|47| L4
-  L6 -->|21| L5
+  L6 -->|22| L5
   L2 -.->|1 upward| L4
   L3 -.->|4 upward| L4
   L4 -.->|1 upward| L5
@@ -58,14 +58,15 @@ flowchart BT
 | `agent_dna.scan.ingest` | Normalize heterogeneous agent logs into AgentAction | `agent_dna.trace` | 2: `agent_dna.scan`, `agent_dna.scan.replay` |
 | `agent_dna.scan.inventory` | What the agents in a log can actually do | `agent_dna.trace` | none |
 | `agent_dna.scan.replay` | Replay a customer's own log through the engine, enforcing nothing | `agent_dna.decision`, `agent_dna.dynamics`, `agent_dna.manifold`, `agent_dna.open_authorizer`, `agent_dna.scan.ingest`, `agent_dna.scorer`, `agent_dna.trace` | 1: `agent_dna.scan` |
-| `api.server` | PrivateVault Agent DNA — Decision Security API | `agent_dna.action_v01`, `agent_dna.apikeys`, `agent_dna.approval_bridge`, `agent_dna.authority_v01`, `agent_dna.authorize_binding`, `agent_dna.composition`, `agent_dna.connector.cross_agent`, `agent_dna.control_posture`, `agent_dna.decision`, `agent_dna.decision_graph`, `agent_dna.dispatch_context_v01`, `agent_dna.execution_v01`, `agent_dna.key_custody`, `agent_dna.lineage`, `agent_dna.observability.logger`, `agent_dna.observability.metrics`, `agent_dna.observability.prometheus_bridge`, `agent_dna.presenter_identity`, `agent_dna.request_bounds`, `agent_dna.revocation_list`, `agent_dna.runtime`, `agent_dna.security.loop_discovery`, `agent_dna.signer`, `agent_dna.trace`, `agent_dna.wire_serialization_v01` | none |
+| `api.server` | PrivateVault Agent DNA — Decision Security API | `agent_dna.action_v01`, `agent_dna.apikeys`, `agent_dna.approval_bridge`, `agent_dna.authority_deadline`, `agent_dna.authority_v01`, `agent_dna.authorize_binding`, `agent_dna.composition`, `agent_dna.connector.cross_agent`, `agent_dna.control_posture`, `agent_dna.decision`, `agent_dna.decision_graph`, `agent_dna.dispatch_context_v01`, `agent_dna.execution_v01`, `agent_dna.key_custody`, `agent_dna.lineage`, `agent_dna.observability.logger`, `agent_dna.observability.metrics`, `agent_dna.observability.prometheus_bridge`, `agent_dna.presenter_identity`, `agent_dna.request_bounds`, `agent_dna.revocation_list`, `agent_dna.runtime`, `agent_dna.security.loop_discovery`, `agent_dna.signer`, `agent_dna.trace`, `agent_dna.wire_serialization_v01` | none |
 
 ## L5: Enforcement runtime: monitor, breaker, recorder, gates, sidecar
 
 | Module | What it is | Depends on (core) | Used by |
 |---|---|---|---|
 | `agent_dna.apikeys` | API key auth for the pilot deployment. Deliberately minimal: | `agent_dna.identity` | 3: `agent_dna.composition`, `agent_dna.connector.middleware`, `api.server` |
-| `agent_dna.approval_bridge` | Approval bridge (ADR 0020): a verified, single-use human approval turns | `agent_dna.approval_v01`, `agent_dna.authority_v01`, `agent_dna.identity` | 3: `agent_dna.composition`, `agent_dna.decision`, `api.server` |
+| `agent_dna.approval_bridge` | Approval bridge (ADR 0020): a verified, single-use human approval turns | `agent_dna.approval_v01`, `agent_dna.authority_v01`, `agent_dna.identity` | 4: `agent_dna.authority_deadline`, `agent_dna.composition`, `agent_dna.decision`, `api.server` |
+| `agent_dna.authority_deadline` | How long a sealed ALLOW may still be turned into a permit | `agent_dna.approval_bridge` | 1: `api.server` |
 | `agent_dna.circuit_breaker` | Circuit breaker (TUE-05 / RBM-06) | `agent_dna.amount`, `agent_dna.decision`, `agent_dna.grant_spend`, `agent_dna.pg_compat` | 2: `agent_dna.composition`, `agent_dna.runtime` |
 | `agent_dna.connector` |  | `agent_dna.connector.middleware`, `agent_dna.connector.models` | 1: `agent_dna.composition` |
 | `agent_dna.connector.adapters` |  | `agent_dna.connector.adapters.exact_byte_http`, `agent_dna.connector.adapters.mcp` | none |

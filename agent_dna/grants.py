@@ -122,6 +122,11 @@ class GrantRegistry:
 
     # ---- evaluation ------------------------------------------------------
 
+    def expires_at_of(self, grant_id: str) -> float | None:
+        """A configured grant's expiry (epoch seconds; None: no expiry).
+        Raises KeyError for a grant id this registry does not hold."""
+        return self._grants[grant_id].expires_at
+
     def _find(self, agent_id: str, capability: str):
         return [
             g

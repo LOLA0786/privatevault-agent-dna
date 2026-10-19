@@ -96,8 +96,12 @@ CREATE TABLE IF NOT EXISTS execution_authorization_mint (
 CREATE TABLE IF NOT EXISTS approval_consume (
     approval_artifact_digest TEXT PRIMARY KEY,
     organisation_id          TEXT NOT NULL,
-    consumed_at              TEXT NOT NULL
+    consumed_at              TEXT NOT NULL,
+    not_after                TEXT
 );
+-- Databases created before the column existed: claims without a stored
+-- expiry cannot mint (fail closed).
+ALTER TABLE approval_consume ADD COLUMN IF NOT EXISTS not_after TEXT;
 CREATE TABLE IF NOT EXISTS suspensions (
     scope_kind   TEXT NOT NULL,
     scope_id     TEXT NOT NULL,
@@ -310,16 +314,28 @@ class PostgresDecisionStore:
         *,
         organisation_id: str,
         consumed_at: str,
+        not_after: str | None = None,
     ) -> bool:
         if not approval_artifact_digest:
             raise ValueError("approval_artifact_digest is required")
-        return self._claim(
-            "approval_consume",
-            "approval_artifact_digest",
-            approval_artifact_digest,
-            organisation_id,
-            consumed_at,
+        try:
+            with self._pool.connection() as conn, conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO approval_consume (approval_artifact_digest, "
+                    "organisation_id, consumed_at, not_after) VALUES (%s, %s, %s, %s)",
+                    (approval_artifact_digest, organisation_id, consumed_at, not_after),
+                )
+            return True
+        except pg_errors.UniqueViolation:
+            return False
+
+    def approval_not_after(self, approval_artifact_digest: str) -> str | None:
+        """The stored expiry of a consumed approval, or None."""
+        row = self._fetchone(
+            "SELECT not_after FROM approval_consume WHERE approval_artifact_digest = %s",
+            (approval_artifact_digest,),
         )
+        return row[0] if row else None
 
     def suspend(
         self,

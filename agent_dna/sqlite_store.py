@@ -97,7 +97,9 @@ CREATE TABLE IF NOT EXISTS execution_authorization_mint (
 CREATE TABLE IF NOT EXISTS approval_consume (
     approval_artifact_digest TEXT PRIMARY KEY NOT NULL,
     organisation_id          TEXT NOT NULL,
-    consumed_at              TEXT NOT NULL
+    consumed_at              TEXT NOT NULL,
+    -- the verified artifact's expires_at; a permit never outlives it
+    not_after                TEXT
 );
 -- ADR-0018 PR-J: suspensions checked inside the consume transaction.
 -- A claim ordered after a committed suspension is refused.
@@ -208,6 +210,7 @@ class SQLiteDecisionStore:
         self._migrate_add_prev_hash_column()
         self._conn.executescript(_SCHEMA)
         self._migrate_mint_trust_bundle_columns()
+        self._migrate_approval_not_after_column()
         self._conn.commit()
 
     @property
@@ -264,6 +267,14 @@ class SQLiteDecisionStore:
                 "ADD COLUMN trust_bundle_digest TEXT"
             )
         self._conn.commit()
+
+    def _migrate_approval_not_after_column(self) -> None:
+        """Add approval_consume.not_after to a pre-existing table. Rows
+        claimed before it existed have no stored expiry, so a decision
+        resting on them cannot mint (fail closed)."""
+        cols = [r[1] for r in self._conn.execute("PRAGMA table_info(approval_consume)")]
+        if cols and "not_after" not in cols:
+            self._conn.execute("ALTER TABLE approval_consume ADD COLUMN not_after TEXT")
 
     # ---- write ----------------------------------------------------------
 
@@ -430,11 +441,13 @@ class SQLiteDecisionStore:
         *,
         organisation_id: str,
         consumed_at: str,
+        not_after: str | None = None,
     ) -> bool:
         """Atomically claim a single-use approval artifact (ADR 0020).
 
         True if this call recorded the use, False if it was used before.
         Same construction as ``try_consume_execution_authorization``.
+        ``not_after`` is the verified artifact's expiry; minting checks it.
         """
         if not approval_artifact_digest:
             raise ValueError("approval_artifact_digest is required")
@@ -443,9 +456,9 @@ class SQLiteDecisionStore:
         try:
             conn.execute(
                 "INSERT INTO approval_consume "
-                "(approval_artifact_digest, organisation_id, consumed_at) "
-                "VALUES (?, ?, ?)",
-                (approval_artifact_digest, organisation_id, consumed_at),
+                "(approval_artifact_digest, organisation_id, consumed_at, not_after) "
+                "VALUES (?, ?, ?, ?)",
+                (approval_artifact_digest, organisation_id, consumed_at, not_after),
             )
             conn.commit()
             return True
@@ -455,6 +468,14 @@ class SQLiteDecisionStore:
         except Exception:
             conn.rollback()
             raise
+
+    def approval_not_after(self, approval_artifact_digest: str) -> str | None:
+        """The stored expiry of a consumed approval, or None."""
+        row = self._conn.execute(
+            "SELECT not_after FROM approval_consume WHERE approval_artifact_digest = ?",
+            (approval_artifact_digest,),
+        ).fetchone()
+        return row[0] if row else None
 
     def is_approval_consumed(self, approval_artifact_digest: str) -> bool:
         row = self._conn.execute(
