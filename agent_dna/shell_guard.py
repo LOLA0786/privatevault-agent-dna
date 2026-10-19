@@ -32,6 +32,10 @@ Accepted argument shapes, in order: ``argv`` (list, exec-style),
 
 from __future__ import annotations
 
+import contextvars
+import hashlib
+import json
+import math
 import os
 import re
 import shlex
@@ -41,11 +45,13 @@ from typing import Any
 
 from .advisory import Severity
 from .decision import Decision, DecisionResult
+from .evidence import EvidenceItem, EvidenceReport
 
 SHELL_CAPABILITIES_ENV = "PV_SHELL_CAPABILITIES"
 ALLOW_INLINE_ENV = "PV_SHELL_ALLOW_INLINE"
 DEFAULT_SHELL_CAPABILITIES = frozenset({"shell.exec"})
 TRIGGERED_BY_SHELL = "shell_guard"
+SHELL_EVIDENCE_ITEM = "shell_guard"
 
 WORKDIR_ENV = "PV_SHELL_WORKDIR"
 SECRET_FILES_ENV = "PV_SHELL_SECRET_FILES"
@@ -58,6 +64,11 @@ SHELL_INLINE_CODE = "SHELL_INLINE_CODE"
 SHELL_SECRET_EGRESS = "SHELL_SECRET_EGRESS"
 SHELL_SCRIPT_SECRET = "SHELL_SCRIPT_SECRET"
 SHELL_SECRET_STAGING = "SHELL_SECRET_STAGING"
+SHELL_SCRIPT_DESTRUCTIVE = "SHELL_SCRIPT_DESTRUCTIVE"
+SHELL_SCRIPT_UNINSPECTABLE = "SHELL_SCRIPT_UNINSPECTABLE"
+ALLOW_DESTRUCTIVE_SCRIPTS_ENV = "PV_SHELL_ALLOW_DESTRUCTIVE_SCRIPTS"
+BLOCK_DESTRUCTIVE_ENV = "PV_SHELL_BLOCK_DESTRUCTIVE"
+SHELL_DESTRUCTIVE = "SHELL_DESTRUCTIVE"
 
 MAX_DEPTH = 4
 MAX_COMMAND_CHARS = 16_384
@@ -221,6 +232,13 @@ class _Acc:
     sensitive_args: list[str] = field(default_factory=list)
     destructive_flags: bool = False
     script_secret: list[str] = field(default_factory=list)
+    script_destructive: list[str] = field(default_factory=list)
+    script_uninspectable: list[str] = field(default_factory=list)
+    script_executables: list[str] = field(default_factory=list)
+    # (token, real path, sha256, size) of every file whose bytes the guard
+    # inspected. Sealed into the decision record so an executor can refuse
+    # to run if the file changed after the decision (time of check vs use).
+    pinned: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def note_exe(self, name: str) -> None:
         if name not in self.executables:
@@ -274,21 +292,135 @@ def _resolve(token: str) -> str | None:
     path = token if os.path.isabs(token) else os.path.join(wd, token)
     try:
         if os.path.lexists(path):
-            return os.path.realpath(path)
+            real = os.path.realpath(path)
+            pins = _PINS.get()
+            if pins is not None:
+                pins["tokens"].setdefault(real, []).append(token)
+            return real
     except (OSError, ValueError):
         return None
     return None
 
 
+# Collector for the files inspected during one analysis (set by
+# analyze_shell_arguments). Each read is pinned by SHA-256 of the whole file.
+_PINS: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar(
+    "pv_shell_pins", default=None
+)
+MAX_PIN_BYTES = 64 * 1_048_576
+
+
 def _read_limited(path: str) -> bytes | None:
     try:
         with open(path, "rb") as fh:
-            return fh.read(MAX_INSPECT_BYTES)
+            st = os.fstat(fh.fileno())
+            data = fh.read(MAX_INSPECT_BYTES)
+            pins = _PINS.get()
+            if pins is not None and path not in pins["files"]:
+                # Hash what this open file handle holds, so the pin and the
+                # inspected bytes come from the same inode.
+                h = hashlib.sha256(data)
+                complete = len(data) < MAX_INSPECT_BYTES
+                covers = complete
+                if not complete and st.st_size <= MAX_PIN_BYTES:
+                    for chunk in iter(lambda: fh.read(1_048_576), b""):
+                        h.update(chunk)
+                    covers = True
+                pins["files"][path] = {
+                    "realpath": path,
+                    "sha256": h.hexdigest(),
+                    "size": st.st_size,
+                    "inspected_completely": complete,
+                    "hash_covers_file": covers,
+                }
+            return data
     except (OSError, ValueError):
         return None
 
 
-def _secret_material() -> tuple[frozenset[str], frozenset[str], frozenset[tuple[int, int]]]:
+# ---- content-based secret detection (enterprise hardening, 2026-10-19) ----
+# File names are not enough: a renamed .env or a pasted token has no telling
+# name. These patterns are the high-precision public formats of common
+# credentials, plus KEY=VALUE lines whose key names a secret. They apply to
+# literal arguments always, and to file contents when PV_SHELL_WORKDIR is set.
+_TOKEN_PATTERNS = re.compile(
+    r"AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}"  # AWS access key id
+    r"|gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{40,}"  # GitHub
+    r"|glpat-[A-Za-z0-9_\-]{20,}"  # GitLab
+    r"|xox[abposr]-[A-Za-z0-9\-]{10,}"  # Slack
+    r"|(?:sk|rk)_live_[A-Za-z0-9]{20,}"  # Stripe live keys
+    r"|sk-(?:proj-|ant-[a-z0-9]+-)?[A-Za-z0-9_\-]{32,}"  # OpenAI / Anthropic
+    r"|AIza[0-9A-Za-z_\-]{35}"  # Google API key
+    r"|npm_[A-Za-z0-9]{36}|pypi-[A-Za-z0-9_\-]{50,}"  # package registries
+    r"|-----BEGIN (?:[A-Z]+ )*PRIVATE KEY-----"  # PEM private keys
+    r"|eyJ[A-Za-z0-9_\-]{10,}\.eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}"  # JWT
+    r"|(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|amqps?)://[^\s:/@]+:[^\s/@]+@"
+)
+_SECRET_ASSIGNMENT = re.compile(
+    r"^[ \t]*(?:export[ \t]+)?[\"']?[A-Za-z0-9_.\-]*"
+    r"(?:SECRET|TOKEN|PASSW(?:OR)?D|PASSPHRASE|API[_\-]?KEY|PRIVATE[_\-]?KEY|"
+    r"ACCESS[_\-]?KEY|CREDENTIAL|AUTH[_\-]?KEY|CLIENT[_\-]?SECRET)[A-Za-z0-9_.\-]*"
+    r"[\"']?[ \t]*[=:][ \t]*[\"']?([A-Za-z0-9+/_\-.~=]{8,})[\"']?[ \t]*$",
+    re.IGNORECASE | re.MULTILINE,
+)
+_HIGH_ENTROPY_CANDIDATE = re.compile(r"[A-Za-z0-9+/_\-]{32,}={0,2}")
+MIN_ENTROPY_BITS = 4.3
+
+
+def _entropy(text: str) -> float:
+    if not text:
+        return 0.0
+    counts: dict[str, int] = {}
+    for ch in text:
+        counts[ch] = counts.get(ch, 0) + 1
+    n = len(text)
+    return -sum(c / n * math.log2(c / n) for c in counts.values())
+
+
+def _looks_random(word: str) -> bool:
+    """A 32+ character token mixing upper case, lower case and digits with
+    high Shannon entropy: an API key or bearer token, not a word, a path or
+    a hex digest (hex digests are lower case only and stay below the bar)."""
+    return (
+        any(c.isupper() for c in word)
+        and any(c.islower() for c in word)
+        and any(c.isdigit() for c in word)
+        and _entropy(word) >= MIN_ENTROPY_BITS
+    )
+
+
+def _assignment_is_secret(value: str) -> bool:
+    if value.startswith(("$", "%", "<")) or value.lower() in {
+        "true",
+        "false",
+        "none",
+        "null",
+        "changeme",
+        "required",
+        "optional",
+    }:
+        return False
+    return not re.fullmatch(r"[a-z_]+(\.[a-z_]+)*", value)  # code identifiers
+
+
+def content_reveals_secret(text: str, *, entropy: bool = False) -> bool:
+    """True if text contains a credential by content, not by file name."""
+    if _TOKEN_PATTERNS.search(text):
+        return True
+    if any(
+        _assignment_is_secret(m.group(1)) for m in _SECRET_ASSIGNMENT.finditer(text)
+    ):
+        return True
+    if entropy:
+        return any(
+            _looks_random(m.group(0)) for m in _HIGH_ENTROPY_CANDIDATE.finditer(text)
+        )
+    return False
+
+
+def _secret_material() -> tuple[
+    frozenset[str], frozenset[str], frozenset[tuple[int, int]]
+]:
     """(secret values, secret variable names, (dev, inode) of secret files).
 
     Values come from PV_SHELL_SECRET_FILES (KEY=VALUE lines, e.g. .env);
@@ -296,7 +428,7 @@ def _secret_material() -> tuple[frozenset[str], frozenset[str], frozenset[tuple[
     variable in this process environment whose value is a known secret.
     """
     files_env = os.environ.get(SECRET_FILES_ENV, "")
-    stamp = []
+    stamp: list[tuple[str, int | None, int | None, int | None]] = []
     for raw in files_env.split(","):
         try:
             st = os.stat(raw.strip())
@@ -361,10 +493,12 @@ def _is_secret_path(path: str) -> bool:
             return True
     except OSError:
         return False
-    if values and os.path.isfile(path):
+    if os.path.isfile(path):
         data = _read_limited(path) or b""
         text = data.decode("utf-8", "replace")
-        return any(v in text for v in values)
+        if values and any(v in text for v in values):
+            return True
+        return content_reveals_secret(text)
     return False
 
 
@@ -391,16 +525,92 @@ def _note_fs_sensitive(token: str, acc: _Acc) -> bool:
     return False
 
 
-def _inspect_script(path_token: str, acc: _Acc) -> None:
-    """A script file the interpreter will run: flag it if its text names a
-    credential-like file, a known secret value or a secret variable."""
+# Language-level deletion APIs (Python, Perl, Ruby, Node, PHP, Go, Java).
+_DESTRUCTIVE_API = re.compile(
+    r"shutil\.rmtree|os\.(?:remove|unlink|rmdir|removedirs|truncate)\b"
+    r"|\.(?:unlink|rmdir|rmtree)\(|send2trash"
+    r"|\brmtree\b|\bremove_tree\b|\bunlink\s*[\(\"'$]|\brmdir\s*\("
+    r"|FileUtils\.(?:rm|rm_r|rm_rf|rm_f|remove|remove_dir|remove_entry\w*)\b"
+    r"|File\.(?:delete|unlink)\b|Dir\.(?:delete|rmdir|unlink)\b"
+    r"|fs(?:\.promises)?\.(?:rm|rmSync|unlink|unlinkSync|rmdir|rmdirSync|"
+    r"truncate|truncateSync)\b|\b(?:rmSync|unlinkSync|rmdirSync|truncateSync)\b"
+    r"|\bos\.RemoveAll\b|Files\.delete"
+)
+# The script hands strings to the OS to run.
+_EXEC_API = re.compile(
+    r"subprocess|os\.(?:system|popen|exec\w*|spawn\w*)|\bsystem\s*\(|\bexec\s*\("
+    r"|child_process|execSync|spawnSync|Runtime\.getRuntime|`|\bqx\b|%x\{|IO\.popen"
+    r"|shell_exec|passthru|proc_open|\bOpen3\b"
+)
+_SCRIPT_SUFFIX = re.compile(
+    r"\.(?:py|pyw|sh|bash|zsh|ksh|js|mjs|cjs|ts|rb|pl|pm|php|lua|ps1|r)\Z",
+    re.IGNORECASE,
+)
+
+
+def _quoted_command_is_destructive(q: str) -> bool:
+    words = q.split()
+    if not words:
+        return False
+    name = _canon(words[0])
+    return name in DESTRUCTIVE or name.startswith("mkfs")
+
+
+def _inspect_script(  # noqa: C901 - ordered checklist of script checks
+    path_token: str, acc: _Acc, shell: bool = False
+) -> None:
+    """A script file an interpreter will run (operator set PV_SHELL_WORKDIR).
+
+    Flags it if its text names a credential-like file, a known secret value,
+    a secret variable or a credential by content (SHELL_SCRIPT_SECRET); if it
+    deletes, truncates or overwrites files (SHELL_SCRIPT_DESTRUCTIVE); or if
+    it is missing, unreadable or larger than the inspection limit
+    (SHELL_SCRIPT_UNINSPECTABLE). Shell scripts are parsed like a command.
+    """
+    if _workdir() is None:
+        return  # cannot see the agent's files: policy decides (held)
     real = _resolve(path_token)
-    if real is None or not os.path.isfile(real):
+    if real is None:
+        if _SCRIPT_SUFFIX.search(path_token) or "/" in path_token:
+            acc.script_uninspectable.append(path_token)  # does not exist yet
         return
-    text = (_read_limited(real) or b"").decode("utf-8", "replace")
-    hits = [q for q in _QUOTED.findall(text) if _SENSITIVE.search(q) or _note_fs_probe(q)]
-    if hits or _token_reveals_secret(text):
+    if not os.path.isfile(real):
+        acc.script_uninspectable.append(path_token)
+        return
+    data = _read_limited(real)
+    if data is None or len(data) >= MAX_INSPECT_BYTES:
+        acc.script_uninspectable.append(path_token)
+        return
+    text = data.decode("utf-8", "replace")
+    quoted = _QUOTED.findall(text)
+    hits = [q for q in quoted if _SENSITIVE.search(q) or _note_fs_probe(q)]
+    if hits or _token_reveals_secret(text) or content_reveals_secret(text):
         acc.script_secret.append(path_token)
+    destructive = bool(_DESTRUCTIVE_API.search(text))
+    if not destructive and _EXEC_API.search(text):
+        destructive = any(_quoted_command_is_destructive(q) for q in quoted)
+    if shell:
+        sub = _Acc()
+        body = "\n".join(
+            ln for ln in text.splitlines() if not ln.lstrip().startswith("#")
+        )
+        try:
+            _analyze_string(body, sub, 1)
+        except _UnparseableError:
+            acc.script_uninspectable.append(path_token)
+        for exe in sub.executables:
+            if exe not in acc.script_executables:
+                acc.script_executables.append(exe)
+        if sub.destructive_flags or any(
+            e in DESTRUCTIVE or e.startswith("mkfs") for e in sub.executables
+        ):
+            destructive = True
+        if sub.sensitive_args and any(e in NETWORK for e in sub.executables):
+            acc.script_secret.append(path_token)
+        acc.script_secret.extend(sub.script_secret)
+        acc.script_destructive.extend(sub.script_destructive)
+    if destructive:
+        acc.script_destructive.append(path_token)
 
 
 def _note_fs_probe(token: str) -> bool:
@@ -430,7 +640,9 @@ def _curl_config(path_token: str, acc: _Acc) -> None:
 
 
 def _note_sensitive(token: str, acc: _Acc) -> None:
-    if _token_reveals_secret(token):
+    if _token_reveals_secret(token) or content_reveals_secret(
+        token, entropy="://" not in token
+    ):
         if token not in acc.sensitive_args:
             acc.sensitive_args.append(token)
         return
@@ -599,7 +811,7 @@ def _analyze_argv(argv: list[str], acc: _Acc, depth: int) -> None:  # noqa: C901
         else:
             script = next((t for t in argv[1:] if not t.startswith(("-", "+"))), None)
             if script is not None:
-                _inspect_script(script, acc)
+                _inspect_script(script, acc, shell=True)
         return
 
     if name in INTERPRETERS:
@@ -610,6 +822,10 @@ def _analyze_argv(argv: list[str], acc: _Acc, depth: int) -> None:  # noqa: C901
             acc.inline_code = True  # program text is an argument
         elif len(argv) == 1 or "-" in argv[1:]:
             acc.inline_code = True  # reads program from stdin
+        elif name == "python" and any(
+            t == "-m" or t.startswith("-m") for t in argv[1:]
+        ):
+            pass  # module run: code comes from sys.path, policy decides
         else:
             script = next((t for t in argv[1:] if not t.startswith("-")), None)
             if script is not None:
@@ -729,17 +945,26 @@ def analyze_shell_arguments(arguments: Mapping[str, Any] | None) -> dict[str, An
     acc = _Acc()
     error: str | None = None
     form = None
+    pins: dict[str, Any] = {"files": {}, "tokens": {}}
+    reset = _PINS.set(pins)
     try:
-        form, value = _argv_from_arguments(arguments or {})
-        if form == "argv":
-            _analyze_argv(value, acc, 0)
-        else:
-            _analyze_string(value, acc, 0)
-    except _UnparseableError as exc:
-        error = str(exc)
-    reads = list(dict.fromkeys(acc.reads_files))
-    sensitive_reads = [
-        p for p in reads if _SENSITIVE.search(p) or _note_fs_probe(p)
+        try:
+            form, value = _argv_from_arguments(arguments or {})
+            if form == "argv":
+                _analyze_argv(value, acc, 0)
+            else:
+                _analyze_string(value, acc, 0)
+        except _UnparseableError as exc:
+            error = str(exc)
+        reads = list(dict.fromkeys(acc.reads_files))
+        sensitive_reads = [
+            p for p in reads if _SENSITIVE.search(p) or _note_fs_probe(p)
+        ]
+    finally:
+        _PINS.reset(reset)
+    pinned = [
+        {**info, "tokens": sorted(set(pins["tokens"].get(real, [])))}
+        for real, info in sorted(pins["files"].items())
     ]
     network = any(e in NETWORK for e in acc.executables)
     return {
@@ -753,12 +978,19 @@ def analyze_shell_arguments(arguments: Mapping[str, Any] | None) -> dict[str, An
         "operators": acc.operators,
         "network": network,
         "destructive": acc.destructive_flags
+        or bool(acc.script_destructive)
         or any(e in DESTRUCTIVE or e.startswith("mkfs") for e in acc.executables),
         "reads_files": reads,
         "writes_files": list(dict.fromkeys(acc.writes_files)),
         "touches_sensitive": bool(acc.sensitive_args or sensitive_reads),
         "secret_egress": network and bool(acc.sensitive_args or sensitive_reads),
         "script_secret": list(dict.fromkeys(acc.script_secret)),
+        "script_destructive": list(dict.fromkeys(acc.script_destructive)),
+        "script_uninspectable": list(dict.fromkeys(acc.script_uninspectable)),
+        "script_executables": list(acc.script_executables),
+        # TOCTOU: every file the guard read, pinned by SHA-256. The record
+        # seals these; agent_dna.shell_pin re-checks them at execution.
+        "pinned_files": pinned,
         "secret_staging": bool(acc.sensitive_args or sensitive_reads)
         and (any(e in STAGING for e in acc.executables) or bool(acc.writes_files)),
     }
@@ -778,10 +1010,37 @@ def attach_shell_evidence(
     return out or None
 
 
+def block_destructive_by_default() -> bool:
+    """Destructive programs are a built-in BLOCK, with no policy, when
+    ``PV_SHELL_BLOCK_DESTRUCTIVE=1``, or under ``PV_SECURE_PROFILE`` unless
+    ``PV_SHELL_BLOCK_DESTRUCTIVE=0``. Otherwise they are evidence for policy
+    (``examples/config/shell-policy.json``)."""
+    raw = os.environ.get(BLOCK_DESTRUCTIVE_ENV, "").strip().lower()
+    if raw in {"1", "true", "yes", "on"}:
+        return True
+    if raw in {"0", "false", "no", "off"}:
+        return False
+    return os.environ.get("PV_SECURE_PROFILE", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
 def shell_findings(shell: Mapping[str, Any] | None) -> list[tuple[str, str]]:
     if not shell:
         return []
     findings: list[tuple[str, str]] = []
+    if shell.get("destructive") and block_destructive_by_default():
+        findings.append(
+            (
+                SHELL_DESTRUCTIVE,
+                "command deletes, truncates, overwrites or re-permissions files "
+                "(destructive program, flag or script); blocked by default under "
+                "the secure profile",
+            )
+        )
     if not shell.get("parse_ok"):
         findings.append(
             (SHELL_UNPARSEABLE, f"command could not be analysed ({shell.get('error')})")
@@ -796,13 +1055,35 @@ def shell_findings(shell: Mapping[str, Any] | None) -> list[tuple[str, str]]:
         )
     if shell.get("secret_egress"):
         findings.append(
-            (SHELL_SECRET_EGRESS, "network tool handed a credential-like file")
+            (
+                SHELL_SECRET_EGRESS,
+                "network tool handed a credential (by name, value or content)",
+            )
         )
     if shell.get("script_secret"):
         findings.append(
             (
                 SHELL_SCRIPT_SECRET,
                 "script file names a credential-like file or a known secret",
+            )
+        )
+    if (
+        shell.get("script_destructive")
+        and os.environ.get(ALLOW_DESTRUCTIVE_SCRIPTS_ENV) != "1"
+    ):
+        findings.append(
+            (
+                SHELL_SCRIPT_DESTRUCTIVE,
+                "script file deletes, truncates or removes files "
+                "(content inspected: " + ", ".join(shell["script_destructive"]) + ")",
+            )
+        )
+    if shell.get("script_uninspectable"):
+        findings.append(
+            (
+                SHELL_SCRIPT_UNINSPECTABLE,
+                "script file is missing, unreadable, not a regular file or larger "
+                "than the inspection limit, so its content cannot be checked",
             )
         )
     if shell.get("secret_staging"):
@@ -834,3 +1115,32 @@ def escalate_with_shell(
         evidence=result.evidence,
         grant_id=result.grant_id,
     )
+
+
+def attach_shell_record_item(
+    result: DecisionResult, shell: Mapping[str, Any] | None
+) -> DecisionResult:
+    """Put the server-derived shell evidence (findings, programs, pinned
+    file digests) into the decision's evidence items, which the decision
+    record seals: it is covered by the record hash, the chain and the
+    signature, and returned to the agent in the /v1/decide response.
+    ``agent_dna.shell_pin`` reads the pins from there."""
+    if not shell:
+        return result
+    payload = json.dumps(
+        {**dict(shell), "findings": [c for c, _ in shell_findings(shell)]},
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    )
+    item = EvidenceItem(
+        name=SHELL_EVIDENCE_ITEM, score=1.0, confidence=1.0, summary=payload
+    )
+    if result.evidence is None:
+        result.evidence = EvidenceReport(items=[item])
+    else:
+        result.evidence.items = [
+            i for i in result.evidence.items if i.name != SHELL_EVIDENCE_ITEM
+        ]
+        result.evidence.add(item)
+    return result

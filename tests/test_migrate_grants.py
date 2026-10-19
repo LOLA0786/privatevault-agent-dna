@@ -27,8 +27,18 @@ def test_loader_names_the_legacy_format_and_the_tool():
 def test_migrated_repo_file_loads(tmp_path):
     out = tmp_path / "grants.json"
     r = subprocess.run(
-        [sys.executable, "tools/migrate_grants.py", str(LEGACY), "--environment", "prod", "--out", str(out)],
-        cwd=REPO, capture_output=True, text=True,
+        [
+            sys.executable,
+            "tools/migrate_grants.py",
+            str(LEGACY),
+            "--environment",
+            "prod",
+            "--out",
+            str(out),
+        ],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
     )
     assert r.returncode == 0, r.stderr
     entries = json.loads(out.read_text())
@@ -42,13 +52,17 @@ def test_migrated_repo_file_loads(tmp_path):
 
 
 def test_other_environment_is_not_widened():
-    legacy = {"a": {"x.y": {"capability": "x.y", "environment": "staging", "version": "*"}}}
+    legacy = {
+        "a": {"x.y": {"capability": "x.y", "environment": "staging", "version": "*"}}
+    }
     grants, notes = migrate(legacy, "prod")
     assert grants == [] and "skipped" in notes[0]
 
 
 def test_version_pin_refused_unless_allowed():
-    legacy = {"a": {"x.y": {"capability": "x.y", "environment": "prod", "version": "1.2"}}}
+    legacy = {
+        "a": {"x.y": {"capability": "x.y", "environment": "prod", "version": "1.2"}}
+    }
     with pytest.raises(ValueError, match="version"):
         migrate(legacy, "prod")
     grants, notes = migrate(legacy, "prod", allow_version_pins=True)

@@ -52,6 +52,7 @@ verified.
 | [THREAT-MODEL.md](THREAT-MODEL.md) | reference | Threats indexed by attack, with the test for each |
 | [SECURITY-MIGRATION-v0.5.md](SECURITY-MIGRATION-v0.5.md) | reference | Migration notes for DRP 0.2 mintable decisions |
 | [PRODUCTION-HARDENING.md](PRODUCTION-HARDENING.md) | reference | Hardening capabilities, each marked shipped, scoped or not started |
+| [ENTERPRISE-READINESS.md](ENTERPRISE-READINESS.md) | reference | Enterprise security-review checklist: status per area with verified file paths |
 | [owasp-llm-2026-coverage.md](owasp-llm-2026-coverage.md) | reference | OWASP LLM Top 10 (2026) coverage |
 | [owasp-llm-top10-2025-coverage.md](owasp-llm-top10-2025-coverage.md) | reference | OWASP LLM Top 10 (2025) coverage table |
 | [AGENTIC-TRUST-CONTROLS-MAPPING.md](AGENTIC-TRUST-CONTROLS-MAPPING.md) | reference | Agentic trust controls mapped to the code |

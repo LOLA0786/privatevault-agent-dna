@@ -6,7 +6,7 @@ Nodes are directories; numbers are module counts. Solid arrow: imported at impor
 
 ```mermaid
 flowchart LR
-  n0["agent_dna (core modules)<br/>77 modules"]
+  n0["agent_dna (core modules)<br/>79 modules"]
   n1["agent_dna/adapters_framework<br/>2 modules"]
   n2["agent_dna/adapters_policy<br/>5 modules"]
   n3["agent_dna/audit_connector<br/>5 modules"]
@@ -28,7 +28,7 @@ flowchart LR
   n19["examples<br/>29 modules"]
   n20["experimental<br/>62 modules"]
   n21["rust/pv_runtime (PyO3)"]
-  n22["tools<br/>36 modules"]
+  n22["tools<br/>37 modules"]
   n0 -.->|1| n2
   n0 -->|5| n4
   n0 -->|1| n5
@@ -53,7 +53,7 @@ flowchart LR
   n13 -->|12| n0
   n14 -->|8| n0
   n15 -->|2| n0
-  n18 -->|25| n0
+  n18 -->|26| n0
   n18 -->|1| n4
   n18 -->|3| n11
   n18 -->|1| n15
@@ -80,9 +80,9 @@ flowchart LR
 
 | Directory | Modules | Lines |
 |---|---:|---:|
-| `agent_dna (core modules)` | 77 |
+| `agent_dna (core modules)` | 79 |
 | `experimental` | 62 |
-| `tools` | 36 |
+| `tools` | 37 |
 | `examples` | 29 |
 | `agent_dna/multi_agent` | 16 |
 | `agent_dna/gateway` | 14 |

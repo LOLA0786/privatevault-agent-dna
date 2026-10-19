@@ -3,9 +3,8 @@ was held at 202 by drift with no explanation)."""
 
 from __future__ import annotations
 
-from tools.init_secure_profile import main, provision
-
 from agent_dna.decision import DecisionEngine
+from tools.init_secure_profile import main, provision
 
 
 def _env(path):
@@ -17,18 +16,28 @@ def _env(path):
 
 
 def test_default_profile_leaves_baseline_unset(tmp_path):
-    info = provision(tmp_path / "p", org="acme.example", agents=["coder"],
-                     grants=[{"agent_id": "coder", "capability": "shell.exec"}])
+    info = provision(
+        tmp_path / "p",
+        org="acme.example",
+        agents=["coder"],
+        grants=[{"agent_id": "coder", "capability": "shell.exec"}],
+    )
     assert "PV_BASELINE_CAPABILITIES" not in _env(tmp_path / "p")
     assert info["granted_capabilities"] == ["shell.exec"]
     assert info["baseline_capabilities"] == []
 
 
 def test_baseline_from_grants_writes_granted_capabilities(tmp_path):
-    provision(tmp_path / "p", org="acme.example", agents=["coder"],
-              grants=[{"agent_id": "coder", "capability": "shell.exec"},
-                      {"agent_id": "coder", "capability": "fs.read"}],
-              baseline_from_grants=True)
+    provision(
+        tmp_path / "p",
+        org="acme.example",
+        agents=["coder"],
+        grants=[
+            {"agent_id": "coder", "capability": "shell.exec"},
+            {"agent_id": "coder", "capability": "fs.read"},
+        ],
+        baseline_from_grants=True,
+    )
     assert _env(tmp_path / "p")["PV_BASELINE_CAPABILITIES"] == "fs.read,shell.exec"
 
 
