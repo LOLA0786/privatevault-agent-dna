@@ -57,7 +57,7 @@ points at the test file that proves it.
 | Signing keys in a KMS | **SHIPPED** | AWS KMS and Google Cloud KMS (ADR 0023): `tests/test_key_custody.py`, `tests/test_authorize_kms.py`. Not run against a live KMS from inside a cluster |
 | Key rotation, secrets-manager integration | **NOT STARTED** | API keys and local seeds are file or environment based; no rotation mechanism |
 | Capability-to-operation binding | **NOT STARTED** | External review finding 1: a grant names a capability, not the method, destination and route it may use. See `docs/WHAT-WE-DO-NOT-CLAIM.md` |
-| Authority freshness at mint | **NOT STARTED** | External review finding 2: approval and grant expiry are not re-checked at mint, and a permit can outlive its approval |
+| Authority freshness at mint | **SHIPPED** | ADR 0024: mint refused after the approval, grant or decision window ends; permit expiry capped at the earliest. `tests/test_authority_freshness.py` |
 | Third-party security certification (SOC 2, ISO 27001) | **NOT STARTED** | See `docs/WHAT-WE-DO-NOT-CLAIM.md` — pre-seed, no funded timeline yet. |
 | Penetration testing | **NOT STARTED** | No formal external pentest has been performed. Internal adversarial corpus (`spec/adversarial/`) is not a substitute and is not claimed as one. |
 | Vulnerability disclosure process | **SHIPPED** | `.well-known/security.txt`; contact in `SECURITY.md`. |
@@ -117,12 +117,11 @@ points at the test file that proves it.
 ## What this means for a pilot specifically
 
 A **scoped, single-workflow partner sandbox** (per `PILOT-SCOPE.md`) is
-supportable once the two authorization findings from the 19 October 2026
-external review are fixed: authority freshness at mint and
-capability-to-operation binding (both NOT STARTED above, plan in
-`docs/ROADMAP.md`). Until then, constrain the operation with customer
-policy on `evidence.bound` and the receiver's local checks, and keep any
-permit's approval short-lived.
+supportable once capability-to-operation binding, the remaining
+authorization finding from the 19 October 2026 external review, is fixed
+(NOT STARTED above, plan in `docs/ROADMAP.md`; authority freshness is
+shipped). Until then, constrain the operation with customer policy on
+`evidence.bound` and the receiver's local checks.
 
 A **multi-host, monitored, horizontally-scaled production deployment with
 formal certification** is not supportable today. Multiple instances are

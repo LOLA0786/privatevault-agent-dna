@@ -44,12 +44,22 @@ from agent_dna.approval_bridge import (
     TRIGGERED_BY_APPROVAL,
     ApprovalContext,
 )
+from agent_dna.authority_deadline import (
+    DECISION_MINT_WINDOW_SECONDS_DEFAULT,
+    DECISION_MINT_WINDOW_SECONDS_MAX,
+    DECISION_MINT_WINDOW_SECONDS_MIN,
+    AuthorityDeadline,
+    AuthorityUnknownError,
+    authority_deadline,
+)
 from agent_dna.authority_v01 import CANONICALIZATION as _PV_CANON
 from agent_dna.authority_v01 import MAX_JSON_NESTING_DEPTH
 from agent_dna.authority_v01 import encode_public_key as _pv_encode_public_key
 from agent_dna.authority_v01 import sha256_digest as _pv_sha256_digest
 from agent_dna.authorize_binding import (
     AUTHORIZE_APPROVAL_MISMATCH,
+    AUTHORIZE_AUTHORITY_EXPIRED,
+    AUTHORIZE_AUTHORITY_UNKNOWN,
     AUTHORIZE_DECISION_NOT_FOUND,
     AUTHORIZE_DECISION_REQUIRED,
     AUTHORIZE_GRANT_REVOKED,
@@ -242,6 +252,9 @@ class AuthorizationWindow:
 
     ttl_seconds: int
     not_before_leeway_seconds: int
+    # How long after a decision its ALLOW may still be minted (finding 2 of
+    # the 19 October 2026 review). Approval and grant expiry cap it further.
+    decision_window_seconds: int = DECISION_MINT_WINDOW_SECONDS_DEFAULT
 
 
 def _env_int_bounded(
@@ -281,6 +294,13 @@ def _authorization_window(env: Any = None) -> AuthorizationWindow:
             0,
             0,
             AUTHORIZATION_NOT_BEFORE_LEEWAY_SECONDS_MAX,
+        ),
+        decision_window_seconds=_env_int_bounded(
+            source,
+            "PV_DECISION_MINT_WINDOW_SECONDS",
+            DECISION_MINT_WINDOW_SECONDS_DEFAULT,
+            DECISION_MINT_WINDOW_SECONDS_MIN,
+            DECISION_MINT_WINDOW_SECONDS_MAX,
         ),
     )
 
@@ -1435,6 +1455,30 @@ def _revoked_grant_for(record: dict[str, Any]) -> str | None:
     return grant_id if ledger.is_revoked(grant_id) is not None else None
 
 
+def _grant_expires_at(grant_id: str) -> float | None:
+    authorizer = getattr(state.get("engine"), "authorizer", None)
+    lookup = getattr(authorizer, "expires_at_of", None)
+    if lookup is None:
+        raise KeyError(grant_id)  # a grant id with no registry to vouch for it
+    return lookup(grant_id)
+
+
+def _authority_deadline_for(
+    record: dict[str, Any], window: AuthorizationWindow
+) -> AuthorityDeadline:
+    store = state.get("store")
+    stored = getattr(store, "approval_not_after", None)
+    try:
+        return authority_deadline(
+            record,
+            decision_window_seconds=window.decision_window_seconds,
+            approval_not_after=stored if stored is not None else (lambda _d: None),
+            grant_expires_at=_grant_expires_at,
+        )
+    except AuthorityUnknownError as exc:
+        _authorize_refusal(403, AUTHORIZE_AUTHORITY_UNKNOWN, str(exc))
+
+
 @app.post("/v1/authorize")
 def authorize(req: AuthorizeRequest, principal: FullPrincipal):  # noqa: C901
     """Issue execution authority bound to a sealed ALLOW and exact bytes."""
@@ -1515,7 +1559,21 @@ def authorize(req: AuthorizeRequest, principal: FullPrincipal):  # noqa: C901
         )
     presenter = _resolve_presenter(req)
     now = _datetime.now(UTC)
-    expires_at = _pv_rfc3339(now + _timedelta(seconds=window.ttl_seconds))
+    deadline = _authority_deadline_for(record, window)
+    # Permit times are whole seconds; round the end down so the permit can
+    # never be valid past it, and refuse when no whole second is left.
+    authority_end = deadline.not_after.replace(microsecond=0)
+    if now >= authority_end:
+        _authorize_refusal(
+            403,
+            AUTHORIZE_AUTHORITY_EXPIRED,
+            f"the authority behind this decision ended at "
+            f"{_pv_rfc3339(authority_end)} ({deadline.basis}); decide again",
+        )
+    # A permit never outlives the approval, grant or decision behind it.
+    expires_at = _pv_rfc3339(
+        min(now + _timedelta(seconds=window.ttl_seconds), authority_end)
+    )
     minted_at = _pv_rfc3339(now)
     not_before = _pv_rfc3339(now - _timedelta(seconds=window.not_before_leeway_seconds))
     bindings = mint_bindings_digest(

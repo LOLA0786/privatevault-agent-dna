@@ -150,7 +150,9 @@ flowchart TD
   F -- no --> X5[403 / 503]
   F -- yes --> G{loop gate: required<br/>security events present?}
   G -- no --> X6[422]
-  G -- yes --> H[resolve presenter key,<br/>compute bindings digest]
+  G -- yes --> T{approval, grant and decision<br/>window still valid?}
+  T -- no / unknown --> X7[403]
+  T -- yes --> H[resolve presenter key,<br/>compute bindings digest,<br/>cap expiry at the earliest end]
   H --> I[claim the mint row,<br/>sign inside the claim]
   I --> J{grant revoked<br/>while minting?}
   J -- yes --> K[suspend the new permit, refuse]
@@ -162,6 +164,7 @@ flowchart TD
 | Sealed ALLOW lookup | `api/server.py::_require_sealed_allow_for_authorize` |
 | Revoked grant | `api/server.py::_revoked_grant_for` |
 | Signer (local seed or KMS) | `api/server.py::_pv_load_signer` |
+| Authority still valid; permit expiry capped (ADR 0024) | `agent_dna/authority_deadline.py::authority_deadline` |
 | Presenter key for mTLS (ADR 0022) | `api/server.py::_resolve_presenter` |
 | What the permit binds | `agent_dna/authorize_binding.py::mint_bindings_digest` |
 | One live permit per decision (ADR 0016) | `agent_dna/sqlite_store.py::SQLiteDecisionStore.claim_or_replay_mint`, `agent_dna/pg_store.py::PostgresDecisionStore.claim_or_replay_mint` |

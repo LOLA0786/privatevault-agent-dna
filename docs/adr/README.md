@@ -31,6 +31,7 @@ explicit statement that no such test exists.
 | [0019](0019-receiver-gate.md) | The system of record verifies the permit (receiver gate) | accepted | `tests/receiver/test_receiver_gate.py::test_direct_call_without_permit_is_refused` |
 | [0020](0020-approval-bridge.md) | A verified, single-use approval satisfies REQUIRE_APPROVAL | accepted | `tests/test_approval_bridge.py::test_approval_is_consumed_atomically_and_durably` |
 | [0021](0021-server-derived-lineage.md) | Multi-agent dual control runs on server-derived lineage, not a caller-chosen id | accepted | `tests/test_lineage_dual_control.py::test_split_execution_ids_no_longer_bypass` |
+| [0024](0024-permit-never-outlives-its-authority.md) | A permit never outlives the authority behind its ALLOW | accepted | `tests/test_authority_freshness.py::test_mint_after_approval_expiry_is_refused` |
 
 0001–0014 are the enforcement-spine decisions. 0015 is the earlier
 loop-discovery placement record, renumbered so the spine could own
@@ -52,3 +53,5 @@ receiver gate check that key over mTLS, so a stolen permit and its bytes are
 refused from any other process.
 0023 lets every signing key live in AWS KMS or Google Cloud KMS, with
 signatures identical to local signing and each one verified before use.
+0024 ends minting when the approval, grant or decision window behind an
+ALLOW ends, and caps every permit's expiry at that end.

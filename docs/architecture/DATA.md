@@ -48,7 +48,7 @@ under an advisory lock so concurrent instances cannot fork a chain.
 |---|---|---|---|
 | `execution_authorization_mint` | `/v1/authorize` via `claim_or_replay_mint` | `/v1/authorize`, revocation scan | One live permit per decision (ADR 0016) |
 | `execution_authorization_consume` | the sidecar via `try_consume_unless_suspended` | the sidecar, `decision_execution_status` | A permit is used at most once (ADR 0004) |
-| `approval_consume` | `agent_dna/approval_bridge.py::ApprovalBridge.consider` via `try_consume_approval` | the approval bridge | An approval is used at most once (ADR 0020) |
+| `approval_consume` | `agent_dna/approval_bridge.py::ApprovalBridge.consider` via `try_consume_approval` | the approval bridge | An approval is used at most once (ADR 0020); `not_after` keeps its verified expiry, which caps the permit (ADR 0024) |
 | `suspensions` | `agent_dna/grant_revocation.py::GrantRevocationLedger.revoke`, late-revocation path of `/v1/authorize` | the sidecar (same transaction as consume), `/v1/revocations` | Permits, agents or organisations that must not dispatch |
 
 ## Grants

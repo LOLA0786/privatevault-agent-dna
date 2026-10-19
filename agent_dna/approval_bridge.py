@@ -216,6 +216,8 @@ class ApprovalBridge:
                 digest,
                 organisation_id=self.organisation_id,
                 consumed_at=_rfc3339(now),
+                # verified above; minting later never outlives it
+                not_after=str(artifact["expires_at"]),
             )
         except Exception as exc:
             return ApprovalVerdict(
