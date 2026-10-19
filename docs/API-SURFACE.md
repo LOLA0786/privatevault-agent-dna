@@ -149,37 +149,46 @@ be a formality.
 These are the endpoints a console renders. All are scoped to the
 authenticated agent unless the credential is an operator key.
 
+### Pages
+
+`/v1/records`, `/v1/blocked` and `/v1/divergent` return one page, oldest
+first: `?limit=` 1 to 1000 (default 100), and `?cursor=` set to the previous
+response's `next_cursor`. `next_cursor` is null on the last page. A
+malformed `limit` or `cursor` is a 422. Each page is an indexed query on the
+ledger (ADR 0029).
+
 ### `GET /v1/records/{agent_id}`
 
-Full decision history for one agent, in chain order.
+One agent's decision history, in chain order, one page at a time.
 
 ```json
 {
   "agent_id": "treasury-agent-07",
-  "records": [ {"...": "DecisionRecord"}, "..." ]
+  "records": [ {"...": "DecisionRecord"}, "..." ],
+  "next_cursor": "4182"
 }
 ```
 
 ### `GET /v1/blocked`
 
-Every blocked decision.
+The caller's blocked decisions, one page at a time.
 
 ```json
-{"blocked": [ {"...": "DecisionRecord"}, "..." ]}
+{"blocked": [ {"...": "DecisionRecord"}, "..." ], "next_cursor": null}
 ```
 
 ### `GET /v1/divergent`
 
-Decisions where the recorded verdict and the reported outcome
-disagree. For an operator console this is the highest-priority view.
+The caller's BLOCKed decisions that the executor reported as executed
+anyway. For an operator console this is the highest-priority view.
 
 ```json
-{"divergent": [ {"...": "DecisionRecord"}, "..." ]}
+{"divergent": [ {"...": "DecisionRecord"}, "..." ], "next_cursor": null}
 ```
 
 ### `GET /v1/lineage/{decision_id}`
 
-The chain of decisions leading to and from one decision.
+The chain of decisions leading to one decision, root first (one query).
 
 ```json
 {"lineage": [ {"...": "DecisionRecord"}, "..." ]}

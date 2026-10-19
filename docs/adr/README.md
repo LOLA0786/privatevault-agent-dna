@@ -36,6 +36,7 @@ explicit statement that no such test exists.
 | [0026](0026-permit-evidence-is-the-servers.md) | The evidence a permit cites is the server's, not the caller's | accepted | `tests/test_permit_evidence.py::test_secure_profile_refuses_the_reviews_probe` |
 | [0027](0027-receiver-kit-hardened-by-default.md) | The receiver kit is hardened by default | accepted | `tests/network/test_receiver_hardened.py::test_unreachable_api_ends_in_refusals_not_admissions` |
 | [0028](0028-secure-profile-binds-presenters.md) | The secure profile binds every permit to its presenter | accepted | `tests/test_secure_profile_presenters.py::test_default_receiver_admits_only_the_bound_agent` |
+| [0029](0029-routine-reads-are-indexed-queries.md) | Routine reads are indexed queries, one page at a time | accepted | `tests/test_indexed_reads.py::test_api_reads_never_load_the_whole_ledger` |
 
 0001–0014 are the enforcement-spine decisions. 0015 is the earlier
 loop-discovery placement record, renumbered so the spine could own
@@ -67,3 +68,5 @@ into the permit, not the caller's digests.
 presenters required, and a refreshed revocation list it fails closed on.
 0028 makes the secure profile require a presenter bundle and provisions one
 client certificate per agent, so every permit names who may present it.
+0029 answers routine reads with indexed, paginated queries instead of
+loading the whole ledger, and seal-checks every record it serves.

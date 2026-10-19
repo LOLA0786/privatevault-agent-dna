@@ -39,6 +39,7 @@ from .decision_record import GENESIS_HASH, DecisionRecord
 from .execution_record import ExecutionEvent
 from .grant_revocation import RevocationResult
 from .grant_spend import GrantBudgetExceededError
+from .ledger_reads import READ_INDEXES, decision_rows_query, lineage_query
 from .sqlite_store import MINT_COLUMNS, _check_scopes, classify_mint_row
 
 try:  # optional dependency: pip install 'privatevault-agent-dna[postgres]'
@@ -194,6 +195,7 @@ class PostgresDecisionStore:
         with self._pool.connection() as conn, conn.cursor() as cur:
             _lock(cur, _SCHEMA_LOCK)
             cur.execute(_SCHEMA)
+            cur.execute(READ_INDEXES)
 
     @property
     def pool(self) -> Any:
@@ -549,6 +551,35 @@ class PostgresDecisionStore:
             (decision_id,),
         )
         return json.loads(row[0]) if row else None
+
+    def decision_rows(
+        self,
+        *,
+        agent_id: str | None = None,
+        verdict: str | None = None,
+        divergent: bool = False,
+        after_seq: int = 0,
+        limit: int = 100,
+    ) -> list[tuple[int, str]]:
+        """One page of decision rows (seq, body), indexed (ADR 0029)."""
+        sql, params = decision_rows_query(
+            placeholder="%s",
+            execution_ok="(e.body::jsonb ->> 'status') = 'ok'",
+            agent_id=agent_id,
+            verdict=verdict,
+            divergent=divergent,
+            after_seq=after_seq,
+            limit=limit,
+        )
+        return [(int(seq), str(body)) for seq, body in self._fetchall(sql, params)]
+
+    def decision_lineage_rows(self, decision_id: str) -> list[str]:
+        """Bodies of a decision and its ancestors, root first: one
+        recursive query (ADR 0029)."""
+        sql = lineage_query(
+            placeholder="%s", parent_of="({t}.body::jsonb ->> 'parent_decision')"
+        )
+        return [str(body) for (body,) in self._fetchall(sql, (decision_id,))]
 
     def get_decision_by_record_hash(self, record_hash: str) -> dict[str, Any] | None:
         bare = record_hash[7:] if record_hash.startswith("sha256:") else record_hash

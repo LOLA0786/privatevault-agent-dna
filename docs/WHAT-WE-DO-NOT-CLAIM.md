@@ -38,7 +38,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 2110+ automated tests, run in CI on every commit
+- 2130+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
@@ -861,9 +861,9 @@ also does not prove that no external effect happened outside it.
 
 ## Open findings from the external review (19 October 2026)
 
-An independent review reproduced the following at commit `f96804e`. Each
-is open until a fix lands with regression tests; status is tracked in
-`docs/ROADMAP.md`.
+An independent review reproduced the following at commit `f96804e`. All
+five are fixed with regression tests (ADRs 0024 to 0029); what each fix
+does not claim is stated below, and status is tracked in `docs/ROADMAP.md`.
 
 Fixed since: capability-to-operation binding (ADR 0025, see Capability
 grants), and authority freshness (ADR 0024). A permit is minted only while
@@ -896,6 +896,10 @@ given; the mint response lists it under `caller_asserted`.
   0028, `tests/test_secure_profile_presenters.py`). **We do not claim**
   receiver replicas on separate hosts share one claim: the receiver ledger
   is SQLite. Run one receiver host.
-- **Reads rebuild the whole ledger.** In multi-writer mode, record,
-  lineage, blocked, divergent and outcome-ownership queries load every
-  record from the store per call. Cost grows with the ledger.
+- **Reads rebuild the whole ledger.** Fixed since (ADR 0029): records,
+  blocked, divergent, lineage and outcome ownership are indexed queries,
+  one page at a time, on both ledgers, and each record served is
+  seal-checked (`tests/test_indexed_reads.py`). **We do not claim** a
+  measured throughput at scale: `/v1/verify`, exports and backups still
+  read the whole ledger on purpose, and no multi-host load test has been
+  run.

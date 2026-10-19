@@ -1320,6 +1320,11 @@
    "top"
   ],
   [
+   "agent_dna.ledger_reads",
+   "agent_dna.decision_record",
+   "top"
+  ],
+  [
    "agent_dna.lineage",
    "agent_dna.advisory",
    "top"
@@ -1677,6 +1682,11 @@
   [
    "agent_dna.pg_store",
    "agent_dna.grant_spend",
+   "top"
+  ],
+  [
+   "agent_dna.pg_store",
+   "agent_dna.ledger_reads",
    "top"
   ],
   [
@@ -2065,6 +2075,11 @@
    "top"
   ],
   [
+   "agent_dna.sqlite_store",
+   "agent_dna.ledger_reads",
+   "top"
+  ],
+  [
    "agent_dna.timeline",
    "agent_dna.fingerprint",
    "top"
@@ -2186,6 +2201,11 @@
   ],
   [
    "api.server",
+   "agent_dna.decision_record",
+   "top"
+  ],
+  [
+   "api.server",
    "agent_dna.dispatch_context_v01",
    "lazy"
   ],
@@ -2197,6 +2217,11 @@
   [
    "api.server",
    "agent_dna.key_custody",
+   "top"
+  ],
+  [
+   "api.server",
+   "agent_dna.ledger_reads",
    "top"
   ],
   [
@@ -3218,7 +3243,7 @@
   "agent_dna.control_posture": 5,
   "agent_dna.decision": 27,
   "agent_dna.decision_graph": 5,
-  "agent_dna.decision_record": 7,
+  "agent_dna.decision_record": 9,
   "agent_dna.decision_recorder": 8,
   "agent_dna.decision_store": 3,
   "agent_dna.diff": 1,
@@ -3256,6 +3281,7 @@
   "agent_dna.invariant_engine": 2,
   "agent_dna.invariants": 2,
   "agent_dna.key_custody": 12,
+  "agent_dna.ledger_reads": 3,
   "agent_dna.lineage": 1,
   "agent_dna.manifold": 7,
   "agent_dna.multi_agent": 4,
@@ -3416,6 +3442,7 @@
   "agent_dna.invariant_engine": 1,
   "agent_dna.invariants": 1,
   "agent_dna.key_lifecycle": 3,
+  "agent_dna.ledger_reads": 1,
   "agent_dna.lineage": 5,
   "agent_dna.manifold": 1,
   "agent_dna.multi_agent": 15,
@@ -3437,7 +3464,7 @@
   "agent_dna.operation_registry": 2,
   "agent_dna.permit_evidence": 1,
   "agent_dna.pg_shared_state": 1,
-  "agent_dna.pg_store": 9,
+  "agent_dna.pg_store": 10,
   "agent_dna.policy": 3,
   "agent_dna.policy.checker": 1,
   "agent_dna.policy.loader": 1,
@@ -3467,14 +3494,14 @@
   "agent_dna.signer_bridge": 1,
   "agent_dna.signer_python": 1,
   "agent_dna.similarity": 1,
-  "agent_dna.sqlite_store": 5,
+  "agent_dna.sqlite_store": 6,
   "agent_dna.timeline": 2,
   "agent_dna.uaal_layer": 3,
   "agent_dna.validation": 4,
   "agent_dna.validation.drift": 1,
   "agent_dna.validation.report": 2,
   "agent_dna.wire_serialization_v01": 1,
-  "api.server": 28,
+  "api.server": 30,
   "examples.amlsim.run_amlsim_sample": 6,
   "examples.authority_blast_radius_demo": 1,
   "examples.authority_derivation_demo": 1,
@@ -3922,6 +3949,10 @@
   "agent_dna.key_lifecycle": {
    "group": "agent_dna (core modules)",
    "path": "agent_dna/key_lifecycle.py"
+  },
+  "agent_dna.ledger_reads": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/ledger_reads.py"
   },
   "agent_dna.lineage": {
    "group": "agent_dna (core modules)",
