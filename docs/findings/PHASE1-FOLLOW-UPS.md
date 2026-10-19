@@ -1,13 +1,20 @@
-# Phase 1 follow-ups (tracked, not fixed)
+# Phase 1 follow-ups
 
 These findings were recorded during `fix/pv-critical-semantics`.
-They are **not** in scope for Phase 1. Do not treat this file as a
-fix. No administrative recovery endpoint is included here either
+
+| Item | Status |
+|---|---|
+| 1. Durable grant-budget accounting | **Closed**: `tests/test_grant_spend_durable.py`, `tests/test_pg_grants.py`, `tests/multi_instance/test_two_processes.py` |
+| 2. Metrics authentication mismatch | **Open**: `GET /metrics` is still unauthenticated |
+| 3. Dashboard dependency vulnerability | **Closed**: the lockfile now resolves `nanoid` 3.3.18 |
+
+The sections below are the original records, kept for their reasoning.
+Do not read them as current status. No administrative recovery endpoint is included here either
 (ADR 0016: remint recovery remains deferred).
 
 ## 1. Durable grant-budget accounting
 
-**Release blocker** for any monetary/budget claim.
+*(Closed; see the table above.)* Originally a **release blocker** for any monetary/budget claim.
 
 - `GrantRegistry.spent` is in-process memory (`agent_dna/grants.py`).
 - Loading the same grants file after process restart creates grants

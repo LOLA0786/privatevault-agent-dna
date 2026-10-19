@@ -102,7 +102,10 @@ verified.
 ## Keeping the docs true
 
 - Code references in the checked pages must resolve
-  (`tests/test_architecture_doc.py`).
+  (`tests/test_architecture_doc.py`), and every file and test cited by the
+  claim pages must exist (`tests/test_docs_structure.py`). That checks
+  structure; whether a claim is still true is a human review, done again
+  after every external review.
 - Generated pages are regenerated, never edited:
   `python tools/archmap.py && python tools/depmap.py`; CI fails if they are
   stale.
