@@ -5,6 +5,20 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Claims corrected after the external review (19 October 2026)
+- `WHAT-WE-DO-NOT-CLAIM.md`: removed three statements the code had
+  outgrown (no per-decision mint limit, non-durable grant spend,
+  envelopes lost on restart) and added the review's open findings:
+  authority freshness at mint, capability-to-operation binding,
+  caller-asserted permit digests, the receiver kit's default deployment,
+  and full-ledger reads.
+- `PRODUCTION-HARDENING.md`, `ROADMAP.md`, `findings/PHASE1-FOLLOW-UPS.md`:
+  statuses brought up to date (PostgreSQL, backups, KMS, Helm,
+  multi-instance correctness shipped; cross-host performance unmeasured)
+  and the fix order for the review's findings.
+- Every file and test cited by the claim pages must now exist
+  (`test_claim_pages_cite_real_files_and_tests`).
+
 ### Structured documentation
 - `docs/README.md`: index of every document by role and section, each
   marked current, reference, historical or experimental.

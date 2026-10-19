@@ -42,6 +42,17 @@ CHECKED = [
     ARCH / "DEPLOYMENT.md",
     DOCS / "README.md",
 ]
+# Claim pages: every file and test they cite must exist. (Structure only;
+# whether each claim is true is still a human review.)
+CLAIMS = [
+    DOCS / "WHAT-WE-DO-NOT-CLAIM.md",
+    DOCS / "PRODUCTION-HARDENING.md",
+    DOCS / "ROADMAP.md",
+    DOCS / "SECURITY.md",
+    DOCS / "findings" / "PHASE1-FOLLOW-UPS.md",
+]
+# MCP method names look like repository paths to the reference check.
+MCP_METHODS = {"tools/call", "tools/list"}
 LINK = re.compile(r"\]\(([^)#\s]+)(?:#[^)]*)?\)")
 MERMAID = re.compile(r"```mermaid\n(\w+)")
 DIAGRAMS = {"flowchart", "sequenceDiagram"}
@@ -72,6 +83,11 @@ def _git_files() -> list[str]:
 @pytest.mark.parametrize("page", CHECKED, ids=lambda p: str(p.relative_to(ROOT)))
 def test_code_references_resolve(page):
     assert unresolved(_read(page)) == []
+
+
+@pytest.mark.parametrize("page", CLAIMS, ids=lambda p: str(p.relative_to(ROOT)))
+def test_claim_pages_cite_real_files_and_tests(page):
+    assert [r for r in unresolved(_read(page)) if r not in MCP_METHODS] == []
 
 
 def broken_links(page: Path, text: str) -> list[str]:

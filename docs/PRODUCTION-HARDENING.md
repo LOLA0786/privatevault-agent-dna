@@ -32,9 +32,10 @@ points at the test file that proves it.
 |---|---|---|
 | Single-writer correctness | **SHIPPED** | All existing tests assume one process; correct in that mode |
 | Multi-writer safety (concurrent processes, same store) | **SHIPPED** | Atomic chain-head via `append_atomic`/`get_chain_head` in one store transaction; thread-local SQLite connections after a shared-connection cursor race was caught, root-caused, and pinned. `tests/test_multi_writer_safety.py`, `tests/test_connection_thread_safety.py` |
-| Horizontal scaling (multiple app instances) | **NOT STARTED** | Multi-writer safety (its prerequisite) is now shipped. No load balancer story, no shared-nothing design decided yet. |
+| Multiple app instances on one PostgreSQL (correctness) | **SHIPPED** | Budgets, one permit per decision, self-approval, a killed instance and a database outage across two processes: `tests/multi_instance/test_two_processes.py`; Helm chart runs two replicas (`deploy/helm/privatevault`) |
+| Horizontal scaling (performance across hosts) | **NOT MEASURED** | No multi-host run, soak test or failover test. Routine reads rebuild the full ledger per call in multi-writer mode (external review finding 4) |
 | Throughput benchmark, single process | **SHIPPED** | `tools/benchmark.py` — stated methodology, rerunnable, no unverified numbers cited |
-| Throughput benchmark, concurrent/production load | **NOT STARTED** | Prerequisite (multi-writer safety) now shipped; benchmark itself not built |
+| Throughput benchmark, concurrent load | **PARTIAL** | Two instances on one 2-vCPU VM: `docs/benchmarks/MULTI-INSTANCE.md`. No production-scale or large-ledger figures |
 
 ## Persistence & storage
 
@@ -42,8 +43,8 @@ points at the test file that proves it.
 |---|---|---|
 | SQLite/WAL persistence | **SHIPPED** | `agent_dna/sqlite_store.py`, tested restart-safe |
 | Store-to-canonical-format export identity | **SHIPPED** | Exported JSONL is byte-identical to what `verify_records.py` consumes — the DB can never become a second source of truth |
-| Postgres-interface storage | **SCOPED** | `DecisionStore`/`SQLiteDecisionStore` already share a contract; a `PostgresDecisionStore` implementing the same interface is mechanical. Estimated 1 session once a customer's infra requires it — not built speculatively. |
-| Backup/disaster recovery | **NOT STARTED** | No documented backup strategy. For a pilot, this is the customer's own infra responsibility (self-hosted deployment); for managed production, needs a real design. |
+| PostgreSQL storage (`PV_DATABASE_URL`) | **SHIPPED** | Every ledger: `tests/test_pg_store.py`, `tests/test_pg_grants.py`, `tests/test_pg_ledgers.py`, `tests/test_pg_shared_state.py`. The receiver kit's ledger is still SQLite only |
+| Backup and verified restore | **SHIPPED** | `agent_dna/backup.py`, runbook `docs/operations/BACKUP.md`, `tests/test_backup.py`. Point-in-time recovery and scheduling are the database platform's |
 
 ## Security
 
@@ -53,7 +54,10 @@ points at the test file that proves it.
 | Ed25519 record signing | **SHIPPED** | `agent_dna/signer.py`, constant-time signature verification |
 | Timing-attack-safe HMAC comparison | **SHIPPED** | Found and fixed during consensus-module vendoring; `tests/test_secure_quorum.py` |
 | Independent tamper verification | **SHIPPED** | `tools/verify_records.py`: standard-library chain verification plus optional trusted Ed25519 verification with PyNaCl; neither mode imports the producing runtime |
-| Secrets management (key rotation, vaulting) | **NOT STARTED** | Signing key and API keys are environment/file-based today. No rotation mechanism, no integration with a secrets manager (Vault, AWS Secrets Manager, etc.). Estimated: real design work, not a quick add — depends on deployment target. |
+| Signing keys in a KMS | **SHIPPED** | AWS KMS and Google Cloud KMS (ADR 0023): `tests/test_key_custody.py`, `tests/test_authorize_kms.py`. Not run against a live KMS from inside a cluster |
+| Key rotation, secrets-manager integration | **NOT STARTED** | API keys and local seeds are file or environment based; no rotation mechanism |
+| Capability-to-operation binding | **NOT STARTED** | External review finding 1: a grant names a capability, not the method, destination and route it may use. See `docs/WHAT-WE-DO-NOT-CLAIM.md` |
+| Authority freshness at mint | **NOT STARTED** | External review finding 2: approval and grant expiry are not re-checked at mint, and a permit can outlive its approval |
 | Third-party security certification (SOC 2, ISO 27001) | **NOT STARTED** | See `docs/WHAT-WE-DO-NOT-CLAIM.md` — pre-seed, no funded timeline yet. |
 | Penetration testing | **NOT STARTED** | No formal external pentest has been performed. Internal adversarial corpus (`spec/adversarial/`) is not a substitute and is not claimed as one. |
 | Vulnerability disclosure process | **SHIPPED** | `.well-known/security.txt`; contact in `SECURITY.md`. |
@@ -83,7 +87,7 @@ points at the test file that proves it.
 | Cross-agent invariants at the transport | **SHIPPED** | `tests/connector/test_cross_agent.py` — escalation-only, declared execution windows |
 | No-mocks-on-enforcement-path CI guard | **SHIPPED** | `tests/connector/test_standard_no_mocks.py` (docs/ENGINEERING-STANDARD.md rule 1) |
 | Private SDK surface bounds | **DECLARED** | `MCPServer._tool_manager` — mcp>=2.2,<3, locked to 2.2.0; integration tests cover legacy and modern protocol modes |
-| TLS termination | **NOT STARTED** | Deployment responsibility; bearer keys require TLS in front of the connector |
+| TLS termination | **NOT STARTED** | Deployment responsibility; bearer keys require TLS in front of the connector. Receiver-side mTLS for presenters is shipped (ADR 0022) but not the receiver kit's default |
 | Framework adapters beyond MCP (OpenAI SDK, LangGraph, CrewAI) | **SCOPED** | Same middleware, thin per-framework translation (~40-line adapters); built when a pilot names one |
 
 ## Observability
@@ -93,10 +97,10 @@ points at the test file that proves it.
 | Structured audit trail | **SHIPPED** | The decision record chain itself — every decision is a structured, queryable event |
 | Application logging (errors, requests) | **PARTIALLY SHIPPED** | JSON logger wired at API startup (`agent_dna/observability/logger.py`); request-level access logs still framework default. |
 | Metrics/monitoring (latency, error rate, throughput) | **SHIPPED** | Prometheus counters/histogram on the decide path (`pv_decisions_total`, `pv_blocks_total`, `pv_decide_latency_seconds`, `pv_ready`); `GET /metrics`, `GET /ready`, `GET /v1/ops/summary`. Evidence: `tests/test_platform_ops.py`, `tests/test_metrics_endpoint.py`. Compose profile: `docker-compose.platform.yml`. |
-| Readiness probe | **SHIPPED** | `GET /ready` pings SQLite store; Docker/compose healthchecks use it. `tests/test_platform_ops.py`. |
+| Readiness probe | **SHIPPED** | `GET /ready` pings the store (SQLite or PostgreSQL); Docker, compose and the Helm chart use it. `tests/test_platform_ops.py`. |
 | Vulnerability disclosure packaging | **SHIPPED** | `.well-known/security.txt` + `SECURITY.md` contact. |
 | Alerting | **NOT STARTED** | No alerting pipeline. |
-| Distributed tracing | **NOT STARTED** | Not relevant at current single-process scale; would matter once horizontally scaled. |
+| Distributed tracing | **NOT STARTED** | Matters now that several instances can serve one deployment. |
 
 ## Deployment
 
@@ -104,24 +108,27 @@ points at the test file that proves it.
 |---|---|---|
 | Docker/compose, single container | **SHIPPED** | `Dockerfile`, `docker-compose.yml`, tested via CI container smoke test |
 | CI: full test suite + spec vectors on every push | **SHIPPED** | `.github/workflows/` |
-| Kubernetes manifests | **NOT STARTED** | Not built; single-container deployment is the current target. |
-| Blue/green or rolling deployment | **NOT STARTED** | N/A at single-instance scale. |
+| Kubernetes (Helm chart) | **SHIPPED** | `deploy/helm/privatevault`; CI renders it, validates it against the Kubernetes schemas, checks that unsafe values are refused, installs it on kind with PostgreSQL and runs `tools/verify_deployment.py` (`deploy/helm/privatevault/ci/kind-e2e.sh`). Not run on a managed cluster |
+| Rolling deployment | **SHIPPED (chart)** | The chart rolls API pods with no unavailable replica on PostgreSQL; untested under production traffic |
 | Air-gapped / fully offline deployment | **PARTIALLY SHIPPED** | The engine and chain-only verifier require no network calls. Trusted signature mode requires PyNaCl to be included in the offline dependency bundle. Full air-gap packaging is not formally tested. |
 
 ---
 
 ## What this means for a pilot specifically
 
-A **scoped, single-workflow, single-process pilot** (per
-`PILOT-SCOPE.md`) is honestly supportable today: fail-closed,
-restart-safe, signed, independently verifiable, with a real security
-boundary and a real adversarial test corpus. This is a legitimate,
-defensible claim.
+A **scoped, single-workflow partner sandbox** (per `PILOT-SCOPE.md`) is
+supportable once the two authorization findings from the 19 October 2026
+external review are fixed: authority freshness at mint and
+capability-to-operation binding (both NOT STARTED above, plan in
+`docs/ROADMAP.md`). Until then, constrain the operation with customer
+policy on `evidence.bound` and the receiver's local checks, and keep any
+permit's approval short-lived.
 
-A **multi-instance, monitored, horizontally-scaled production
-deployment with formal certification** is not supportable today, and
-this document exists so that gap is stated plainly rather than
-discovered during a bank's infrastructure review.
+A **multi-host, monitored, horizontally-scaled production deployment with
+formal certification** is not supportable today. Multiple instances are
+correct on one PostgreSQL; their performance across hosts and at a large
+ledger is unmeasured, and this document exists so that gap is stated
+plainly rather than discovered during a bank's infrastructure review.
 
 If a specific pilot's requirements make any NOT STARTED item above a
 real blocker, it becomes a scoped, estimated engineering task — not

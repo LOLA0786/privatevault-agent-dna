@@ -136,11 +136,9 @@ scaling or production load**: the only latency figures
 everything, which is CPU-bound; there is no multi-host run, soak test or
 PostgreSQL failover test, and audit reads load the ledger per call.
 
-**We do not claim signature envelopes persist across restarts today.**
-Decision and execution records do — restart-safety here is
-independently tested. Signature envelopes are currently retrievable
-for the producing process's lifetime; persisting them as a
-first-class, restart-safe record kind is on our roadmap, not shipped.
+**Signature envelopes persist with their records.** A record and its
+envelope are committed in one store transaction and both survive restart
+(`tests/test_transactional_persistence.py`).
 
 ## Shell commands (shell guard)
 
@@ -199,12 +197,19 @@ over-ceiling values BLOCK with `INVALID_AMOUNT`
 (`tests/test_amount_coercion.py`). Budgeted grants and amount-capped
 breakers also reject omitted, `None`, and empty amounts with
 `INVALID_AMOUNT` before any mutation
-(`tests/test_amount_requirement.py`). **Grant `spent` is still
-in-process memory:** a restart reloads grants at zero spend. That is
-a release blocker for monetary/budget claims and is scheduled on
-`fix/durable-grant-budgets`, not claimed closed here. Revocation
-history is reconstructable from the audit trail alone. Delegation
-and rescoping are the next build.
+(`tests/test_amount_requirement.py`). Grant spend is durable: it
+survives restart and two workers draw on one budget
+(`tests/test_grant_spend_durable.py`; on PostgreSQL across instances,
+`tests/test_pg_grants.py`). Revocation history is reconstructable from the
+audit trail alone. Delegation and rescoping are not built.
+
+**We do not claim a grant names an operation.** A grant is agent plus
+capability label. Nothing yet maps a capability to the HTTP method,
+destination, route or parameter schema it may use, so an agent granted a
+read capability can obtain a permit for a write request to a different
+service, and a receiver will admit it (external review, 19 October 2026,
+finding 1). Until that mapping ships, the operation must be constrained by
+customer policy on `evidence.bound` or by the receiver's own local checks.
 
 ## Behavioral accuracy
 
@@ -835,11 +840,45 @@ source role is a hard breach, an unresolved target role escalates for review,
 and an untrained role model abstains. Deployments requiring role-based
 influence control on the HTTP decide path must configure it explicitly.
 
-## One ALLOW can mint more than one execution permit
+## One ALLOW, one live permit, not one business transaction
 
-`/v1/authorize` binds mint to a sealed ALLOW decision and refuses without one.
-Consumption is enforced per `execution_authorization_id` via a durable ledger,
-so no permit verifies twice. There is currently no per-decision mint limit: a
-single ALLOW can produce multiple distinct single-use permits. Deployments that
-require one decision to authorize exactly one execution must enforce that
-above this layer.
+`/v1/authorize` binds mint to a sealed ALLOW and refuses without one. Each
+decision has at most one live permit (ADR 0016): a repeat with identical
+bindings returns the same permit, different bindings are refused, and an
+expired or consumed permit is not replaced
+(`tests/test_authorize_mint_claim.py`; across two processes,
+`tests/multi_instance/test_two_processes.py`). Each permit is consumed at
+most once at the sidecar and once at a receiver.
+
+What this does not give: one payment per invoice. A new decision for the
+same invoice can mint a new permit. Business idempotency needs a
+transaction key and reconciliation in the system of record. A hash chain
+also does not prove that no external effect happened outside it.
+
+## Open findings from the external review (19 October 2026)
+
+An independent review reproduced the following at commit `f96804e`. Each
+is open until a fix lands with regression tests; status is tracked in
+`docs/ROADMAP.md`.
+
+- **Authority does not stay fresh until mint.** Approval and grant
+  validity are checked when deciding, not when minting. The first permit
+  from an old ALLOW can be minted after its approval or grant has expired,
+  and a permit's expiry is set from mint time plus the permit lifetime,
+  so it can outlive the approval it rests on. Grant revocation is
+  re-checked at mint; expiry is not.
+- **Capabilities are not bound to operations** (see Capability grants).
+- **Four permit digests are caller assertions.** `/v1/authorize` copies
+  the caller's policy, state-snapshot, authority-receipt and obligations
+  digests into the signed permit without resolving them to stored
+  evidence. A signed reference alone does not prove that policy or state
+  was checked.
+- **The receiver kit is not a hardened deployment by default.** Its
+  container serves plain HTTP unless started with the mTLS entry point,
+  its gate constructor does not attach the revocation list, the secure
+  profile does not require presenter keys, and its single-use ledger is
+  SQLite, so receiver replicas on separate hosts would not share one claim.
+  Run one receiver host.
+- **Reads rebuild the whole ledger.** In multi-writer mode, record,
+  lineage, blocked, divergent and outcome-ownership queries load every
+  record from the store per call. Cost grows with the ledger.
