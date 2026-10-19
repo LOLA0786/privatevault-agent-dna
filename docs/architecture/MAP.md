@@ -28,7 +28,7 @@ flowchart LR
   n19["examples<br/>29 modules"]
   n20["experimental<br/>62 modules"]
   n21["rust/pv_runtime (PyO3)"]
-  n22["tools<br/>34 modules"]
+  n22["tools<br/>35 modules"]
   n0 -.->|1| n2
   n0 -->|5| n4
   n0 -->|1| n5
@@ -82,7 +82,7 @@ flowchart LR
 |---|---:|---:|
 | `agent_dna (core modules)` | 73 |
 | `experimental` | 62 |
-| `tools` | 34 |
+| `tools` | 35 |
 | `examples` | 29 |
 | `agent_dna/multi_agent` | 16 |
 | `agent_dna/gateway` | 14 |

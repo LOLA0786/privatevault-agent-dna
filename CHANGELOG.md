@@ -5,6 +5,22 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Structured documentation
+- `docs/README.md`: index of every document by role and section, each
+  marked current, reference, historical or experimental.
+- `docs/architecture/`: overview, repository map, flows (sequence diagrams
+  for decide, approval, authorize, dispatch, receiver gate, outcome,
+  revocation, gateway, audit connector, verification, backup, and every
+  HTTP route), data (every ledger table with writers and readers), trust
+  and keys, deployment.
+- `tools/depmap.py` generates `docs/architecture/DEPENDENCIES.md`: who
+  depends on whom, module by module, in six layers, with every import that
+  points up a layer listed.
+- `tests/test_docs_structure.py`: code references and links resolve; every
+  route, table, top-level directory and document is covered; the
+  dependency page is fresh; no build output is tracked. Each check has a
+  negative control.
+
 ### Helm chart (production readiness, phase 1 step 6a)
 - `deploy/helm/privatevault`: the API as two replicas on PostgreSQL with
   the secure profile; non-root, read-only root filesystem, all

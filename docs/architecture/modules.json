@@ -4540,6 +4540,10 @@
    "group": "tools",
    "path": "tools/build_pvscan_standalone.py"
   },
+  "tools.depmap": {
+   "group": "tools",
+   "path": "tools/depmap.py"
+  },
   "tools.gen_architecture": {
    "group": "tools",
    "path": "tools/gen_architecture.py"
