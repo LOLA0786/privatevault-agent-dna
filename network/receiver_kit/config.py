@@ -20,6 +20,14 @@ unless a fresh signed revocation list is installed. Each relaxation is an
 explicit flag for a local demo: ``PV_RECEIVER_ALLOW_PLAINTEXT=1``,
 ``PV_RECEIVER_REQUIRE_PRESENTER=0``, ``PV_RECEIVER_ALLOW_NO_REVOCATION=1``.
 The ledger is SQLite: run one receiver host.
+
+Business transaction keys (ADR 0030): ``PV_RECEIVER_TRANSACTION_KEYS`` is a
+JSON object from ``"METHOD PATH"`` to the dotted body field that identifies
+the transaction, for example ``{"POST /api/v1/transfers": "invoice_id"}``.
+Each key is admitted once; reconcile open claims with
+``tools/receiver_transactions.py``. ``PV_RECEIVER_IDEMPOTENCY_HEADER`` (for
+example ``Idempotency-Key``) also sends the transaction's opaque reference
+upstream.
 """
 
 from __future__ import annotations
@@ -271,6 +279,9 @@ class GateSettings:
     revocation_api_key_file: Path | None = None
     revocation_ca_file: Path | None = None
     revocation_refresh_seconds: int = 10
+    # ADR 0030
+    transaction_keys: tuple[tuple[str, str], ...] = ()
+    idempotency_header: str | None = None
 
     @property
     def mtls(self) -> bool:
@@ -423,6 +434,24 @@ def _revocation_settings(env: Mapping[str, str]) -> dict[str, Any]:
     }
 
 
+def _transaction_keys(env: Mapping[str, str]) -> tuple[tuple[str, str], ...]:
+    raw = env.get("PV_RECEIVER_TRANSACTION_KEYS", "").strip()
+    if not raw:
+        return ()
+    try:
+        value = json.loads(raw)
+    except ValueError as exc:
+        raise ConfigError(f"PV_RECEIVER_TRANSACTION_KEYS is not JSON: {exc}") from None
+    if not isinstance(value, dict) or not all(
+        isinstance(k, str) and isinstance(v, str) and k and v for k, v in value.items()
+    ):
+        raise ConfigError(
+            'PV_RECEIVER_TRANSACTION_KEYS must map "METHOD PATH" to a body field, '
+            'e.g. {"POST /api/v1/transfers": "invoice_id"}'
+        )
+    return tuple(sorted(value.items()))
+
+
 def settings_from_env(env: Mapping[str, str] | None = None) -> GateSettings:
     source = os.environ if env is None else env
     bundle_file = source.get("PV_TRUST_BUNDLE_FILE", "").strip()
@@ -457,6 +486,9 @@ def settings_from_env(env: Mapping[str, str] | None = None) -> GateSettings:
         pinned_at=source.get("PV_TRUST_BUNDLE_PINNED_AT", "").strip()
         or DEFAULT_PINNED_AT,
         max_body_bytes=_int(source, "PV_MAX_BODY_BYTES", 1_048_576, 0),
+        transaction_keys=_transaction_keys(source),
+        idempotency_header=source.get("PV_RECEIVER_IDEMPOTENCY_HEADER", "").strip()
+        or None,
         **_tls_settings(source),
         **_revocation_settings(source),
     )
@@ -483,6 +515,7 @@ def build_gate(settings: GateSettings) -> ReceiverGate:
         unprotected_operations=frozenset(settings.unprotected_operations),
         max_body_bytes=settings.max_body_bytes,
         require_presenter=settings.require_presenter,
+        transaction_keys=dict(settings.transaction_keys),
         # Fail closed: with a list source configured, nothing is admitted
         # until a fresh signed list is installed (network/receiver_kit/
         # revocations.py keeps it fresh).
@@ -499,6 +532,7 @@ def build_app(settings: GateSettings) -> ReceiverGateProxy:
         build_gate(settings),
         settings.upstream,
         allow_http_upstream=settings.allow_http_upstream,
+        idempotency_header=settings.idempotency_header,
     )
 
 
@@ -530,6 +564,17 @@ def describe(settings: GateSettings, gate: ReceiverGate) -> str:
             f"{settings.revocation_refresh_seconds}s; refuses all permits while stale"
             if settings.revocation_url
             else "off (revoked permits are admitted until they expire)"
+        ),
+        "  transaction keys     "
+        + (
+            "; ".join(f"{op} -> {field}" for op, field in settings.transaction_keys)
+            + (
+                f" (sent upstream as {settings.idempotency_header})"
+                if settings.idempotency_header
+                else ""
+            )
+            if settings.transaction_keys
+            else "(none: a new permit for the same invoice is admitted)"
         ),
         "  ledger scope         this host only (SQLite): run one receiver host",
     ]

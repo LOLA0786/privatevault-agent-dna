@@ -38,7 +38,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 2300+ automated tests, run in CI on every commit
+- 2350+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
@@ -912,10 +912,19 @@ expired or consumed permit is not replaced
 `tests/multi_instance/test_two_processes.py`). Each permit is consumed at
 most once at the sidecar and once at a receiver.
 
-What this does not give: one payment per invoice. A new decision for the
-same invoice can mint a new permit. Business idempotency needs a
-transaction key and reconciliation in the system of record. A hash chain
-also does not prove that no external effect happened outside it.
+A new decision for the same invoice can still mint a new permit. Since
+ADR 0030 a receiver that declares a transaction key for the operation (the
+body field holding the invoice number) admits that key once: a second
+permit is refused with `RECEIVER_DUPLICATE_TRANSACTION`, and an uncertain
+upstream answer or a crash holds the key until an operator reconciles it
+with `tools/receiver_transactions.py`
+(`tests/receiver/test_receiver_transactions.py`). **We do not claim**
+exactly-once execution: an operation without a declared key behaves as
+before; the key is only as good as the field named (a caller can write a
+different invoice number); reconciliation is an operator's statement about
+the system of record, recorded in the receiver ledger but not signed into
+the receipt chain; and a hash chain does not prove that no external effect
+happened outside it.
 
 ## Open findings from the external review (19 October 2026)
 

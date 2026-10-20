@@ -214,6 +214,8 @@ key, then drops root. The start-up summary shows `client TLS required`,
 | `PV_ALLOW_HTTP_UPSTREAM` | `1` only for a loopback upstream inside one host. |
 | `PV_LEDGER_PATH` | SQLite file for the consume ledger and receipt chain. |
 | `PV_UNPROTECTED_OPERATIONS` | `GET`/`HEAD` routes that bypass the gate, `;` separated. Writes cannot be unprotected. |
+| `PV_RECEIVER_TRANSACTION_KEYS` | Optional, recommended for payments (ADR 0030). JSON mapping a write operation to the body field naming the business transaction, e.g. `{"POST /api/v1/transfers": "invoice_id"}`. Each value is admitted once; a 5xx, timeout or crash holds it until you reconcile it with `python tools/receiver_transactions.py --ledger <PV_LEDGER_PATH> list --open`. |
+| `PV_RECEIVER_IDEMPOTENCY_HEADER` | Optional, e.g. `Idempotency-Key`: send each transaction's opaque reference upstream in that header so your system can deduplicate too. |
 | `PV_GATE_UID`, `PV_GATE_GID` | Optional. The uid and gid the entrypoint drops to after copying the key (default 10001). |
 | `PV_TRUST_BUNDLE_VERSION`, `PV_TRUST_BUNDLE_PINNED_AT` | Optional; both sides must agree. A pinned bundle file replaces these in Phase 2. |
 | `PV_RECEIVER_TLS_CERT`, `PV_RECEIVER_TLS_KEY`, `PV_RECEIVER_CLIENT_CA` | Required, all three: serve HTTPS and require a client certificate from that CA. The image's command (`python -m network.receiver_kit.serve`) does this. |
