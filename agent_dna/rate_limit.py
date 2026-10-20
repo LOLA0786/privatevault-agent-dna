@@ -22,7 +22,6 @@ is the multi-host answer and is not provided here.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import math
 import threading
@@ -113,19 +112,20 @@ def _address(scope: Scope) -> str:
 class RateLimitMiddleware:
     """Refuse requests over the per-credential rate with 429.
 
-    ``known(key)`` says whether a key is registered; only those get their
-    own bucket (see the module docstring). Without it every request is
-    charged to its client address."""
+    ``identify(key)`` returns the registered identity a key belongs to, or
+    None; only registered identities get their own bucket (see the module
+    docstring). Without it every request is charged to its client address.
+    The key itself is never hashed, stored or used as a bucket name."""
 
     def __init__(
         self,
         app: ASGIApp,
         limit: Callable[[], RateLimit | None] | None = None,
-        known: Callable[[str], bool] | None = None,
+        identify: Callable[[str], str | None] | None = None,
     ) -> None:
         self.app = app
         self.limit = limit or (lambda: None)
-        self.known = known or (lambda _key: False)
+        self.identify = identify or (lambda _key: None)
         self._keys: TokenBuckets | None = None
         self._addresses: TokenBuckets | None = None
 
@@ -138,8 +138,9 @@ class RateLimitMiddleware:
     def _take(self, limit: RateLimit, scope: Scope) -> float:
         keys, addresses = self._tables(limit)
         key = _api_key(scope)
-        if key is not None and self.known(key):
-            return keys.take("k:" + hashlib.sha256(key.encode("latin-1")).hexdigest())
+        identity = self.identify(key) if key is not None else None
+        if identity is not None:
+            return keys.take("k:" + identity)
         return addresses.take("a:" + _address(scope))
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:

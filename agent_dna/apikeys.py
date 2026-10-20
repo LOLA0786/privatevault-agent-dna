@@ -98,11 +98,6 @@ class ApiKeyRegistry:
         entry = self._verify_entry(key)
         return entry["name"] if entry else None
 
-    def knows(self, key: str | None) -> bool:
-        """True only for a registered key (used to bucket rate limits by
-        credential without trusting a caller-chosen header value)."""
-        return self._verify_entry(key) is not None
-
     def _verify_entry(self, key: str | None) -> dict[str, str] | None:
         if not key:
             return None

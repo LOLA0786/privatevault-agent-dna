@@ -616,8 +616,10 @@ app.add_middleware(RequestBoundsMiddleware, bounds=lambda: state.get("request_bo
 app.add_middleware(
     RateLimitMiddleware,
     limit=lambda: state.get("rate_limit"),
-    known=lambda key: bool(
-        getattr(state.get("apikeys"), "enabled", False) and state["apikeys"].knows(key)
+    identify=lambda key: (
+        state["apikeys"].verify(key)
+        if getattr(state.get("apikeys"), "enabled", False)
+        else None
     ),
 )
 

@@ -130,7 +130,7 @@ def test_junk_traffic_cannot_reset_a_registered_bucket():
     mw = RateLimitMiddleware(
         app,
         limit=lambda: RateLimit(rps=0.001, burst=1, max_keys=5),
-        known=lambda key: key == real,
+        identify=lambda key: "agent-1" if key == real else None,
     )
 
     async def status(key, addr):
