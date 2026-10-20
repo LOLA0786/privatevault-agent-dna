@@ -15,6 +15,14 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 5
+    groups:
+      # react and react-dom must move together (React refuses mismatched
+      # versions at runtime); a dependency joins the first group it matches,
+      # so this group comes first. Everything else routine: one PR per run.
+      react:
+        patterns: ["react", "react-dom", "@types/react", "@types/react-dom"]
+      dashboard:
+        update-types: ["minor", "patch"]
   - package-ecosystem: cargo
     directory: /rust
     schedule:
@@ -31,23 +39,28 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 5
+    groups:
+      # init, autobuild and analyze are one action at one version: a PR that
+      # moves only one of them fails (seen in #180).
+      codeql:
+        patterns: ["github/codeql-action*"]
+      actions-minor:
+        update-types: ["minor", "patch"]
+  # Base images: digest refreshes of the pinned tag, never a Python version
+  # jump. 3.12 -> 3.14 changes the interpreter CI, the Rust wheel (cp312) and
+  # the test suite run on; that is a deliberate change of its own.
   - package-ecosystem: docker
-    directory: /
+    directories:
+      - /
+      - /network/receiver_kit
+      - /demos/live_checkout
+      - /proof
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
-  - package-ecosystem: docker
-    directory: /network/receiver_kit
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-  - package-ecosystem: docker
-    directory: /demos/live_checkout
-    schedule:
-      interval: monthly
-    open-pull-requests-limit: 2
-  - package-ecosystem: docker
-    directory: /proof
-    schedule:
-      interval: monthly
-    open-pull-requests-limit: 2
+    groups:
+      base-images:
+        patterns: ["*"]
+    ignore:
+      - dependency-name: "python"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
