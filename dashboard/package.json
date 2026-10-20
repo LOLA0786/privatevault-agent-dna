@@ -11,11 +11,11 @@
     "test:deps": "node --test tests/dependencies.test.cjs"
   },
   "dependencies": {
-    "react": "^19.2.7",
+    "react": "^19.3.1",
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
-    "@types/react": "^19.2.17",
+    "@types/react": "^19.3.0",
     "@types/react-dom": "^19.2.5",
     "@vitejs/plugin-react": "^6.1.2",
     "oxlint": "^1.88.0",
