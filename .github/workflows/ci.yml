@@ -75,7 +75,7 @@ jobs:
         run: uv run python tools/prove.py -o /tmp/proof-of-run.json
 
       - name: Upload sealed proof-of-run
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: proof-of-run
           path: /tmp/proof-of-run.json
@@ -285,7 +285,7 @@ jobs:
       - name: CycloneDX SBOM (runtime dependencies)
         run: |
           uvx --from cyclonedx-bom==7.2.1 cyclonedx-py requirements /tmp/req-runtime.txt --of JSON -o sbom-runtime.cdx.json
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: sbom
           path: sbom-runtime.cdx.json
