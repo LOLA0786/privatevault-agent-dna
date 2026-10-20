@@ -24,8 +24,6 @@ IMAGE = re.compile(r"^\s*image:\s*['\"]?([^\s'\"{]+)['\"]?\s*$", re.MULTILINE)
 
 # reference -> why it is not pinned yet
 NOT_YET_PINNED = {
-    "node:22-alpine": "dashboard build stage (deploy/platform); digest to add",
-    "nginx:1.27-alpine": "dashboard runtime (deploy/platform); digest to add",
     "prom/prometheus:v2.55.1": "local platform compose only, not shipped",
     "alpine:3.20": "deletable pilot experiment, not shipped",
     "postgres:16.1": "deletable pilot experiment, not shipped",
