@@ -5,6 +5,14 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### CI actions pinned to commit SHAs (release integrity)
+- All 38 `uses:` references in `.github/workflows/` are pinned to the
+  commit their tag or branch pointed at on 2026-10-20, so behaviour is
+  unchanged, with the version as a comment. A moved tag can no longer change
+  what CI or the release job (which can push images and sign) executes.
+- `tests/test_workflow_pins.py` fails on any tag or branch reference.
+- Dependabot also watches both Dockerfiles (`docker` ecosystem).
+
 ### Enterprise hardening (external patch, reviewed and corrected)
 - Shell guard: content-based credential detection; destructive and
   uninspectable scripts BLOCKed; destructive programs BLOCKed under the
