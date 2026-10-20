@@ -14,15 +14,22 @@ Claims -> tests:
     -> test_image_is_attested_and_signed_by_digest
   - The run verifies both, as a consumer would, before publishing
     -> test_image_is_verified_before_publishing
+  - A release tag is SSH-signed by a key listed for the tagger's email in
+    .github/allowed_signers, checked before anything is built
+    -> test_tag_signature_is_checked_first, test_release_managers_are_listed
 """
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import yaml
 
-WORKFLOW = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "release.yml"
+ROOT = Path(__file__).resolve().parents[1]
+WORKFLOW = ROOT / ".github" / "workflows" / "release.yml"
+SIGNERS = ROOT / ".github" / "allowed_signers"
+RELEASE_MANAGER = "chandan.galani@privatevault.ai"
 DOC = yaml.safe_load(WORKFLOW.read_text())
 TRIGGERS = DOC[True]  # YAML 1.1 reads the key "on" as True
 STEPS = DOC["jobs"]["build"]["steps"]
@@ -37,7 +44,11 @@ def test_dry_run_skips_only_the_release():
     assert set(TRIGGERS) == {"push", "workflow_dispatch"}
     assert TRIGGERS["push"]["tags"] == ["v*"]
     gated = [s.get("name") for s in STEPS if "if" in s]
-    assert gated == ["Tag matches the package version", "Publish the GitHub release"]
+    assert gated == [
+        "Tag is signed by a release manager",
+        "Tag matches the package version",
+        "Publish the GitHub release",
+    ]
     assert all(s["if"] == "github.event_name == 'push'" for s in STEPS if "if" in s)
     assert "dryrun-" in _step("Build and push image")["run"]
     assert _step("Keep dist/ for verification")["with"]["path"] == "dist/"
@@ -80,3 +91,33 @@ def test_image_is_verified_before_publishing():
     )
     assert 'gh attestation verify "oci://$REF"' in run
     assert "--signer-workflow" in run
+
+
+def test_tag_signature_is_checked_first():
+    names = [s.get("name") for s in STEPS]
+    assert names.index("Tag is signed by a release manager") < names.index(
+        "Tag matches the package version"
+    )
+    run = _step("Tag is signed by a release manager")["run"]
+    assert "-c gpg.ssh.allowedSignersFile=.github/allowed_signers verify-tag" in run
+    assert 'git cat-file -t "$TAG")" = tag' in run  # lightweight tags refused
+    assert 'test "$signer" = "$tagger"' in run  # the key is the tagger's
+
+
+def test_release_managers_are_listed():
+    entries = [
+        line.split()
+        for line in SIGNERS.read_text().splitlines()
+        if line.strip() and not line.startswith("#")
+    ]
+    assert entries, "no release manager can sign a tag"
+    for principal, *rest in entries:
+        assert re.fullmatch(r"[\w.+-]+@[\w-]+(\.[\w-]+)+", principal), principal
+        key = [w for w in rest if not w.startswith("namespaces=")]
+        assert key[0] in {
+            "ssh-ed25519",
+            "ecdsa-sha2-nistp256",
+            "sk-ssh-ed25519@openssh.com",
+        }
+        assert re.fullmatch(r"AAAA[\w+/=]+", key[1]), "public key body"
+    assert RELEASE_MANAGER in {e[0] for e in entries}
