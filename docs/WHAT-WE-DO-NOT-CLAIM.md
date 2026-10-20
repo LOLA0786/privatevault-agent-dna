@@ -38,7 +38,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 2270+ automated tests, run in CI on every commit
+- 2300+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
@@ -955,9 +955,12 @@ given; the mint response lists it under `caller_asserted`.
   receiver replicas on separate hosts share one claim: the receiver ledger
   is SQLite. Run one receiver host.
 - **Reads rebuild the whole ledger.** Fixed since (ADR 0029): records,
-  blocked, divergent, lineage and outcome ownership are indexed queries,
-  one page at a time, on both ledgers, and each record served is
-  seal-checked (`tests/test_indexed_reads.py`). **We do not claim** a
+  blocked, divergent, lineage and outcome ownership are indexed queries on
+  both ledgers, and each record served is seal-checked
+  (`tests/test_indexed_reads.py`). The three lists page by insertion
+  order. Lineage reads only the decision's own ancestor chain, at most
+  `limit` records per request (default 100, at most 1000), and continues
+  with `next_cursor`; the page size also bounds the recursive query. **We do not claim** a
   measured throughput at scale: `/v1/verify`, exports and backups still
   read the whole ledger on purpose, and no multi-host load test has been
   run.

@@ -2221,11 +2221,6 @@
   ],
   [
    "api.server",
-   "agent_dna.decision_record",
-   "top"
-  ],
-  [
-   "api.server",
    "agent_dna.dispatch_context_v01",
    "lazy"
   ],
@@ -3268,7 +3263,7 @@
   "agent_dna.control_posture": 5,
   "agent_dna.decision": 27,
   "agent_dna.decision_graph": 5,
-  "agent_dna.decision_record": 10,
+  "agent_dna.decision_record": 9,
   "agent_dna.decision_recorder": 8,
   "agent_dna.decision_store": 3,
   "agent_dna.diff": 1,
@@ -3528,7 +3523,7 @@
   "agent_dna.validation.drift": 1,
   "agent_dna.validation.report": 2,
   "agent_dna.wire_serialization_v01": 1,
-  "api.server": 31,
+  "api.server": 30,
   "examples.amlsim.run_amlsim_sample": 6,
   "examples.authority_blast_radius_demo": 1,
   "examples.authority_derivation_demo": 1,

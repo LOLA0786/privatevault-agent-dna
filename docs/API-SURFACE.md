@@ -188,10 +188,14 @@ anyway. For an operator console this is the highest-priority view.
 
 ### `GET /v1/lineage/{decision_id}`
 
-The chain of decisions leading to one decision, root first (one query).
+The chain of decisions leading to one decision, root-most first, ending at
+`decision_id`: at most `limit` records (1..1000, default 100) in one
+recursive query. If the chain is longer, `next_cursor` is the next older
+decision; pass it as `cursor` to get the page before. Pages are seal- and
+link-checked; a cursor must be a decision of the caller's own agent.
 
 ```json
-{"lineage": [ {"...": "DecisionRecord"}, "..." ]}
+{"lineage": [ {"...": "DecisionRecord"}, "..." ], "next_cursor": null}
 ```
 
 ### `GET /v1/runtime`

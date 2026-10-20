@@ -39,7 +39,12 @@ from .decision_record import GENESIS_HASH, DecisionRecord
 from .execution_record import ExecutionEvent
 from .grant_revocation import RevocationResult
 from .grant_spend import GrantBudgetExceededError
-from .ledger_reads import READ_INDEXES, decision_rows_query, lineage_query
+from .ledger_reads import (
+    MAX_PAGE_SIZE,
+    READ_INDEXES,
+    decision_rows_query,
+    lineage_query,
+)
 from .sqlite_store import MINT_COLUMNS, _check_scopes, classify_mint_row
 
 try:  # optional dependency: pip install 'privatevault-agent-dna[postgres]'
@@ -573,11 +578,15 @@ class PostgresDecisionStore:
         )
         return [(int(seq), str(body)) for seq, body in self._fetchall(sql, params)]
 
-    def decision_lineage_rows(self, decision_id: str) -> list[str]:
-        """Bodies of a decision and its ancestors, root first: one
-        recursive query (ADR 0029)."""
+    def decision_lineage_rows(
+        self, decision_id: str, limit: int = MAX_PAGE_SIZE
+    ) -> list[str]:
+        """Bodies of a decision and up to ``limit`` ancestors, root-most
+        first: one recursive query (ADR 0029)."""
         sql = lineage_query(
-            placeholder="%s", parent_of="({t}.body::jsonb ->> 'parent_decision')"
+            placeholder="%s",
+            parent_of="({t}.body::jsonb ->> 'parent_decision')",
+            max_depth=limit,
         )
         return [str(body) for (body,) in self._fetchall(sql, (decision_id,))]
 

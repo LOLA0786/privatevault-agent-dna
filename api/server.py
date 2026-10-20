@@ -92,7 +92,6 @@ from agent_dna.control_posture import (
 )
 from agent_dna.decision import Decision, DecisionResult
 from agent_dna.decision_graph import DecisionGraph
-from agent_dna.decision_record import DecisionRecord
 from agent_dna.execution_v01 import EXECUTION_AUTHORIZATION_SPEC as _PV_EA_SPEC
 from agent_dna.execution_v01 import (
     EXECUTION_AUTHORIZATION_SPEC_V02 as _PV_EA_SPEC_V02,
@@ -106,7 +105,8 @@ from agent_dna.ledger_reads import (
     clamp_limit,
     decision_from_dict,
     decode_cursor,
-    lineage_from_rows,
+    decode_lineage_cursor,
+    lineage_page_from_rows,
     page_from_rows,
 )
 from agent_dna.lineage import (
@@ -749,14 +749,19 @@ def _ledger_refusal(exc: LedgerIntegrityError) -> NoReturn:
     ) from None
 
 
-def _decision_lineage(decision_id: str) -> list[DecisionRecord]:
-    """Root-to-node path in one recursive query. KeyError if the decision
-    is unknown."""
+def _decision_lineage(decision_id: str, limit: int) -> Page:
+    """One page of the path ending at ``decision_id``, root-most first, in
+    one recursive query bounded by ``limit``. KeyError if unknown."""
     store = _indexed_store()
     if store is None:
-        return _graph().lineage(decision_id)
+        path = _graph().lineage(decision_id)
+        if len(path) > limit:
+            return Page(path[-limit:], path[-limit - 1].decision_id)
+        return Page(path, None)
     try:
-        return lineage_from_rows(store.decision_lineage_rows(decision_id), decision_id)
+        return lineage_page_from_rows(
+            store.decision_lineage_rows(decision_id, limit), decision_id, limit
+        )
     except LedgerIntegrityError as exc:
         _ledger_refusal(exc)
 
@@ -1276,13 +1281,28 @@ def divergent(
 def lineage(
     decision_id: str,
     principal: FullPrincipal,
+    limit: int | None = None,
+    cursor: str | None = None,
 ):
-    _owned_decision(principal, decision_id)
+    """The chain ending at ``decision_id``, root-most first, at most
+    ``limit`` records. A long chain continues with ``next_cursor`` (the
+    next older decision): pass it as ``cursor`` for the page before."""
     try:
-        path = _decision_lineage(decision_id)
+        size = clamp_limit(limit)
+        start = decode_lineage_cursor(cursor) or decision_id
+    except CursorError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+    _owned_decision(principal, decision_id)
+    if start != decision_id:
+        _owned_decision(principal, start)
+    try:
+        page = _decision_lineage(start, size)
     except KeyError:
         raise HTTPException(status_code=404, detail="unknown decision_id") from None
-    return {"lineage": [r.to_dict() for r in path]}
+    return {
+        "lineage": [r.to_dict() for r in page.records],
+        "next_cursor": page.next_cursor,
+    }
 
 
 # ---------- audit surface -------------------------------------------------------

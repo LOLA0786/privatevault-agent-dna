@@ -25,7 +25,12 @@ from typing import Any
 from .decision_graph import DecisionGraph
 from .decision_record import DecisionRecord
 from .execution_record import ExecutionEvent
-from .ledger_reads import READ_INDEXES, decision_rows_query, lineage_query
+from .ledger_reads import (
+    MAX_PAGE_SIZE,
+    READ_INDEXES,
+    decision_rows_query,
+    lineage_query,
+)
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS records (
@@ -408,11 +413,15 @@ class SQLiteDecisionStore:
             for seq, body in self._conn.execute(sql, params).fetchall()
         ]
 
-    def decision_lineage_rows(self, decision_id: str) -> list[str]:
-        """Bodies of a decision and its ancestors, root first: one
-        recursive query (ADR 0029)."""
+    def decision_lineage_rows(
+        self, decision_id: str, limit: int = MAX_PAGE_SIZE
+    ) -> list[str]:
+        """Bodies of a decision and up to ``limit`` ancestors, root-most
+        first: one recursive query (ADR 0029)."""
         sql = lineage_query(
-            placeholder="?", parent_of="json_extract({t}.body, '$.parent_decision')"
+            placeholder="?",
+            parent_of="json_extract({t}.body, '$.parent_decision')",
+            max_depth=limit,
         )
         return [
             str(body) for (body,) in self._conn.execute(sql, (decision_id,)).fetchall()

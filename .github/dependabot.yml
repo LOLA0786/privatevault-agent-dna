@@ -55,6 +55,7 @@ updates:
       - /network/receiver_kit
       - /demos/live_checkout
       - /proof
+      - /deploy/platform
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
@@ -63,4 +64,10 @@ updates:
         patterns: ["*"]
     ignore:
       - dependency-name: "python"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      # Dashboard build and serve images: digests only. Node 22 -> 24 and
+      # nginx 1.27 -> 1.29 are deliberate changes of their own.
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "nginx"
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
