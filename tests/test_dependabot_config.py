@@ -8,13 +8,13 @@ Python base image was offered a 3.12 -> 3.14 interpreter jump.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import yaml
 
-CONFIG = yaml.safe_load(
-    (Path(__file__).resolve().parents[1] / ".github" / "dependabot.yml").read_text()
-)
+ROOT = Path(__file__).resolve().parents[1]
+CONFIG = yaml.safe_load((ROOT / ".github" / "dependabot.yml").read_text())
 
 
 def _entry(ecosystem: str) -> dict:
@@ -24,8 +24,19 @@ def _entry(ecosystem: str) -> dict:
 
 def test_codeql_steps_move_together():
     groups = _entry("github-actions")["groups"]
-    assert groups["codeql"]["patterns"] == ["github/codeql-action*"]
+    # Dependabot names each step "github/codeql-action/<step>"; #187 moved
+    # analyze alone under the single "github/codeql-action*" pattern.
+    assert groups["codeql"]["patterns"] == [
+        "github/codeql-action",
+        "github/codeql-action/*",
+    ]
     assert list(groups)[0] == "codeql"  # first match wins
+
+
+def test_codeql_steps_share_one_commit():
+    text = (ROOT / ".github" / "workflows" / "codeql.yml").read_text()
+    pins = set(re.findall(r"github/codeql-action/\w+@([0-9a-f]{40})", text))
+    assert len(pins) == 1, pins
 
 
 def test_react_and_react_dom_move_together():

@@ -43,7 +43,7 @@ updates:
       # init, autobuild and analyze are one action at one version: a PR that
       # moves only one of them fails (seen in #180).
       codeql:
-        patterns: ["github/codeql-action*"]
+        patterns: ["github/codeql-action", "github/codeql-action/*"]
       actions-minor:
         update-types: ["minor", "patch"]
   # Base images: digest refreshes of the pinned tag, never a Python version
