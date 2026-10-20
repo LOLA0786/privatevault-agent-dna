@@ -2025,6 +2025,26 @@
    "top"
   ],
   [
+   "agent_dna.shell_guard",
+   "agent_dna.evidence",
+   "top"
+  ],
+  [
+   "agent_dna.shell_pin",
+   "agent_dna.decision_record",
+   "top"
+  ],
+  [
+   "agent_dna.shell_pin",
+   "agent_dna.ledger_reads",
+   "top"
+  ],
+  [
+   "agent_dna.shell_pin",
+   "agent_dna.shell_guard",
+   "top"
+  ],
+  [
    "agent_dna.signer",
    "agent_dna.signer_bridge",
    "top"
@@ -2257,6 +2277,11 @@
   [
    "api.server",
    "agent_dna.presenter_identity",
+   "top"
+  ],
+  [
+   "api.server",
+   "agent_dna.rate_limit",
    "top"
   ],
   [
@@ -3243,7 +3268,7 @@
   "agent_dna.control_posture": 5,
   "agent_dna.decision": 27,
   "agent_dna.decision_graph": 5,
-  "agent_dna.decision_record": 9,
+  "agent_dna.decision_record": 10,
   "agent_dna.decision_recorder": 8,
   "agent_dna.decision_store": 3,
   "agent_dna.diff": 1,
@@ -3255,7 +3280,7 @@
   "agent_dna.eav.invariant_engine": 1,
   "agent_dna.economics": 3,
   "agent_dna.economics.cost_check": 1,
-  "agent_dna.evidence": 2,
+  "agent_dna.evidence": 3,
   "agent_dna.execution_record": 6,
   "agent_dna.execution_v01": 14,
   "agent_dna.fingerprint": 5,
@@ -3281,7 +3306,7 @@
   "agent_dna.invariant_engine": 2,
   "agent_dna.invariants": 2,
   "agent_dna.key_custody": 12,
-  "agent_dna.ledger_reads": 3,
+  "agent_dna.ledger_reads": 4,
   "agent_dna.lineage": 1,
   "agent_dna.manifold": 7,
   "agent_dna.multi_agent": 4,
@@ -3318,6 +3343,7 @@
   "agent_dna.presenter_identity": 5,
   "agent_dna.profile_store": 1,
   "agent_dna.rate": 1,
+  "agent_dna.rate_limit": 1,
   "agent_dna.receiver.asgi": 1,
   "agent_dna.receiver.gate": 2,
   "agent_dna.receiver.ledger": 2,
@@ -3335,7 +3361,7 @@
   "agent_dna.scorer": 3,
   "agent_dna.security": 1,
   "agent_dna.security.loop_discovery": 4,
-  "agent_dna.shell_guard": 1,
+  "agent_dna.shell_guard": 2,
   "agent_dna.signer": 6,
   "agent_dna.signer_bridge": 1,
   "agent_dna.signer_python": 5,
@@ -3489,7 +3515,8 @@
   "agent_dna.scorer": 6,
   "agent_dna.security": 1,
   "agent_dna.security.loop_discovery": 2,
-  "agent_dna.shell_guard": 2,
+  "agent_dna.shell_guard": 3,
+  "agent_dna.shell_pin": 3,
   "agent_dna.signer": 2,
   "agent_dna.signer_bridge": 1,
   "agent_dna.signer_python": 1,
@@ -3501,7 +3528,7 @@
   "agent_dna.validation.drift": 1,
   "agent_dna.validation.report": 2,
   "agent_dna.wire_serialization_v01": 1,
-  "api.server": 30,
+  "api.server": 31,
   "examples.amlsim.run_amlsim_sample": 6,
   "examples.authority_blast_radius_demo": 1,
   "examples.authority_derivation_demo": 1,
@@ -4106,6 +4133,10 @@
    "group": "agent_dna (core modules)",
    "path": "agent_dna/rate.py"
   },
+  "agent_dna.rate_limit": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/rate_limit.py"
+  },
   "agent_dna.receiver": {
    "group": "agent_dna/receiver",
    "path": "agent_dna/receiver/__init__.py"
@@ -4185,6 +4216,10 @@
   "agent_dna.shell_guard": {
    "group": "agent_dna (core modules)",
    "path": "agent_dna/shell_guard.py"
+  },
+  "agent_dna.shell_pin": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/shell_pin.py"
   },
   "agent_dna.signer": {
    "group": "agent_dna (core modules)",
@@ -4690,6 +4725,10 @@
    "group": "tools",
    "path": "tools/make_evidence_bundle.py"
   },
+  "tools.migrate_grants": {
+   "group": "tools",
+   "path": "tools/migrate_grants.py"
+  },
   "tools.platform_demo": {
    "group": "tools",
    "path": "tools/platform_demo.py"
@@ -4721,6 +4760,10 @@
   "tools.rust_parity_check": {
    "group": "tools",
    "path": "tools/rust_parity_check.py"
+  },
+  "tools.siem_export": {
+   "group": "tools",
+   "path": "tools/siem_export.py"
   },
   "tools.smoke_authorize": {
    "group": "tools",

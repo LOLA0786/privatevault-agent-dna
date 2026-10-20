@@ -148,6 +148,7 @@ from agent_dna.presenter_identity import (
     PresenterIdentityError,
     load_presenter_bundle,
 )
+from agent_dna.rate_limit import RateLimitMiddleware, rate_limit_from_env
 from agent_dna.request_bounds import RequestBounds, RequestBoundsMiddleware
 from agent_dna.revocation_list import build_revocation_list
 from agent_dna.runtime import RuntimeMonitor
@@ -567,6 +568,7 @@ async def lifespan(app: FastAPI):
         state["presenter_bundle"]
     )
     state["request_bounds"] = _request_bounds()
+    state["rate_limit"] = rate_limit_from_env(os.environ)
     state["store"] = runtime.store
     state["recorder"] = runtime.recorder
     state["engine"] = runtime.engine
@@ -610,6 +612,16 @@ app = FastAPI(
 # Outermost: oversize or over-nested bodies never reach routing, auth, or
 # the JSON parser. Limits are read from state once the lifespan validated them.
 app.add_middleware(RequestBoundsMiddleware, bounds=lambda: state.get("request_bounds"))
+# Outermost: an over-rate credential is refused before body parsing.
+app.add_middleware(
+    RateLimitMiddleware,
+    limit=lambda: state.get("rate_limit"),
+    identify=lambda key: (
+        state["apikeys"].verify(key)
+        if getattr(state.get("apikeys"), "enabled", False)
+        else None
+    ),
+)
 
 
 _MONITOR_EVENTS = 256

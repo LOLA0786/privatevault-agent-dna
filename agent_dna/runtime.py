@@ -24,7 +24,11 @@ from .advisory import AdvisorySignal
 from .circuit_breaker import GuardedEngine
 from .decision import Decision, DecisionEngine, DecisionResult
 from .observability.metrics import MetricsExporter
-from .shell_guard import attach_shell_evidence, escalate_with_shell
+from .shell_guard import (
+    attach_shell_evidence,
+    attach_shell_record_item,
+    escalate_with_shell,
+)
 from .trace import AgentAction
 
 
@@ -109,6 +113,7 @@ class RuntimeMonitor:
         previous = self.previous_capability  # read once: one baseline per decision
         result = self.engine.decide(action, previous, evidence=evidence, **extra)
         result = escalate_with_shell(result, (evidence or {}).get("shell"))
+        result = attach_shell_record_item(result, (evidence or {}).get("shell"))
 
         # decide() already scored internally and is itself fail-closed.
         # Rebuild the advisory for the event record too, but never let

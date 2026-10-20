@@ -265,3 +265,27 @@ jobs:
         env:
           PV_PROOF_DOCKER_TESTS: "1"
         run: uv run pytest -q tests/proof/test_run_all.py
+
+  # Enterprise hardening (2026-10-19): known-vulnerability gate and SBOM for
+  # the exact locked dependency set. Fails the build on any known advisory
+  # in a runtime or extra dependency (OSV/PyPI advisory database).
+  python-supply-chain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+      - name: Export the locked dependency set
+        run: |
+          uv export --locked --no-emit-project --format requirements-txt > /tmp/req-runtime.txt
+          uv export --locked --no-emit-project --all-extras --format requirements-txt > /tmp/req-all.txt
+      - name: Known-vulnerability gate (pip-audit, hashes pinned by uv.lock)
+        run: |
+          uvx pip-audit==2.10.1 -r /tmp/req-all.txt --disable-pip --require-hashes --strict
+      - name: CycloneDX SBOM (runtime dependencies)
+        run: |
+          uvx --from cyclonedx-bom==7.2.1 cyclonedx-py requirements /tmp/req-runtime.txt --of JSON -o sbom-runtime.cdx.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom-runtime.cdx.json

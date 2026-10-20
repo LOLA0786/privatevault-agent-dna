@@ -38,7 +38,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 2130+ automated tests, run in CI on every commit
+- 2260+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
@@ -164,11 +164,69 @@ What this does **not** claim:
   Name your MCP shell tools in `PV_SHELL_CAPABILITIES`.
 - Credential detection is a filename and variable-name heuristic (`.env`,
   keys, `~/.ssh`, `~/.aws`, `/proc/*/environ`, `$API_TOKEN`-style variables,
-  bare `env`/`printenv`), not data-loss prevention. A secret that already sits under
+  bare `env`/`printenv`) plus, since 2026-10-19, content patterns: public
+  token formats (AWS, GitHub, GitLab, Slack, Stripe, OpenAI/Anthropic,
+  Google, npm/PyPI, JWT, PEM private keys, credentialed database URLs),
+  `KEY=VALUE` lines whose key names a secret, and (literal arguments only)
+  32+ character mixed-case random strings. Content is checked in literal
+  arguments always, and in files only with `PV_SHELL_WORKDIR`. It is still
+  not data-loss prevention: a custom-format secret, an encoded one, or a
+  value shorter than 8 characters is not recognised by content. A secret that already sits under
   an innocent name (a symlink or copy made outside the guard) is not
-  recognised; the example policy's approval gate on network tools is what
-  stops it, so an approver who allows it would leak it (external retest
+  recognised by name; the example policy's approval gate on network tools is
+  what stops it, so an approver who allows it would leak it (external retest
   2026-10-16, E06/E11).
+- Optional same-host checks (off unless the operator sets them):
+  `PV_SHELL_WORKDIR` (the agent's working directory on the guard's host)
+  makes the guard resolve each existing path to its real path (symlinks,
+  `--upload-file` via a symlink), compare inodes with the configured secret
+  files (hard links), read `curl -K/--config` files, and read a script file
+  handed to an interpreter (`python3 up.py`, `sh s.sh`) and flag it
+  (`SHELL_SCRIPT_SECRET`) when its quoted strings name a credential-like
+  file. `PV_SHELL_SECRET_FILES` (comma-separated `KEY=VALUE` files such as
+  `.env`) adds value-based detection: a file whose contents include a known
+  secret value, a literal secret value in the arguments, and `$VAR` where
+  `VAR` is a key in those files, is named in `PV_SHELL_SECRET_VARS`, or holds a
+  known secret value in the guard's own environment. Limits: the guard reads
+  its own filesystem and environment, so this is only meaningful when it
+  runs on the same host (or container) as the agent; values shorter than 8
+  characters are ignored; script inspection is a string scan, not
+  execution, so a script that builds the path at run time is not caught;
+  an unreadable `curl -K` file is treated as code the guard cannot see.
+- With `PV_SHELL_WORKDIR`, a script handed to an interpreter is BLOCKed when
+  its inspected content deletes or truncates files (`shutil.rmtree`,
+  `os.remove`, `Path.unlink`, `FileUtils.rm_rf`, `fs.rmSync`, `rmtree`, a
+  quoted `rm ...` passed to `subprocess`/`system`, or, for shell scripts, any
+  destructive program after parsing the script like a command):
+  `SHELL_SCRIPT_DESTRUCTIVE`. `PV_SHELL_ALLOW_DESTRUCTIVE_SCRIPTS=1` lifts the
+  guard rule only; `evidence.shell.destructive` stays true for policy. A
+  script that is missing, not a regular file or over 1 MiB is BLOCKed as
+  `SHELL_SCRIPT_UNINSPECTABLE`. Pattern matching, not execution: a script
+  that deletes through an API not in the list, or builds the call at run
+  time, is not caught.
+- Time of check vs time of use: with `PV_SHELL_WORKDIR`, every file the guard
+  read is pinned (real path, SHA-256 of the whole file, the argv tokens that
+  named it) in `evidence.shell.pinned_files`, which the decision record seals
+  (`shell_guard` evidence item). `agent_dna.shell_pin.run_pinned(arguments,
+  decision)` runs nothing unless the record's seal verifies, it is an ALLOW,
+  and its `arguments_digest` is that of `arguments`, so only the decided
+  command runs. It takes the pins from that record, copies each pinned file
+  into a private 0700 directory, verifying the hash of the bytes it copies,
+  points the argv at the copies, then runs; any change, symlink swap or
+  partial pin refuses (`PinMismatch`). The seal proves the record is intact,
+  not who issued it: the executor must take `decision` from its own
+  `/v1/decide` response. This protects only executors that call it; a
+  shell-string action is verified, not rewritten; files a script imports or
+  opens at run time are not pinned; a script run from the private copy sees
+  that directory as its own (`__file__`, `sys.path[0]`).
+- The guard reads, pins and reports only files whose real path is inside
+  `PV_SHELL_WORKDIR`. A file named outside it (absolute path, `..`, or a
+  symlink) is checked by name and inode only, never opened, and a script
+  outside it is uninspectable (BLOCK). It opens regular files only, without
+  following a final symlink or blocking on a FIFO, and at most 64 files and
+  128 MiB of hashing per request; a pin the budget cut short refuses
+  execution. Files in `PV_SHELL_SECRET_FILES` are read for values, never
+  pinned or reported (`tests/test_shell_guard_confinement.py`).
 - Without a policy, plain destructive programs (`rm`, `/bin/rm`, `env rm`,
   `xargs rm`, `mv`) are visible in `evidence.shell` but not blocked; that is
   the policy's job (`examples/config/shell-policy.json`).

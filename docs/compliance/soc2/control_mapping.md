@@ -1,6 +1,6 @@
 # SOC 2 Type II — Control Mapping to PrivateVault Agent DNA (v0.4.0)
 
-**Audit Reference:** Commit 4cc19b3 (Byzantine PBFT + Adapter Layer)
+**Audit Reference:** Commit 4cc19b3 (Byzantine PBFT + Adapter Layer). Paths re-checked 2026-10-19; every path below must exist (`tests/test_compliance_paths.py`). For ISO 27001, RBI and CERT-In see `docs/ENTERPRISE-READINESS.md`.
 
 **Scope:** Agent governance runtime, decision audit, multi-agent consensus
 
@@ -12,7 +12,7 @@
 
 | Control | Implementation | Evidence File |
 |----------|----------------|---------------|
-| CC6.1 — Logical access security | Agent capability grants + RBAC | `agent_dna/auth/`, `agent_dna/authorization.py` |
+| CC6.1 — Logical access security | Hashed API keys with full/audit scopes; per-agent capability grants (no human-user RBAC or SSO yet, see `docs/ENTERPRISE-READINESS.md`) | `agent_dna/apikeys.py`, `agent_dna/grants.py`, `agent_dna/authorization.py` |
 | CC6.2 — Access removal | Profile revocation via grants | `agent_dna/grants.py` |
 | CC6.3 — Security infrastructure | Enterprise constraints (UAAL Layer) | `agent_dna/uaal_layer.py` |
 
@@ -44,7 +44,7 @@
 |-------------|----------------|---------------|
 | Decision receipts | Signed decision records | `agent_dna/decision_record.py` |
 | Cryptographic signing | Ed25519 signatures | `agent_dna/signer.py` |
-| Immutable audit evidence | Audit trail | `agent_dna/audit/` |
+| Immutable audit evidence | Hash-chained, signed decision ledger; independent verifier | `agent_dna/sqlite_store.py`, `agent_dna/pg_store.py`, `tools/verify_records.py` |
 | Execution history | Timeline & execution records | `agent_dna/timeline.py`, `agent_dna/execution_record.py` |
 | Multi-agent consensus | Byzantine PBFT | `agent_dna/consensus/` |
 

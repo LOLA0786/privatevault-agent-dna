@@ -1,0 +1,67 @@
+name: release
+
+# Enterprise hardening (2026-10-19). Signed, attested releases: on a v* tag,
+# build the wheel, sdist and container image from the locked environment,
+# generate an SBOM, and attach SLSA build provenance signed with Sigstore
+# (GitHub OIDC, keyless). Verify with:
+#   gh attestation verify dist/<file> --repo LOLA0786/privatevault-agent-dna
+#   cosign verify ghcr.io/lola0786/privatevault-agent-dna:<tag> \
+#     --certificate-identity-regexp 'https://github.com/LOLA0786/privatevault-agent-dna/.github/workflows/release.yml@.*' \
+#     --certificate-oidc-issuer https://token.actions.githubusercontent.com
+# Not yet exercised: no tag has been cut with this workflow.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write        # attach files to the GitHub release
+      id-token: write        # Sigstore keyless signing
+      attestations: write    # build provenance
+      packages: write        # push the image to GHCR
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+      - name: Tests must pass on the tagged commit
+        run: |
+          uv sync --locked --extra dev
+          uv run python -m pytest -q
+      - name: Build wheel and sdist
+        run: uv build -o dist
+      - name: SBOM
+        run: |
+          uv export --locked --no-emit-project --format requirements-txt > /tmp/req.txt
+          uvx --from cyclonedx-bom==7.2.1 cyclonedx-py requirements /tmp/req.txt --of JSON -o dist/sbom.cdx.json
+          (cd dist && sha256sum * > SHA256SUMS)
+      - name: Build provenance (SLSA, Sigstore-signed)
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: "dist/*"
+      - name: SBOM attestation
+        uses: actions/attest-sbom@v2
+        with:
+          subject-path: "dist/*.whl"
+          sbom-path: dist/sbom.cdx.json
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Build and push image
+        id: image
+        run: |
+          IMAGE=ghcr.io/$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          docker build -t "$IMAGE:${{ github.ref_name }}" .
+          docker push "$IMAGE:${{ github.ref_name }}"
+          echo "digest=$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE:${{ github.ref_name }}")" >> "$GITHUB_OUTPUT"
+      - uses: sigstore/cosign-installer@v3
+      - name: Sign the image (keyless)
+        run: cosign sign --yes "${{ steps.image.outputs.digest }}"
+      - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "${{ github.ref_name }}" dist/* --verify-tag --generate-notes
