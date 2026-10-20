@@ -5,6 +5,15 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Base images pinned by digest (release integrity)
+- `python:3.12-slim` in the API, receiver-kit, live-checkout and proof
+  Dockerfiles, and `postgres:16` in the Helm CI install, are pinned to their
+  multi-arch index digests (resolved 2026-10-20), so a re-pointed tag cannot
+  change what is built or tested.
+- `tests/test_image_pins.py` fails on any unpinned image outside a short,
+  reasoned exception list (dashboard node/nginx, local-only compose images).
+- Dependabot watches all four Dockerfiles.
+
 ### CI actions pinned to commit SHAs (release integrity)
 - All 38 `uses:` references in `.github/workflows/` are pinned to the
   commit their tag or branch pointed at on 2026-10-20, so behaviour is
