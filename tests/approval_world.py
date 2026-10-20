@@ -89,7 +89,11 @@ class ApproverWorld:
                 },
             ],
         }
-        self.root_grant = sign_grant(
+        self.root_grant = self._grant_for(approver_principal, approver_key_id)
+
+    def _grant_for(self, approver_principal: str, approver_key_id: str) -> dict:
+        organisation_id = self.organisation_id
+        return sign_grant(
             {
                 "spec": GRANT_SPEC,
                 "canonicalization": CANONICALIZATION,
@@ -115,6 +119,28 @@ class ApproverWorld:
             },
             self.root_key,
         )
+
+    def add_approver(self, principal: str, key_id: str) -> ApproverWorld:
+        """Another approver in the same organisation (ADR 0031): a new key
+        pinned in this same bundle, with its own authority grant from the
+        same root. The returned world shares the bundle; write the bundle
+        to disk after adding every approver."""
+        other = object.__new__(ApproverWorld)
+        other.__dict__.update(self.__dict__)
+        other.approver_principal = principal
+        other.approver_key_id = key_id
+        other.approver_key = SigningKey.generate()
+        self.bundle["keys"].append(
+            {
+                "key_id": key_id,
+                "principal": principal,
+                "algorithm": "ed25519",
+                "public_key": encode_public_key(other.approver_key),
+                "usages": ["approval_signer", "subject"],
+            }
+        )
+        other.root_grant = other._grant_for(principal, key_id)
+        return other
 
     def approve(
         self,

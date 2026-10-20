@@ -15,7 +15,7 @@ flowchart BT
   L2["L2 Evidence: records, permits, signatures<br/>14 modules"]
   L3["L3 Ledgers: SQLite and PostgreSQL<br/>13 modules"]
   L4["L4 Decision engine: the precedence ladder and what it consults<br/>73 modules"]
-  L5["L5 Enforcement runtime: monitor, breaker, recorder, gates, sidecar<br/>32 modules"]
+  L5["L5 Enforcement runtime: monitor, breaker, recorder, gates, sidecar<br/>33 modules"]
   L6["L6 Composition and entry points<br/>18 modules"]
   L2 -->|23| L1
   L3 -->|10| L1
@@ -23,7 +23,7 @@ flowchart BT
   L4 -->|50| L1
   L4 -->|1| L2
   L4 -->|5| L3
-  L5 -->|42| L1
+  L5 -->|43| L1
   L5 -->|18| L2
   L5 -->|4| L3
   L5 -->|11| L4
@@ -31,7 +31,7 @@ flowchart BT
   L6 -->|7| L2
   L6 -->|16| L3
   L6 -->|49| L4
-  L6 -->|22| L5
+  L6 -->|23| L5
   L2 -.->|1 upward| L4
   L3 -.->|4 upward| L4
   L3 -.->|1 upward| L5
@@ -51,7 +51,7 @@ flowchart BT
 | `agent_dna.audit_connector.server` | PrivateVault Audit: a read-only remote MCP server for risk and audit teams | `agent_dna.audit_connector.client`, `agent_dna.audit_connector.oauth` | 2: `agent_dna.audit_connector`, `agent_dna.audit_connector.__main__` |
 | `agent_dna.backup` | Backups of the PrivateVault ledgers, and restores that prove themselves | `agent_dna.authority_v01`, `agent_dna.key_custody`, `agent_dna.pg_store`, `agent_dna.sqlite_store` | none |
 | `agent_dna.cli` | pv — PrivateVault command line | `agent_dna.authority_v01`, `agent_dna.discovery`, `agent_dna.grant_revocation`, `agent_dna.pg_store`, `agent_dna.policy_gate`, `agent_dna.policy_miner`, `agent_dna.policy_replay`, `agent_dna.security.loop_discovery`, `agent_dna.sqlite_store` | none |
-| `agent_dna.composition` | Production composition root (audit Commit set 3) | `agent_dna.adapters`, `agent_dna.adapters_policy.opa`, `agent_dna.apikeys`, `agent_dna.approval_bridge`, `agent_dna.authority_v01`, `agent_dna.circuit_breaker`, `agent_dna.connector`, `agent_dna.connector.adapters.exact_byte_http`, `agent_dna.connector.adapters.execution_trust`, `agent_dna.connector.adapters.sidecar_transport`, `agent_dna.connector.cross_agent`, `agent_dna.consensus`, `agent_dna.decision`, `agent_dna.decision_recorder`, `agent_dna.dynamics`, `agent_dna.economics`, `agent_dna.grant_revocation`, `agent_dna.grant_spend`, `agent_dna.grants`, `agent_dna.key_custody`, `agent_dna.manifold`, `agent_dna.open_authorizer`, `agent_dna.pg_compat`, `agent_dna.pg_shared_state`, `agent_dna.pg_store`, `agent_dna.policy.checker`, `agent_dna.policy.loader`, `agent_dna.policy_replay`, `agent_dna.runtime`, `agent_dna.scorer`, `agent_dna.signer_python`, `agent_dna.sqlite_store`, `agent_dna.trace`, `agent_dna.uaal_layer` | 3: `agent_dna.gateway.__main__`, `agent_dna.gateway.runtime`, `api.server` |
+| `agent_dna.composition` | Production composition root (audit Commit set 3) | `agent_dna.adapters`, `agent_dna.adapters_policy.opa`, `agent_dna.apikeys`, `agent_dna.approval_bridge`, `agent_dna.approval_policy`, `agent_dna.authority_v01`, `agent_dna.circuit_breaker`, `agent_dna.connector`, `agent_dna.connector.adapters.exact_byte_http`, `agent_dna.connector.adapters.execution_trust`, `agent_dna.connector.adapters.sidecar_transport`, `agent_dna.connector.cross_agent`, `agent_dna.consensus`, `agent_dna.decision`, `agent_dna.decision_recorder`, `agent_dna.dynamics`, `agent_dna.economics`, `agent_dna.grant_revocation`, `agent_dna.grant_spend`, `agent_dna.grants`, `agent_dna.key_custody`, `agent_dna.manifold`, `agent_dna.open_authorizer`, `agent_dna.pg_compat`, `agent_dna.pg_shared_state`, `agent_dna.pg_store`, `agent_dna.policy.checker`, `agent_dna.policy.loader`, `agent_dna.policy_replay`, `agent_dna.runtime`, `agent_dna.scorer`, `agent_dna.signer_python`, `agent_dna.sqlite_store`, `agent_dna.trace`, `agent_dna.uaal_layer` | 3: `agent_dna.gateway.__main__`, `agent_dna.gateway.runtime`, `api.server` |
 | `agent_dna.discovery` | Offline, low-compute discovery loop for PrivateVault controls | `agent_dna.policy.checker`, `agent_dna.policy.schema`, `agent_dna.policy_gate`, `agent_dna.policy_miner`, `agent_dna.security.loop_discovery`, `agent_dna.validation.metrics` | 2: `agent_dna`, `agent_dna.cli` |
 | `agent_dna.gateway.__main__` | Out-of-process MCP / HTTPS-egress gateway | `agent_dna.composition`, `agent_dna.gateway.credentials`, `agent_dna.gateway.errors`, `agent_dna.gateway.framing`, `agent_dna.gateway.http_sse_proxy`, `agent_dna.gateway.https_egress`, `agent_dna.gateway.runtime`, `agent_dna.gateway.stdio_proxy` | none |
 | `agent_dna.key_lifecycle` | Key rotation as a governed action | `agent_dna.decision`, `agent_dna.signer`, `agent_dna.trace` | none |
@@ -67,7 +67,8 @@ flowchart BT
 | Module | What it is | Depends on (core) | Used by |
 |---|---|---|---|
 | `agent_dna.apikeys` | API key auth for the pilot deployment. Deliberately minimal: | `agent_dna.identity` | 3: `agent_dna.composition`, `agent_dna.connector.middleware`, `api.server` |
-| `agent_dna.approval_bridge` | Approval bridge (ADR 0020): a verified, single-use human approval turns | `agent_dna.approval_v01`, `agent_dna.authority_v01`, `agent_dna.identity` | 4: `agent_dna.authority_deadline`, `agent_dna.composition`, `agent_dna.decision`, `api.server` |
+| `agent_dna.approval_bridge` | Approval bridge (ADR 0020): a verified, single-use human approval turns | `agent_dna.approval_policy`, `agent_dna.approval_v01`, `agent_dna.authority_v01`, `agent_dna.identity` | 4: `agent_dna.authority_deadline`, `agent_dna.composition`, `agent_dna.decision`, `api.server` |
+| `agent_dna.approval_policy` | Who must approve what: quorums and roles for human approvals (ADR 0031) | `agent_dna.identity` | 2: `agent_dna.approval_bridge`, `agent_dna.composition` |
 | `agent_dna.authority_deadline` | How long a sealed ALLOW may still be turned into a permit | `agent_dna.approval_bridge` | 1: `api.server` |
 | `agent_dna.circuit_breaker` | Circuit breaker (TUE-05 / RBM-06) | `agent_dna.amount`, `agent_dna.decision`, `agent_dna.grant_spend`, `agent_dna.pg_compat` | 2: `agent_dna.composition`, `agent_dna.runtime` |
 | `agent_dna.connector` |  | `agent_dna.connector.middleware`, `agent_dna.connector.models` | 1: `agent_dna.composition` |
@@ -227,7 +228,7 @@ flowchart BT
 | `agent_dna.evidence` | Evidence Engine | nothing in the core | 3: `agent_dna.control_posture`, `agent_dna.decision`, `agent_dna.shell_guard` |
 | `agent_dna.execution_record` | ExecutionEvent — append-only executor feedback for a decision | nothing in the core | 5: `agent_dna.decision_graph`, `agent_dna.decision_recorder`, `agent_dna.decision_store`, `agent_dna.pg_store`, `agent_dna.sqlite_store` |
 | `agent_dna.gateway.errors` | Gateway failure modes — all fail closed | nothing in the core | 11: `agent_dna.gateway`, `agent_dna.gateway.__main__`, `agent_dna.gateway.credentials`, `agent_dna.gateway.framing`, `agent_dna.gateway.http_sse_proxy`, ... |
-| `agent_dna.identity` | Agent identity normalization (ADR 0021, PR 1 of the lineage work) | nothing in the core | 5: `agent_dna.apikeys`, `agent_dna.approval_bridge`, `agent_dna.connector.cross_agent`, `agent_dna.lineage`, `agent_dna.security.loop_discovery` |
+| `agent_dna.identity` | Agent identity normalization (ADR 0021, PR 1 of the lineage work) | nothing in the core | 6: `agent_dna.apikeys`, `agent_dna.approval_bridge`, `agent_dna.approval_policy`, `agent_dna.connector.cross_agent`, `agent_dna.lineage`, ... |
 | `agent_dna.key_custody` | Where PrivateVault's Ed25519 signing keys live: local or in a KMS | nothing in the core | 11: `agent_dna.authority_v01`, `agent_dna.backup`, `agent_dna.closure_v01`, `agent_dna.composition`, `agent_dna.connector.adapters.exact_byte_http`, ... |
 | `agent_dna.multi_agent.base` | Shared base types for Cross-Agent Behavioral Invariants (CABI) | `agent_dna.multi_agent.interaction_graph` | 13: `agent_dna.connector.cross_agent`, `agent_dna.multi_agent`, `agent_dna.multi_agent.authority`, `agent_dna.multi_agent.consensus`, `agent_dna.multi_agent.dual_control`, ... |
 | `agent_dna.multi_agent.events` | The atomic unit of multi-agent behavior: a directed interaction event | nothing in the core | 4: `agent_dna.multi_agent`, `agent_dna.multi_agent.graph_builder`, `agent_dna.multi_agent.interaction_graph`, `agent_dna.multi_agent.runtime_validator` |

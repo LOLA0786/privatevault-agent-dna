@@ -132,6 +132,7 @@ class RuntimeConfig:
     execution_trust_bundle_file: str | None = None
     # ADR 0020: operator-pinned approver keys (usage approval_signer).
     approver_trust_bundle_file: str | None = None
+    approval_policy_file: str | None = None
     egress_allowed_destinations: frozenset[str] = field(default_factory=frozenset)
     egress_allowed_audiences: frozenset[str] = field(default_factory=frozenset)
 
@@ -174,6 +175,7 @@ class RuntimeConfig:
             trusted_public_keys=parse_trusted_keys(os.getenv(TRUSTED_KEYS_ENV)),
             execution_trust_bundle_file=os.getenv(EXECUTION_TRUST_BUNDLE_ENV),
             approver_trust_bundle_file=os.getenv(APPROVER_TRUST_BUNDLE_ENV),
+            approval_policy_file=os.getenv(APPROVAL_POLICY_ENV),
             egress_allowed_destinations=_csv_frozenset(
                 "PV_EGRESS_ALLOWED_DESTINATIONS"
             ),
@@ -470,6 +472,7 @@ def _secure_profile_manifest(secure: bool) -> dict[str, str]:
 
 
 APPROVER_TRUST_BUNDLE_ENV = "PV_APPROVER_TRUST_BUNDLE"
+APPROVAL_POLICY_ENV = "PV_APPROVAL_POLICY_FILE"
 
 
 def _load_approver_trust_bundle(path: str | None) -> dict[str, Any] | None:
@@ -508,6 +511,11 @@ def _attach_approvals(
     """Pin the approver bundle on the engine; manifest entry either way."""
     approver_bundle = _load_approver_trust_bundle(cfg.approver_trust_bundle_file)
     if approver_bundle is None:
+        if cfg.approval_policy_file:
+            raise RuntimeError(
+                f"{APPROVAL_POLICY_ENV} is set but {APPROVER_TRUST_BUNDLE_ENV} is "
+                "not: a quorum needs approver keys"
+            )
         return {
             "status": "not_configured",
             "detail": (
@@ -517,14 +525,28 @@ def _attach_approvals(
             ),
         }
     from .approval_bridge import ApprovalBridge
+    from .approval_policy import ApprovalPolicy, ApprovalPolicyError
 
-    engine_core.approvals = ApprovalBridge(trust_bundle=approver_bundle, ledger=store)
+    policy = None
+    if cfg.approval_policy_file:
+        try:
+            policy = ApprovalPolicy.load(cfg.approval_policy_file)
+        except ApprovalPolicyError as exc:
+            raise RuntimeError(f"{APPROVAL_POLICY_ENV}: {exc}") from exc
+    engine_core.approvals = ApprovalBridge(
+        trust_bundle=approver_bundle, ledger=store, policy=policy
+    )
+    quorum = (
+        f"; quorum and roles from {cfg.approval_policy_file} ({policy.digest})"
+        if policy is not None
+        else f"; one approver suffices (set {APPROVAL_POLICY_ENV} for quorums)"
+    )
     return {
         "status": "attached",
         "detail": (
             f"approver trust bundle {cfg.approver_trust_bundle_file} "
             f"(org {approver_bundle['organisation_id']}); approvals are "
-            "single-use and require separation of duties"
+            f"single-use and require separation of duties{quorum}"
         ),
     }
 
