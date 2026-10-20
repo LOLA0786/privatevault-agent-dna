@@ -5,6 +5,16 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Dependabot updates that cannot half-apply
+- CodeQL's init, autobuild and analyze steps move in one PR (a mixed v3/v4
+  run fails, as #180 did); react, react-dom and their types move together;
+  routine dashboard and action updates arrive as one grouped PR each.
+- The four Dockerfiles share one docker entry: base-image digests refresh,
+  but the Python base image is never moved to a new minor or major version
+  by Dependabot (3.12 -> 3.14 is a deliberate change: CI, the cp312 Rust
+  wheel and the suite all run 3.12).
+- `tests/test_dependabot_config.py`.
+
 ### Base images pinned by digest (release integrity)
 - `python:3.12-slim` in the API, receiver-kit, live-checkout and proof
   Dockerfiles, and `postgres:16` in the Helm CI install, are pinned to their
