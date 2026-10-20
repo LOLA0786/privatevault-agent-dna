@@ -613,7 +613,13 @@ app = FastAPI(
 # the JSON parser. Limits are read from state once the lifespan validated them.
 app.add_middleware(RequestBoundsMiddleware, bounds=lambda: state.get("request_bounds"))
 # Outermost: an over-rate credential is refused before body parsing.
-app.add_middleware(RateLimitMiddleware, limit=lambda: state.get("rate_limit"))
+app.add_middleware(
+    RateLimitMiddleware,
+    limit=lambda: state.get("rate_limit"),
+    known=lambda key: bool(
+        getattr(state.get("apikeys"), "enabled", False) and state["apikeys"].knows(key)
+    ),
+)
 
 
 _MONITOR_EVENTS = 256

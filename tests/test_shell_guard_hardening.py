@@ -288,6 +288,32 @@ def test_runtime_blocks_destructive_script(wd):
 # ---- 3. time of check vs time of use ----------------------------------------
 
 
+def _decided(arguments, decision=Decision.ALLOW):
+    """A sealed decision record for ``arguments``, as /v1/decide returns it."""
+    from agent_dna.advisory import Severity
+    from agent_dna.decision import DecisionResult
+    from agent_dna.decision_record import build_record
+    from agent_dna.shell_guard import attach_shell_record_item
+
+    result = DecisionResult(
+        decision=decision,
+        triggered_by="test",
+        reason="",
+        capability="shell.exec",
+        agent_id="a1",
+        drift_score=0.0,
+        severity=Severity.INFO,
+    )
+    attach_shell_record_item(result, analyze_shell_arguments(arguments))
+    action = AgentAction(
+        agent_id="a1",
+        capability="shell.exec",
+        timestamp=time.time(),
+        arguments=dict(arguments),
+    )
+    return {"record": build_record(action, result).to_dict()}
+
+
 def test_inspected_files_are_pinned(wd):
     (wd / "ok.py").write_text("print('hi')\n")
     ev = analyze_shell_arguments({"argv": ["python3", "ok.py"]})
@@ -301,10 +327,10 @@ def test_inspected_files_are_pinned(wd):
 
 def test_run_pinned_runs_inspected_bytes(wd):
     (wd / "ok.py").write_text("print('hello')\n")
-    ev = analyze_shell_arguments({"argv": ["python3", "ok.py"]})
+    args = {"argv": ["python3", "ok.py"]}
     out = run_pinned(
-        ["python3", "ok.py"],
-        {"shell": ev},
+        args,
+        _decided(args),
         workdir=str(wd),
         capture_output=True,
         text=True,
@@ -314,11 +340,12 @@ def test_run_pinned_runs_inspected_bytes(wd):
 
 def test_run_pinned_refuses_swapped_content(wd):
     (wd / "ok.py").write_text("print('hello')\n")
-    ev = analyze_shell_arguments({"argv": ["python3", "ok.py"]})
+    args = {"argv": ["python3", "ok.py"]}
+    decided = _decided(args)
     (wd / "ok.py").write_text("import shutil;shutil.rmtree('canary')\n")
     (wd / "canary").mkdir()
     with pytest.raises(PinMismatch, match="content changed"):
-        run_pinned(["python3", "ok.py"], {"shell": ev}, workdir=str(wd))
+        run_pinned(args, decided, workdir=str(wd))
     assert (wd / "canary").exists()
 
 
@@ -334,10 +361,11 @@ def test_run_pinned_refuses_symlink_swap(wd):
 
 def test_run_pinned_rewrites_at_file_tokens(wd):
     (wd / "body.txt").write_text("payload\n")
-    ev = analyze_shell_arguments({"argv": ["cat", "body.txt"]})
+    args = {"argv": ["cat", "body.txt"]}
+    decided = _decided(args)
     out = run_pinned(
-        ["cat", "body.txt"],
-        {"shell": ev},
+        args,
+        decided,
         workdir=str(wd),
         capture_output=True,
         text=True,
@@ -345,7 +373,45 @@ def test_run_pinned_rewrites_at_file_tokens(wd):
     assert out.stdout == "payload\n"
     (wd / "body.txt").write_text("changed\n")
     with pytest.raises(PinMismatch):
-        run_pinned(["cat", "body.txt"], {"shell": ev}, workdir=str(wd))
+        run_pinned(args, decided, workdir=str(wd))
+
+
+# The executor runs only what a sealed ALLOW decided (review of the
+# enterprise-hardening patch, 2026-10-20: run_pinned ran any argv, even on a
+# BLOCK, when no file was pinned).
+
+
+def test_run_pinned_refuses_a_block(wd):
+    (wd / "canary").mkdir()
+    args = {"argv": ["rm", "-rf", "canary"]}
+    with pytest.raises(PinMismatch, match="not an ALLOW"):
+        run_pinned(args, _decided(args, Decision.BLOCK), workdir=str(wd))
+    assert (wd / "canary").exists()
+
+
+def test_run_pinned_refuses_arguments_that_were_not_decided(wd):
+    (wd / "canary").mkdir()
+    allowed = _decided({"argv": ["ls"]})
+    with pytest.raises(PinMismatch, match="arguments differ"):
+        run_pinned({"argv": ["rm", "-rf", "canary"]}, allowed, workdir=str(wd))
+    assert (wd / "canary").exists()
+
+
+def test_run_pinned_refuses_a_tampered_record(wd):
+    (wd / "canary").mkdir()
+    args = {"argv": ["rm", "-rf", "canary"]}
+    decided = _decided(args, Decision.BLOCK)
+    decided["record"]["decision"] = "allow"  # edited after sealing
+    with pytest.raises(PinMismatch, match="seal"):
+        run_pinned(args, decided, workdir=str(wd))
+    assert (wd / "canary").exists()
+
+
+def test_run_pinned_ignores_caller_supplied_evidence(wd):
+    """Pins come from the sealed record; a bare evidence dict is refused."""
+    args = {"argv": ["ls"]}
+    with pytest.raises(PinMismatch):
+        run_pinned(args, {"shell": {"pinned_files": []}}, workdir=str(wd))
 
 
 def test_partial_pin_refused(wd, monkeypatch):
@@ -380,6 +446,8 @@ def test_api_response_record_carries_pins_and_executor_uses_them(
     db = tmp_path_factory.mktemp("db")
     monkeypatch.setenv("PV_DB_PATH", str(db / "sg.db"))
     monkeypatch.delenv("PV_API_KEYS_FILE", raising=False)
+    # a known capability, so the decision is a real ALLOW (not a drift hold)
+    monkeypatch.setenv("PV_BASELINE_CAPABILITIES", "shell.exec")
     import api.server as server
 
     importlib.reload(server)
@@ -392,9 +460,10 @@ def test_api_response_record_carries_pins_and_executor_uses_them(
     assert shell["pinned_files"][0]["tokens"] == ["ok.py"]
     # the item is part of the sealed record: the hash covers it
     assert any(i["name"] == "shell_guard" for i in data["record"]["evidence"])
+    assert data["decision"] == "allow", data
     (wd / "ok.py").write_text("print('swapped')\n")
-    with pytest.raises(PinMismatch):
-        run_pinned(["python3", "ok.py"], data, workdir=str(wd))
+    with pytest.raises(PinMismatch, match="content changed"):
+        run_pinned({"argv": ["python3", "ok.py"]}, data, workdir=str(wd))
 
 
 # ---- 4. destructive programs blocked by default under the secure profile ----

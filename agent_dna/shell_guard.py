@@ -39,9 +39,10 @@ import math
 import os
 import re
 import shlex
+import stat
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 from .advisory import Severity
 from .decision import Decision, DecisionResult
@@ -308,34 +309,104 @@ _PINS: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar(
     "pv_shell_pins", default=None
 )
 MAX_PIN_BYTES = 64 * 1_048_576
+# Per analysis: one request cannot make the API open or hash without bound.
+MAX_FILES_PER_ANALYSIS = 64
+MAX_HASH_BYTES_PER_ANALYSIS = 128 * 1_048_576
+
+
+def _within_workdir(real: str) -> bool:
+    """Confinement (review 2026-10-20): the guard reads, pins and reports
+    only files inside PV_SHELL_WORKDIR. Reading elsewhere would turn the
+    sealed evidence (path, SHA-256, size) returned to the agent into a probe
+    of every file the API process can read."""
+    wd = _workdir()
+    if wd is None:
+        return False
+    root = os.path.realpath(wd)
+    return real == root or real.startswith(root.rstrip(os.sep) + os.sep)
+
+
+def _open_regular(path: str) -> int | None:
+    """An fd on a regular file, never following a final symlink and never
+    blocking on a FIFO or device swapped in after a check."""
+    flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_NOFOLLOW", 0)
+    flags |= getattr(os, "O_CLOEXEC", 0)
+    try:
+        fd = os.open(path, flags)
+    except OSError:
+        return None
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            os.close(fd)
+            return None
+    except OSError:
+        os.close(fd)
+        return None
+    return fd
+
+
+def _read_operator_file(path: str) -> bytes | None:
+    """A file the operator configured (PV_SHELL_SECRET_FILES): read on the
+    operator's behalf, never confined, never pinned or reported."""
+    fd = _open_regular(path)
+    if fd is None:
+        return None
+    with os.fdopen(fd, "rb") as fh:
+        return fh.read(MAX_INSPECT_BYTES)
 
 
 def _read_limited(path: str) -> bytes | None:
+    """Read an agent-named file for inspection, and pin it. None when it is
+    outside the workdir, not a regular file, unreadable, or over the
+    per-analysis budget: the caller treats that as uninspectable."""
+    if not _within_workdir(path):
+        return None
+    pins = _PINS.get()
+    if pins is not None and path in pins["files"]:
+        cached = pins["data"].get(path)
+        if cached is not None:
+            return cast(bytes, cached)
+    if pins is not None:
+        if pins["files_opened"] >= MAX_FILES_PER_ANALYSIS:
+            return None
+        pins["files_opened"] += 1
+    fd = _open_regular(path)
+    if fd is None:
+        return None
     try:
-        with open(path, "rb") as fh:
-            st = os.fstat(fh.fileno())
+        with os.fdopen(fd, "rb") as fh:
             data = fh.read(MAX_INSPECT_BYTES)
-            pins = _PINS.get()
-            if pins is not None and path not in pins["files"]:
-                # Hash what this open file handle holds, so the pin and the
-                # inspected bytes come from the same inode.
-                h = hashlib.sha256(data)
-                complete = len(data) < MAX_INSPECT_BYTES
-                covers = complete
-                if not complete and st.st_size <= MAX_PIN_BYTES:
-                    for chunk in iter(lambda: fh.read(1_048_576), b""):
-                        h.update(chunk)
-                    covers = True
-                pins["files"][path] = {
-                    "realpath": path,
-                    "sha256": h.hexdigest(),
-                    "size": st.st_size,
-                    "inspected_completely": complete,
-                    "hash_covers_file": covers,
-                }
+            if pins is not None:
+                _pin(fh, path, data, pins)
             return data
     except (OSError, ValueError):
         return None
+
+
+def _pin(fh: Any, path: str, data: bytes, pins: dict[str, Any]) -> None:
+    """Pin an open file by SHA-256 of all its bytes, from the same handle
+    the guard inspected, within the per-analysis hash budget."""
+    st = os.fstat(fh.fileno())
+    h = hashlib.sha256(data)
+    complete = len(data) < MAX_INSPECT_BYTES
+    covers = complete
+    budget = pins["hash_budget"] - len(data)
+    if not complete and st.st_size <= min(MAX_PIN_BYTES, budget):
+        for chunk in iter(lambda: fh.read(1_048_576), b""):
+            h.update(chunk)
+            budget -= len(chunk)
+        covers = True
+    pins["hash_budget"] = max(0, budget)
+    pins["files"][path] = {
+        "realpath": path,
+        "sha256": h.hexdigest(),
+        "size": st.st_size,
+        "inspected_completely": complete,
+        # False when the budget stopped the hash: run_pinned then refuses
+        # to execute (fail closed).
+        "hash_covers_file": covers,
+    }
+    pins["data"][path] = data
 
 
 # ---- content-based secret detection (enterprise hardening, 2026-10-19) ----
@@ -480,7 +551,7 @@ def _load_secret_files(
             inodes.add((st.st_dev, st.st_ino))
         except OSError:
             continue
-        data = _read_limited(path) or b""
+        data = _read_operator_file(path) or b""
         for line in data.decode("utf-8", "replace").splitlines():
             line = line.strip()
             if not line or line.startswith("#") or "=" not in line:
@@ -966,12 +1037,27 @@ def _argv_from_arguments(arguments: Mapping[str, Any]) -> tuple[str, Any]:
     raise _UnparseableError("no argv, command or cmd argument")
 
 
+def shell_command(arguments: Mapping[str, Any]) -> tuple[str, Any]:
+    """('argv', list) or ('string', str) for a shell action's arguments, as
+    the guard reads them. ValueError if they describe no command."""
+    try:
+        return _argv_from_arguments(arguments)
+    except _UnparseableError as exc:
+        raise ValueError(str(exc)) from exc
+
+
 def analyze_shell_arguments(arguments: Mapping[str, Any] | None) -> dict[str, Any]:
     """Derive ``evidence.shell`` from a shell action's arguments. Total."""
     acc = _Acc()
     error: str | None = None
     form = None
-    pins: dict[str, Any] = {"files": {}, "tokens": {}}
+    pins: dict[str, Any] = {
+        "files": {},
+        "tokens": {},
+        "data": {},
+        "files_opened": 0,
+        "hash_budget": MAX_HASH_BYTES_PER_ANALYSIS,
+    }
     reset = _PINS.set(pins)
     try:
         try:

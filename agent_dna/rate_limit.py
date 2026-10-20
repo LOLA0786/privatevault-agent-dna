@@ -2,18 +2,22 @@
 
 Off unless the operator sets ``PV_RATE_LIMIT_RPS`` (sustained requests per
 second per credential) and optionally ``PV_RATE_LIMIT_BURST`` (bucket size,
-default ``2 x RPS``, at least 1). Each credential -- the SHA-256 of the
-``X-API-Key`` header, or the client address when no key is sent -- has its
-own token bucket, so one noisy or compromised agent cannot starve the
-others or the approvers. A request over the limit is refused with ``429``
-and ``Retry-After`` before routing, authentication or body parsing, and
-never reaches the decision path, so a refusal is never an ALLOW.
+default ``2 x RPS``, at least 1). A request over the limit is refused with
+``429`` and ``Retry-After`` before routing or body parsing, and never reaches
+the decision path, so a refusal is never an ALLOW.
+
+Who gets a bucket: only a *registered* API key earns its own bucket, so one
+noisy or compromised agent cannot starve the others or the approvers. A
+request with no key, or with a key the registry does not hold, is charged to
+its client address. A caller therefore cannot mint fresh buckets by inventing
+keys, and junk traffic lives in a separate, bounded address table, so it can
+never evict a registered agent's bucket. Behind a proxy every unauthenticated
+request shares the proxy's address: stricter, never looser.
 
 Health, readiness and metrics probes are exempt. Buckets live in process
-memory and are bounded (least recently used evicted past ``max_keys``); with
-several replicas each enforces its own limit, so the effective ceiling is
-``replicas x RPS``. A shared limiter (PostgreSQL or the ingress) is the
-multi-host answer and is not provided here.
+memory; with several replicas each enforces its own limit, so the effective
+ceiling is ``replicas x RPS``. A shared limiter (PostgreSQL or the ingress)
+is the multi-host answer and is not provided here.
 """
 
 from __future__ import annotations
@@ -94,35 +98,56 @@ class TokenBuckets:
         return wait
 
 
-def _credential(scope: Scope) -> str:
+def _api_key(scope: Scope) -> str | None:
     for name, value in scope.get("headers", []):
         if name.lower() == b"x-api-key" and value:
-            return "k:" + hashlib.sha256(value).hexdigest()[:32]
+            return value.decode("latin-1")
+    return None
+
+
+def _address(scope: Scope) -> str:
     client = scope.get("client") or ("unknown", 0)
-    return "a:" + str(client[0])
+    return str(client[0])
 
 
 class RateLimitMiddleware:
-    """Refuse requests over the per-credential rate with 429."""
+    """Refuse requests over the per-credential rate with 429.
+
+    ``known(key)`` says whether a key is registered; only those get their
+    own bucket (see the module docstring). Without it every request is
+    charged to its client address."""
 
     def __init__(
-        self, app: ASGIApp, limit: Callable[[], RateLimit | None] | None = None
+        self,
+        app: ASGIApp,
+        limit: Callable[[], RateLimit | None] | None = None,
+        known: Callable[[str], bool] | None = None,
     ) -> None:
         self.app = app
         self.limit = limit or (lambda: None)
-        self._buckets: TokenBuckets | None = None
+        self.known = known or (lambda _key: False)
+        self._keys: TokenBuckets | None = None
+        self._addresses: TokenBuckets | None = None
 
-    def _for(self, limit: RateLimit) -> TokenBuckets:
-        if self._buckets is None or self._buckets.limit != limit:
-            self._buckets = TokenBuckets(limit)
-        return self._buckets
+    def _tables(self, limit: RateLimit) -> tuple[TokenBuckets, TokenBuckets]:
+        if self._keys is None or self._addresses is None or self._keys.limit != limit:
+            self._keys = TokenBuckets(limit)
+            self._addresses = TokenBuckets(limit)
+        return self._keys, self._addresses
+
+    def _take(self, limit: RateLimit, scope: Scope) -> float:
+        keys, addresses = self._tables(limit)
+        key = _api_key(scope)
+        if key is not None and self.known(key):
+            return keys.take("k:" + hashlib.sha256(key.encode("latin-1")).hexdigest())
+        return addresses.take("a:" + _address(scope))
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         limit = self.limit() if scope["type"] == "http" else None
         if limit is None or scope.get("path") in EXEMPT_PATHS:
             await self.app(scope, receive, send)
             return
-        wait = self._for(limit).take(_credential(scope))
+        wait = self._take(limit, scope)
         if wait <= 0.0:
             await self.app(scope, receive, send)
             return

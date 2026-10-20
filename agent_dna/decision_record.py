@@ -247,6 +247,11 @@ def check_version_invariant(
         )
 
 
+def digest_arguments(arguments: dict[str, Any]) -> str:
+    """The ``arguments_digest`` a record seals for these arguments."""
+    return _digest_arguments(arguments)
+
+
 def _digest_arguments(arguments: dict[str, Any]) -> str:
     canonical = json.dumps(
         arguments,

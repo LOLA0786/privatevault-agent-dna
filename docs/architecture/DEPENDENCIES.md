@@ -21,7 +21,8 @@ flowchart BT
   L3 -->|10| L1
   L3 -->|10| L2
   L4 -->|50| L1
-  L4 -->|4| L3
+  L4 -->|1| L2
+  L4 -->|5| L3
   L5 -->|41| L1
   L5 -->|18| L2
   L5 -->|4| L3
@@ -163,8 +164,8 @@ flowchart BT
 | `agent_dna.security` | Deterministic security controls for autonomous-agent execution | `agent_dna.security.loop_discovery` | 1: `agent_dna` |
 | `agent_dna.security.loop_discovery` | Deterministic loop discovery at the PrivateVault authority boundary | `agent_dna.authority_v01`, `agent_dna.identity` | 4: `agent_dna.cli`, `agent_dna.discovery`, `agent_dna.security`, `api.server` |
 | `agent_dna.shadow` | Shadow policy evaluation — test a candidate policy against the LIVE | nothing in the core | none |
-| `agent_dna.shell_guard` | Shell guard: server-derived analysis of shell commands (escalate-only) | `agent_dna.advisory`, `agent_dna.decision`, `agent_dna.evidence` | 1: `agent_dna.runtime` |
-| `agent_dna.shell_pin` | Run a shell action on exactly the bytes the shell guard inspected | nothing in the core | none |
+| `agent_dna.shell_guard` | Shell guard: server-derived analysis of shell commands (escalate-only) | `agent_dna.advisory`, `agent_dna.decision`, `agent_dna.evidence` | 2: `agent_dna.runtime`, `agent_dna.shell_pin` |
+| `agent_dna.shell_pin` | Run a shell action on exactly the bytes the shell guard inspected | `agent_dna.decision_record`, `agent_dna.ledger_reads`, `agent_dna.shell_guard` | none |
 | `agent_dna.similarity` | Behavioral Identity Similarity Engine | `agent_dna.fingerprint` | 3: `agent_dna`, `agent_dna.diff`, `agent_dna.timeline` |
 | `agent_dna.timeline` | Behavior Timeline | `agent_dna.fingerprint`, `agent_dna.similarity` | 1: `agent_dna` |
 | `agent_dna.uaal_layer` | UAAL Layer (L0) — enterprise deterministic constraints, evaluated | `agent_dna.amount`, `agent_dna.eav`, `agent_dna.trace` | 1: `agent_dna.composition` |
@@ -181,7 +182,7 @@ flowchart BT
 | `agent_dna.decision_store` | DecisionStore — append-only JSONL persistence for DecisionRecords | `agent_dna.decision_graph`, `agent_dna.decision_record`, `agent_dna.execution_record` | none |
 | `agent_dna.grant_revocation` | Durable grant revocation with a defined enforcement boundary | nothing in the core | 3: `agent_dna.cli`, `agent_dna.composition`, `agent_dna.pg_store` |
 | `agent_dna.grant_spend` | Durable grant spend (security review 2026-10, "before live payments") | `agent_dna.amount` | 4: `agent_dna.circuit_breaker`, `agent_dna.composition`, `agent_dna.grants`, `agent_dna.pg_store` |
-| `agent_dna.ledger_reads` | Routine reads answered from the store, one page at a time (ADR 0029) | `agent_dna.decision_record` | 3: `agent_dna.pg_store`, `agent_dna.sqlite_store`, `api.server` |
+| `agent_dna.ledger_reads` | Routine reads answered from the store, one page at a time (ADR 0029) | `agent_dna.decision_record` | 4: `agent_dna.pg_store`, `agent_dna.shell_pin`, `agent_dna.sqlite_store`, `api.server` |
 | `agent_dna.lineage` | Server-derived lineage for multi-agent flows (ADR 0021, lineage PR 2) | `agent_dna.advisory`, `agent_dna.decision`, `agent_dna.identity`, `agent_dna.multi_agent.dual_control`, `agent_dna.pg_compat` | 1: `api.server` |
 | `agent_dna.pg_compat` | Run a SQLite-written ledger on PostgreSQL with SQLite's write semantics | nothing in the core | 4: `agent_dna.circuit_breaker`, `agent_dna.composition`, `agent_dna.lineage`, `agent_dna.policy_replay` |
 | `agent_dna.pg_shared_state` | Per-agent baselines and cross-agent windows shared through PostgreSQL | `agent_dna.multi_agent` | 1: `agent_dna.composition` |
@@ -200,7 +201,7 @@ flowchart BT
 | `agent_dna.authorize_binding` | Bind POST /v1/authorize minting to a sealed ALLOW DecisionRecord | `agent_dna.action_v01`, `agent_dna.authority_v01`, `agent_dna.decision_record`, `agent_dna.dispatch_context_v01`, `agent_dna.wire_serialization_v01` | 5: `agent_dna.connector.adapters.exact_byte_http`, `agent_dna.execution_v01`, `agent_dna.pg_store`, `agent_dna.sqlite_store`, `api.server` |
 | `agent_dna.closure_v01` | Execution closure record v0.1-experimental | `agent_dna.authority_v01`, `agent_dna.dispatch_v01`, `agent_dna.execution_v01`, `agent_dna.key_custody` | 1: `agent_dna.connector.adapters.exact_byte_http` |
 | `agent_dna.decision_graph` | DecisionGraph — append-only, queryable store of DecisionRecords | `agent_dna.decision_record`, `agent_dna.execution_record` | 5: `agent_dna.decision_recorder`, `agent_dna.decision_store`, `agent_dna.pg_store`, `agent_dna.sqlite_store`, `api.server` |
-| `agent_dna.decision_record` | DecisionRecord — the canonical, persistable runtime decision object | `agent_dna.action_v01`, `agent_dna.decision`, `agent_dna.dispatch_context_v01`, `agent_dna.trace` | 8: `agent_dna.authorize_binding`, `agent_dna.decision_graph`, `agent_dna.decision_recorder`, `agent_dna.decision_store`, `agent_dna.ledger_reads`, ... |
+| `agent_dna.decision_record` | DecisionRecord — the canonical, persistable runtime decision object | `agent_dna.action_v01`, `agent_dna.decision`, `agent_dna.dispatch_context_v01`, `agent_dna.trace` | 9: `agent_dna.authorize_binding`, `agent_dna.decision_graph`, `agent_dna.decision_recorder`, `agent_dna.decision_store`, `agent_dna.ledger_reads`, ... |
 | `agent_dna.dispatch_v01` | Independent dispatch-boundary witness v0.1-experimental | `agent_dna.authority_v01`, `agent_dna.execution_v01`, `agent_dna.key_custody`, `agent_dna.wire_serialization_v01` | 2: `agent_dna.closure_v01`, `agent_dna.connector.adapters.exact_byte_http` |
 | `agent_dna.execution_v01` | Execution authorization and closure artifacts v0.1-experimental | `agent_dna.action_v01`, `agent_dna.authority_v01`, `agent_dna.authorize_binding`, `agent_dna.key_custody`, `agent_dna.wire_serialization_v01` | 8: `agent_dna.closure_v01`, `agent_dna.connector.adapters.exact_byte_http`, `agent_dna.dispatch_v01`, `agent_dna.gateway.framing`, `agent_dna.gateway.https_egress`, ... |
 | `agent_dna.export_manifest` | Signed export manifest — closes the gap between "records are | `agent_dna.signer` | none |

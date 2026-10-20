@@ -207,13 +207,26 @@ What this does **not** claim:
 - Time of check vs time of use: with `PV_SHELL_WORKDIR`, every file the guard
   read is pinned (real path, SHA-256 of the whole file, the argv tokens that
   named it) in `evidence.shell.pinned_files`, which the decision record seals
-  (`shell_guard` evidence item). `agent_dna.shell_pin.run_pinned` copies each
-  pinned file into a private 0700 directory, verifying the hash of the bytes
-  it copies, points the argv at the copies, then runs; any change, symlink
-  swap or partial pin refuses (`PinMismatch`). This protects only executors
-  that call it; a shell-string action is verified, not rewritten; files a
-  script imports or opens at run time are not pinned; a script run from the
-  private copy sees that directory as its own (`__file__`, `sys.path[0]`).
+  (`shell_guard` evidence item). `agent_dna.shell_pin.run_pinned(arguments,
+  decision)` runs nothing unless the record's seal verifies, it is an ALLOW,
+  and its `arguments_digest` is that of `arguments`, so only the decided
+  command runs. It takes the pins from that record, copies each pinned file
+  into a private 0700 directory, verifying the hash of the bytes it copies,
+  points the argv at the copies, then runs; any change, symlink swap or
+  partial pin refuses (`PinMismatch`). The seal proves the record is intact,
+  not who issued it: the executor must take `decision` from its own
+  `/v1/decide` response. This protects only executors that call it; a
+  shell-string action is verified, not rewritten; files a script imports or
+  opens at run time are not pinned; a script run from the private copy sees
+  that directory as its own (`__file__`, `sys.path[0]`).
+- The guard reads, pins and reports only files whose real path is inside
+  `PV_SHELL_WORKDIR`. A file named outside it (absolute path, `..`, or a
+  symlink) is checked by name and inode only, never opened, and a script
+  outside it is uninspectable (BLOCK). It opens regular files only, without
+  following a final symlink or blocking on a FIFO, and at most 64 files and
+  128 MiB of hashing per request; a pin the budget cut short refuses
+  execution. Files in `PV_SHELL_SECRET_FILES` are read for values, never
+  pinned or reported (`tests/test_shell_guard_confinement.py`).
 - Without a policy, plain destructive programs (`rm`, `/bin/rm`, `env rm`,
   `xargs rm`, `mv`) are visible in `evidence.shell` but not blocked; that is
   the policy's job (`examples/config/shell-policy.json`).

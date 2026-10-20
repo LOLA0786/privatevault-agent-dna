@@ -5,6 +5,28 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Enterprise hardening (external patch, reviewed and corrected)
+- Shell guard: content-based credential detection; destructive and
+  uninspectable scripts BLOCKed; destructive programs BLOCKed under the
+  secure profile; SHA-256 pins of inspected files sealed in the record.
+- `agent_dna/shell_pin.run_pinned(arguments, decision)` runs only a sealed,
+  seal-verified ALLOW for exactly those arguments, on the pinned bytes
+  (`PinMismatch` otherwise). Review fix: as submitted it ran any argv, even
+  on a BLOCK.
+- The guard reads only inside `PV_SHELL_WORKDIR`, opens regular files only
+  (no FIFO hang), within 64 files and 128 MiB of hashing per request, and
+  never pins operator secret files. Review fix: as submitted it sealed the
+  path, SHA-256 and size of any file the API could read into the record
+  returned to the agent.
+- Per-credential rate limiting (`PV_RATE_LIMIT_RPS`, `PV_RATE_LIMIT_BURST`,
+  429 + `Retry-After`). Review fix: only registered keys get their own
+  bucket; invented or absent keys share their address's, and junk traffic
+  cannot evict a registered agent's bucket.
+- `tools/siem_export.py` (ECS NDJSON, CEF), `tools/migrate_grants.py`, a
+  drift hint naming `PV_BASELINE_CAPABILITIES`, a `pip-audit` + CycloneDX
+  SBOM CI job, a tag-triggered signed-release workflow (not yet exercised),
+  and compliance-path checks (`tests/test_compliance_paths.py`).
+
 ### Routine reads are indexed queries (ADR 0029, review finding 5)
 - `/v1/records`, `/v1/blocked` and `/v1/divergent` are one indexed query
   per page on both ledgers: `limit` 1 to 1000 (default 100), `cursor` from
