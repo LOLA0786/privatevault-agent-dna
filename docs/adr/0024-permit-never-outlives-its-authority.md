@@ -54,10 +54,16 @@ verifier change.
   approval claims have no stored expiry. Decide again.
 - Removing a grant from the grants file stops its outstanding ALLOWs from
   minting, which is intended, but a mistaken edit does the same.
-- Only expiry, revocation and removal end authority. A changed policy file,
-  changed enterprise state or a tightened grant budget does not invalidate
-  ALLOWs already made; they stay mintable until their deadline. That is the
-  reason the window is short.
+- Under this ADR alone, only expiry, revocation and removal end authority.
+  ADR 0026 later narrowed this: in server evidence mode (`PV_PERMIT_EVIDENCE=server`,
+  which the secure profile requires) each decision seals the digests of the
+  policy, grants and operations configuration the server had loaded, and a
+  mint refuses when the configuration loaded now differs. A changed file
+  takes effect when the server loads it (restart), not when it is edited.
+  What still does not invalidate an ALLOW before its deadline: changed
+  enterprise state outside those files, a policy change on a remote OPA
+  endpoint (its identity is sealed, not its content), and any decision made
+  in caller evidence mode. That is the reason the window is short.
 
 ## What would make us revisit
 Workflows that need long-lived execution authority (then a signed,

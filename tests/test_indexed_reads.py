@@ -17,7 +17,14 @@ Claims -> tests:
     -> test_reads_stay_within_the_callers_agent
   - A tampered row is refused, not served
     -> test_tampered_row_is_refused[*]
-  - The planner uses the new indexes -> test_sqlite_pages_use_an_index
+  - The planner answers each page from an index on the filter, in seq
+    order, without a sort -> test_sqlite_pages_use_an_index
+  - A lineage is read one page at a time too, root-most first; following
+    next_cursor rebuilds the whole chain; the page size bounds the
+    recursion -> test_lineage_pages_rebuild_the_chain[*],
+    test_api_lineage_pages_follow_next_cursor, test_lineage_query_is_bounded
+  - A lineage cursor is another decision of the caller's own agent
+    -> test_lineage_cursor_stays_within_the_callers_agent
 """
 
 from __future__ import annotations
@@ -25,6 +32,7 @@ from __future__ import annotations
 import importlib
 import json
 import os
+import re
 import sqlite3
 import time
 from typing import Any
@@ -37,6 +45,7 @@ from agent_dna.decision_recorder import DecisionRecorder
 from agent_dna.ledger_reads import (
     LedgerIntegrityError,
     lineage_from_rows,
+    lineage_page_from_rows,
     page_from_rows,
 )
 from agent_dna.open_authorizer import OpenAuthorizer
@@ -149,19 +158,53 @@ def test_indexed_reads_match_the_full_graph(store, size):
         lineage_from_rows(store.decision_lineage_rows("no-such-id"), "no-such-id")
 
 
+@pytest.mark.parametrize("size", [1, 3, 1000])
+def test_lineage_pages_rebuild_the_chain(store, size):
+    _populate(store)
+    graph = store.load_graph()
+    for agent in AGENTS:
+        for record in graph.find_by_agent(agent):
+            pages, start = [], record.decision_id
+            while start is not None:
+                page = lineage_page_from_rows(
+                    store.decision_lineage_rows(start, size), start, size
+                )
+                assert 1 <= len(page.records) <= size
+                pages.insert(0, [r.to_dict() for r in page.records])
+                start = page.next_cursor
+            assert [r for p in pages for r in p] == [
+                r.to_dict() for r in graph.lineage(record.decision_id)
+            ]
+
+
+def test_lineage_query_is_bounded(tmp_path):
+    store = SQLiteDecisionStore(tmp_path / "pv.db")
+    _populate(store)
+    newest = store.load_graph().find_by_agent("agent-a")[-1]
+    assert len(store.decision_lineage_rows(newest.decision_id, 2)) == 3
+    rows = store.decision_lineage_rows(newest.decision_id, 2)
+    with pytest.raises(LedgerIntegrityError, match="broken parent link"):
+        lineage_page_from_rows([rows[1], rows[0], rows[2]], newest.decision_id, 2)
+    store.close()
+
+
 def test_sqlite_pages_use_an_index(tmp_path):
+    """Any index on the filter column will do (SQLite versions differ in
+    which they pick: 3.45 the new composite, 3.53 the older single-column
+    one, whose entries are already in rowid = seq order). What must not
+    happen is a scan of the table or a sort of the result."""
     store = SQLiteDecisionStore(tmp_path / "pv.db")
     _populate(store)
     conn = sqlite3.connect(tmp_path / "pv.db")
-    for index, query, params in (
+    for column, query, params in (
         (
-            "idx_decisions_agent_seq",
+            "agent_id",
             "SELECT d.seq, d.body FROM records d WHERE d.kind = 'decision' "
             "AND d.seq > ? AND d.agent_id = ? ORDER BY d.seq LIMIT ?",
             (0, "agent-a", 5),
         ),
         (
-            "idx_decisions_verdict_seq",
+            "decision",
             "SELECT d.seq, d.body FROM records d WHERE d.kind = 'decision' "
             "AND d.seq > ? AND d.decision = ? ORDER BY d.seq LIMIT ?",
             (0, "block", 5),
@@ -170,7 +213,9 @@ def test_sqlite_pages_use_an_index(tmp_path):
         plan = " ".join(
             str(row[-1]) for row in conn.execute("EXPLAIN QUERY PLAN " + query, params)
         )
-        assert index in plan, plan
+        assert re.search(rf"SEARCH d USING (COVERING )?INDEX \w+ \({column}=", plan), (
+            plan
+        )
         assert "TEMP B-TREE" not in plan, plan  # no sort: the index is in seq order
     conn.close()
     store.close()
@@ -257,6 +302,37 @@ def test_api_pages_follow_next_cursor(api):
     assert collected == whole["records"]
     lineage = _get(client, key, f"/v1/lineage/{whole['records'][-1]['decision_id']}")
     assert lineage.json()["lineage"] == whole["records"]
+    assert lineage.json()["next_cursor"] is None
+
+
+def test_api_lineage_pages_follow_next_cursor(api):
+    client, keys, _server = api
+    key = keys["agent-a"]
+    whole = _get(client, key, "/v1/records/agent-a").json()["records"]
+    newest = whole[-1]["decision_id"]
+    collected, cursor = [], None
+    while True:
+        params = {"limit": 2} | ({"cursor": cursor} if cursor else {})
+        page = _get(client, key, f"/v1/lineage/{newest}", **params)
+        assert page.status_code == 200, page.text
+        assert 1 <= len(page.json()["lineage"]) <= 2
+        collected = page.json()["lineage"] + collected
+        cursor = page.json()["next_cursor"]
+        if cursor is None:
+            break
+    assert collected == whole
+    for params in ({"limit": 0}, {"limit": 1001}, {"cursor": "x" * 300}):
+        assert _get(client, key, f"/v1/lineage/{newest}", **params).status_code == 422
+
+
+def test_lineage_cursor_stays_within_the_callers_agent(api):
+    client, keys, _server = api
+    a, b = keys["agent-a"], keys["agent-b"]
+    mine = _get(client, a, "/v1/records/agent-a").json()["records"][-1]["decision_id"]
+    theirs = _get(client, b, "/v1/records/agent-b").json()["records"][-1]["decision_id"]
+    r = _get(client, a, f"/v1/lineage/{mine}", cursor=theirs)
+    assert r.status_code == 404, r.text
+    assert _get(client, a, f"/v1/lineage/{mine}", cursor="no-such").status_code == 404
 
 
 @pytest.mark.parametrize(

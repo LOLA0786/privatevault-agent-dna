@@ -24,9 +24,11 @@ from agent_dna.decision_record import DecisionRecord
 
 DEFAULT_PAGE_SIZE = 100
 MAX_PAGE_SIZE = 1000
-# A lineage is the agent's chain of decisions, so it can be long; the bound
-# only stops a cycle or a corrupt parent pointer from recursing forever.
-MAX_LINEAGE_DEPTH = 10_000_000
+# A lineage is the agent's whole chain of decisions, so it can be as long as
+# the agent's history. It is read one page at a time like the lists (same
+# limits); the page size also bounds the recursion, so a cycle or a corrupt
+# parent pointer cannot run away (follow-up review, 20 October 2026).
+MAX_LINEAGE_ID_LENGTH = 256
 
 
 class LedgerIntegrityError(ValueError):
@@ -93,12 +95,10 @@ def page_from_rows(rows: Sequence[tuple[int, str]], limit: int) -> Page:
     return Page(records, str(shown[-1][0]) if more and shown else None)
 
 
-def lineage_query(
-    *, placeholder: str, parent_of: str, max_depth: int = MAX_LINEAGE_DEPTH
-) -> str:
-    """One recursive query for a decision and all its ancestors, deepest
-    ancestor first. ``parent_of`` is the dialect's expression for a row's
-    ``parent_decision`` given the alias (``{t}``)."""
+def lineage_query(*, placeholder: str, parent_of: str, max_depth: int) -> str:
+    """One recursive query for a decision and at most ``max_depth``
+    ancestors, deepest ancestor first. ``parent_of`` is the dialect's
+    expression for a row's ``parent_decision`` given the alias (``{t}``)."""
     p = placeholder
     return (
         "WITH RECURSIVE chain(body, parent, depth) AS ("
@@ -112,23 +112,59 @@ def lineage_query(
     )
 
 
-def lineage_from_rows(bodies: Sequence[str], decision_id: str) -> list[DecisionRecord]:
-    """Root-to-node path from the recursive query's rows, every record's
-    seal and every parent link checked. KeyError if the decision is unknown."""
+def decode_lineage_cursor(cursor: str | None) -> str | None:
+    """A lineage cursor is the decision id the next page starts from."""
+    if cursor is None or cursor == "":
+        return None
+    if len(cursor) > MAX_LINEAGE_ID_LENGTH or not cursor.isprintable():
+        raise CursorError("cursor is not one this API issued")
+    return cursor
+
+
+def lineage_page_from_rows(bodies: Sequence[str], decision_id: str, limit: int) -> Page:
+    """One page of a lineage, root-most first, ending at ``decision_id``.
+
+    ``bodies`` came from a query with ``max_depth=limit``: up to
+    ``limit + 1`` rows, deepest first. The extra row, if present, is not
+    shown; its id is ``next_cursor`` (ask for its lineage next). Every
+    record's seal and every parent link is checked, including the link to
+    the extra row; a page that does not continue must reach a root.
+    KeyError if the decision is unknown."""
     if not bodies:
         raise KeyError(decision_id)
     path = [decision_from_body(body) for body in bodies]
+    _check_links(path, decision_id)
+    if len(path) > limit:
+        return Page(path[-limit:], path[-limit - 1].decision_id)
+    _check_root(path, decision_id)
+    return Page(path, None)
+
+
+def lineage_from_rows(bodies: Sequence[str], decision_id: str) -> list[DecisionRecord]:
+    """A complete root-to-node path, every seal and parent link checked.
+    KeyError if the decision is unknown."""
+    if not bodies:
+        raise KeyError(decision_id)
+    path = [decision_from_body(body) for body in bodies]
+    _check_links(path, decision_id)
+    _check_root(path, decision_id)
+    return path
+
+
+def _check_links(path: list[DecisionRecord], decision_id: str) -> None:
     if path[-1].decision_id != decision_id:
         raise LedgerIntegrityError(f"lineage of {decision_id} ends elsewhere")
+    for parent, child in zip(path, path[1:], strict=False):
+        if child.parent_decision != parent.decision_id:
+            raise LedgerIntegrityError(f"broken parent link at {child.decision_id}")
+
+
+def _check_root(path: list[DecisionRecord], decision_id: str) -> None:
     if path[0].parent_decision is not None:
         raise LedgerIntegrityError(
             f"lineage of {decision_id} does not reach a root: parent "
             f"{path[0].parent_decision} is missing or the chain is too deep"
         )
-    for parent, child in zip(path, path[1:], strict=False):
-        if child.parent_decision != parent.decision_id:
-            raise LedgerIntegrityError(f"broken parent link at {child.decision_id}")
-    return path
 
 
 # Partial indexes that make each page an index range scan (both stores).

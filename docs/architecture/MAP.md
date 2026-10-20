@@ -53,7 +53,7 @@ flowchart LR
   n13 -->|12| n0
   n14 -->|8| n0
   n15 -->|2| n0
-  n18 -->|26| n0
+  n18 -->|25| n0
   n18 -->|1| n4
   n18 -->|3| n11
   n18 -->|1| n15
@@ -119,7 +119,7 @@ flowchart LR
 | `agent_dna.adapters` | 11 | 1 |
 | `agent_dna.gateway.errors` | 11 | 0 |
 | `agent_dna.apikeys` | 10 | 1 |
-| `agent_dna.decision_record` | 10 | 4 |
+| `agent_dna.decision_record` | 9 | 4 |
 | `agent_dna.decision_recorder` | 8 | 5 |
 | `agent_dna.gateway.framing` | 8 | 4 |
 

@@ -413,7 +413,10 @@ def test_entrypoint_hands_over_every_secret(tmp_path):
         path = tmp_path / f"host-{name}"
         path.write_text("secret\n")
         path.chmod(0o600)
-        os.chown(path, 4242, 4242)  # the host user's uid, not the gate's
+        try:
+            os.chown(path, 4242, 4242)  # the host user's uid, not the gate's
+        except OSError as exc:  # e.g. a user namespace without that uid
+            pytest.skip(f"this host cannot give a file to uid 4242: {exc}")
         secrets[var] = (path, name)
     uid = 20000 + os.getpid() % 10000
     env = {

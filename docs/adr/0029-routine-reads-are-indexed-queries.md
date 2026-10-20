@@ -45,8 +45,10 @@ ledger.
   records unless `limit` or `cursor` is given. A client that expected the
   whole list must follow `next_cursor`.
 - A lineage is the agent's whole chain, because a decision's parent is the
-  agent's previous decision. The response is as long as the chain. It is
-  one query, not one per ancestor.
+  agent's previous decision. Since the follow-up review (20 October 2026)
+  it is paged like the lists: at most `limit` records per request, newest
+  page first, `next_cursor` naming the next older decision. The page size
+  bounds the recursive query; there is no separate depth constant.
 - Creating the two indexes on a large existing PostgreSQL ledger happens at
   start-up under the schema lock (not `CONCURRENTLY`). For a very large
   ledger, create them by hand first; the statements are in
