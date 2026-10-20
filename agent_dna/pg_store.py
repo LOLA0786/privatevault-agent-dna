@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import json
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -323,15 +323,39 @@ class PostgresDecisionStore:
         consumed_at: str,
         not_after: str | None = None,
     ) -> bool:
-        if not approval_artifact_digest:
-            raise ValueError("approval_artifact_digest is required")
+        return self.try_consume_approvals(
+            [approval_artifact_digest],
+            organisation_id=organisation_id,
+            consumed_at=consumed_at,
+            not_after=not_after,
+        )
+
+    def try_consume_approvals(
+        self,
+        approval_digests: Sequence[str],
+        *,
+        organisation_id: str,
+        consumed_at: str,
+        not_after: str | None = None,
+    ) -> bool:
+        """All-or-nothing claim of several approval digests (ADR 0031)."""
+        if not approval_digests or not all(approval_digests):
+            raise ValueError("approval digests are required")
+        if len(set(approval_digests)) != len(approval_digests):
+            raise ValueError("approval digests repeat")
         try:
-            with self._pool.connection() as conn, conn.cursor() as cur:
-                cur.execute(
-                    "INSERT INTO approval_consume (approval_artifact_digest, "
-                    "organisation_id, consumed_at, not_after) VALUES (%s, %s, %s, %s)",
-                    (approval_artifact_digest, organisation_id, consumed_at, not_after),
-                )
+            with (
+                self._pool.connection() as conn,
+                conn.transaction(),
+                conn.cursor() as cur,
+            ):
+                for digest in approval_digests:
+                    cur.execute(
+                        "INSERT INTO approval_consume (approval_artifact_digest, "
+                        "organisation_id, consumed_at, not_after) "
+                        "VALUES (%s, %s, %s, %s)",
+                        (digest, organisation_id, consumed_at, not_after),
+                    )
             return True
         except pg_errors.UniqueViolation:
             return False

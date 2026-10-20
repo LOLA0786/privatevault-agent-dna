@@ -435,7 +435,10 @@ class DecisionEngine:
             )
             return result
         verdict = self.approvals.consider(
-            approval, context=approval_context, agent_id=action.agent_id
+            approval,
+            context=approval_context,
+            agent_id=action.agent_id,
+            capability=action.capability,
         )
         if not verdict.ok:
             result.reason += "; " + verdict.refusal

@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -494,16 +494,39 @@ class SQLiteDecisionStore:
         Same construction as ``try_consume_execution_authorization``.
         ``not_after`` is the verified artifact's expiry; minting checks it.
         """
-        if not approval_artifact_digest:
-            raise ValueError("approval_artifact_digest is required")
+        return self.try_consume_approvals(
+            [approval_artifact_digest],
+            organisation_id=organisation_id,
+            consumed_at=consumed_at,
+            not_after=not_after,
+        )
+
+    def try_consume_approvals(
+        self,
+        approval_digests: Sequence[str],
+        *,
+        organisation_id: str,
+        consumed_at: str,
+        not_after: str | None = None,
+    ) -> bool:
+        """Claim several approval digests in one transaction (ADR 0031):
+        all are recorded, or none is (False if any was used before), so a
+        quorum that fails on one used artifact burns none of the others."""
+        if not approval_digests or not all(approval_digests):
+            raise ValueError("approval digests are required")
+        if len(set(approval_digests)) != len(approval_digests):
+            raise ValueError("approval digests repeat")
         conn = self._conn
         conn.execute("BEGIN IMMEDIATE")
         try:
-            conn.execute(
+            conn.executemany(
                 "INSERT INTO approval_consume "
                 "(approval_artifact_digest, organisation_id, consumed_at, not_after) "
                 "VALUES (?, ?, ?, ?)",
-                (approval_artifact_digest, organisation_id, consumed_at, not_after),
+                [
+                    (digest, organisation_id, consumed_at, not_after)
+                    for digest in approval_digests
+                ],
             )
             conn.commit()
             return True

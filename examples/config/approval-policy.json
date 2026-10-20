@@ -1,0 +1,54 @@
+{
+  "spec": "pv-approval-policy/0.1",
+  "approvers": {
+    "priya.shah@lender.example": {
+      "roles": [
+        "treasury"
+      ]
+    },
+    "arjun.mehta@lender.example": {
+      "roles": [
+        "treasury"
+      ]
+    },
+    "neha.rao@lender.example": {
+      "roles": [
+        "controller"
+      ]
+    },
+    "vikram.iyer@lender.example": {
+      "roles": [
+        "controller",
+        "treasury"
+      ]
+    }
+  },
+  "rules": [
+    {
+      "capability": "payments.pay_invoice",
+      "min_approvals": 2,
+      "roles": [
+        "treasury",
+        "controller"
+      ],
+      "require": {
+        "controller": 1
+      }
+    },
+    {
+      "capability": "payments.*",
+      "min_approvals": 2,
+      "roles": [
+        "treasury",
+        "controller"
+      ]
+    }
+  ],
+  "default": {
+    "min_approvals": 1,
+    "roles": [
+      "treasury",
+      "controller"
+    ]
+  }
+}

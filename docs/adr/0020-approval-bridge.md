@@ -77,6 +77,7 @@ before any decision is made.
 
 ## What would make us revisit
 A request to let a drift or consensus escalation be approved (a different
-risk class, needs its own rule). A multi-approver quorum (one artifact per
-approver would compose; the engine would need a count). Any proposal to
+risk class, needs its own rule). The multi-approver quorum came on
+2026-10-21 as ADR 0031: one artifact per approver, composed under an
+operator approval policy. Any proposal to
 accept an approval whose action digest is computed by the caller.

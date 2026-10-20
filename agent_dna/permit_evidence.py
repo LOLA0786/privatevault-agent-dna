@@ -14,8 +14,9 @@ cannot write (``agent_dna.control_posture``):
     The decision configuration this server loaded at start-up: the policy
     source (the policy file's bytes, or the OPA endpoint, policy path and
     bundle bytes), the grants file's bytes and the operations registry
-    digest. For an OPA endpoint it names where the policy lives, not what
-    the remote policy says.
+    digest, and the approval policy file's bytes when one is set (ADR 0031).
+    For an OPA endpoint it names where the policy lives, not what the remote
+    policy says.
 ``authority_receipt_digest``
     The grant the decision ran under, as configured (id, agent, capability,
     granted_by, expiry, budget), or ``NONE_DIGEST`` without a grant.
@@ -104,14 +105,20 @@ def policy_bundle_digest(
         }
     else:
         policy = None
-    return _digest(
-        {
-            "spec": POLICY_BUNDLE_SPEC,
-            "policy": policy,
-            "grants": _file_digest(env.get("PV_GRANTS_FILE"), "PV_GRANTS_FILE"),
-            "operations": operations_digest,
-        }
+    document: dict[str, Any] = {
+        "spec": POLICY_BUNDLE_SPEC,
+        "policy": policy,
+        "grants": _file_digest(env.get("PV_GRANTS_FILE"), "PV_GRANTS_FILE"),
+        "operations": operations_digest,
+    }
+    # ADR 0031: who may approve is decision configuration too. Added only
+    # when set, so deployments without one keep their digest.
+    approval_policy = _file_digest(
+        env.get("PV_APPROVAL_POLICY_FILE"), "PV_APPROVAL_POLICY_FILE"
     )
+    if approval_policy is not None:
+        document["approval_policy"] = approval_policy
+    return _digest(document)
 
 
 def grant_digest(snapshot: Mapping[str, Any] | None) -> str:

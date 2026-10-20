@@ -38,7 +38,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 2350+ automated tests, run in CI on every commit
+- 2380+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
@@ -243,9 +243,14 @@ shipped.** Approval binding is shipped as ADR 0020: a signed, single-use
 exact execution action and subject to separation of duties, turns a policy
 or authorization REQUIRE_APPROVAL into an ALLOW whose permit names the
 approval (`tests/test_approval_bridge.py`,
-`tests/test_api_approval_bridge.py`). Not claimed there: multi-approver
-quorum, approval of drift or consensus escalations, or detecting one human
-holding two credentials. What is shipped and tested for grants:
+`tests/test_api_approval_bridge.py`). Since ADR 0031 an operator
+approval policy (`PV_APPROVAL_POLICY_FILE`) requires N distinct approvers
+per capability, each holding a listed role, with required roles filled by
+different people; the artifacts are claimed all or none and the permit
+names the set (`tests/test_approval_quorum.py`). Not claimed: approval of
+drift or consensus escalations; roles from SSO/OIDC/SAML or SCIM (roles
+come from the policy file); or detecting one human holding two
+credentials under different principals. What is shipped and tested for grants:
 grants with expiry, revocation, and cumulative budget, with failures
 naming their specific condition (e.g. "grant expired," "grant revoked
 by security@corp," "budget exceeded"). Amounts on the grant-budget and

@@ -22,6 +22,14 @@ them only if every one of these holds:
 5. the artifact has not been used before (durable single-use claim, the
    same construction as permits).
 
+Quorums (ADR 0031): the block may instead be ``{"approvals": [...]}``, up to
+ten such triples for the same action. Each is checked as above; then the
+operator's approval policy (``PV_APPROVAL_POLICY_FILE``,
+``agent_dna.approval_policy``) decides whether these approvers, by role and
+count, satisfy the capability, and all the artifacts are claimed in one
+transaction (all or none). The decision seals one digest naming the set.
+Without a policy, one valid approval suffices, as before.
+
 Anything else leaves the verdict exactly as it was. An approval never
 overrides BLOCK and is never consumed by a decision that was already ALLOW.
 The bridge judges validity by its own clock, never by anything the caller
@@ -35,13 +43,18 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from agent_dna.approval_policy import MAX_APPROVALS, ApprovalPolicy
 from agent_dna.approval_v01 import (
     approval_artifact_digest,
     validate_approval_artifact,
     validate_approval_request,
     verify_approval_for_execution,
 )
-from agent_dna.authority_v01 import AuthorityFormatError, validate_trust_bundle
+from agent_dna.authority_v01 import (
+    AuthorityFormatError,
+    sha256_digest,
+    validate_trust_bundle,
+)
 from agent_dna.identity import fold_agent_id
 
 APPROVAL_BLOCK_FIELDS = frozenset({"request", "artifact", "approver_authority_receipt"})
@@ -56,6 +69,9 @@ APPROVAL_SUBJECT_MISMATCH = "APPROVAL_SUBJECT_MISMATCH"
 APPROVAL_SEPARATION_OF_DUTIES = "APPROVAL_SEPARATION_OF_DUTIES"
 APPROVAL_ALREADY_USED = "APPROVAL_ALREADY_USED"
 APPROVAL_LEDGER_UNAVAILABLE = "APPROVAL_LEDGER_UNAVAILABLE"
+# ADR 0031
+APPROVAL_QUORUM_NOT_MET = "APPROVAL_QUORUM_NOT_MET"
+APPROVAL_SET_SPEC = "pv-approval-set/0.1"
 
 TRIGGERED_BY_APPROVAL = "approval"
 # Only these verdict sources may be satisfied by a human approval.
@@ -91,6 +107,8 @@ class ApprovalVerdict:
     detail: str
     artifact_digest: str | None = None
     approver_principal: str | None = None
+    # ADR 0031: every approver whose approval was claimed, in order.
+    approver_principals: tuple[str, ...] = ()
 
     @property
     def refusal(self) -> str:
@@ -106,15 +124,19 @@ class ApprovalBridge:
         trust_bundle: Mapping[str, Any],
         ledger: Any,
         clock: Callable[[], datetime] = _utc_now,
+        policy: ApprovalPolicy | None = None,
     ) -> None:
         keys = validate_trust_bundle(trust_bundle)
         if not any("approval_signer" in key["usages"] for key in keys.values()):
             raise ValueError("approver trust bundle has no approval_signer key")
         if not hasattr(ledger, "try_consume_approval"):
             raise ValueError("approval ledger must implement try_consume_approval")
+        if policy is not None and not hasattr(ledger, "try_consume_approvals"):
+            raise ValueError("a quorum needs a ledger with try_consume_approvals")
         self.trust_bundle = trust_bundle
         self.ledger = ledger
         self.clock = clock
+        self.policy = policy
 
     @property
     def organisation_id(self) -> str:
@@ -126,38 +148,153 @@ class ApprovalBridge:
         *,
         context: ApprovalContext,
         agent_id: str,
+        capability: str | None = None,
     ) -> ApprovalVerdict:
-        """Evaluate one approval for one decision. Never raises."""
+        """Evaluate an approval (or a quorum of them) for one decision.
+        ``capability`` selects the approval policy's rule. Never raises."""
         try:
-            return self._consider(approval, context=context, agent_id=agent_id)
+            return self._consider(
+                approval, context=context, agent_id=agent_id, capability=capability
+            )
         except Exception as exc:  # fail closed on anything unexpected
             return ApprovalVerdict(
                 False, APPROVAL_INVALID, f"{type(exc).__name__}: {exc}"
             )
 
-    def _consider(  # noqa: C901 - ordered checklist, each step refuses
-        self, approval: Any, *, context: ApprovalContext, agent_id: str
+    def _consider(  # noqa: C901 - ordered: shape, each approval, quorum, claim
+        self,
+        approval: Any,
+        *,
+        context: ApprovalContext,
+        agent_id: str,
+        capability: str | None,
     ) -> ApprovalVerdict:
-        if not isinstance(approval, Mapping) or set(approval) != APPROVAL_BLOCK_FIELDS:
-            return ApprovalVerdict(
-                False,
-                APPROVAL_MALFORMED,
-                "approval must carry exactly request, artifact and "
-                "approver_authority_receipt",
-            )
+        if isinstance(approval, Mapping) and set(approval) == {"approvals"}:
+            blocks = approval["approvals"]
+            if not isinstance(blocks, list) or not 1 <= len(blocks) <= MAX_APPROVALS:
+                return ApprovalVerdict(
+                    False,
+                    APPROVAL_MALFORMED,
+                    f"approvals must be a list of 1 to {MAX_APPROVALS} approvals",
+                )
+        else:
+            blocks = [approval]
         if context.expected_action_digest is None:
             return ApprovalVerdict(
                 False,
                 APPROVAL_REQUIRES_BOUND_DECISION,
                 "an approval can only satisfy a decision bound to an execution action",
             )
+        now = self.clock()
+        checked: list[ApprovalVerdict] = []
+        expiries: list[str] = []
+        for index, block in enumerate(blocks):
+            verdict, expires_at = self._check_one(
+                block, context=context, agent_id=agent_id, now=now
+            )
+            if not verdict.ok:
+                where = (
+                    f"approval {index + 1} of {len(blocks)}: "
+                    if len(blocks) > 1
+                    else ""
+                )
+                return ApprovalVerdict(
+                    False, verdict.reason_code, where + verdict.detail
+                )
+            checked.append(verdict)
+            expiries.append(expires_at)
+        principals = [str(v.approver_principal) for v in checked]
+        digests = [str(v.artifact_digest) for v in checked]
+        if len(set(digests)) != len(digests):
+            return ApprovalVerdict(
+                False, APPROVAL_MALFORMED, "the same approval was presented twice"
+            )
+        quorum_detail = ""
+        if self.policy is not None:
+            if capability is None:
+                return ApprovalVerdict(
+                    False, APPROVAL_QUORUM_NOT_MET, "no capability to select a rule"
+                )
+            quorum = self.policy.evaluate(capability, principals)
+            if not quorum.ok:
+                return ApprovalVerdict(False, APPROVAL_QUORUM_NOT_MET, quorum.detail)
+            quorum_detail = f" ({quorum.detail})"
+        elif len(checked) > 1:
+            return ApprovalVerdict(
+                False,
+                APPROVAL_QUORUM_NOT_MET,
+                "several approvals need an approval policy (PV_APPROVAL_POLICY_FILE)",
+            )
+        # One artifact: its own digest, as before. Several: one digest naming
+        # the set, claimed with the artifacts, carrying the earliest expiry.
+        ref = (
+            digests[0]
+            if len(digests) == 1
+            else sha256_digest(
+                {"spec": APPROVAL_SET_SPEC, "artifacts": sorted(digests)}
+            )
+        )
+        claims = digests if len(digests) == 1 else [*digests, ref]
+        try:
+            if len(claims) == 1:
+                claimed = self.ledger.try_consume_approval(
+                    ref,
+                    organisation_id=self.organisation_id,
+                    consumed_at=_rfc3339(now),
+                    # verified above; minting later never outlives it
+                    not_after=min(expiries),
+                )
+            else:
+                claimed = self.ledger.try_consume_approvals(
+                    claims,
+                    organisation_id=self.organisation_id,
+                    consumed_at=_rfc3339(now),
+                    not_after=min(expiries),
+                )
+        except Exception as exc:
+            return ApprovalVerdict(
+                False,
+                APPROVAL_LEDGER_UNAVAILABLE,
+                f"durable claim failed: {type(exc).__name__}",
+            )
+        if not claimed:
+            return ApprovalVerdict(
+                False, APPROVAL_ALREADY_USED, "this approval has already been used"
+            )
+        return ApprovalVerdict(
+            True,
+            "APPROVED",
+            f"approved by {', '.join(principals)}{quorum_detail}",
+            artifact_digest=ref,
+            approver_principal=principals[0],
+            approver_principals=tuple(principals),
+        )
+
+    def _check_one(  # noqa: C901 - ordered checklist, each step refuses
+        self,
+        approval: Any,
+        *,
+        context: ApprovalContext,
+        agent_id: str,
+        now: datetime,
+    ) -> tuple[ApprovalVerdict, str]:
+        """Steps 1-4 for one triple; nothing is claimed here. Returns the
+        verdict and, when it is ok, the artifact's expiry."""
+
+        def refuse(code: str, detail: str) -> tuple[ApprovalVerdict, str]:
+            return ApprovalVerdict(False, code, detail), ""
+
+        if not isinstance(approval, Mapping) or set(approval) != APPROVAL_BLOCK_FIELDS:
+            return refuse(
+                APPROVAL_MALFORMED,
+                "approval must carry exactly request, artifact and "
+                "approver_authority_receipt",
+            )
         try:
             request = validate_approval_request(approval["request"])
             artifact = validate_approval_artifact(approval["artifact"])
         except AuthorityFormatError as exc:
-            return ApprovalVerdict(False, APPROVAL_MALFORMED, str(exc))
-
-        now = self.clock()
+            return refuse(APPROVAL_MALFORMED, str(exc))
         report = verify_approval_for_execution(
             request,
             artifact,
@@ -166,27 +303,22 @@ class ApprovalBridge:
             at_time=_rfc3339(now),
         )
         if not report.ok:
-            return ApprovalVerdict(
-                False,
-                APPROVAL_INVALID,
-                f"{report.reason_code}: " + "; ".join(report.failures),
+            return refuse(
+                APPROVAL_INVALID, f"{report.reason_code}: " + "; ".join(report.failures)
             )
         if request["organisation_id"] != self.organisation_id:
-            return ApprovalVerdict(
-                False,
+            return refuse(
                 APPROVAL_ORGANISATION_MISMATCH,
                 "approval organisation differs from the pinned approver bundle",
             )
         if request["action_digest"] != context.expected_action_digest:
-            return ApprovalVerdict(
-                False,
+            return refuse(
                 APPROVAL_ACTION_MISMATCH,
                 "approval binds a different action than the one being decided",
             )
         subject = request["action"]
         if subject["subject_key_id"] != agent_id:
-            return ApprovalVerdict(
-                False,
+            return refuse(
                 APPROVAL_SUBJECT_MISMATCH,
                 "approval names a different agent as the subject",
             )
@@ -205,34 +337,17 @@ class ApprovalBridge:
             fold_agent_id(approver_principal) in requesters
             or fold_agent_id(approver_key_id) in requesters
         ):
-            return ApprovalVerdict(
-                False,
+            return refuse(
                 APPROVAL_SEPARATION_OF_DUTIES,
                 "the approver is the requesting agent or caller",
             )
-        digest = approval_artifact_digest(artifact)
-        try:
-            claimed = self.ledger.try_consume_approval(
-                digest,
-                organisation_id=self.organisation_id,
-                consumed_at=_rfc3339(now),
-                # verified above; minting later never outlives it
-                not_after=str(artifact["expires_at"]),
-            )
-        except Exception as exc:
-            return ApprovalVerdict(
-                False,
-                APPROVAL_LEDGER_UNAVAILABLE,
-                f"durable claim failed: {type(exc).__name__}",
-            )
-        if not claimed:
-            return ApprovalVerdict(
-                False, APPROVAL_ALREADY_USED, "this approval has already been used"
-            )
-        return ApprovalVerdict(
-            True,
-            "APPROVED",
-            f"approved by {approver_principal}",
-            artifact_digest=digest,
-            approver_principal=approver_principal,
+        return (
+            ApprovalVerdict(
+                True,
+                "VERIFIED",
+                f"approved by {approver_principal}",
+                artifact_digest=approval_artifact_digest(artifact),
+                approver_principal=approver_principal,
+            ),
+            str(artifact["expires_at"]),
         )
