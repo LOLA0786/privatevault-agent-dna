@@ -39,6 +39,25 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      # A release tag is SSH-signed by a release manager listed in
+      # .github/allowed_signers (in the tagged commit, so changing the list
+      # goes through review). git only checks that the key is listed; the
+      # principal it is listed for must also be the tagger's email, or any
+      # listed key could sign as anyone.
+      - name: Tag is signed by a release manager
+        if: github.event_name == 'push'
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          git fetch --force --no-tags origin "refs/tags/$TAG:refs/tags/$TAG"
+          test "$(git cat-file -t "$TAG")" = tag || { echo "::error::$TAG is not an annotated tag"; exit 1; }
+          out=$(git -c gpg.ssh.program=ssh-keygen -c gpg.ssh.allowedSignersFile=.github/allowed_signers verify-tag "$TAG" 2>&1) \
+            || { echo "$out"; echo "::error::$TAG is not signed by a key in .github/allowed_signers"; exit 1; }
+          signer=$(printf '%s\n' "$out" | sed -n 's/^Good "git" signature for \(.*\) with .* key .*/\1/p')
+          tagger=$(git for-each-ref --format='%(taggeremail:trim)' "refs/tags/$TAG")
+          test -n "$signer" && test "$signer" = "$tagger" \
+            || { echo "$out"; echo "::error::key is listed for '$signer' but the tagger is '$tagger'"; exit 1; }
+          echo "Tag $TAG signed by $signer" >> "$GITHUB_STEP_SUMMARY"
       - name: Tag matches the package version
         if: github.event_name == 'push'
         env:
