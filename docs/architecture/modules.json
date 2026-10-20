@@ -1836,6 +1836,11 @@
   ],
   [
    "agent_dna.receiver.gate",
+   "agent_dna.receiver.transactions",
+   "top"
+  ],
+  [
+   "agent_dna.receiver.gate",
    "agent_dna.revocation_list",
    "top"
   ],
@@ -1852,6 +1857,11 @@
   [
    "agent_dna.receiver.ledger",
    "agent_dna.receiver.receipts",
+   "top"
+  ],
+  [
+   "agent_dna.receiver.ledger",
+   "agent_dna.receiver.transactions",
    "top"
   ],
   [
@@ -1872,6 +1882,11 @@
   [
    "agent_dna.receiver.tls",
    "agent_dna.presenter_identity",
+   "top"
+  ],
+  [
+   "agent_dna.receiver.transactions",
+   "agent_dna.authority_v01",
    "top"
   ],
   [
@@ -3160,6 +3175,16 @@
    "top"
   ],
   [
+   "tools.receiver_transactions",
+   "agent_dna.receiver.ledger",
+   "top"
+  ],
+  [
+   "tools.receiver_transactions",
+   "agent_dna.receiver.transactions",
+   "top"
+  ],
+  [
    "tools.run_adversarial",
    "agent_dna.decision",
    "top"
@@ -3238,7 +3263,7 @@
   "agent_dna.audit_connector.oauth": 1,
   "agent_dna.audit_connector.server": 2,
   "agent_dna.authority_deadline": 1,
-  "agent_dna.authority_v01": 44,
+  "agent_dna.authority_v01": 45,
   "agent_dna.authorization": 3,
   "agent_dna.authorize_binding": 7,
   "agent_dna.change_management": 1,
@@ -3341,10 +3366,11 @@
   "agent_dna.rate_limit": 1,
   "agent_dna.receiver.asgi": 1,
   "agent_dna.receiver.gate": 2,
-  "agent_dna.receiver.ledger": 2,
+  "agent_dna.receiver.ledger": 3,
   "agent_dna.receiver.permit_header": 4,
   "agent_dna.receiver.receipts": 3,
   "agent_dna.receiver.tls": 1,
+  "agent_dna.receiver.transactions": 3,
   "agent_dna.reference_policies": 1,
   "agent_dna.request_bounds": 1,
   "agent_dna.revocation_list": 2,
@@ -3495,11 +3521,12 @@
   "agent_dna.rate": 1,
   "agent_dna.receiver": 5,
   "agent_dna.receiver.asgi": 4,
-  "agent_dna.receiver.gate": 9,
-  "agent_dna.receiver.ledger": 2,
+  "agent_dna.receiver.gate": 10,
+  "agent_dna.receiver.ledger": 3,
   "agent_dna.receiver.permit_header": 1,
   "agent_dna.receiver.receipts": 2,
   "agent_dna.receiver.tls": 1,
+  "agent_dna.receiver.transactions": 1,
   "agent_dna.request_bounds": 1,
   "agent_dna.revocation_list": 1,
   "agent_dna.runtime": 6,
@@ -3590,6 +3617,7 @@
   "tools.pv_authority_cli": 1,
   "tools.pv_authority_reachability": 2,
   "tools.pvscan": 3,
+  "tools.receiver_transactions": 2,
   "tools.run_adversarial": 3,
   "tools.rust_parity_check": 2,
   "tools.smoke_authorize": 4,
@@ -4159,6 +4187,10 @@
   "agent_dna.receiver.tls": {
    "group": "agent_dna/receiver",
    "path": "agent_dna/receiver/tls.py"
+  },
+  "agent_dna.receiver.transactions": {
+   "group": "agent_dna/receiver",
+   "path": "agent_dna/receiver/transactions.py"
   },
   "agent_dna.reference_policies": {
    "group": "agent_dna (core modules)",
@@ -4743,6 +4775,10 @@
   "tools.pvscan": {
    "group": "tools",
    "path": "tools/pvscan.py"
+  },
+  "tools.receiver_transactions": {
+   "group": "tools",
+   "path": "tools/receiver_transactions.py"
   },
   "tools.reconcile_effects": {
    "group": "tools",

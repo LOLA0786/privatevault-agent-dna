@@ -67,13 +67,19 @@ from agent_dna.presenter_identity import (
     PresenterIdentityError,
     presenter_identity_digest,
 )
-from agent_dna.receiver.ledger import ReceiverLedger
+from agent_dna.receiver.ledger import CLAIM_DUPLICATE_TRANSACTION, ReceiverLedger
 from agent_dna.receiver.permit_header import PERMIT_HEADER_LOWER, decode_permit_header
 from agent_dna.receiver.receipts import (
     OUTCOME_ADMITTED,
     OUTCOME_REFUSED,
     RECEIVER_RECEIPT_SPEC,
     sign_receiver_receipt,
+)
+from agent_dna.receiver.transactions import (
+    TransactionKeyError,
+    extract_transaction_key,
+    transaction_reference,
+    validate_field_path,
 )
 from agent_dna.revocation_list import (
     RECEIVER_REVOCATION_LIST_STALE,
@@ -108,6 +114,9 @@ RECEIVER_LEDGER_UNAVAILABLE = "RECEIVER_LEDGER_UNAVAILABLE"
 RECEIVER_PRESENTER_REQUIRED = "RECEIVER_PRESENTER_REQUIRED"
 RECEIVER_PRESENTER_MISSING = "RECEIVER_PRESENTER_MISSING"
 RECEIVER_PRESENTER_MISMATCH = "RECEIVER_PRESENTER_MISMATCH"
+# ADR 0030: business transaction keys.
+RECEIVER_TRANSACTION_KEY_INVALID = "RECEIVER_TRANSACTION_KEY_INVALID"
+RECEIVER_DUPLICATE_TRANSACTION = "RECEIVER_DUPLICATE_TRANSACTION"
 
 _ENUMERATED_METHODS = frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"})
 _READ_ONLY_METHODS = frozenset({"GET", "HEAD"})
@@ -161,6 +170,18 @@ class ReceiverDecision:
     http_status: int
     receipt: Mapping[str, Any] | None
     authorization: Mapping[str, Any] | None = None
+    # ADR 0030: the business transaction this admission claimed, if the
+    # operation declares a key: (operation, key).
+    transaction: tuple[str, str] | None = None
+
+    @property
+    def transaction_reference(self) -> str | None:
+        """Opaque upstream ``Idempotency-Key`` for the claimed transaction."""
+        if self.transaction is None or self.authorization is None:
+            return None
+        return transaction_reference(
+            self.authorization["organisation_id"], *self.transaction
+        )
 
 
 class _RefusalError(Exception):
@@ -205,6 +226,10 @@ class ReceiverGate:
     # Refuse permits that do not bind a presenter (spec 0.1). A permit that
     # does bind one is always checked, whatever this is set to.
     require_presenter: bool = False
+    # ADR 0030: "METHOD PATH" -> dotted JSON field in the request body that
+    # identifies the business transaction (an invoice number). Each key is
+    # admitted once; see agent_dna/receiver/transactions.py.
+    transaction_keys: Mapping[str, str] = field(default_factory=dict)
     _keys: dict[str, Mapping[str, Any]] = field(init=False, repr=False)
     _bundle_digest: str = field(init=False, repr=False)
     _unprotected: frozenset[tuple[str, str]] = field(init=False, repr=False)
@@ -249,6 +274,17 @@ class ReceiverGate:
                 )
             unprotected.add(split)
         self._unprotected = frozenset(unprotected)
+        for operation, field_path in self.transaction_keys.items():
+            split = _split_operation(operation)
+            if split is None:
+                raise ValueError(
+                    f"transaction key operation is not METHOD PATH: {operation!r}"
+                )
+            if split[0] in _READ_ONLY_METHODS:
+                raise ValueError(
+                    f"a read cannot carry a transaction key: {operation!r}"
+                )
+            validate_field_path(field_path)
         self._bundle_digest = sha256_digest(self.trust_bundle)
 
     @property
@@ -285,8 +321,10 @@ class ReceiverGate:
             )
 
         ea: Mapping[str, Any] | None = None
+        transaction: tuple[str, str] | None = None
         try:
             ea = self._verify(method, path, headers, body, now, presenter_certificate)
+            transaction = self._transaction(ea, body)
         except _RefusalError as refusal:
             return self._refuse(refusal, method, path, body, now, ea_hint=refusal.ea)
         except Exception as exc:  # fail closed on anything unexpected
@@ -298,7 +336,51 @@ class ReceiverGate:
                 now,
                 ea_hint=None,
             )
-        return self._admit(ea, method, path, body, now)
+        return self._admit(ea, method, path, body, now, transaction)
+
+    def record_outcome(
+        self,
+        decision: ReceiverDecision,
+        upstream_status: int | None,
+        *,
+        at: datetime | None = None,
+    ) -> str | None:
+        """Record the upstream's answer to an admitted request (ADR 0030).
+
+        ``upstream_status`` is the HTTP status, or None when the upstream
+        failed or did not answer. Returns the transaction's new state, or
+        None when the admission claimed no transaction key. Never raises: a
+        failure to record leaves the claim CLAIMED, which blocks the key
+        until it is reconciled (the safe direction)."""
+        if not decision.admitted or decision.transaction is None:
+            return None
+        ea = decision.authorization
+        if ea is None:
+            return None
+        try:
+            return self.ledger.record_outcome(
+                ea["organisation_id"],
+                ea["execution_authorization_id"],
+                upstream_status,
+                at=_rfc3339(at or datetime.now(UTC)),
+            )
+        except Exception:
+            return None
+
+    def _transaction(
+        self, ea: Mapping[str, Any], body: bytes
+    ) -> tuple[str, str] | None:
+        operation = ea["dispatch"]["operation"]
+        field_path = self.transaction_keys.get(operation)
+        if field_path is None:
+            return None
+        try:
+            key = extract_transaction_key(body, field_path)
+        except TransactionKeyError as exc:
+            raise _RefusalError(
+                RECEIVER_TRANSACTION_KEY_INVALID, str(exc), 400, ea=ea
+            ) from None
+        return operation, key
 
     def refuse_unread_body(
         self, *, method: str, path: str, received_at: datetime | None = None
@@ -592,7 +674,9 @@ class ReceiverGate:
         *,
         ea_hint: Mapping[str, Any] | None,
     ) -> ReceiverDecision:
-        def make(_claimed: bool | None, sequence: int, previous: str) -> dict[str, Any]:
+        def make(
+            _claimed: bool | str | None, sequence: int, previous: str
+        ) -> dict[str, Any]:
             return sign_receiver_receipt(
                 self._unsigned(
                     sequence=sequence,
@@ -635,16 +719,24 @@ class ReceiverGate:
         path: str,
         body: bytes,
         now: datetime,
+        transaction: tuple[str, str] | None = None,
     ) -> ReceiverDecision:
-        def make(claimed: bool | None, sequence: int, previous: str) -> dict[str, Any]:
+        def make(
+            claimed: bool | str | None, sequence: int, previous: str
+        ) -> dict[str, Any]:
             admitted = claimed is True
+            refusal = (
+                RECEIVER_DUPLICATE_TRANSACTION
+                if claimed == CLAIM_DUPLICATE_TRANSACTION
+                else RECEIVER_PERMIT_CONSUMED
+            )
             return sign_receiver_receipt(
                 self._unsigned(
                     sequence=sequence,
                     previous=previous,
                     now=now,
                     outcome=OUTCOME_ADMITTED if admitted else OUTCOME_REFUSED,
-                    reason_code=None if admitted else RECEIVER_PERMIT_CONSUMED,
+                    reason_code=None if admitted else refusal,
                     method=method,
                     path=path,
                     body=body,
@@ -661,6 +753,7 @@ class ReceiverGate:
                     _rfc3339(now),
                 ),
                 make_receipt=make,
+                transaction=transaction,
             )
         except Exception as exc:
             return ReceiverDecision(
@@ -671,6 +764,17 @@ class ReceiverGate:
                 None,
                 ea,
             )
+        if claimed == CLAIM_DUPLICATE_TRANSACTION:
+            return ReceiverDecision(
+                False,
+                RECEIVER_DUPLICATE_TRANSACTION,
+                "this business transaction was already admitted under another "
+                "permit; it is refused until reconciled as not executed",
+                409,
+                receipt,
+                ea,
+                transaction,
+            )
         if claimed is not True:
             return ReceiverDecision(
                 False,
@@ -680,4 +784,4 @@ class ReceiverGate:
                 receipt,
                 ea,
             )
-        return ReceiverDecision(True, None, None, 200, receipt, ea)
+        return ReceiverDecision(True, None, None, 200, receipt, ea, transaction)

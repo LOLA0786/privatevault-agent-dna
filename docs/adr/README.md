@@ -37,6 +37,7 @@ explicit statement that no such test exists.
 | [0027](0027-receiver-kit-hardened-by-default.md) | The receiver kit is hardened by default | accepted | `tests/network/test_receiver_hardened.py::test_unreachable_api_ends_in_refusals_not_admissions` |
 | [0028](0028-secure-profile-binds-presenters.md) | The secure profile binds every permit to its presenter | accepted | `tests/test_secure_profile_presenters.py::test_default_receiver_admits_only_the_bound_agent` |
 | [0029](0029-routine-reads-are-indexed-queries.md) | Routine reads are indexed queries, one page at a time | accepted | `tests/test_indexed_reads.py::test_api_reads_never_load_the_whole_ledger` |
+| [0030](0030-one-business-transaction-one-effect.md) | The receiver admits each business transaction once | accepted | `tests/receiver/test_receiver_transactions.py::test_second_permit_for_the_same_invoice_is_refused` |
 
 0001–0014 are the enforcement-spine decisions. 0015 is the earlier
 loop-discovery placement record, renumbered so the spine could own
@@ -70,3 +71,6 @@ presenters required, and a refreshed revocation list it fails closed on.
 client certificate per agent, so every permit names who may present it.
 0029 answers routine reads with indexed, paginated queries instead of
 loading the whole ledger, and seal-checks every record it serves.
+0030 has the receiver claim a declared business key (an invoice number)
+once, so a new permit for the same invoice is refused, and holds uncertain
+outcomes until an operator reconciles them.

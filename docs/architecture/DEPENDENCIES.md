@@ -15,7 +15,7 @@ flowchart BT
   L2["L2 Evidence: records, permits, signatures<br/>14 modules"]
   L3["L3 Ledgers: SQLite and PostgreSQL<br/>13 modules"]
   L4["L4 Decision engine: the precedence ladder and what it consults<br/>73 modules"]
-  L5["L5 Enforcement runtime: monitor, breaker, recorder, gates, sidecar<br/>31 modules"]
+  L5["L5 Enforcement runtime: monitor, breaker, recorder, gates, sidecar<br/>32 modules"]
   L6["L6 Composition and entry points<br/>18 modules"]
   L2 -->|23| L1
   L3 -->|10| L1
@@ -23,7 +23,7 @@ flowchart BT
   L4 -->|50| L1
   L4 -->|1| L2
   L4 -->|5| L3
-  L5 -->|41| L1
+  L5 -->|42| L1
   L5 -->|18| L2
   L5 -->|4| L3
   L5 -->|11| L4
@@ -34,6 +34,7 @@ flowchart BT
   L6 -->|22| L5
   L2 -.->|1 upward| L4
   L3 -.->|4 upward| L4
+  L3 -.->|1 upward| L5
   L4 -.->|1 upward| L5
   L5 -.->|1 upward| L6
 ```
@@ -93,8 +94,9 @@ flowchart BT
 | `agent_dna.gateway.upstream` | Upstream transports — the only place credentials are applied | `agent_dna.gateway.credentials`, `agent_dna.gateway.errors`, `agent_dna.gateway.framing` | 3: `agent_dna.gateway.https_egress`, `agent_dna.gateway.mediator`, `agent_dna.gateway.runtime` |
 | `agent_dna.receiver` | Receiver-side enforcement: the system of record refuses unpermitted actions | `agent_dna.receiver.asgi`, `agent_dna.receiver.gate`, `agent_dna.receiver.ledger`, `agent_dna.receiver.permit_header`, `agent_dna.receiver.receipts` | none |
 | `agent_dna.receiver.asgi` | HTTP deployment shapes for ``ReceiverGate`` | `agent_dna.authority_v01`, `agent_dna.receiver.gate`, `agent_dna.receiver.permit_header`, `agent_dna.receiver.tls` | 1: `agent_dna.receiver` |
-| `agent_dna.receiver.gate` | Receiver gate: enforcement at the system of record, not at the agent | `agent_dna.authority_v01`, `agent_dna.execution_v01`, `agent_dna.key_custody`, `agent_dna.presenter_identity`, `agent_dna.receiver.ledger`, `agent_dna.receiver.permit_header`, `agent_dna.receiver.receipts`, `agent_dna.revocation_list`, `agent_dna.wire_serialization_v01` | 2: `agent_dna.receiver`, `agent_dna.receiver.asgi` |
+| `agent_dna.receiver.gate` | Receiver gate: enforcement at the system of record, not at the agent | `agent_dna.authority_v01`, `agent_dna.execution_v01`, `agent_dna.key_custody`, `agent_dna.presenter_identity`, `agent_dna.receiver.ledger`, `agent_dna.receiver.permit_header`, `agent_dna.receiver.receipts`, `agent_dna.receiver.transactions`, `agent_dna.revocation_list`, `agent_dna.wire_serialization_v01` | 2: `agent_dna.receiver`, `agent_dna.receiver.asgi` |
 | `agent_dna.receiver.tls` | mTLS for the receiver gate: who presented the permit (ADR 0022) | `agent_dna.presenter_identity` | 1: `agent_dna.receiver.asgi` |
+| `agent_dna.receiver.transactions` | One business transaction, one admitted effect (ADR 0030) | `agent_dna.authority_v01` | 2: `agent_dna.receiver.gate`, `agent_dna.receiver.ledger` |
 | `agent_dna.runtime` | Streaming Runtime Monitor | `agent_dna.advisory`, `agent_dna.circuit_breaker`, `agent_dna.decision`, `agent_dna.observability.metrics`, `agent_dna.shell_guard`, `agent_dna.trace` | 4: `agent_dna`, `agent_dna.composition`, `agent_dna.connector.middleware`, `api.server` |
 
 ## L4: Decision engine: the precedence ladder and what it consults
@@ -189,7 +191,7 @@ flowchart BT
 | `agent_dna.pg_store` | PostgresDecisionStore -- the decision ledger on PostgreSQL | `agent_dna.amount`, `agent_dna.authority_v01`, `agent_dna.authorize_binding`, `agent_dna.decision_graph`, `agent_dna.decision_record`, `agent_dna.execution_record`, `agent_dna.grant_revocation`, `agent_dna.grant_spend`, `agent_dna.ledger_reads`, `agent_dna.sqlite_store` | 3: `agent_dna.backup`, `agent_dna.cli`, `agent_dna.composition` |
 | `agent_dna.policy_replay` | Retrospective policy replay (Part B) — "what would this rule have done | `agent_dna.pg_compat` | 3: `agent_dna.cli`, `agent_dna.composition`, `agent_dna.policy_gate` |
 | `agent_dna.profile_store` | Persistent storage for Agent DNA profiles | `agent_dna.fingerprint` | 1: `agent_dna` |
-| `agent_dna.receiver.ledger` | Receiver-owned durable ledger: single-use consumption plus the receipt chain | `agent_dna.authority_v01`, `agent_dna.receiver.receipts` | 2: `agent_dna.receiver`, `agent_dna.receiver.gate` |
+| `agent_dna.receiver.ledger` | Receiver-owned durable ledger: single-use consumption plus the receipt chain | `agent_dna.authority_v01`, `agent_dna.receiver.receipts`, `agent_dna.receiver.transactions` | 2: `agent_dna.receiver`, `agent_dna.receiver.gate` |
 | `agent_dna.sqlite_store` | SQLiteDecisionStore — concurrent-safe persistence for decision records | `agent_dna.authority_v01`, `agent_dna.authorize_binding`, `agent_dna.decision_graph`, `agent_dna.decision_record`, `agent_dna.execution_record`, `agent_dna.ledger_reads` | 5: `agent_dna.backup`, `agent_dna.cli`, `agent_dna.composition`, `agent_dna.pg_store`, `agent_dna.policy_gate` |
 | `agent_dna.store.grants` | Persistent authorization grant store | nothing in the core | 1: `agent_dna.authorization` |
 
@@ -219,7 +221,7 @@ flowchart BT
 | `agent_dna.action_v01` | The canonical execution action, and its digest | `agent_dna.authority_v01` | 4: `agent_dna.authorize_binding`, `agent_dna.decision_record`, `agent_dna.execution_v01`, `api.server` |
 | `agent_dna.advisory` | The advisory / enforcement boundary | nothing in the core | 8: `agent_dna`, `agent_dna.connector.cross_agent`, `agent_dna.decision`, `agent_dna.lineage`, `agent_dna.operation_registry`, ... |
 | `agent_dna.amount` | Canonical monetary amount coercion | nothing in the core | 7: `agent_dna.circuit_breaker`, `agent_dna.decision`, `agent_dna.eav.invariant_engine`, `agent_dna.grant_spend`, `agent_dna.grants`, ... |
-| `agent_dna.authority_v01` | Authority Provenance v0.1-experimental | `agent_dna.key_custody` | 27: `agent_dna.action_v01`, `agent_dna.approval_bridge`, `agent_dna.approval_v01`, `agent_dna.authorize_binding`, `agent_dna.backup`, ... |
+| `agent_dna.authority_v01` | Authority Provenance v0.1-experimental | `agent_dna.key_custody` | 28: `agent_dna.action_v01`, `agent_dna.approval_bridge`, `agent_dna.approval_v01`, `agent_dna.authorize_binding`, `agent_dna.backup`, ... |
 | `agent_dna.connector.models` | Canonical connector contract. Every adapter (MCP, OpenAI SDK, | nothing in the core | 5: `agent_dna.connector`, `agent_dna.connector.adapters.mcp`, `agent_dna.connector.middleware`, `agent_dna.gateway.https_egress`, `agent_dna.gateway.mediator` |
 | `agent_dna.dispatch_context_v01` | Versioned dispatch-context digest (D1 / Phase 1, extended for wire binding) | `agent_dna.authority_v01`, `agent_dna.wire_serialization_v01` | 4: `agent_dna.authorize_binding`, `agent_dna.connector.middleware`, `agent_dna.decision_record`, `api.server` |
 | `agent_dna.evidence` | Evidence Engine | nothing in the core | 3: `agent_dna.control_posture`, `agent_dna.decision`, `agent_dna.shell_guard` |
@@ -253,3 +255,4 @@ function (no import-time cycle); top-level ones are candidates to move.
 | `agent_dna.lineage` (L3) | `agent_dna.multi_agent.dual_control` (L4) | import time |
 | `agent_dna.pg_shared_state` (L3) | `agent_dna.multi_agent` (L4) | import time |
 | `agent_dna.profile_store` (L3) | `agent_dna.fingerprint` (L4) | import time |
+| `agent_dna.receiver.ledger` (L3) | `agent_dna.receiver.transactions` (L5) | import time |

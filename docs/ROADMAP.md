@@ -17,6 +17,16 @@ until then `docs/WHAT-WE-DO-NOT-CLAIM.md` states them as open.
 | 4 | Receiver kit is not a hardened deployment by default | **Done** (ADR 0027, 0028): receiver mTLS only, presenters required, revocation list attached by `build_gate` and refreshed, refusing everything while stale; demo relaxations are explicit flags. The secure profile requires `PV_PRESENTER_BUNDLE`; `init_secure_profile` issues agent client certificates. Open: receiver ledger on PostgreSQL (one receiver host until then), certificate renewal |
 | 5 | Routine reads rebuild the full ledger | **Done** (ADR 0029): indexed SQL with keyset pagination for records, blocked and divergent; one recursive query for lineage; single-row ownership checks; every record served is seal-checked. Full verification, exports and backups stay explicit whole-ledger calls. Open: streamed exports, a multi-host load test |
 
+## Follow-up review, 20 October 2026
+
+| Item | Finding | Status |
+|---|---|---|
+| 1 | Run one scoped design-partner pilot on one receiver host | Open: needs a partner |
+| 2 | A new decision for the same invoice mints a new permit: no business-level duplicate prevention | **Done** (ADR 0030): the receiver claims a declared transaction key once; uncertain answers and crashes hold it until reconciled (`tools/receiver_transactions.py`). Open: outcomes are not in the signed receipt chain; one receiver host |
+| 3 | No failover, backup/restore, KMS-in-cluster or load evidence on the intended deployment | Open: needs the deployment |
+| 4 | Lineage reads were unbounded | **Done** (#194): paged like the lists |
+| 5 | Release process never exercised | **Done**: v0.4.0 released and verified; tags must be signed by a listed release manager (#196) |
+
 ## Receiver gate: presenter identity (shipped, ADR 0022)
 
 Shipped: per-agent mTLS client certificates, the key pinned per agent in

@@ -15,6 +15,12 @@ carries ``X-PV-Receiver-Receipt`` (the signed receipt's digest) and
 A refused request is never forwarded. An admitted request whose upstream
 call then fails has still consumed its permit; it is not re-admitted
 (consistent with ADR 0005: a burned permit is not retried).
+
+For an operation with a declared business transaction key (ADR 0030) both
+record the downstream answer against the key's claim: 2xx is EXECUTED, a
+status meaning "not acted on" frees the key, and anything else (5xx, a
+timeout, an exception, no answer) leaves it INDETERMINATE until an operator
+reconciles it.
 """
 
 from __future__ import annotations
@@ -172,7 +178,16 @@ class ReceiverGateMiddleware:
         if not decision.admitted:
             await _respond_json(send, decision.http_status, _refusal_payload(decision))
             return
+        await self._admitted(scope, receive, send, decision, body)
 
+    async def _admitted(
+        self,
+        scope: Scope,
+        receive: Receive,
+        send: Send,
+        decision: ReceiverDecision,
+        body: bytes,
+    ) -> None:
         forwarded = dict(scope)
         forwarded["headers"] = [
             (k, v)
@@ -189,14 +204,30 @@ class ReceiverGateMiddleware:
             return await receive()
 
         extra = _receipt_headers(decision)
+        status: int | None = None
 
         async def send_with_receipt(message: Message) -> None:
-            if message["type"] == "http.response.start" and extra:
-                message = dict(message)
-                message["headers"] = [*message.get("headers", []), *extra]
+            nonlocal status
+            if message["type"] == "http.response.start":
+                status = int(message["status"])
+                if extra:
+                    message = dict(message)
+                    message["headers"] = [*message.get("headers", []), *extra]
             await send(message)
 
-        await self.app(forwarded, replay, send_with_receipt)
+        # ADR 0030: the app's status settles the transaction claim; an
+        # exception or no response leaves it INDETERMINATE.
+        try:
+            await self.app(forwarded, replay, send_with_receipt)
+        except BaseException:
+            with anyio.CancelScope(shield=True):
+                await anyio.to_thread.run_sync(
+                    lambda: self.gate.record_outcome(decision, None)
+                )
+            raise
+        await anyio.to_thread.run_sync(
+            lambda: self.gate.record_outcome(decision, status)
+        )
 
 
 class ReceiverGateProxy:
@@ -217,7 +248,12 @@ class ReceiverGateProxy:
         ca_file: str | None = None,
         timeout_s: float = 30.0,
         max_response_bytes: int = 8 * 1_048_576,
+        idempotency_header: str | None = None,
     ) -> None:
+        """``idempotency_header`` (for example ``Idempotency-Key``): on a
+        request that claimed a business transaction (ADR 0030), send the
+        transaction's opaque reference upstream in this header, replacing
+        any the client sent, so the system of record can deduplicate too."""
         parts = urlsplit(upstream)
         if parts.scheme not in {"https", "http"} or not parts.hostname:
             raise ValueError("upstream must be an http(s) base URL")
@@ -230,6 +266,12 @@ class ReceiverGateProxy:
         self.ca_file = ca_file
         self.timeout_s = timeout_s
         self.max_response_bytes = max_response_bytes
+        if idempotency_header is not None and (
+            not idempotency_header
+            or not all(c.isalnum() or c == "-" for c in idempotency_header)
+        ):
+            raise ValueError("idempotency_header must be an HTTP header name")
+        self.idempotency_header = idempotency_header
 
     def _forward(
         self, method: str, target: str, headers: list[tuple[str, str]], body: bytes
@@ -281,12 +323,23 @@ class ReceiverGateProxy:
         if not decision.admitted:
             await _respond_json(send, decision.http_status, _refusal_payload(decision))
             return
+        upstream_headers = _headers(scope)
+        reference = decision.transaction_reference
+        if self.idempotency_header and reference is not None:
+            name = self.idempotency_header.lower()
+            upstream_headers = [
+                (k, v) for k, v in upstream_headers if k.lower() != name
+            ] + [(self.idempotency_header, reference)]
         try:
             status, headers, data = await anyio.to_thread.run_sync(
-                self._forward, scope["method"], _target(scope), _headers(scope), body
+                self._forward, scope["method"], _target(scope), upstream_headers, body
             )
         except Exception as exc:
-            # The permit is consumed; the upstream outcome is unknown. Say so.
+            # The permit is consumed; the upstream outcome is unknown. Say so,
+            # and keep the transaction claim blocked until reconciled.
+            await anyio.to_thread.run_sync(
+                lambda: self.gate.record_outcome(decision, None)
+            )
             await _respond_json(
                 send,
                 502,
@@ -300,6 +353,9 @@ class ReceiverGateProxy:
                 },
             )
             return
+        await anyio.to_thread.run_sync(
+            lambda: self.gate.record_outcome(decision, status)
+        )
         await send(
             {
                 "type": "http.response.start",
