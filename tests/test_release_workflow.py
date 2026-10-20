@@ -12,6 +12,8 @@ Claims -> tests:
     -> test_rc_tags_are_prereleases
   - The image is signed and its provenance pushed to the registry by digest
     -> test_image_is_attested_and_signed_by_digest
+  - The run verifies both, as a consumer would, before publishing
+    -> test_image_is_verified_before_publishing
 """
 
 from __future__ import annotations
@@ -64,3 +66,17 @@ def test_image_is_attested_and_signed_by_digest():
     assert sign == 'cosign sign --yes "${{ steps.image.outputs.ref }}"'
     perms = DOC["jobs"]["build"]["permissions"]
     assert perms["id-token"] == "write" and perms["attestations"] == "write"
+
+
+def test_image_is_verified_before_publishing():
+    names = [s.get("name") for s in STEPS]
+    verify = names.index("Verify the image signature and provenance")
+    assert names.index("Sign the image (keyless)") < verify
+    assert verify < names.index("Publish the GitHub release")
+    run = _step("Verify the image signature and provenance")["run"]
+    assert 'cosign verify "$REF"' in run
+    assert (
+        "--certificate-oidc-issuer https://token.actions.githubusercontent.com" in run
+    )
+    assert 'gh attestation verify "oci://$REF"' in run
+    assert "--signer-workflow" in run
