@@ -62,6 +62,7 @@ flowchart TB
 | `rust/` | ships | `pv_runtime`: Rust mirror of the record format and signer, byte-for-byte equal to Python (ADR 0012) |
 | `spec/` | reference | Wire contracts, JSON schemas and canonical test vectors (DRP records, execution, approval, authority) |
 | `tests/` | runs | The test suite; every claim names a test (ADR 0011) |
+| `integrations/` | ships | Claude Code plugin (`claude-code/privatevault`): a PreToolUse hook that sends each tool call to `/v1/decide`, with a starter policy |
 | `tools/` | runs | Stdlib-only verifiers, key and profile bootstrap, generators for the generated docs and pages, benchmarks, smoke tests |
 | `Dockerfile` | ships | API image (`agent_dna`, `api`, `tools`, `spec`) |
 | `pyproject.toml`, `requirements.txt`, `uv.lock` | ships | Package metadata and pinned dependencies |

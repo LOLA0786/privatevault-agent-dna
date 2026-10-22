@@ -1,0 +1,19 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "privatevault",
+  "owner": {
+    "name": "Chandan Galani",
+    "email": "chandan.galani@privatevault.ai"
+  },
+  "metadata": {
+    "description": "PrivateVault plugins: AI agent security with policy checks before every action and a tamper-evident record."
+  },
+  "plugins": [
+    {
+      "name": "privatevault",
+      "source": "./integrations/claude-code/privatevault",
+      "description": "Check every shell command, file write, web fetch and MCP tool call against your PrivateVault policy before it runs, with a tamper-evident record of each decision.",
+      "version": "0.1.0"
+    }
+  ]
+}

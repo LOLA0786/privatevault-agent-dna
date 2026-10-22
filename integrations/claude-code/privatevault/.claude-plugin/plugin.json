@@ -1,0 +1,14 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "privatevault",
+  "version": "0.1.0",
+  "description": "PrivateVault gate for Claude Code: every shell command, file write, web fetch and MCP tool call is checked against your PrivateVault policy before it runs, and recorded in a tamper-evident ledger.",
+  "author": {
+    "name": "Chandan Galani",
+    "email": "chandan.galani@privatevault.ai"
+  },
+  "homepage": "https://privatevault.ai",
+  "repository": "https://github.com/LOLA0786/privatevault-agent-dna",
+  "license": "Apache-2.0",
+  "keywords": ["security", "guardrails", "agent-security", "audit", "policy"]
+}
