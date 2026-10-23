@@ -5,6 +5,14 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### `pv claude`: Bash in the OS sandbox (ADR 0034)
+- `pv up` writes `~/.privatevault/claude-settings.json`; `pv claude` starts
+  Claude Code with it. Every Bash command runs in Claude Code's sandbox,
+  which must be available and cannot be bypassed by the model, and which
+  denies reading PrivateVault's state and credential files (`.env`, `~/.ssh`,
+  `~/.aws`, ...) and writing the state, in the kernel.
+- `tests/test_claude_sandbox_settings.py`.
+
 ### Hook resolves DNS; reading configuration asks
 - `net.fetch` host names are resolved (2 s limit) and classed by the worst
   address returned, so a public name for the cloud metadata address is

@@ -261,7 +261,9 @@ uvx --from git+https://github.com/LOLA0786/privatevault-agent-dna pv up
 then in Claude Code `/plugin marketplace add LOLA0786/privatevault-agent-dna`
 and `/plugin install privatevault@privatevault`. `pv up` runs the API on
 127.0.0.1 only, without authentication, with state in `~/.privatevault`; the
-plugin warns at session start if it is not running. `pv wrap` runs an MCP
+plugin warns at session start if it is not running. `pv claude` starts
+Claude Code with its OS sandbox around Bash, so credential files and
+PrivateVault's state are denied in the kernel (ADR 0034). `pv wrap` runs an MCP
 server behind the gateway so its API key stays with PrivateVault, not in
 Claude Code (ADR 0032). Setup and limits are in the plugin's README
 (`tests/test_claude_code_plugin.py`, `tests/test_quickstart.py`,

@@ -193,12 +193,22 @@ def _banner(host: str, port: int, home: Path, workdir: Path, dropped: list[str])
             "  note       your policy.json differs from this version's starter; "
             "to take the new starter, move yours aside and restart"
         )
+    from agent_dna.quickstart.sandbox import SETTINGS_NAME, missing_requirements
+
     lines += [
         "",
         "In Claude Code, once:",
         "  /plugin marketplace add LOLA0786/privatevault-agent-dna",
         "  /plugin install privatevault@privatevault",
+        "",
+        "Start Claude Code with Bash in the OS sandbox (recommended):",
+        f"  pv claude          (= claude --settings {home / SETTINGS_NAME})",
     ]
+    missing = missing_requirements()
+    if missing:
+        lines.append(
+            f"  needs {' and '.join(missing)} on Linux: sudo apt install bubblewrap socat"
+        )
     if port != 8000 or host not in ("127.0.0.1", "localhost"):
         lines.append(f"and start Claude Code with PV_ENFORCE_URL={url}")
     lines += [
@@ -258,6 +268,9 @@ def cmd_up(args: argparse.Namespace) -> int:
             raise QuickstartError(f"--workdir {workdir} is not a folder")
         home = args.home.expanduser().resolve()
         prepare_home(home)
+        from agent_dna.quickstart.sandbox import write_settings
+
+        write_settings(home)
         env, dropped = server_environment(home, workdir)
         if args.print_env:
             for name in sorted(k for k in env if k.startswith("PV_")):
