@@ -75,6 +75,20 @@ From a clone instead: `uv run pv up`.
 
 Restart Claude Code. Try asking Claude to run `rm -rf build`.
 
+**3. Recommended: start Claude Code with its OS sandbox.** `pv up` writes
+`~/.privatevault/claude-settings.json`; start Claude Code with it:
+
+```bash
+uvx --from git+https://github.com/LOLA0786/privatevault-agent-dna pv claude
+# the same as: claude --settings ~/.privatevault/claude-settings.json
+```
+
+Every Bash command then runs in Claude Code's sandbox (Seatbelt on macOS,
+bubblewrap on Linux: `sudo apt install bubblewrap socat`), which denies reading
+PrivateVault's state, `.env` files, `~/.ssh`, `~/.aws` and similar in the
+kernel, however the command is spelled. The plugin's checks still run and
+still record every decision. See ADR 0034.
+
 If PrivateVault is not running when a session starts, the plugin says so and
 shows the command above; until it is running, checked tool calls are refused.
 

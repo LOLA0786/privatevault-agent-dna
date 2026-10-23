@@ -715,6 +715,11 @@ Residual gaps we explicitly do **not** claim closed:
   (no catalog or undeclared name → not forwarded). In-process tests
   default to `finding` unless the hardened flag is set.
 - **`sampling/createMessage` is refused, not gated.**
+- **`pv claude` (ADR 0034) relies on Claude Code's own sandbox.** It covers
+  Bash and the processes Bash starts, only when Claude Code is started with
+  the settings file, and on Linux only where bubblewrap and socat are
+  installed. Read, Write and Edit are governed by the hook and Claude Code's
+  permission rules, not the sandbox.
 - **The Claude Code plugin's zones and host classes (ADR 0033) come from
   tool input, not the kernel.** The hook resolves symlinks, and resolves a
   URL's host name and classes it by the worst address it gets back; the

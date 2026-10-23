@@ -371,6 +371,11 @@
   ],
   [
    "agent_dna.cli",
+   "agent_dna.quickstart.sandbox",
+   "lazy"
+  ],
+  [
+   "agent_dna.cli",
    "agent_dna.quickstart.wrap",
    "lazy"
   ],
@@ -1772,6 +1777,16 @@
   [
    "agent_dna.profile_store",
    "agent_dna.fingerprint",
+   "top"
+  ],
+  [
+   "agent_dna.quickstart",
+   "agent_dna.quickstart.sandbox",
+   "lazy"
+  ],
+  [
+   "agent_dna.quickstart.sandbox",
+   "agent_dna.quickstart",
    "top"
   ],
   [
@@ -3429,7 +3444,8 @@
   "agent_dna.policy_replay": 3,
   "agent_dna.presenter_identity": 5,
   "agent_dna.profile_store": 1,
-  "agent_dna.quickstart": 2,
+  "agent_dna.quickstart": 3,
+  "agent_dna.quickstart.sandbox": 2,
   "agent_dna.quickstart.wrap": 1,
   "agent_dna.rate": 1,
   "agent_dna.rate_limit": 1,
@@ -3508,7 +3524,7 @@
   "agent_dna.backup": 4,
   "agent_dna.change_management": 1,
   "agent_dna.circuit_breaker": 4,
-  "agent_dna.cli": 11,
+  "agent_dna.cli": 12,
   "agent_dna.closure_v01": 4,
   "agent_dna.composition": 35,
   "agent_dna.confidence": 1,
@@ -3588,6 +3604,8 @@
   "agent_dna.policy_gate": 4,
   "agent_dna.policy_replay": 1,
   "agent_dna.profile_store": 1,
+  "agent_dna.quickstart": 1,
+  "agent_dna.quickstart.sandbox": 1,
   "agent_dna.quickstart.wrap": 8,
   "agent_dna.rate": 1,
   "agent_dna.receiver": 5,
@@ -4230,6 +4248,10 @@
   "agent_dna.quickstart": {
    "group": "agent_dna/quickstart",
    "path": "agent_dna/quickstart/__init__.py"
+  },
+  "agent_dna.quickstart.sandbox": {
+   "group": "agent_dna/quickstart",
+   "path": "agent_dna/quickstart/sandbox.py"
   },
   "agent_dna.quickstart.wrap": {
    "group": "agent_dna/quickstart",
