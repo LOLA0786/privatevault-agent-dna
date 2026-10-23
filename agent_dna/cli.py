@@ -9,6 +9,9 @@ with a contract:
     1  gate failed (assertions or divergence budget) / verification failed
     2  usage or configuration error
 
+`pv up` runs a local, single-developer PrivateVault for the Claude Code
+plugin (agent_dna/quickstart).
+
 `pv policy check` is the policy-change gate: run it in a pull request
 and a rule change becomes reviewable evidence instead of a leap.
 """
@@ -894,6 +897,10 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--out-dir", help="write PR-ready policies and review notes")
     run.add_argument("--json", help="write sealed discovery report")
     run.set_defaults(func=cmd_discovery_run)
+
+    from agent_dna.quickstart import add_parser as add_up_parser
+
+    add_up_parser(sub)
 
     return p
 

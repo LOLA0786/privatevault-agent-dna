@@ -5,6 +5,18 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### `pv up`: the Claude Code plugin in two steps, no clone
+- `uvx --from git+https://github.com/LOLA0786/privatevault-agent-dna pv up`
+  runs the decision API on loopback with the plugin's starter policy and
+  grants (packaged, byte-identical to the plugin's), state in
+  `~/.privatevault` (owner-only; edited files are kept). It refuses
+  non-loopback addresses, a missing project folder and a taken port, and
+  ignores inherited `PV_*` settings, naming them.
+- The plugin checks `/health` at session start and, when there is no
+  answer, tells the user and Claude how to start it; a refusal for no
+  answer names the same command.
+- `tests/test_quickstart.py` (including the real command as a process).
+
 ### Dependabot updates that cannot half-apply
 - CodeQL's init, autobuild and analyze steps move in one PR (a mixed v3/v4
   run fails, as #180 did); react, react-dom and their types move together;

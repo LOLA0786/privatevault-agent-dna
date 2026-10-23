@@ -36,6 +36,23 @@ from typing import Any
 
 MAX_ARG_CHARS = 16_384
 WRITE_TOOLS = {"Write", "Edit", "MultiEdit", "NotebookEdit"}
+LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
+START = "uvx --from git+https://github.com/LOLA0786/privatevault-agent-dna pv up"
+
+
+def base_url() -> str:
+    return os.environ.get("PV_ENFORCE_URL", "http://127.0.0.1:8000").rstrip("/")
+
+
+def start_hint() -> str:
+    """How to start the API, when it is configured on this machine."""
+    parts = urllib.parse.urlsplit(base_url())
+    if (parts.hostname or "") not in LOCAL_HOSTS:
+        return ""
+    port = parts.port or 80
+    return " To start PrivateVault on this machine: " + (
+        START if port == 8000 else f"{START} --port {port}"
+    )
 
 
 def capability_for(tool_name: str, tool_input: dict[str, Any]) -> tuple[str, dict]:
@@ -64,7 +81,7 @@ def _bounded(value: Any) -> dict:
 
 def decide(payload: dict[str, Any]) -> tuple[int | None, dict[str, Any] | str]:
     """POST /v1/decide. Returns (status, body) or (None, error text)."""
-    base = os.environ.get("PV_ENFORCE_URL", "http://127.0.0.1:8000").rstrip("/")
+    base = base_url()
     headers = {"Content-Type": "application/json"}
     key = os.environ.get("PV_API_KEY", "").strip()
     if key:
@@ -78,7 +95,7 @@ def decide(payload: dict[str, Any]) -> tuple[int | None, dict[str, Any] | str]:
     timeout = float(os.environ.get("PV_TIMEOUT_S", "8"))
     # A local PrivateVault is reached directly, never through a proxy.
     host = urllib.parse.urlsplit(base).hostname or ""
-    if host in {"localhost", "127.0.0.1", "::1"}:
+    if host in LOCAL_HOSTS:
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     else:
         opener = urllib.request.build_opener()
@@ -110,8 +127,8 @@ def verdict(status: int | None, body: dict[str, Any] | str) -> tuple[str | None,
     if status is None or not isinstance(body, dict):
         reason = f"PrivateVault did not answer ({body})"
         return ("ask" if fail_open else "deny"), reason + (
-            "" if fail_open else "; refusing (set PV_FAIL_OPEN=1 to be asked instead)"
-        )
+            "." if fail_open else "; refusing (set PV_FAIL_OPEN=1 to be asked instead)."
+        ) + start_hint()
     decision = str(
         body.get("decision") or (body.get("record") or {}).get("decision") or ""
     )

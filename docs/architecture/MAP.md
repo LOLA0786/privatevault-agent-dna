@@ -19,16 +19,17 @@ flowchart LR
   n10["agent_dna/multi_agent<br/>16 modules"]
   n11["agent_dna/observability<br/>3 modules"]
   n12["agent_dna/policy<br/>4 modules"]
-  n13["agent_dna/receiver<br/>8 modules"]
-  n14["agent_dna/scan<br/>4 modules"]
-  n15["agent_dna/security<br/>2 modules"]
-  n16["agent_dna/store<br/>1 modules"]
-  n17["agent_dna/validation<br/>5 modules"]
-  n18["api<br/>1 modules"]
-  n19["examples<br/>29 modules"]
-  n20["experimental<br/>62 modules"]
-  n21["rust/pv_runtime (PyO3)"]
-  n22["tools<br/>38 modules"]
+  n13["agent_dna/quickstart<br/>1 modules"]
+  n14["agent_dna/receiver<br/>8 modules"]
+  n15["agent_dna/scan<br/>4 modules"]
+  n16["agent_dna/security<br/>2 modules"]
+  n17["agent_dna/store<br/>1 modules"]
+  n18["agent_dna/validation<br/>5 modules"]
+  n19["api<br/>1 modules"]
+  n20["examples<br/>29 modules"]
+  n21["experimental<br/>62 modules"]
+  n22["rust/pv_runtime (PyO3)"]
+  n23["tools<br/>38 modules"]
   n0 -.->|1| n2
   n0 -->|5| n4
   n0 -->|1| n5
@@ -37,44 +38,45 @@ flowchart LR
   n0 -->|2| n10
   n0 -->|1| n11
   n0 -->|6| n12
-  n0 -->|3| n15
-  n0 -->|1| n16
+  n0 -.->|1| n13
+  n0 -->|3| n16
   n0 -->|1| n17
-  n0 -->|1| n21
+  n0 -->|1| n18
+  n0 -->|1| n22
   n1 -->|2| n0
   n2 -->|3| n12
-  n2 -->|1| n20
+  n2 -->|1| n21
   n4 -->|18| n0
   n4 -->|5| n10
-  n4 -->|1| n13
+  n4 -->|1| n14
   n6 -->|1| n0
   n8 -->|6| n0
   n8 -->|4| n4
-  n13 -->|13| n0
-  n14 -->|8| n0
-  n15 -->|2| n0
-  n18 -->|25| n0
-  n18 -->|1| n4
-  n18 -->|3| n11
-  n18 -->|1| n15
-  n19 -->|76| n0
+  n14 -->|13| n0
+  n15 -->|8| n0
+  n16 -->|2| n0
+  n19 -->|25| n0
   n19 -->|1| n4
-  n19 -->|5| n5
-  n19 -->|2| n7
-  n19 -->|2| n9
-  n19 -->|2| n10
-  n19 -->|1| n11
-  n19 -->|1| n20
-  n20 -->|15| n0
-  n20 -->|1| n5
-  n22 -->|43| n0
-  n22 -->|3| n4
-  n22 -->|1| n12
-  n22 -->|2| n13
-  n22 -->|3| n14
-  n22 -.->|3| n18
-  n22 -->|1| n20
-  n22 -->|1| n21
+  n19 -->|3| n11
+  n19 -->|1| n16
+  n20 -->|76| n0
+  n20 -->|1| n4
+  n20 -->|5| n5
+  n20 -->|2| n7
+  n20 -->|2| n9
+  n20 -->|2| n10
+  n20 -->|1| n11
+  n20 -->|1| n21
+  n21 -->|15| n0
+  n21 -->|1| n5
+  n23 -->|43| n0
+  n23 -->|3| n4
+  n23 -->|1| n12
+  n23 -->|2| n14
+  n23 -->|3| n15
+  n23 -.->|3| n19
+  n23 -->|1| n21
+  n23 -->|1| n22
 ```
 
 ## Directories
@@ -101,6 +103,7 @@ flowchart LR
 | `agent_dna/eav` | 2 |
 | `agent_dna/economics` | 2 |
 | `agent_dna/security` | 2 |
+| `agent_dna/quickstart` | 1 |
 | `agent_dna/store` | 1 |
 | `api` | 1 |
 
