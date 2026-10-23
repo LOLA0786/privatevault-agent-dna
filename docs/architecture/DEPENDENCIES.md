@@ -16,7 +16,7 @@ flowchart BT
   L3["L3 Ledgers: SQLite and PostgreSQL<br/>13 modules"]
   L4["L4 Decision engine: the precedence ladder and what it consults<br/>73 modules"]
   L5["L5 Enforcement runtime: monitor, breaker, recorder, gates, sidecar<br/>33 modules"]
-  L6["L6 Composition and entry points<br/>19 modules"]
+  L6["L6 Composition and entry points<br/>20 modules"]
   L2 -->|23| L1
   L3 -->|10| L1
   L3 -->|10| L2
@@ -27,11 +27,11 @@ flowchart BT
   L5 -->|18| L2
   L5 -->|4| L3
   L5 -->|11| L4
-  L6 -->|25| L1
+  L6 -->|26| L1
   L6 -->|7| L2
   L6 -->|16| L3
   L6 -->|49| L4
-  L6 -->|23| L5
+  L6 -->|28| L5
   L2 -.->|1 upward| L4
   L3 -.->|4 upward| L4
   L3 -.->|1 upward| L5
@@ -50,13 +50,14 @@ flowchart BT
 | `agent_dna.audit_connector.oauth` | OAuth 2.0 for the PrivateVault Audit connector | `agent_dna.audit_connector.client` | 1: `agent_dna.audit_connector.server` |
 | `agent_dna.audit_connector.server` | PrivateVault Audit: a read-only remote MCP server for risk and audit teams | `agent_dna.audit_connector.client`, `agent_dna.audit_connector.oauth` | 2: `agent_dna.audit_connector`, `agent_dna.audit_connector.__main__` |
 | `agent_dna.backup` | Backups of the PrivateVault ledgers, and restores that prove themselves | `agent_dna.authority_v01`, `agent_dna.key_custody`, `agent_dna.pg_store`, `agent_dna.sqlite_store` | none |
-| `agent_dna.cli` | pv — PrivateVault command line | `agent_dna.authority_v01`, `agent_dna.discovery`, `agent_dna.grant_revocation`, `agent_dna.pg_store`, `agent_dna.policy_gate`, `agent_dna.policy_miner`, `agent_dna.policy_replay`, `agent_dna.quickstart`, `agent_dna.security.loop_discovery`, `agent_dna.sqlite_store` | none |
-| `agent_dna.composition` | Production composition root (audit Commit set 3) | `agent_dna.adapters`, `agent_dna.adapters_policy.opa`, `agent_dna.apikeys`, `agent_dna.approval_bridge`, `agent_dna.approval_policy`, `agent_dna.authority_v01`, `agent_dna.circuit_breaker`, `agent_dna.connector`, `agent_dna.connector.adapters.exact_byte_http`, `agent_dna.connector.adapters.execution_trust`, `agent_dna.connector.adapters.sidecar_transport`, `agent_dna.connector.cross_agent`, `agent_dna.consensus`, `agent_dna.decision`, `agent_dna.decision_recorder`, `agent_dna.dynamics`, `agent_dna.economics`, `agent_dna.grant_revocation`, `agent_dna.grant_spend`, `agent_dna.grants`, `agent_dna.key_custody`, `agent_dna.manifold`, `agent_dna.open_authorizer`, `agent_dna.pg_compat`, `agent_dna.pg_shared_state`, `agent_dna.pg_store`, `agent_dna.policy.checker`, `agent_dna.policy.loader`, `agent_dna.policy_replay`, `agent_dna.runtime`, `agent_dna.scorer`, `agent_dna.signer_python`, `agent_dna.sqlite_store`, `agent_dna.trace`, `agent_dna.uaal_layer` | 3: `agent_dna.gateway.__main__`, `agent_dna.gateway.runtime`, `api.server` |
+| `agent_dna.cli` | pv — PrivateVault command line | `agent_dna.authority_v01`, `agent_dna.discovery`, `agent_dna.grant_revocation`, `agent_dna.pg_store`, `agent_dna.policy_gate`, `agent_dna.policy_miner`, `agent_dna.policy_replay`, `agent_dna.quickstart`, `agent_dna.quickstart.wrap`, `agent_dna.security.loop_discovery`, `agent_dna.sqlite_store` | none |
+| `agent_dna.composition` | Production composition root (audit Commit set 3) | `agent_dna.adapters`, `agent_dna.adapters_policy.opa`, `agent_dna.apikeys`, `agent_dna.approval_bridge`, `agent_dna.approval_policy`, `agent_dna.authority_v01`, `agent_dna.circuit_breaker`, `agent_dna.connector`, `agent_dna.connector.adapters.exact_byte_http`, `agent_dna.connector.adapters.execution_trust`, `agent_dna.connector.adapters.sidecar_transport`, `agent_dna.connector.cross_agent`, `agent_dna.consensus`, `agent_dna.decision`, `agent_dna.decision_recorder`, `agent_dna.dynamics`, `agent_dna.economics`, `agent_dna.grant_revocation`, `agent_dna.grant_spend`, `agent_dna.grants`, `agent_dna.key_custody`, `agent_dna.manifold`, `agent_dna.open_authorizer`, `agent_dna.pg_compat`, `agent_dna.pg_shared_state`, `agent_dna.pg_store`, `agent_dna.policy.checker`, `agent_dna.policy.loader`, `agent_dna.policy_replay`, `agent_dna.runtime`, `agent_dna.scorer`, `agent_dna.signer_python`, `agent_dna.sqlite_store`, `agent_dna.trace`, `agent_dna.uaal_layer` | 4: `agent_dna.gateway.__main__`, `agent_dna.gateway.runtime`, `agent_dna.quickstart.wrap`, `api.server` |
 | `agent_dna.discovery` | Offline, low-compute discovery loop for PrivateVault controls | `agent_dna.policy.checker`, `agent_dna.policy.schema`, `agent_dna.policy_gate`, `agent_dna.policy_miner`, `agent_dna.security.loop_discovery`, `agent_dna.validation.metrics` | 2: `agent_dna`, `agent_dna.cli` |
 | `agent_dna.gateway.__main__` | Out-of-process MCP / HTTPS-egress gateway | `agent_dna.composition`, `agent_dna.gateway.credentials`, `agent_dna.gateway.errors`, `agent_dna.gateway.framing`, `agent_dna.gateway.http_sse_proxy`, `agent_dna.gateway.https_egress`, `agent_dna.gateway.runtime`, `agent_dna.gateway.stdio_proxy` | none |
 | `agent_dna.key_lifecycle` | Key rotation as a governed action | `agent_dna.decision`, `agent_dna.signer`, `agent_dna.trace` | none |
 | `agent_dna.mcp_public_verifier` | Public MCP server exposing ONLY the independent DRP verifier as a | nothing in the core | none |
-| `agent_dna.quickstart` | ``pv up``: a local PrivateVault for one developer, in one command | nothing in the core | 1: `agent_dna.cli` |
+| `agent_dna.quickstart` | ``pv up``: a local PrivateVault for one developer, in one command | nothing in the core | 2: `agent_dna.cli`, `agent_dna.quickstart.wrap` |
+| `agent_dna.quickstart.wrap` | ``pv wrap``: run an MCP server behind the PrivateVault gateway | `agent_dna.apikeys`, `agent_dna.composition`, `agent_dna.gateway`, `agent_dna.gateway.credentials`, `agent_dna.gateway.errors`, `agent_dna.gateway.framing`, `agent_dna.gateway.stdio_proxy`, `agent_dna.quickstart` | 1: `agent_dna.cli` |
 | `agent_dna.scan` | Read-only analysis of logs a customer already has | `agent_dna.scan.ingest`, `agent_dna.scan.replay` | none |
 | `agent_dna.scan.ingest` | Normalize heterogeneous agent logs into AgentAction | `agent_dna.trace` | 2: `agent_dna.scan`, `agent_dna.scan.replay` |
 | `agent_dna.scan.inventory` | What the agents in a log can actually do | `agent_dna.trace` | none |
@@ -67,7 +68,7 @@ flowchart BT
 
 | Module | What it is | Depends on (core) | Used by |
 |---|---|---|---|
-| `agent_dna.apikeys` | API key auth for the pilot deployment. Deliberately minimal: | `agent_dna.identity` | 3: `agent_dna.composition`, `agent_dna.connector.middleware`, `api.server` |
+| `agent_dna.apikeys` | API key auth for the pilot deployment. Deliberately minimal: | `agent_dna.identity` | 4: `agent_dna.composition`, `agent_dna.connector.middleware`, `agent_dna.quickstart.wrap`, `api.server` |
 | `agent_dna.approval_bridge` | Approval bridge (ADR 0020): a verified, single-use human approval turns | `agent_dna.approval_policy`, `agent_dna.approval_v01`, `agent_dna.authority_v01`, `agent_dna.identity` | 4: `agent_dna.authority_deadline`, `agent_dna.composition`, `agent_dna.decision`, `api.server` |
 | `agent_dna.approval_policy` | Who must approve what: quorums and roles for human approvals (ADR 0031) | `agent_dna.identity` | 2: `agent_dna.approval_bridge`, `agent_dna.composition` |
 | `agent_dna.authority_deadline` | How long a sealed ALLOW may still be turned into a permit | `agent_dna.approval_bridge` | 1: `api.server` |
@@ -82,9 +83,9 @@ flowchart BT
 | `agent_dna.connector.cross_agent` | Cross-agent invariant enforcement (CABI) for the connector and HTTP API | `agent_dna.advisory`, `agent_dna.control_posture`, `agent_dna.decision`, `agent_dna.identity`, `agent_dna.multi_agent`, `agent_dna.multi_agent.base`, `agent_dna.multi_agent.dual_control`, `agent_dna.multi_agent.invariant_engine`, `agent_dna.multi_agent.runtime_validator` | 3: `agent_dna.composition`, `agent_dna.connector.middleware`, `api.server` |
 | `agent_dna.connector.middleware` | ConnectorMiddleware — the single enforcement path for every harness | `agent_dna.apikeys`, `agent_dna.authority_v01`, `agent_dna.connector.cross_agent`, `agent_dna.connector.models`, `agent_dna.control_posture`, `agent_dna.dispatch_context_v01`, `agent_dna.runtime`, `agent_dna.trace` | 3: `agent_dna.connector`, `agent_dna.gateway.https_egress`, `agent_dna.gateway.mediator` |
 | `agent_dna.decision_recorder` | DecisionRecorder — the single seam between enforcement and audit | `agent_dna.decision`, `agent_dna.decision_graph`, `agent_dna.decision_record`, `agent_dna.execution_record`, `agent_dna.trace` | 1: `agent_dna.composition` |
-| `agent_dna.gateway` | Inline MCP gateway — mediated egress with detectable bypass | `agent_dna.gateway.errors`, `agent_dna.gateway.framing`, `agent_dna.gateway.runtime` | none |
-| `agent_dna.gateway.credentials` | Upstream credential isolation | `agent_dna.gateway.errors` | 5: `agent_dna.gateway.__main__`, `agent_dna.gateway.https_egress`, `agent_dna.gateway.mediator`, `agent_dna.gateway.runtime`, `agent_dna.gateway.upstream` |
-| `agent_dna.gateway.framing` | MCP JSON-RPC framing and exact-byte serialization | `agent_dna.authority_v01`, `agent_dna.execution_v01`, `agent_dna.gateway.errors`, `agent_dna.gateway.protocol` | 8: `agent_dna.gateway`, `agent_dna.gateway.__main__`, `agent_dna.gateway.http_sse_proxy`, `agent_dna.gateway.https_egress`, `agent_dna.gateway.mediator`, ... |
+| `agent_dna.gateway` | Inline MCP gateway — mediated egress with detectable bypass | `agent_dna.gateway.errors`, `agent_dna.gateway.framing`, `agent_dna.gateway.runtime` | 1: `agent_dna.quickstart.wrap` |
+| `agent_dna.gateway.credentials` | Upstream credential isolation | `agent_dna.gateway.errors` | 6: `agent_dna.gateway.__main__`, `agent_dna.gateway.https_egress`, `agent_dna.gateway.mediator`, `agent_dna.gateway.runtime`, `agent_dna.gateway.upstream`, ... |
+| `agent_dna.gateway.framing` | MCP JSON-RPC framing and exact-byte serialization | `agent_dna.authority_v01`, `agent_dna.execution_v01`, `agent_dna.gateway.errors`, `agent_dna.gateway.protocol` | 9: `agent_dna.gateway`, `agent_dna.gateway.__main__`, `agent_dna.gateway.http_sse_proxy`, `agent_dna.gateway.https_egress`, `agent_dna.gateway.mediator`, ... |
 | `agent_dna.gateway.http_sse_proxy` | HTTP/SSE MCP proxy — same mediation semantics as stdio | `agent_dna.gateway.errors`, `agent_dna.gateway.framing`, `agent_dna.gateway.mediator`, `agent_dna.gateway.runtime` | 1: `agent_dna.gateway.__main__` |
 | `agent_dna.gateway.https_egress` | Named HTTPS egress — same freeze/decide/verify story as MCP | `agent_dna.connector.middleware`, `agent_dna.connector.models`, `agent_dna.execution_v01`, `agent_dna.gateway.credentials`, `agent_dna.gateway.errors`, `agent_dna.gateway.framing`, `agent_dna.gateway.upstream` | 2: `agent_dna.gateway.__main__`, `agent_dna.gateway.runtime` |
 | `agent_dna.gateway.mediator` | Tool-call mediation: decide → freeze bytes → forward → outcome | `agent_dna.connector.middleware`, `agent_dna.connector.models`, `agent_dna.execution_v01`, `agent_dna.gateway.credentials`, `agent_dna.gateway.errors`, `agent_dna.gateway.framing`, `agent_dna.gateway.metrics`, `agent_dna.gateway.protocol`, `agent_dna.gateway.session`, `agent_dna.gateway.upstream` | 2: `agent_dna.gateway.http_sse_proxy`, `agent_dna.gateway.runtime` |
@@ -92,7 +93,7 @@ flowchart BT
 | `agent_dna.gateway.protocol` | MCP method classification and JSON-RPC id correlation | `agent_dna.gateway.errors` | 2: `agent_dna.gateway.framing`, `agent_dna.gateway.mediator` |
 | `agent_dna.gateway.runtime` | Gateway process entry — refuses to start without a production runtime | `agent_dna.composition`, `agent_dna.gateway.credentials`, `agent_dna.gateway.errors`, `agent_dna.gateway.framing`, `agent_dna.gateway.https_egress`, `agent_dna.gateway.mediator`, `agent_dna.gateway.metrics`, `agent_dna.gateway.session`, `agent_dna.gateway.upstream` | 4: `agent_dna.gateway`, `agent_dna.gateway.__main__`, `agent_dna.gateway.http_sse_proxy`, `agent_dna.gateway.stdio_proxy` |
 | `agent_dna.gateway.session` | Per-connection session identity for bypass measurement | nothing in the core | 2: `agent_dna.gateway.mediator`, `agent_dna.gateway.runtime` |
-| `agent_dna.gateway.stdio_proxy` | Stdio MCP proxy loop — client stdin/stdout speak MCP; we mediate | `agent_dna.gateway.errors`, `agent_dna.gateway.framing`, `agent_dna.gateway.runtime` | 1: `agent_dna.gateway.__main__` |
+| `agent_dna.gateway.stdio_proxy` | Stdio MCP proxy loop — client stdin/stdout speak MCP; we mediate | `agent_dna.gateway.errors`, `agent_dna.gateway.framing`, `agent_dna.gateway.runtime` | 2: `agent_dna.gateway.__main__`, `agent_dna.quickstart.wrap` |
 | `agent_dna.gateway.upstream` | Upstream transports — the only place credentials are applied | `agent_dna.gateway.credentials`, `agent_dna.gateway.errors`, `agent_dna.gateway.framing` | 3: `agent_dna.gateway.https_egress`, `agent_dna.gateway.mediator`, `agent_dna.gateway.runtime` |
 | `agent_dna.receiver` | Receiver-side enforcement: the system of record refuses unpermitted actions | `agent_dna.receiver.asgi`, `agent_dna.receiver.gate`, `agent_dna.receiver.ledger`, `agent_dna.receiver.permit_header`, `agent_dna.receiver.receipts` | none |
 | `agent_dna.receiver.asgi` | HTTP deployment shapes for ``ReceiverGate`` | `agent_dna.authority_v01`, `agent_dna.receiver.gate`, `agent_dna.receiver.permit_header`, `agent_dna.receiver.tls` | 1: `agent_dna.receiver` |
@@ -228,7 +229,7 @@ flowchart BT
 | `agent_dna.dispatch_context_v01` | Versioned dispatch-context digest (D1 / Phase 1, extended for wire binding) | `agent_dna.authority_v01`, `agent_dna.wire_serialization_v01` | 4: `agent_dna.authorize_binding`, `agent_dna.connector.middleware`, `agent_dna.decision_record`, `api.server` |
 | `agent_dna.evidence` | Evidence Engine | nothing in the core | 3: `agent_dna.control_posture`, `agent_dna.decision`, `agent_dna.shell_guard` |
 | `agent_dna.execution_record` | ExecutionEvent — append-only executor feedback for a decision | nothing in the core | 5: `agent_dna.decision_graph`, `agent_dna.decision_recorder`, `agent_dna.decision_store`, `agent_dna.pg_store`, `agent_dna.sqlite_store` |
-| `agent_dna.gateway.errors` | Gateway failure modes — all fail closed | nothing in the core | 11: `agent_dna.gateway`, `agent_dna.gateway.__main__`, `agent_dna.gateway.credentials`, `agent_dna.gateway.framing`, `agent_dna.gateway.http_sse_proxy`, ... |
+| `agent_dna.gateway.errors` | Gateway failure modes — all fail closed | nothing in the core | 12: `agent_dna.gateway`, `agent_dna.gateway.__main__`, `agent_dna.gateway.credentials`, `agent_dna.gateway.framing`, `agent_dna.gateway.http_sse_proxy`, ... |
 | `agent_dna.identity` | Agent identity normalization (ADR 0021, PR 1 of the lineage work) | nothing in the core | 6: `agent_dna.apikeys`, `agent_dna.approval_bridge`, `agent_dna.approval_policy`, `agent_dna.connector.cross_agent`, `agent_dna.lineage`, ... |
 | `agent_dna.key_custody` | Where PrivateVault's Ed25519 signing keys live: local or in a KMS | nothing in the core | 11: `agent_dna.authority_v01`, `agent_dna.backup`, `agent_dna.closure_v01`, `agent_dna.composition`, `agent_dna.connector.adapters.exact_byte_http`, ... |
 | `agent_dna.multi_agent.base` | Shared base types for Cross-Agent Behavioral Invariants (CABI) | `agent_dna.multi_agent.interaction_graph` | 13: `agent_dna.connector.cross_agent`, `agent_dna.multi_agent`, `agent_dna.multi_agent.authority`, `agent_dna.multi_agent.consensus`, `agent_dna.multi_agent.dual_control`, ... |

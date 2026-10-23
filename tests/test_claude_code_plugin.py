@@ -11,7 +11,8 @@ Claims -> tests:
   - Tool calls map to capabilities -> test_tool_mapping[*]
   - Against the real API with the plugin's starter policy: safe commands
     and writes pass silently, destructive and wrapped commands, secret
-    egress and unlisted programs are denied, an ungranted MCP tool asks
+    egress and unlisted programs are denied, reading credentials and an
+    ungranted MCP tool ask
     -> test_starter_policy_through_the_real_api[*]
   - No answer, an unreadable event or an unexpected status refuses, or
     asks with PV_FAIL_OPEN=1 -> test_failure_modes_*
@@ -184,6 +185,11 @@ def api(tmp_path, monkeypatch):
             "allowlist",
         ),
         (
+            {"tool_name": "Bash", "tool_input": {"command": "cat .env"}},
+            "ask",
+            "reads credentials",
+        ),
+        (
             {"tool_name": "mcp__stripe__create_refund", "tool_input": {"amount": 5000}},
             "ask",
             "no grant",
@@ -197,6 +203,7 @@ def api(tmp_path, monkeypatch):
         "sh-c-rm",
         "secret-egress",
         "unlisted",
+        "reads-credentials",
         "mcp-ungranted",
     ],
 )

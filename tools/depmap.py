@@ -176,6 +176,7 @@ LAYERS: list[tuple[str, str, tuple[str, ...]]] = [
             "api.server",
             "agent_dna.cli",
             "agent_dna.quickstart",
+            "agent_dna.quickstart.*",
             "agent_dna.audit_connector",
             "agent_dna.audit_connector.*",
             "agent_dna.mcp_public_verifier",

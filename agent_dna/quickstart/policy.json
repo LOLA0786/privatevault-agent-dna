@@ -61,6 +61,17 @@
       }
     },
     {
+      "id": "shell-reads-credentials",
+      "capability": "shell.exec",
+      "outcome": "require_approval",
+      "reason": "command reads credentials (a secret or credential file, or the environment)",
+      "condition": {
+        "field": "evidence.shell.touches_sensitive",
+        "operator": "==",
+        "value": true
+      }
+    },
+    {
       "id": "shell-script-needs-approval",
       "capability": "shell.exec",
       "outcome": "require_approval",

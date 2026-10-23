@@ -38,7 +38,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 2400+ automated tests, run in CI on every commit
+- 2450+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
@@ -715,6 +715,16 @@ Residual gaps we explicitly do **not** claim closed:
   (no catalog or undeclared name → not forwarded). In-process tests
   default to `finding` unless the hardened flag is set.
 - **`sampling/createMessage` is refused, not gated.**
+- **`pv wrap` (ADR 0032) is not an operating-system boundary.** It keeps a
+  server's credentials out of Claude Code's configuration and out of MCP
+  traffic (redacted on the way back, refused on the way out), but the gateway
+  runs as the user, and anything running as the user can read
+  `~/.privatevault/mcp-secrets/`. The starter policy asks before shell
+  commands that name a secret file; a command that reaches it another way is
+  not recognised. Redaction matches exact values only. REQUIRE_APPROVAL is
+  refused through `pv wrap` (no approval channel over MCP), so a hook prompt
+  the user approves still does not run an ungranted tool
+  (`tests/test_pv_wrap.py`).
 - **Correlation residuals:** unmatched/malformed frame floods can
   delay pairing until timeout. `resources/subscribe` freezes only
   `params.uri`.

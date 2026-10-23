@@ -113,6 +113,7 @@ class GatewayMediator:
         fail_closed_on_unattributed: bool = True,
         undeclared_tool_policy: str = "finding",
         max_same_origin_redirects: int = 1,
+        capability_prefix: str = "",
     ) -> None:
         self.middleware = middleware
         self.upstream = upstream
@@ -128,6 +129,10 @@ class GatewayMediator:
         self.fail_closed_on_unattributed = fail_closed_on_unattributed
         self.undeclared_tool_policy = undeclared_tool_policy
         self.max_same_origin_redirects = max_same_origin_redirects
+        # Decisions name ``<prefix><tool>`` (e.g. ``mcp.stripe.create_refund``)
+        # so grants and policy can tell servers apart; the wire keeps the
+        # upstream's own name.
+        self.capability_prefix = capability_prefix
         self.metrics.note_session(session.session_id)
         self._client_connected = True
         self._inflight: dict[str, PendingDispatch] = {}
@@ -383,10 +388,26 @@ class GatewayMediator:
         resource: str,
         operation: str,
     ) -> PendingDispatch | MediationResult:
+        # A request carrying an upstream credential is refused before it is
+        # decided: the client must never be able to send (or learn by echo)
+        # a secret the gateway holds. Checked again on the frozen bytes.
+        if self._carries_credential(capability, arguments, resource):
+            self.metrics.tools_calls_denied += 1
+            return MediationResult(
+                client_message=mcp_error_response(
+                    request_id,
+                    code=MCP_GATEWAY_FAULT,
+                    message=(
+                        "request contains an upstream credential held by the "
+                        "gateway — not forwarded"
+                    ),
+                    data={"method": method},
+                )
+            )
         verdict = self.middleware.handle(
             ToolCallRequest(
                 adapter=ADAPTER_NAME,
-                tool=capability,
+                tool=self.capability_prefix + capability,
                 api_key=self.agent_api_key,
                 arguments=dict(arguments),
                 context={
@@ -407,7 +428,7 @@ class GatewayMediator:
                 client_message=mcp_error_response(
                     request_id,
                     code=MCP_ENFORCEMENT_DENIED,
-                    message="PrivateVault BLOCK — not forwarded",
+                    message=f"PrivateVault BLOCK — not forwarded: {verdict.reason}",
                     data={
                         "triggered_by": verdict.triggered_by,
                         "reason": verdict.reason,
@@ -422,7 +443,7 @@ class GatewayMediator:
                 client_message=mcp_error_response(
                     request_id,
                     code=MCP_ENFORCEMENT_APPROVAL,
-                    message="PrivateVault REQUIRE_APPROVAL — not forwarded",
+                    message=f"PrivateVault REQUIRE_APPROVAL — not forwarded: {verdict.reason}",
                     data={
                         "triggered_by": verdict.triggered_by,
                         "reason": verdict.reason,
@@ -485,6 +506,27 @@ class GatewayMediator:
             dispatch_context_digest=str(record["dispatch_context_digest"]),
             method=method,
         )
+
+    def _carries_credential(
+        self, capability: str, arguments: dict[str, Any], resource: str
+    ) -> bool:
+        secrets = self.credentials.secret_values()
+        if not secrets:
+            return False
+        stack: list[Any] = [capability, arguments, resource]
+        while stack:
+            node = stack.pop()
+            if isinstance(node, str):
+                if any(secret in node for secret in secrets):
+                    return True
+            elif isinstance(node, dict):
+                stack.extend(node.keys())
+                stack.extend(node.values())
+            elif isinstance(node, (list, tuple)):
+                stack.extend(node)
+            elif node is not None and not isinstance(node, (bool, int, float)):
+                stack.append(str(node))
+        return False
 
     def begin_pending(self, pending: PendingDispatch) -> None:
         """Write frozen bytes and register in-flight. Does not wait."""
