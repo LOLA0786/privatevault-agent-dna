@@ -62,6 +62,20 @@ messages ending the session).
   get the new starter rules only by moving theirs aside; `pv up` says when
   theirs differs.
 
+## Retest (23 October 2026, at 0e262f7)
+The red team confirmed twelve findings closed and found F5 partly open:
+bash ANSI-C quoting (`cat $'.env'`, `$'\x2eenv'`, `$'\056env'`) and
+parameter defaults (`f=${UNDEF:-.env}; cat "$f"`) still read credentials
+unnoticed. The same quoting also spelled `rm` past the destructive block
+under an empty policy (`$'\x72m' -rf /`). The guard now rewrites `$'...'` to
+the string bash produces before parsing, and evaluates `${NAME-word}`,
+`:-`, `=`, `:=`, `+`, `:+`, `#`, `##`, `%` and `%%`, taking the default when a
+name is unknown. Other expansions (`${NAME/x/y}`, `${NAME:1:2}`, case
+changes) are left as written. `~/.privatevault` is protected even when
+`PV_HOME` points elsewhere. The starter allowlist gains read-only text tools
+(`wc`, `sort`, `uniq`, `cut`, `tr`, `diff`, ...); `sort --compress-program`
+is inline code.
+
 ## What would make us revisit
 An operating-system sandbox under the agent, so paths and network are
 enforced by the kernel rather than read from tool input; resolving and

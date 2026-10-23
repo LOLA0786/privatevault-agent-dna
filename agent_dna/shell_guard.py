@@ -386,7 +386,31 @@ _SENSITIVE_NAMES = (
 )
 _GLOB_CHARS = re.compile(r"[*?\[]")
 _BRACES = re.compile(r"\{([^{}]*,[^{}]*)\}")
-_VAR_USE = re.compile(r"\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))")
+# $NAME, ${NAME} and ${NAME<op>word} for the operators _expand_vars evaluates
+_VAR_USE = re.compile(
+    r"\$(?:\{([A-Za-z_][A-Za-z0-9_]*)(?:(:?[-=+?]|%%?|##?)([^}]*))?\}"
+    r"|([A-Za-z_][A-Za-z0-9_]*))"
+)
+# bash ANSI-C escapes inside $'...'
+_ANSI_C_ESCAPE = re.compile(
+    r"\\(x[0-9A-Fa-f]{1,2}|u[0-9A-Fa-f]{1,4}|U[0-9A-Fa-f]{1,8}|[0-7]{1,3}|c.|.)",
+    re.DOTALL,
+)
+_ANSI_C_SIMPLE = {
+    "a": "\a",
+    "b": "\b",
+    "e": "\x1b",
+    "E": "\x1b",
+    "f": "\f",
+    "n": "\n",
+    "r": "\r",
+    "t": "\t",
+    "v": "\v",
+    "\\": "\\",
+    "'": "'",
+    '"': '"',
+    "?": "?",
+}
 MAX_GLOB_HITS = 256
 
 
@@ -914,17 +938,115 @@ def _note_assignment(tok: str, acc: _Acc) -> None:
         acc.inline_code = True
 
 
+def _trim(value: str, op: str, pattern: str) -> str:
+    """${NAME#pat} ${NAME##pat} ${NAME%pat} ${NAME%%pat}, glob patterns."""
+    n = len(value)
+    if op in {"#", "##"}:
+        cuts = range(n + 1) if op == "#" else range(n, -1, -1)
+        for k in cuts:
+            if fnmatch.fnmatchcase(value[:k], pattern):
+                return value[k:]
+    else:
+        cuts = range(n, -1, -1) if op == "%" else range(n + 1)
+        for k in cuts:
+            if fnmatch.fnmatchcase(value[k:], pattern):
+                return value[:k]
+    return value
+
+
+def _expand_one(m: re.Match[str], acc: _Acc) -> str:
+    name = m.group(1) or m.group(4)
+    op, word = m.group(2), m.group(3) or ""
+    known = name in acc.assigned
+    value = acc.assigned.get(name, "")
+    if op is None:
+        return value if known else m.group(0)
+    word = _expand_vars(word, acc) if "$" in word else word
+    is_set = known and (bool(value) or not op.startswith(":"))
+    if op in {"-", ":-", "=", ":="}:
+        # an unknown name is judged by its default (red team retest, F5)
+        if not is_set and op.endswith("="):
+            acc.assigned[name] = word
+        return value if is_set else word
+    if op in {"+", ":+"}:
+        return word if is_set else ""
+    if op in {"#", "##", "%", "%%"}:
+        return _trim(value, op, word) if known else m.group(0)
+    return value if known else m.group(0)  # ? and :? fail or pass through
+
+
 def _expand_vars(token: str, acc: _Acc) -> str:
-    """$NAME and ${NAME} replaced by values assigned earlier in the command;
-    unknown names are left as written."""
-    if "$" not in token or not acc.assigned:
+    """$NAME, ${NAME} and ${NAME:-word}-style forms, with values assigned
+    earlier in the command; unknown names are left as written, except that
+    a default (${NAME:-word}) stands for itself."""
+    if "$" not in token:
         return token
+    return _VAR_USE.sub(lambda m: _expand_one(m, acc), token)
 
+
+def _decode_ansi_c(body: str) -> str:
     def sub(m: re.Match[str]) -> str:
-        name = m.group(1) or m.group(2)
-        return acc.assigned.get(name, m.group(0))
+        esc = m.group(1)
+        head = esc[0]
+        if head in "xuU":
+            code = int(esc[1:], 16)
+            return chr(code) if code <= 0x10FFFF else "?"
+        if head.isdigit():
+            return chr(int(esc, 8) & 0xFF)
+        if head == "c" and len(esc) == 2:
+            return chr(ord(esc[1]) & 0x1F)
+        return _ANSI_C_SIMPLE.get(esc, "\\" + esc)
 
-    return _VAR_USE.sub(sub, token)
+    return _ANSI_C_ESCAPE.sub(sub, body)
+
+
+def _rewrite_ansi_c(command: str) -> str:  # noqa: C901 - a quote-state machine
+    """Rewrite bash's $'...' (ANSI-C quoting) as the plain single-quoted
+    string bash would produce, and $"..." as "...", outside other quotes, so
+    "cat $'\\x2eenv'" is judged as "cat '.env'" (red team retest, F5)."""
+    if "$'" not in command and '$"' not in command:
+        return command
+    out: list[str] = []
+    i, n, in_double = 0, len(command), False
+    while i < n:
+        c = command[i]
+        if c == "\\" and i + 1 < n:
+            out.append(command[i : i + 2])
+            i += 2
+            continue
+        if in_double:
+            in_double = c != '"'
+            out.append(c)
+            i += 1
+            continue
+        if c == '"':
+            in_double = True
+        elif c == "'":
+            j = command.find("'", i + 1)
+            j = n - 1 if j < 0 else j
+            out.append(command[i : j + 1])
+            i = j + 1
+            continue
+        elif c == "$" and command[i + 1 : i + 2] == "'":
+            j, body = i + 2, []
+            while j < n and command[j] != "'":
+                step = 2 if command[j] == "\\" and j + 1 < n else 1
+                body.append(command[j : j + step])
+                j += step
+            if j >= n:
+                raise _UnparseableError("unterminated $'...'")
+            decoded = _decode_ansi_c("".join(body))
+            if "\x00" in decoded:
+                raise _UnparseableError("NUL byte in $'...'")
+            out.append(shlex.quote(decoded))
+            i = j + 1
+            continue
+        elif c == "$" and command[i + 1 : i + 2] == '"':
+            i += 1  # $"..." is a translated "...": the same string here
+            continue
+        out.append(c)
+        i += 1
+    return "".join(out)
 
 
 def _expand_braces(token: str, limit: int = 64) -> list[str]:
@@ -1211,6 +1333,8 @@ def _analyze_argv(argv: list[str], acc: _Acc, depth: int) -> None:  # noqa: C901
         acc.sensitive_args.append(name)  # dumps every secret in the env
         return
 
+    if name == "sort" and any(t.startswith("--compress-prog") for t in argv[1:]):
+        acc.inline_code = True  # sort runs the named compressor
     if name == "tar" and any(t == "--remove-files" for t in argv[1:]):
         acc.destructive_flags = True
     if name == "rsync" and any(
@@ -1362,6 +1486,7 @@ def _analyze_string(command: str, acc: _Acc, depth: int) -> None:  # noqa: C901
         raise _UnparseableError("command too long")
     if "\x00" in command:
         raise _UnparseableError("NUL byte in command")
+    command = _rewrite_ansi_c(command)
     if any(m in command for m in ("`", "$(", "<(", ">(")):
         acc.inline_code = True  # command / process substitution
     # Newline is a command separator in shell, not whitespace: without this
