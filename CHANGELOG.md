@@ -5,6 +5,20 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### `pv wrap`: MCP servers whose keys Claude never holds (ADR 0032)
+- `pv wrap --name stripe -- npx -y @stripe/mcp` runs the server behind the
+  inline gateway. Its credentials come from an owner-only
+  `~/.privatevault/mcp-secrets/<name>.env` (`pv secret set`), reach only the
+  server's environment, are redacted from what it returns, and a request
+  carrying one is refused (the gateway no longer stops on it).
+- Each call is decided as `mcp.<server>.<tool>` (new
+  `GatewayConfig.capability_prefix`), the plugin hook's name, against the
+  same policy and grants as `pv up`; only allow is forwarded. Each server has
+  its own sealed ledger.
+- Granted capabilities join the drift baseline in `pv up` and `pv wrap`.
+- Starter policy: shell commands that read credentials ask first.
+- `tests/test_pv_wrap.py` (a real server process behind the real command).
+
 ### `pv up`: the Claude Code plugin in two steps, no clone
 - `uvx --from git+https://github.com/LOLA0786/privatevault-agent-dna pv up`
   runs the decision API on loopback with the plugin's starter policy and

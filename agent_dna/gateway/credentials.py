@@ -55,11 +55,24 @@ class UpstreamCredentials:
 
     env: Mapping[str, str] = field(default_factory=dict)
     headers: Mapping[str, str] = field(default_factory=dict)
+    # Operator-named, non-secret variables copied from the parent into a
+    # stdio child besides the allowlist (a proxy, a CA bundle). Not treated
+    # as credentials, so not redacted; names that look secret are refused.
+    passthrough: frozenset[str] = field(default_factory=frozenset)
+
+    def __post_init__(self) -> None:
+        bad = sorted(n for n in self.passthrough if _leaks_secret_name(n))
+        if bad:
+            raise ValueError(
+                f"passthrough names {bad} look like secrets; give them as "
+                "credentials instead"
+            )
 
     def __repr__(self) -> str:  # pragma: no cover - defensive
         return (
             f"UpstreamCredentials(env_keys={sorted(self.env)}, "
-            f"header_keys={sorted(self.headers)})"
+            f"header_keys={sorted(self.headers)}, "
+            f"passthrough={sorted(self.passthrough)})"
         )
 
     def secret_values(self) -> frozenset[str]:
@@ -74,7 +87,7 @@ class UpstreamCredentials:
     ) -> dict[str, str]:
         src = dict(base) if base is not None else {}
         out: dict[str, str] = {}
-        for key in STDIO_ENV_ALLOWLIST:
+        for key in STDIO_ENV_ALLOWLIST | self.passthrough:
             if key in src and not _leaks_secret_name(key):
                 value = src[key]
                 if value:

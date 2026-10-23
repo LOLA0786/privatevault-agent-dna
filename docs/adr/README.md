@@ -39,6 +39,7 @@ explicit statement that no such test exists.
 | [0029](0029-routine-reads-are-indexed-queries.md) | Routine reads are indexed queries, one page at a time | accepted | `tests/test_indexed_reads.py::test_api_reads_never_load_the_whole_ledger` |
 | [0030](0030-one-business-transaction-one-effect.md) | The receiver admits each business transaction once | accepted | `tests/receiver/test_receiver_transactions.py::test_second_permit_for_the_same_invoice_is_refused` |
 | [0031](0031-approval-quorum-and-roles.md) | N distinct approvers, by role, satisfy an approval | accepted | `tests/test_approval_quorum.py::test_two_of_two_with_roles_allows_and_seals_the_set` |
+| [0032](0032-wrapped-mcp-servers-hold-their-own-credentials.md) | A wrapped MCP server's credentials stay with the gateway | accepted | `tests/test_pv_wrap.py::test_session_end_to_end` |
 
 0001–0014 are the enforcement-spine decisions. 0015 is the earlier
 loop-discovery placement record, renumbered so the spine could own
@@ -77,3 +78,6 @@ once, so a new permit for the same invoice is refused, and holds uncertain
 outcomes until an operator reconciles them.
 0031 lets an operator policy require N distinct approvers per capability,
 by role, claimed all or none, with the permit naming the set.
+0032 runs an MCP server behind the gateway (`pv wrap`) with its credentials
+in an owner-only file the gateway hands only to the server, deciding each
+call as `mcp.<server>.<tool>` against the same policy and grants as the hook.

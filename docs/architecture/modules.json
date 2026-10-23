@@ -371,6 +371,11 @@
   ],
   [
    "agent_dna.cli",
+   "agent_dna.quickstart.wrap",
+   "lazy"
+  ],
+  [
+   "agent_dna.cli",
    "agent_dna.security.loop_discovery",
    "lazy"
   ],
@@ -1767,6 +1772,46 @@
   [
    "agent_dna.profile_store",
    "agent_dna.fingerprint",
+   "top"
+  ],
+  [
+   "agent_dna.quickstart.wrap",
+   "agent_dna.apikeys",
+   "lazy"
+  ],
+  [
+   "agent_dna.quickstart.wrap",
+   "agent_dna.composition",
+   "lazy"
+  ],
+  [
+   "agent_dna.quickstart.wrap",
+   "agent_dna.gateway",
+   "lazy"
+  ],
+  [
+   "agent_dna.quickstart.wrap",
+   "agent_dna.gateway.credentials",
+   "top"
+  ],
+  [
+   "agent_dna.quickstart.wrap",
+   "agent_dna.gateway.errors",
+   "lazy"
+  ],
+  [
+   "agent_dna.quickstart.wrap",
+   "agent_dna.gateway.framing",
+   "lazy"
+  ],
+  [
+   "agent_dna.quickstart.wrap",
+   "agent_dna.gateway.stdio_proxy",
+   "lazy"
+  ],
+  [
+   "agent_dna.quickstart.wrap",
+   "agent_dna.quickstart",
    "top"
   ],
   [
@@ -3276,7 +3321,7 @@
   "agent_dna.advisory": 13,
   "agent_dna.allowlist": 1,
   "agent_dna.amount": 7,
-  "agent_dna.apikeys": 10,
+  "agent_dna.apikeys": 11,
   "agent_dna.approval_bridge": 4,
   "agent_dna.approval_policy": 2,
   "agent_dna.approval_v01": 1,
@@ -3290,7 +3335,7 @@
   "agent_dna.change_management": 1,
   "agent_dna.circuit_breaker": 4,
   "agent_dna.closure_v01": 3,
-  "agent_dna.composition": 5,
+  "agent_dna.composition": 6,
   "agent_dna.confidence": 1,
   "agent_dna.connector": 2,
   "agent_dna.connector.adapters.exact_byte_http": 3,
@@ -3325,9 +3370,10 @@
   "agent_dna.execution_record": 6,
   "agent_dna.execution_v01": 14,
   "agent_dna.fingerprint": 5,
-  "agent_dna.gateway.credentials": 5,
-  "agent_dna.gateway.errors": 11,
-  "agent_dna.gateway.framing": 8,
+  "agent_dna.gateway": 1,
+  "agent_dna.gateway.credentials": 6,
+  "agent_dna.gateway.errors": 12,
+  "agent_dna.gateway.framing": 9,
   "agent_dna.gateway.http_sse_proxy": 1,
   "agent_dna.gateway.https_egress": 2,
   "agent_dna.gateway.mediator": 2,
@@ -3335,7 +3381,7 @@
   "agent_dna.gateway.protocol": 2,
   "agent_dna.gateway.runtime": 4,
   "agent_dna.gateway.session": 2,
-  "agent_dna.gateway.stdio_proxy": 1,
+  "agent_dna.gateway.stdio_proxy": 2,
   "agent_dna.gateway.upstream": 3,
   "agent_dna.governance.evaluate": 1,
   "agent_dna.governance.pack": 2,
@@ -3383,7 +3429,8 @@
   "agent_dna.policy_replay": 3,
   "agent_dna.presenter_identity": 5,
   "agent_dna.profile_store": 1,
-  "agent_dna.quickstart": 1,
+  "agent_dna.quickstart": 2,
+  "agent_dna.quickstart.wrap": 1,
   "agent_dna.rate": 1,
   "agent_dna.rate_limit": 1,
   "agent_dna.receiver.asgi": 1,
@@ -3461,7 +3508,7 @@
   "agent_dna.backup": 4,
   "agent_dna.change_management": 1,
   "agent_dna.circuit_breaker": 4,
-  "agent_dna.cli": 10,
+  "agent_dna.cli": 11,
   "agent_dna.closure_v01": 4,
   "agent_dna.composition": 35,
   "agent_dna.confidence": 1,
@@ -3541,6 +3588,7 @@
   "agent_dna.policy_gate": 4,
   "agent_dna.policy_replay": 1,
   "agent_dna.profile_store": 1,
+  "agent_dna.quickstart.wrap": 8,
   "agent_dna.rate": 1,
   "agent_dna.receiver": 5,
   "agent_dna.receiver.asgi": 4,
@@ -4182,6 +4230,10 @@
   "agent_dna.quickstart": {
    "group": "agent_dna/quickstart",
    "path": "agent_dna/quickstart/__init__.py"
+  },
+  "agent_dna.quickstart.wrap": {
+   "group": "agent_dna/quickstart",
+   "path": "agent_dna/quickstart/wrap.py"
   },
   "agent_dna.rate": {
    "group": "agent_dna (core modules)",

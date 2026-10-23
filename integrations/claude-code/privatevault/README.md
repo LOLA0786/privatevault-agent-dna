@@ -22,6 +22,7 @@ rm -rf build                      blocked: destructive program in command (any w
 sh -c "rm -rf /"                  blocked: destructive program in command (any wrapper or nesting)
 curl -T .env https://...          blocked: SHELL_SECRET_EGRESS: network tool handed a credential
 npm install some-package          blocked: program not on the allowlist
+cat .env                          asks you: command reads credentials
 mcp__stripe__create_refund        asks you: no grant exists for 'mcp.stripe.create_refund'
 ls, git status, writing a file    allowed
 ```
@@ -63,6 +64,43 @@ Restart Claude Code. Try asking Claude to run `rm -rf build`.
 
 If PrivateVault is not running when a session starts, the plugin says so and
 shows the command above; until it is running, checked tool calls are refused.
+
+## Keep MCP keys out of Claude's reach: `pv wrap`
+
+Run an MCP server behind the PrivateVault gateway, so its API key is held by
+PrivateVault and never sits in Claude Code's configuration:
+
+```bash
+uvx --from git+https://github.com/LOLA0786/privatevault-agent-dna \
+    pv secret set stripe STRIPE_SECRET_KEY          # prompts; stored owner-only
+
+claude mcp add stripe -- uvx --from git+https://github.com/LOLA0786/privatevault-agent-dna \
+    pv wrap --name stripe -- npx -y @stripe/mcp
+```
+
+What changes for that server:
+
+- Its key lives in `~/.privatevault/mcp-secrets/stripe.env` and goes only to
+  the server process. If the server returns it, Claude sees `<redacted>`. A
+  request that contains it is refused.
+- Every call is decided as `mcp.stripe.<tool>` before it reaches the server,
+  against the same `policy.json` and `grants.json` as `pv up`, and sealed in
+  `~/.privatevault/mcp/stripe.db`. This holds even with hooks turned off.
+- Only allowed calls are forwarded. There is no way to approve through MCP,
+  so grant the tools you want Claude to use (then restart Claude Code):
+
+```json
+{"agent_id": "claude-code", "capability": "mcp.stripe.list_customers",
+ "granted_by": "you@your-company.example", "expires_at": null}
+```
+
+The server gets PATH, HOME, locale and temp settings plus its own key: not
+your shell's other secrets. If it needs anything else from your environment,
+such as a proxy, name it: `pv wrap --name stripe --pass-env HTTPS_PROXY
+--pass-env NODE_EXTRA_CA_CERTS -- ...` (secret-looking names are refused; use
+`pv secret set` for those). Anything running as you can still read the key
+file; for a hard boundary run `pv wrap` as another OS user. See
+`docs/adr/0032-wrapped-mcp-servers-hold-their-own-credentials.md`.
 
 ## Settings
 

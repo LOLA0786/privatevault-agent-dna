@@ -24,7 +24,9 @@ from __future__ import annotations
 import argparse
 import errno
 import ipaddress
+import json
 import os
+import re
 import shutil
 import socket
 import sys
@@ -33,6 +35,9 @@ from pathlib import Path
 
 STARTER_FILES = ("policy.json", "grants.json")
 BASELINE_CAPABILITIES = "shell.exec,fs.write,net.fetch"
+AGENT_ID = "claude-code"
+# Same shape composition.parse_baseline_capabilities accepts.
+_BASELINE_CAPABILITY_RE = re.compile(r"[A-Za-z][A-Za-z0-9_.-]{0,127}")
 LOOPBACK_NAMES = {"localhost"}
 
 
@@ -68,6 +73,27 @@ def prepare_home(home: Path) -> dict[str, Path]:
     return paths
 
 
+def baseline_capabilities(grants_file: Path) -> str:
+    """The drift baseline: the plugin's three capabilities plus every
+    capability granted to the agent. Writing a grant is the operator saying
+    "this is normal"; without it, drift review would hold every granted MCP
+    tool for approval, which the gateway (``pv wrap``) can only refuse.
+    Unreadable grants leave the base list: the server then refuses the
+    file itself."""
+    caps = set(BASELINE_CAPABILITIES.split(","))
+    try:
+        grants = json.loads(grants_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        grants = []
+    for grant in grants if isinstance(grants, list) else []:
+        if not isinstance(grant, dict) or grant.get("agent_id") != AGENT_ID:
+            continue
+        cap = grant.get("capability")
+        if isinstance(cap, str) and _BASELINE_CAPABILITY_RE.fullmatch(cap):
+            caps.add(cap)
+    return ",".join(sorted(caps))
+
+
 def server_environment(
     home: Path, workdir: Path, environ: dict[str, str] | None = None
 ) -> tuple[dict[str, str], list[str]]:
@@ -82,7 +108,7 @@ def server_environment(
             "PV_DB_PATH": str(home / "ledger.db"),
             "PV_POLICY_FILE": str(home / "policy.json"),
             "PV_GRANTS_FILE": str(home / "grants.json"),
-            "PV_BASELINE_CAPABILITIES": BASELINE_CAPABILITIES,
+            "PV_BASELINE_CAPABILITIES": baseline_capabilities(home / "grants.json"),
             "PV_SHELL_WORKDIR": str(workdir),
         }
     )
