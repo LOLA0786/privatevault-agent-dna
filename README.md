@@ -23,7 +23,7 @@ agent ──► POST /v1/decide ──► precedence engine ──► 200 / 202 
 
 ```bash
 pip install -e ".[dev]"
-python -m pytest -q                    # 2380+ tests
+python -m pytest -q                    # 2400+ tests
 ```
 
 Three properties worth checking before reading further:
@@ -244,6 +244,18 @@ Two integration layers:
      behind your TLS proxy; users add `https://audit.example.com/mcp` to Claude.
    (`tests/audit_connector/`)
 
+## Claude Code plugin
+
+`integrations/claude-code/privatevault` is a Claude Code plugin. Its
+`PreToolUse` hook sends every Bash command, file write, web fetch and MCP
+tool call to `POST /v1/decide` before it runs: block is refused (even under
+`--dangerously-skip-permissions`), require-approval asks you, allow defers
+to Claude Code's own permissions, and no answer refuses. It ships a starter
+policy (destructive and wrapped commands, secret egress, a program
+allowlist). Install with `/plugin marketplace add LOLA0786/privatevault-agent-dna`
+then `/plugin install privatevault@privatevault`; setup and limits are in
+its README (`tests/test_claude_code_plugin.py`).
+
 ## Model validation
 
 The drift scorer is evaluated with a sealed report format,
@@ -308,6 +320,7 @@ tools/verify_records.py independent chain and signature verifier
 | `agent_dna/connector/adapters/exact_byte_http.py` | Sidecar exact-byte egress (verify+consume → send → witness) |
 | `spec/` | Wire format: schemas, canonical vectors, precedence contract |
 | `tools/` | Independent verifiers, benchmarks, and adversarial runners |
+| `integrations/claude-code/` | Claude Code plugin: PreToolUse gate through `/v1/decide` |
 | `experimental/` | Unwired sketches. Nothing here carries claims |
 
 ## Exact-byte egress (how you actually send)

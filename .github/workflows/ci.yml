@@ -54,13 +54,14 @@ jobs:
       - name: Format gate
         run: >-
           uv run ruff format --check agent_dna api tests tools examples
-          experimental benchmarks agents proof demos end_to_end_coding_agents_demo.py
-          opa_decision_demo.py
+          experimental benchmarks agents proof demos integrations
+          end_to_end_coding_agents_demo.py opa_decision_demo.py
 
       - name: Lint gate
         run: >-
           uv run ruff check agent_dna api tests tools examples experimental
-          benchmarks agents proof demos end_to_end_coding_agents_demo.py opa_decision_demo.py
+          benchmarks agents proof demos integrations end_to_end_coding_agents_demo.py
+          opa_decision_demo.py
 
       - name: Static typing
         run: |
