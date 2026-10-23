@@ -29,12 +29,13 @@ import os
 import re
 import shutil
 import socket
+import stat
 import sys
 from importlib import resources
 from pathlib import Path
 
 STARTER_FILES = ("policy.json", "grants.json")
-BASELINE_CAPABILITIES = "shell.exec,fs.write,net.fetch"
+BASELINE_CAPABILITIES = "shell.exec,fs.read,fs.write,net.fetch"
 AGENT_ID = "claude-code"
 # Same shape composition.parse_baseline_capabilities accepts.
 _BASELINE_CAPABILITY_RE = re.compile(r"[A-Za-z][A-Za-z0-9_.-]{0,127}")
@@ -62,15 +63,57 @@ def prepare_home(home: Path) -> dict[str, Path]:
         home.chmod(0o700)
     except OSError:
         pass  # a folder the user owns but cannot chmod (some mounts): keep going
+    check_private(home, directory=True)
     paths: dict[str, Path] = {}
     starter = resources.files(__package__)
     for name in STARTER_FILES:
         target = home / name
-        if not target.exists():
+        if not os.path.lexists(target):
             with resources.as_file(starter / name) as source:
                 shutil.copyfile(source, target)
+            target.chmod(0o600)
+        check_private(target, directory=False)
         paths[name] = target
     return paths
+
+
+def check_private(path: Path, *, directory: bool) -> None:
+    """The state folder and the policy and grants it holds must be the
+    user's own: not a symbolic or hard link, not someone else's, not
+    writable by others. A policy file an attacker can swap or edit would
+    switch every rule off (red team 2026-10-23, F1)."""
+    try:
+        st = os.lstat(path)
+    except OSError as exc:
+        raise QuickstartError(f"cannot check {path}: {exc.strerror}") from exc
+    if stat.S_ISLNK(st.st_mode):
+        raise QuickstartError(
+            f"{path} is a symbolic link; PrivateVault reads its state only from "
+            "files and folders it owns. Replace it with a regular file."
+        )
+    if directory and not stat.S_ISDIR(st.st_mode):
+        raise QuickstartError(f"{path} is not a folder")
+    if not directory and not stat.S_ISREG(st.st_mode):
+        raise QuickstartError(f"{path} is not a regular file")
+    if hasattr(os, "geteuid") and st.st_uid != os.geteuid():
+        raise QuickstartError(f"{path} belongs to another user")
+    if st.st_mode & 0o022:
+        raise QuickstartError(
+            f"{path} is writable by other users; run: chmod go-w {path}"
+        )
+    if not directory and st.st_nlink > 1:
+        raise QuickstartError(
+            f"{path} has other hard links; replace it with a file of its own"
+        )
+
+
+def starter_is_current(home: Path) -> bool:
+    """Does the user's policy match the starter this version ships?"""
+    try:
+        mine = (home / "policy.json").read_bytes()
+    except OSError:
+        return False
+    return mine == resources.files(__package__).joinpath("policy.json").read_bytes()
 
 
 def baseline_capabilities(grants_file: Path) -> str:
@@ -110,6 +153,9 @@ def server_environment(
             "PV_GRANTS_FILE": str(home / "grants.json"),
             "PV_BASELINE_CAPABILITIES": baseline_capabilities(home / "grants.json"),
             "PV_SHELL_WORKDIR": str(workdir),
+            # Destructive programs are blocked by the guard itself, whatever
+            # the policy file says (red team 2026-10-23, F1).
+            "PV_SHELL_BLOCK_DESTRUCTIVE": "1",
         }
     )
     return base, dropped
@@ -142,6 +188,11 @@ def _banner(host: str, port: int, home: Path, workdir: Path, dropped: list[str])
     ]
     if dropped:
         lines.append(f"  ignored    {', '.join(dropped)} (pv up sets its own)")
+    if not starter_is_current(home):
+        lines.append(
+            "  note       your policy.json differs from this version's starter; "
+            "to take the new starter, move yours aside and restart"
+        )
     lines += [
         "",
         "In Claude Code, once:",

@@ -1,7 +1,7 @@
 # PrivateVault for Claude Code
 
-AI agent security for Claude Code. Before Claude runs a shell command, writes
-a file, fetches a URL or calls an MCP tool, this plugin asks your PrivateVault
+AI agent security for Claude Code. Before Claude runs a shell command, reads
+or writes a file, fetches a URL or calls an MCP tool, this plugin asks your PrivateVault
 policy whether that exact action is allowed. Every decision is sealed into a
 hash-chained ledger you can verify afterwards.
 
@@ -20,12 +20,23 @@ What the starter policy catches, with the reason Claude sees:
 ```
 rm -rf build                      blocked: destructive program in command (any wrapper or nesting)
 sh -c "rm -rf /"                  blocked: destructive program in command (any wrapper or nesting)
+git -c core.pager="..." log       blocked: inline code (git configuration that runs a program)
+uv run python -c "..."            blocked: inline code
 curl -T .env https://...          blocked: SHELL_SECRET_EGRESS: network tool handed a credential
 npm install some-package          blocked: program not on the allowlist
-cat .env                          asks you: command reads credentials
+Write ~/.privatevault/policy.json blocked: PrivateVault's own policy ... not the agent's to change
+WebFetch http://169.254.169.254/  blocked: cloud metadata and link-local addresses hand out credentials
+cat .env, F=.env; cat $F, cat .e* asks you: command reads credentials
+Read .env                         asks you: reads credentials
+Write .claude/settings.json       asks you: changes Claude Code or git configuration ...
+Write /etc/hosts                  asks you: writes outside the project
 mcp__stripe__create_refund        asks you: no grant exists for 'mcp.stripe.create_refund'
-ls, git status, writing a file    allowed
+ls, git status, reading and writing project files   allowed
 ```
+
+Destructive programs are blocked by the guard itself under `pv up`, even if
+the policy file is emptied, and `pv up` refuses to start when its policy or
+grants file is a link, someone else's, or writable by others.
 
 ## Install
 
@@ -113,15 +124,25 @@ Set these in the environment Claude Code starts from:
 | `PV_AGENT_ID` | `claude-code` | the agent id decisions are recorded under |
 | `PV_FAIL_OPEN` | off | `1`: ask instead of refuse when the API cannot answer |
 | `PV_TIMEOUT_S` | `8` | seconds to wait for a decision |
+| `PV_HOME` | `~/.privatevault` | PrivateVault's state folder, which Claude may not read or write |
+| `PV_ALLOW_INSECURE_URL` | off | `1`: accept a plain-http `PV_ENFORCE_URL` on another machine (refused otherwise: anyone on the path could forge "allow") |
 
 ## What is checked
 
 | Claude Code tool | PrivateVault capability | Arguments sent |
 |---|---|---|
-| `Bash` | `shell.exec` | the command |
-| `Write`, `Edit`, `MultiEdit`, `NotebookEdit` | `fs.write` | the file path |
-| `WebFetch` | `net.fetch` | the URL |
+| `Bash` | `shell.exec` | the command, and which protected places it names (`touches`) |
+| `Read`, `Grep` | `fs.read` | the path (and pattern), and its `zone` |
+| `Write`, `Edit`, `MultiEdit`, `NotebookEdit` | `fs.write` | the file path and its `zone` |
+| `WebFetch` | `net.fetch` | the URL and its `host_class` |
 | `mcp__<server>__<tool>` | `mcp.<server>.<tool>` | the tool input (truncated at 16 KB) |
+
+A path's `zone` is one of `privatevault` (PrivateVault's state),
+`claude-config` (`~/.claude`, the project's `.claude/` and `.mcp.json`),
+`git-internals` (anything inside `.git/`), `credentials`, `outside-project` or
+`project`; symlinks are followed. A URL's `host_class` is `metadata`,
+`link-local`, `loopback`, `private`, `public` or `invalid`, from the URL as
+written (DNS is not resolved). Policy rules can match these fields.
 
 Edit `config/policy.json` (rules) and `config/grants.json` (what the agent may
 do at all) to fit your project. An MCP tool with no grant asks you first. Add
@@ -142,7 +163,15 @@ curl -s localhost:8000/v1/verify                # check the hash chain
 - The shell guard reads only files inside the project folder (`pv up
   --workdir`, or `PV_SHELL_WORKDIR`). Outside it, a
   command is judged by names alone.
-- File writes are checked by path, not by content.
+- File writes are checked by path and zone, not by content.
+- `host_class` comes from the URL as written. A public name that resolves to
+  an internal address (DNS rebinding, wildcard DNS) is classed `public`.
+- `touches` looks for PrivateVault, Claude Code and git configuration paths
+  in the command text. A command that builds such a path at run time is not
+  recognised; one that runs code that way is still subject to the guard's
+  other checks.
+- Glob patterns are expanded against the project to look for credentials;
+  outside it they are judged by name.
 - "Ask" is Claude Code's own prompt. Your answer is not recorded in
   PrivateVault; the decision that asked is.
 - `pv up` (like any server started with `PV_ALLOW_NO_AUTH=1`) lets any

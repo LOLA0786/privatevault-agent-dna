@@ -292,3 +292,37 @@ def test_pass_env_refuses_secrets(tmp_path, capsys, var):
         ]
     )
     assert rc == 2 and "--pass-env" in capsys.readouterr().err
+
+
+def test_malformed_messages_are_answered_and_the_session_goes_on(tmp_path):
+    """Red team 2026-10-23 F10: a batch, a float id or a too-deep message
+    ended the session; each now gets an error and the next call works."""
+    home = tmp_path / "pv"
+    write_secret(home, "pay", "PAYMENTS_API_KEY", KEY)
+    deep: dict = {"a": 1}
+    for _ in range(40):
+        deep = {"a": deep}
+    replies, _ = _session(
+        home,
+        tmp_path / "calls.log",
+        [
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2025-06-18",
+                    "capabilities": {},
+                    "clientInfo": {"name": "t", "version": "1"},
+                },
+            },
+            [{"jsonrpc": "2.0", "id": 9, "method": "ping"}],  # type: ignore[list-item]
+            {"jsonrpc": "2.0", "id": 1.5, "method": "ping"},
+            {"jsonrpc": "2.0", "id": 3, "method": "ping", "params": deep},
+            {"jsonrpc": "2.0", "id": 4, "method": "ping"},
+        ],
+    )
+    refusals = [r for r in replies if r.get("id") is None]
+    assert len(refusals) == 3
+    assert all(r["error"]["code"] == -32600 for r in refusals)
+    assert {"id": 4, "jsonrpc": "2.0", "result": {}} in replies

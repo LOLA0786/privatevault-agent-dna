@@ -42,11 +42,32 @@ STDIO_ENV_ALLOWLIST = frozenset(
 )
 
 
+# A variable whose name contains one of these is treated as a secret
+# (red team 2026-10-23, F6: bare TOKEN, PASSWORD and SECRET passed).
+_SECRET_NAME_PARTS = (
+    "TOKEN",
+    "SECRET",
+    "PASSWORD",
+    "PASSWD",
+    "PASSPHRASE",
+    "CREDENTIAL",
+    "PRIVATE",
+    "APIKEY",
+    "API_KEY",
+    "ACCESS_KEY",
+    "AUTH",
+    "COOKIE",
+    "SESSION",
+)
+
+
 def _leaks_secret_name(name: str) -> bool:
     upper = name.upper()
-    if upper.startswith(("PV_", "AWS_", "GOOGLE_", "ANTHROPIC_", "OPENAI_")):
+    if upper.startswith(("PV_", "AWS_", "GOOGLE_", "ANTHROPIC_", "OPENAI_", "AZURE_")):
         return True
-    return upper.endswith("_KEY") or upper.endswith("_TOKEN")
+    if upper == "KEY" or upper.endswith("_KEY") or upper.startswith("KEY_"):
+        return True
+    return any(part in upper for part in _SECRET_NAME_PARTS)
 
 
 @dataclass(frozen=True)

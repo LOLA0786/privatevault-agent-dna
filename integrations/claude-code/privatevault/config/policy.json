@@ -61,6 +61,33 @@
       }
     },
     {
+      "id": "shell-touches-privatevault",
+      "capability": "shell.exec",
+      "outcome": "block",
+      "reason": "command names PrivateVault's own state (policy, grants, keys, ledger)",
+      "condition": {
+        "field": "arguments.touches",
+        "operator": "any_in",
+        "value": [
+          "privatevault"
+        ]
+      }
+    },
+    {
+      "id": "shell-touches-config",
+      "capability": "shell.exec",
+      "outcome": "require_approval",
+      "reason": "command names Claude Code or git configuration, which can make later commands run code",
+      "condition": {
+        "field": "arguments.touches",
+        "operator": "any_in",
+        "value": [
+          "claude-config",
+          "git-internals"
+        ]
+      }
+    },
+    {
       "id": "shell-reads-credentials",
       "capability": "shell.exec",
       "outcome": "require_approval",
@@ -91,6 +118,104 @@
         "field": "evidence.shell.network",
         "operator": "==",
         "value": true
+      }
+    },
+    {
+      "id": "fs-read-privatevault",
+      "capability": "fs.read",
+      "outcome": "block",
+      "reason": "PrivateVault's state holds credentials kept from the agent",
+      "condition": {
+        "field": "arguments.zone",
+        "operator": "==",
+        "value": "privatevault"
+      }
+    },
+    {
+      "id": "fs-read-credentials",
+      "capability": "fs.read",
+      "outcome": "require_approval",
+      "reason": "reads credentials",
+      "condition": {
+        "field": "arguments.zone",
+        "operator": "==",
+        "value": "credentials"
+      }
+    },
+    {
+      "id": "fs-write-privatevault",
+      "capability": "fs.write",
+      "outcome": "block",
+      "reason": "PrivateVault's own policy, grants, keys and ledger are not the agent's to change",
+      "condition": {
+        "field": "arguments.zone",
+        "operator": "==",
+        "value": "privatevault"
+      }
+    },
+    {
+      "id": "fs-write-config",
+      "capability": "fs.write",
+      "outcome": "require_approval",
+      "reason": "changes Claude Code or git configuration, which can make later commands run code",
+      "condition": {
+        "field": "arguments.zone",
+        "operator": "in",
+        "value": [
+          "claude-config",
+          "git-internals"
+        ]
+      }
+    },
+    {
+      "id": "fs-write-credentials",
+      "capability": "fs.write",
+      "outcome": "require_approval",
+      "reason": "writes a credential file",
+      "condition": {
+        "field": "arguments.zone",
+        "operator": "==",
+        "value": "credentials"
+      }
+    },
+    {
+      "id": "fs-write-outside-project",
+      "capability": "fs.write",
+      "outcome": "require_approval",
+      "reason": "writes outside the project",
+      "condition": {
+        "field": "arguments.zone",
+        "operator": "==",
+        "value": "outside-project"
+      }
+    },
+    {
+      "id": "net-fetch-metadata",
+      "capability": "net.fetch",
+      "outcome": "block",
+      "reason": "cloud metadata and link-local addresses hand out credentials",
+      "condition": {
+        "field": "arguments.host_class",
+        "operator": "in",
+        "value": [
+          "metadata",
+          "link-local",
+          "invalid"
+        ]
+      }
+    },
+    {
+      "id": "net-fetch-internal",
+      "capability": "net.fetch",
+      "outcome": "require_approval",
+      "reason": "fetches from this machine or the internal network",
+      "condition": {
+        "field": "arguments.host_class",
+        "operator": "in",
+        "value": [
+          "loopback",
+          "private"
+        ]
       }
     }
   ]

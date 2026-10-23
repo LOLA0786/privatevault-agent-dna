@@ -38,7 +38,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 2450+ automated tests, run in CI on every commit
+- 2500+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
@@ -715,6 +715,15 @@ Residual gaps we explicitly do **not** claim closed:
   (no catalog or undeclared name → not forwarded). In-process tests
   default to `finding` unless the hardened flag is set.
 - **`sampling/createMessage` is refused, not gated.**
+- **The Claude Code plugin's zones and host classes (ADR 0033) come from
+  tool input, not the kernel.** The hook resolves symlinks and classifies
+  the URL as written; it does not resolve DNS, so a public name pointing at
+  an internal address is `public`. `touches` reads the command text, so a
+  command that assembles a protected path at run time is not recognised
+  (the shell guard's other checks still apply). Read and Grep are checked;
+  Glob, which returns names only, is not. Commands allowed by policy
+  (`pytest`, `python script.py` after inspection) run code Claude may have
+  written (`tests/test_redteam_claude_code.py`).
 - **`pv wrap` (ADR 0032) is not an operating-system boundary.** It keeps a
   server's credentials out of Claude Code's configuration and out of MCP
   traffic (redacted on the way back, refused on the way out), but the gateway
