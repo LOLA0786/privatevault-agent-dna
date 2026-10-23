@@ -5,6 +5,13 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Hook resolves DNS; reading configuration asks
+- `net.fetch` host names are resolved (2 s limit) and classed by the worst
+  address returned, so a public name for the cloud metadata address is
+  blocked. Rebinding between the check and the fetch remains a stated limit.
+- Starter policy asks before reading `.mcp.json`, `.claude/` and `.git/`
+  contents. Plugin 0.4.2.
+
 ### Red team retest (0e262f7): F5 residuals closed
 - Shell guard rewrites bash ANSI-C quoting (`$'...'`, `$"..."`) before
   parsing and evaluates `${NAME:-word}`-style defaults and `#`/`%` trims, so

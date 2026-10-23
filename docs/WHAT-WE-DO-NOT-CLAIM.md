@@ -716,9 +716,10 @@ Residual gaps we explicitly do **not** claim closed:
   default to `finding` unless the hardened flag is set.
 - **`sampling/createMessage` is refused, not gated.**
 - **The Claude Code plugin's zones and host classes (ADR 0033) come from
-  tool input, not the kernel.** The hook resolves symlinks and classifies
-  the URL as written; it does not resolve DNS, so a public name pointing at
-  an internal address is `public`. `touches` reads the command text, so a
+  tool input, not the kernel.** The hook resolves symlinks, and resolves a
+  URL's host name and classes it by the worst address it gets back; the
+  fetch resolves the name again, so a name that changes its answer between
+  the two (DNS rebinding) is not caught. `touches` reads the command text, so a
   command that assembles a protected path at run time is not recognised
   (the shell guard's other checks still apply). The guard evaluates
   `$'...'` quoting and the `${NAME-word}`, `:-`, `=`, `+`, `#`, `%` forms of

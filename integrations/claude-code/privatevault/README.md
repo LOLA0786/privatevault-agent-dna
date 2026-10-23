@@ -143,8 +143,8 @@ A path's `zone` is one of `privatevault` (PrivateVault's state),
 `claude-config` (`~/.claude`, the project's `.claude/` and `.mcp.json`),
 `git-internals` (anything inside `.git/`), `credentials`, `outside-project` or
 `project`; symlinks are followed. A URL's `host_class` is `metadata`,
-`link-local`, `loopback`, `private`, `public` or `invalid`, from the URL as
-written (DNS is not resolved). Policy rules can match these fields.
+`link-local`, `loopback`, `private`, `public` or `invalid`; a host name is
+resolved and classed by the worst address it points to. Policy rules can match these fields.
 
 Edit `config/policy.json` (rules) and `config/grants.json` (what the agent may
 do at all) to fit your project. An MCP tool with no grant asks you first. Add
@@ -166,8 +166,9 @@ curl -s localhost:8000/v1/verify                # check the hash chain
   --workdir`, or `PV_SHELL_WORKDIR`). Outside it, a
   command is judged by names alone.
 - File writes are checked by path and zone, not by content.
-- `host_class` comes from the URL as written. A public name that resolves to
-  an internal address (DNS rebinding, wildcard DNS) is classed `public`.
+- `host_class` resolves the host name when the hook runs. The fetch resolves
+  it again, so a name that changes its answer in between (DNS rebinding) is
+  not caught.
 - `touches` looks for PrivateVault, Claude Code and git configuration paths
   in the command text. A command that builds such a path at run time is not
   recognised; one that runs code that way is still subject to the guard's
