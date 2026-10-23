@@ -142,7 +142,10 @@ def zone_of(path: str, cwd: str) -> str:
     F7, F12): PrivateVault's own state, Claude Code or git configuration
     (both can make later commands run code), credentials, outside the
     project, or the project."""
-    pv_home = _roots(os.environ.get("PV_HOME") or "~/.privatevault")
+    # the configured home, and the default one whatever PV_HOME says
+    pv_home = _roots("~/.privatevault")
+    if os.environ.get("PV_HOME"):
+        pv_home += _roots(os.environ["PV_HOME"])
     claude_home = _roots(os.environ.get("CLAUDE_CONFIG_DIR") or "~/.claude")
     project = _roots(cwd)
     cands = _candidates(path, cwd)

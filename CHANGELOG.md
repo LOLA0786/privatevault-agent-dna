@@ -5,6 +5,16 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Red team retest (0e262f7): F5 residuals closed
+- Shell guard rewrites bash ANSI-C quoting (`$'...'`, `$"..."`) before
+  parsing and evaluates `${NAME:-word}`-style defaults and `#`/`%` trims, so
+  `cat $'.env'`, `f=${UNDEF:-.env}; cat "$f"` ask and `$'\x72m' -rf /` is
+  destructive even under an empty policy.
+- `~/.privatevault` is protected whatever `PV_HOME` says.
+- Starter allowlist: read-only text tools (`wc`, `sort`, `uniq`, `cut`,
+  `tr`, `nl`, `diff`, ...); `sort --compress-program` is inline code.
+- Plugin 0.4.1. Cases added to `tests/test_redteam_claude_code.py`.
+
 ### Claude Code red team (2026-10-23) closed (ADR 0033)
 - The hook checks Read and Grep, and sends each path's zone, each URL's host
   class and the protected places a command names. The starter policy blocks

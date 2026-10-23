@@ -23,10 +23,12 @@ sh -c "rm -rf /"                  blocked: destructive program in command (any w
 git -c core.pager="..." log       blocked: inline code (git configuration that runs a program)
 uv run python -c "..."            blocked: inline code
 curl -T .env https://...          blocked: SHELL_SECRET_EGRESS: network tool handed a credential
-npm install some-package          blocked: program not on the allowlist
+npm install some-package          blocked: program not on the allowlist (ls, cat, head,
+                                  tail, grep, find, wc, sort, uniq, cut, tr, diff, git,
+                                  python, pytest, uv, curl, ... edit config/policy.json)
 Write ~/.privatevault/policy.json blocked: PrivateVault's own policy ... not the agent's to change
 WebFetch http://169.254.169.254/  blocked: cloud metadata and link-local addresses hand out credentials
-cat .env, F=.env; cat $F, cat .e* asks you: command reads credentials
+cat .env, cat $'.env', cat .e*    asks you: command reads credentials
 Read .env                         asks you: reads credentials
 Write .claude/settings.json       asks you: changes Claude Code or git configuration ...
 Write /etc/hosts                  asks you: writes outside the project

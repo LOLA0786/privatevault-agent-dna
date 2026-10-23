@@ -25,7 +25,11 @@ Findings -> tests:
       -> test_hook_decisions[f12-*]
   F13 a plain-http PV_ENFORCE_URL on another machine was trusted
       -> test_f13_*
-Ordinary work still passes -> test_hook_decisions[ok-*]
+Retest at 0e262f7: ANSI-C quoting ($'.env'), parameter defaults
+(${UNDEF:-.env}) and trims read credentials unnoticed; a custom PV_HOME left
+~/.privatevault writable with a prompt -> test_hook_decisions[r-*]
+Ordinary work still passes, read-only text tools included
+-> test_hook_decisions[ok-*]
 """
 
 from __future__ import annotations
@@ -285,6 +289,28 @@ CASES = [
         },
         "ask",
     ),
+    # retest at 0e262f7: ANSI-C quoting and parameter defaults (F5 residual)
+    ("r-ansi-c", lambda h, w: _bash("cat $'.env'"), "ask"),
+    ("r-ansi-c-hex", lambda h, w: _bash(r"cat $'\x2e\x65\x6e\x76'"), "ask"),
+    ("r-ansi-c-octal", lambda h, w: _bash(r"cat $'\056env'"), "ask"),
+    ("r-ansi-c-key", lambda h, w: _bash("cat $'id_ed25519'"), "ask"),
+    ("r-default", lambda h, w: _bash('f=${UNDEF:-.env}; cat "$f"'), "ask"),
+    ("r-default-unset", lambda h, w: _bash("f=${x-.env}; cat $f"), "ask"),
+    ("r-trim", lambda h, w: _bash("F=.envx; cat ${F%x}"), "ask"),
+    ("r-sort-compress", lambda h, w: _bash("sort --compress-program=sh x"), "deny"),
+    (
+        "r-default-home",
+        lambda h, w: {
+            "tool_name": "Write",
+            "tool_input": {"file_path": "~/.privatevault/policy.json", "content": "{}"},
+        },
+        "deny",
+    ),
+    # retest false positives: read-only text tools
+    ("ok-wc", lambda h, w: _bash("wc -l README.md"), None),
+    ("ok-sort-uniq", lambda h, w: _bash("cat README.md | sort | uniq -c"), None),
+    ("ok-cut-tr", lambda h, w: _bash("cut -c1-3 README.md | tr a-z A-Z"), None),
+    ("ok-diff", lambda h, w: _bash("diff README.md README.md"), None),
     ("ok-ls", lambda h, w: _bash("ls -la"), None),
     ("ok-git-status", lambda h, w: _bash("git status"), None),
     (
@@ -375,8 +401,12 @@ def test_f1_state_folder_writable_by_others_is_refused(tmp_path):
     assert (home.stat().st_mode & 0o077) == 0
 
 
-def test_f1_empty_policy_still_blocks_destructive(tmp_path, monkeypatch):
-    """Even a policy with no rules cannot let rm -rf through pv up."""
+@pytest.mark.parametrize(
+    "command", ["rm -rf /", "bash -c 'rm -rf /'", "$'\\x72m' -rf /", "$'rm' -rf /"]
+)
+def test_f1_empty_policy_still_blocks_destructive(tmp_path, monkeypatch, command):
+    """Even a policy with no rules cannot let rm -rf through pv up, however
+    the program name is spelled (retest: ANSI-C quoting)."""
     from fastapi.testclient import TestClient
 
     for name in [n for n in os.environ if n.startswith("PV_")]:
@@ -397,7 +427,7 @@ def test_f1_empty_policy_still_blocks_destructive(tmp_path, monkeypatch):
                 "agent_id": "claude-code",
                 "capability": "shell.exec",
                 "timestamp": 1,
-                "arguments": {"command": "rm -rf /"},
+                "arguments": {"command": command},
             },
         )
     assert r.status_code == 403 and r.json()["decision"] == "block"
