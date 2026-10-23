@@ -76,6 +76,11 @@ changes) are left as written. `~/.privatevault` is protected even when
 (`wc`, `sort`, `uniq`, `cut`, `tr`, `diff`, ...); `sort --compress-program`
 is inline code.
 
+Hardening after the retest: the hook resolves a URL's host name and classes
+it by the worst address returned (a public name for 169.254.169.254 is
+`metadata`), and the starter policy asks before reading Claude Code or git
+configuration as well as before writing it.
+
 ## What would make us revisit
 An operating-system sandbox under the agent, so paths and network are
 enforced by the kernel rather than read from tool input; resolving and

@@ -311,6 +311,23 @@ CASES = [
     ("ok-sort-uniq", lambda h, w: _bash("cat README.md | sort | uniq -c"), None),
     ("ok-cut-tr", lambda h, w: _bash("cut -c1-3 README.md | tr a-z A-Z"), None),
     ("ok-diff", lambda h, w: _bash("diff README.md README.md"), None),
+    # retest: reading configuration asks
+    (
+        "r-read-mcp-json",
+        lambda h, w: {
+            "tool_name": "Read",
+            "tool_input": {"file_path": str(w / ".mcp.json")},
+        },
+        "ask",
+    ),
+    (
+        "r-read-git-hook",
+        lambda h, w: {
+            "tool_name": "Read",
+            "tool_input": {"file_path": str(w / ".git" / "hooks" / "pre-commit")},
+        },
+        "ask",
+    ),
     ("ok-ls", lambda h, w: _bash("ls -la"), None),
     ("ok-git-status", lambda h, w: _bash("git status"), None),
     (
@@ -544,3 +561,35 @@ def test_hook_and_guard_agree_on_credential_names():
     ]
     for name in names:
         assert bool(hook.SENSITIVE.search(name)) == bool(_SENSITIVE.search(name)), name
+
+
+@pytest.mark.parametrize(
+    "addresses,expected",
+    [
+        (["169.254.169.254"], "metadata"),
+        (["93.184.216.34", "169.254.169.254"], "metadata"),
+        (["10.0.0.7"], "private"),
+        (["127.0.0.1"], "loopback"),
+        (["93.184.216.34"], "public"),
+        ([], "public"),
+    ],
+)
+def test_names_are_classed_by_what_they_resolve_to(monkeypatch, addresses, expected):
+    """Retest: a public name pointing at the metadata address was 'public'."""
+    hook = _hook()
+    monkeypatch.setattr(hook, "_resolve", lambda host: list(addresses))
+    assert hook.host_class("http://innocent.example/latest/") == expected
+
+
+def test_resolution_gives_up_quietly(monkeypatch):
+    hook = _hook()
+
+    def slow(*_a, **_k):
+        import time
+
+        time.sleep(5)
+        return []
+
+    monkeypatch.setattr(hook.socket, "getaddrinfo", slow)
+    monkeypatch.setattr(hook, "DNS_TIMEOUT_S", 0.2)
+    assert hook._resolve("slow.example") == []

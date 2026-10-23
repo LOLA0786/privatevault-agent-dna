@@ -13,6 +13,7 @@ git configuration, credentials and cloud metadata from ordinary work:
     zone       privatevault | claude-config | git-internals | credentials
                | outside-project | project
     host_class metadata | link-local | loopback | private | public | invalid
+               (names are resolved; the worst address wins)
     touches    zones a shell command names (privatevault, claude-config,
                git-internals)
 
@@ -45,6 +46,7 @@ import os
 import re
 import socket
 import sys
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -194,8 +196,34 @@ def _ip_class(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> str:
     return "public"
 
 
+# Worst first: a name is classed by the worst address it resolves to.
+_CLASS_RANK = ("metadata", "link-local", "loopback", "private", "public")
+DNS_TIMEOUT_S = 2.0
+
+
+def _resolve(host: str) -> list[str]:
+    """The addresses a name resolves to now, or [] if it does not resolve
+    within DNS_TIMEOUT_S."""
+    found: list[str] = []
+
+    def run() -> None:
+        try:
+            for info in socket.getaddrinfo(host, None):
+                found.append(str(info[4][0]).split("%", 1)[0])
+        except (OSError, UnicodeError, ValueError):
+            pass
+
+    worker = threading.Thread(target=run, daemon=True)
+    worker.start()
+    worker.join(DNS_TIMEOUT_S)
+    return list(dict.fromkeys(found)) if not worker.is_alive() else []
+
+
 def host_class(url: str) -> str:
-    """What kind of host a URL names, without resolving DNS."""
+    """What kind of host a URL names. A name is resolved and classed by the
+    worst address it points to, so a public name for 169.254.169.254 is
+    metadata (red team retest: DNS). A name that does not resolve is
+    classed by its suffix."""
     try:
         host = (urllib.parse.urlsplit(url).hostname or "").rstrip(".").lower()
     except ValueError:
@@ -209,6 +237,10 @@ def host_class(url: str) -> str:
     ip = _ip(host)
     if ip is not None:
         return _ip_class(ip)
+    classes = {_ip_class(a) for a in map(_ip, _resolve(host)) if a is not None}
+    for worst in _CLASS_RANK:
+        if worst in classes:
+            return worst
     return "private" if host.endswith((".internal", ".local", ".lan")) else "public"
 
 

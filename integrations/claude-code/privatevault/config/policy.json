@@ -171,6 +171,20 @@
       }
     },
     {
+      "id": "fs-read-config",
+      "capability": "fs.read",
+      "outcome": "require_approval",
+      "reason": "reads Claude Code or git configuration (MCP servers, hooks, settings)",
+      "condition": {
+        "field": "arguments.zone",
+        "operator": "in",
+        "value": [
+          "claude-config",
+          "git-internals"
+        ]
+      }
+    },
+    {
       "id": "fs-write-privatevault",
       "capability": "fs.write",
       "outcome": "block",
