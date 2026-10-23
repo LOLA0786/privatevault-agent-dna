@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, replace
 from typing import Any
 from urllib.parse import urlparse
@@ -31,6 +32,7 @@ from agent_dna.gateway.upstream import (
 
 PRODUCTION_UPSTREAM_TYPES = (StdioUpstream, HttpSseUpstream, HttpsEgressUpstream)
 UNDECLARED_POLICIES = frozenset({"finding", "block"})
+_PREFIX_RE = re.compile(r"(?:[A-Za-z0-9_-]+\.)+")
 
 
 @dataclass(frozen=True)
@@ -61,6 +63,9 @@ class GatewayConfig:
     undeclared_tool_policy: str = "finding"
     max_same_origin_redirects: int = 1
     https_egress_capability: str = ""
+    # Prepended to every decided capability (tools, resources, prompts):
+    # "mcp.stripe." decides "mcp.stripe.create_refund". Empty: unchanged.
+    capability_prefix: str = ""
     # Explicit test-only escape hatches. Production constructors leave these False.
     _test_allow_newline_framing: bool = False
     _test_allow_inprocess: bool = False
@@ -77,6 +82,12 @@ def _validate_gateway_config(config: GatewayConfig) -> None:
         )
     if config.max_same_origin_redirects < 0:
         raise GatewayStartupError("max_same_origin_redirects must be >= 0")
+    prefix = config.capability_prefix
+    if prefix and not _PREFIX_RE.fullmatch(prefix):
+        raise GatewayStartupError(
+            f"capability_prefix {prefix!r}: letters, digits, '_', '-' and '.', "
+            "ending in '.'"
+        )
     _validate_framing_mode(config)
     _validate_transport_tls(config)
 
@@ -329,6 +340,7 @@ class McpGateway:
             fail_closed_on_unattributed=self.config.fail_closed_on_unattributed,
             undeclared_tool_policy=self.config.undeclared_tool_policy,
             max_same_origin_redirects=self.config.max_same_origin_redirects,
+            capability_prefix=self.config.capability_prefix,
         )
 
     def ops_summary(self) -> dict[str, Any]:

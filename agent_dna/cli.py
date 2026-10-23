@@ -10,7 +10,8 @@ with a contract:
     2  usage or configuration error
 
 `pv up` runs a local, single-developer PrivateVault for the Claude Code
-plugin (agent_dna/quickstart).
+plugin, and `pv wrap` runs an MCP server behind the gateway with its
+credentials kept out of Claude's reach (agent_dna/quickstart).
 
 `pv policy check` is the policy-change gate: run it in a pull request
 and a rule change becomes reviewable evidence instead of a leap.
@@ -901,6 +902,9 @@ def build_parser() -> argparse.ArgumentParser:
     from agent_dna.quickstart import add_parser as add_up_parser
 
     add_up_parser(sub)
+    from agent_dna.quickstart.wrap import add_parsers as add_wrap_parsers
+
+    add_wrap_parsers(sub)
 
     return p
 
