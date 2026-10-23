@@ -1,10 +1,20 @@
 #!/usr/bin/env python3
 """PrivateVault gate for Claude Code (PreToolUse hook).
 
-Before Claude Code runs a shell command, writes a file, fetches a URL or
-calls an MCP tool, this hook asks a PrivateVault API (POST /v1/decide)
-whether the action is allowed, and every decision is sealed into
-PrivateVault's hash-chained ledger.
+Before Claude Code runs a shell command, reads or writes a file, fetches a
+URL or calls an MCP tool, this hook asks a PrivateVault API (POST
+/v1/decide) whether the action is allowed, and every decision is sealed
+into PrivateVault's hash-chained ledger.
+
+With each file path it sends the path's zone, and with each URL the kind
+of host, so the policy can tell PrivateVault's own state, Claude Code and
+git configuration, credentials and cloud metadata from ordinary work:
+
+    zone       privatevault | claude-config | git-internals | credentials
+               | outside-project | project
+    host_class metadata | link-local | loopback | private | public | invalid
+    touches    zones a shell command names (privatevault, claude-config,
+               git-internals)
 
     allow             -> no output: Claude Code's own permission rules apply
                          as usual (PrivateVault only ever adds restrictions)
@@ -19,14 +29,21 @@ Settings (environment):
     PV_AGENT_ID      agent id for decisions      (default claude-code)
     PV_FAIL_OPEN     "1": ask instead of deny when the API cannot answer
     PV_TIMEOUT_S     seconds to wait for a decision (default 8)
+    PV_HOME          PrivateVault's state folder (default ~/.privatevault)
+    PV_ALLOW_INSECURE_URL  "1": allow a plain-http PV_ENFORCE_URL that is
+                     not on this machine (otherwise refused: a forged
+                     "allow" could come from anyone on the path)
 
 Standard library only, so it runs wherever python3 does.
 """
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import os
+import re
+import socket
 import sys
 import time
 import urllib.error
@@ -36,6 +53,24 @@ from typing import Any
 
 MAX_ARG_CHARS = 16_384
 WRITE_TOOLS = {"Write", "Edit", "MultiEdit", "NotebookEdit"}
+READ_TOOLS = {"Read", "Grep"}
+# Same names as agent_dna.shell_guard._SENSITIVE (tests keep them in step).
+SENSITIVE = re.compile(
+    r"(^|/)(\.env(\.[^/]*)?|\.netrc|\.npmrc|\.pypirc|\.git-credentials|"
+    r"id_(rsa|dsa|ecdsa|ed25519)[^/]*|\.?credentials(\.[^/]*)?|[^/]*\.(pem|key|p12|pfx))$"
+    r"|(^|/)\.(ssh|aws|gnupg|kube|docker)(/|$)"
+    r"|^/proc/[^/]+/environ$"
+    r"|secret",
+    re.IGNORECASE,
+)
+METADATA_HOSTS = {
+    "metadata",
+    "metadata.google.internal",
+    "metadata.goog",
+    "instance-data",
+    "instance-data.ec2.internal",
+}
+METADATA_IPS = {"169.254.169.254", "169.254.170.2", "100.100.100.200", "fd00:ec2::254"}
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
 START = "uvx --from git+https://github.com/LOLA0786/privatevault-agent-dna pv up"
 
@@ -59,6 +94,14 @@ def capability_for(tool_name: str, tool_input: dict[str, Any]) -> tuple[str, dic
     """Map a Claude Code tool call to a PrivateVault capability and arguments."""
     if tool_name == "Bash":
         return "shell.exec", {"command": str(tool_input.get("command", ""))}
+    if tool_name in READ_TOOLS:
+        path = tool_input.get("file_path") or tool_input.get("path") or "."
+        args = {"path": str(path), "tool": tool_name}
+        if tool_name == "Grep":
+            args["pattern"] = str(tool_input.get("pattern", ""))[:1024]
+            if tool_input.get("glob"):
+                args["glob"] = str(tool_input["glob"])[:1024]
+        return "fs.read", args
     if tool_name in WRITE_TOOLS:
         path = tool_input.get("file_path") or tool_input.get("notebook_path") or ""
         return "fs.write", {"path": str(path), "tool": tool_name}
@@ -72,6 +115,126 @@ def capability_for(tool_name: str, tool_input: dict[str, Any]) -> tuple[str, dic
     return f"tool.{tool_name}", _bounded(tool_input)
 
 
+def _under(path: str, root: str) -> bool:
+    return path == root or path.startswith(root.rstrip(os.sep) + os.sep)
+
+
+def _candidates(path: str, cwd: str) -> list[str]:
+    """The path as written (normalised) and with symlinks resolved."""
+    p = os.path.expanduser(path)
+    if not os.path.isabs(p):
+        p = os.path.join(cwd, p)
+    out = [os.path.normpath(p)]
+    try:
+        out.append(os.path.realpath(p))
+    except (OSError, ValueError):
+        pass
+    return list(dict.fromkeys(out))
+
+
+def _roots(path: str) -> list[str]:
+    p = os.path.expanduser(path)
+    return list(dict.fromkeys([os.path.normpath(p), os.path.realpath(p)]))
+
+
+def zone_of(path: str, cwd: str) -> str:
+    """Where a file path points, for the policy (red team 2026-10-23, F2,
+    F7, F12): PrivateVault's own state, Claude Code or git configuration
+    (both can make later commands run code), credentials, outside the
+    project, or the project."""
+    pv_home = _roots(os.environ.get("PV_HOME") or "~/.privatevault")
+    claude_home = _roots(os.environ.get("CLAUDE_CONFIG_DIR") or "~/.claude")
+    project = _roots(cwd)
+    cands = _candidates(path, cwd)
+    if any(_under(c, r) for c in cands for r in pv_home):
+        return "privatevault"
+    for c in cands:
+        if any(_under(c, r) for r in claude_home):
+            return "claude-config"
+        for root in project:
+            if _under(c, os.path.join(root, ".claude")) or c == os.path.join(
+                root, ".mcp.json"
+            ):
+                return "claude-config"
+        if ".git" in c.split(os.sep)[:-1]:
+            return "git-internals"  # hooks and config run code on later commands
+    if any(SENSITIVE.search(c) for c in cands):
+        return "credentials"
+    # outside if the path as written or its real target leaves the project
+    if not all(any(_under(c, r) for r in project) for c in cands):
+        return "outside-project"
+    return "project"
+
+
+def _ip(host: str) -> ipaddress.IPv4Address | ipaddress.IPv6Address | None:
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        try:  # 2852039166, 0xa9fea9fe, 0251.0376.0251.0376: forms curl accepts
+            ip = ipaddress.ip_address(socket.inet_aton(host))
+        except (OSError, ValueError):
+            return None
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
+        return ip.ipv4_mapped
+    return ip
+
+
+def _ip_class(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> str:
+    if str(ip) in METADATA_IPS:
+        return "metadata"
+    if ip.is_link_local:
+        return "link-local"
+    if ip.is_loopback or ip.is_unspecified:
+        return "loopback"
+    if ip.is_private or ip.is_reserved or ip.is_multicast:
+        return "private"
+    return "public"
+
+
+def host_class(url: str) -> str:
+    """What kind of host a URL names, without resolving DNS."""
+    try:
+        host = (urllib.parse.urlsplit(url).hostname or "").rstrip(".").lower()
+    except ValueError:
+        return "invalid"
+    if not host:
+        return "invalid"
+    if host in METADATA_HOSTS:
+        return "metadata"
+    if host == "localhost" or host.endswith(".localhost"):
+        return "loopback"
+    ip = _ip(host)
+    if ip is not None:
+        return _ip_class(ip)
+    return "private" if host.endswith((".internal", ".local", ".lan")) else "public"
+
+
+def touches(command: str) -> list[str]:
+    """Zones a shell command names by path."""
+    found = []
+    if ".privatevault" in command or (
+        os.environ.get("PV_HOME") and os.environ["PV_HOME"] in command
+    ):
+        found.append("privatevault")
+    if re.search(r"\.claude(/|\b)|\.mcp\.json", command):
+        found.append("claude-config")
+    if re.search(r"\.git/(hooks|config|info)", command):
+        found.append("git-internals")
+    return found
+
+
+def classify(capability: str, arguments: dict, cwd: str) -> dict:
+    """Arguments plus what the policy needs to know about them."""
+    out = dict(arguments)
+    if capability in {"fs.read", "fs.write"} and isinstance(out.get("path"), str):
+        out["zone"] = zone_of(out["path"], cwd)
+    elif capability == "net.fetch" and isinstance(out.get("url"), str):
+        out["host_class"] = host_class(out["url"])
+    elif capability == "shell.exec" and isinstance(out.get("command"), str):
+        out["touches"] = touches(out["command"])
+    return out
+
+
 def _bounded(value: Any) -> dict:
     text = json.dumps(value, sort_keys=True, default=str)
     if len(text) <= MAX_ARG_CHARS:
@@ -79,9 +242,24 @@ def _bounded(value: Any) -> dict:
     return {"truncated": True, "preview": text[:MAX_ARG_CHARS]}
 
 
+def url_is_trustworthy(base: str) -> bool:
+    """https anywhere, or http on this machine (red team 2026-10-23, F13)."""
+    parts = urllib.parse.urlsplit(base)
+    if parts.scheme == "https":
+        return True
+    if parts.scheme == "http" and (parts.hostname or "") in LOCAL_HOSTS:
+        return True
+    return os.environ.get("PV_ALLOW_INSECURE_URL", "") == "1"
+
+
 def decide(payload: dict[str, Any]) -> tuple[int | None, dict[str, Any] | str]:
     """POST /v1/decide. Returns (status, body) or (None, error text)."""
     base = base_url()
+    if not url_is_trustworthy(base):
+        return None, (
+            f"PV_ENFORCE_URL {base} is plain http to another machine; a forged "
+            "answer could allow anything. Use https, or set PV_ALLOW_INSECURE_URL=1"
+        )
     headers = {"Content-Type": "application/json"}
     key = os.environ.get("PV_API_KEY", "").strip()
     if key:
@@ -153,6 +331,8 @@ def main() -> int:
         decision, reason = "deny", "PrivateVault gate received an unreadable tool call"
     else:
         capability, arguments = capability_for(tool_name, tool_input)
+        cwd = event.get("cwd") if isinstance(event.get("cwd"), str) else os.getcwd()
+        arguments = classify(capability, arguments, cwd)
         payload = {
             "agent_id": os.environ.get("PV_AGENT_ID", "claude-code"),
             "capability": capability,

@@ -33,6 +33,8 @@ Accepted argument shapes, in order: ``argv`` (list, exec-style),
 from __future__ import annotations
 
 import contextvars
+import fnmatch
+import glob
 import hashlib
 import json
 import math
@@ -210,7 +212,7 @@ _ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
 _PY = re.compile(r"python[0-9.]*\Z")
 _SENSITIVE = re.compile(
     r"(^|/)(\.env(\.[^/]*)?|\.netrc|\.npmrc|\.pypirc|\.git-credentials|"
-    r"id_(rsa|dsa|ecdsa|ed25519)[^/]*|credentials(\.json)?|[^/]*\.(pem|key|p12|pfx))$"
+    r"id_(rsa|dsa|ecdsa|ed25519)[^/]*|\.?credentials(\.[^/]*)?|[^/]*\.(pem|key|p12|pfx))$"
     r"|(^|/)\.(ssh|aws|gnupg|kube|docker)(/|$)"
     r"|^/proc/[^/]+/environ$"
     r"|secret",
@@ -220,6 +222,172 @@ _SENSITIVE = re.compile(
 
 class _UnparseableError(ValueError):
     pass
+
+
+# Assigning one of these makes an ordinary command run a program of the
+# caller's choosing: git's pager, editor and ssh, the shell's startup file,
+# the dynamic loader, an interpreter's startup code, PATH itself (red team
+# 2026-10-23, F3). The command is then inline code.
+EXEC_ENV = frozenset(
+    {
+        "PATH",
+        "PAGER",
+        "MANPAGER",
+        "EDITOR",
+        "VISUAL",
+        "GIT_PAGER",
+        "GIT_EDITOR",
+        "GIT_SEQUENCE_EDITOR",
+        "GIT_SSH",
+        "GIT_SSH_COMMAND",
+        "GIT_EXTERNAL_DIFF",
+        "GIT_ASKPASS",
+        "SSH_ASKPASS",
+        "GIT_PROXY_COMMAND",
+        "GIT_CONFIG_PARAMETERS",
+        "GIT_CONFIG_COUNT",
+        "GIT_CONFIG_GLOBAL",
+        "GIT_CONFIG_SYSTEM",
+        "GIT_EXEC_PATH",
+        "GIT_TEMPLATE_DIR",
+        "GIT_DIR",
+        "LESSOPEN",
+        "LESSCLOSE",
+        "BASH_ENV",
+        "ENV",
+        "PROMPT_COMMAND",
+        "PYTHONSTARTUP",
+        "PYTHONPATH",
+        "PYTHONHOME",
+        "PERL5OPT",
+        "PERL5LIB",
+        "RUBYOPT",
+        "RUBYLIB",
+        "NODE_OPTIONS",
+        "NODE_PATH",
+    }
+)
+EXEC_ENV_PREFIXES = ("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_", "LD_", "DYLD_")
+
+# git configuration a command line may set without being able to run code.
+# Any other key (core.pager, diff.external, alias.*, credential.helper,
+# filter.*, include.path, ...) can, so it marks the command inline code.
+_GIT_SAFE_KEYS = (
+    "user.",
+    "color.",
+    "advice.",
+    "init.defaultbranch",
+    "safe.directory",
+    "commit.gpgsign",
+    "tag.gpgsign",
+    "core.quotepath",
+    "core.autocrlf",
+    "core.safecrlf",
+    "core.filemode",
+    "core.longpaths",
+    "core.abbrev",
+    "log.date",
+    "log.decorate",
+    "pull.rebase",
+    "pull.ff",
+    "push.default",
+    "push.autosetupremote",
+    "fetch.prune",
+    "rebase.autostash",
+    "merge.conflictstyle",
+    "diff.renames",
+    "diff.algorithm",
+    "status.",
+    "column.",
+    "i18n.",
+    "gc.auto",
+    "maintenance.auto",
+    "protocol.version",
+)
+# git global options that take the next token as their value
+_GIT_OPTS_WITH_ARG = frozenset(
+    {"-C", "--git-dir", "--work-tree", "--namespace", "--super-prefix", "--list-cmds"}
+)
+# uv run options that take the next token as their value
+_UV_RUN_OPTS_WITH_ARG = frozenset(
+    {
+        "--with",
+        "--with-editable",
+        "--with-requirements",
+        "--python",
+        "-p",
+        "--directory",
+        "--project",
+        "--package",
+        "--extra",
+        "--group",
+        "--only-group",
+        "--no-group",
+        "--env-file",
+        "--index",
+        "--default-index",
+        "--index-url",
+        "-i",
+        "--extra-index-url",
+        "--find-links",
+        "-f",
+        "--index-strategy",
+        "--keyring-provider",
+        "--resolution",
+        "--prerelease",
+        "--fork-strategy",
+        "--exclude-newer",
+        "--config-setting",
+        "-C",
+        "--link-mode",
+        "--refresh-package",
+        "--upgrade-package",
+        "-P",
+        "--reinstall-package",
+        "--no-build-package",
+        "--no-binary-package",
+        "--cache-dir",
+        "--config-file",
+        "--color",
+        "--allow-insecure-host",
+        "--python-preference",
+    }
+)
+# uv subcommands that install packages, which runs their build code
+_UV_INSTALLS = frozenset({"add", "sync", "pip", "build", "tool"})
+
+# Credential-like names a glob may stand for (red team 2026-10-23, F5): a
+# pattern such as ".e*" or "~/.ss*/id_*" is judged by what it could match.
+_SENSITIVE_NAMES = (
+    ".env",
+    ".env.local",
+    ".env.production",
+    ".netrc",
+    ".npmrc",
+    ".pypirc",
+    ".git-credentials",
+    ".credentials",
+    "credentials",
+    "credentials.json",
+    "secrets",
+    "secret",
+    "id_rsa",
+    "id_dsa",
+    "id_ecdsa",
+    "id_ed25519",
+    "server.key",
+    "key.pem",
+    ".ssh",
+    ".aws",
+    ".gnupg",
+    ".kube",
+    ".docker",
+    "environ",
+)
+_GLOB_CHARS = re.compile(r"[*?\[]")
+_BRACES = re.compile(r"\{([^{}]*,[^{}]*)\}")
+_VAR_USE = re.compile(r"\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))")
+MAX_GLOB_HITS = 256
 
 
 @dataclass
@@ -240,6 +408,9 @@ class _Acc:
     # inspected. Sealed into the decision record so an executor can refuse
     # to run if the file changed after the decision (time of check vs use).
     pinned: dict[str, dict[str, Any]] = field(default_factory=dict)
+    # NAME=value assignments seen so far in this command, so "F=.env; cat $F"
+    # is judged as "cat .env" (red team 2026-10-23, F5).
+    assigned: dict[str, str] = field(default_factory=dict)
 
     def note_exe(self, name: str) -> None:
         if name not in self.executables:
@@ -736,7 +907,95 @@ def _curl_config(path_token: str, acc: _Acc) -> None:
             acc.reads_files.append(target)
 
 
+def _note_assignment(tok: str, acc: _Acc) -> None:
+    name, _, value = tok.partition("=")
+    acc.assigned[name] = _expand_vars(value, acc)
+    if name in EXEC_ENV or name.startswith(EXEC_ENV_PREFIXES):
+        acc.inline_code = True
+
+
+def _expand_vars(token: str, acc: _Acc) -> str:
+    """$NAME and ${NAME} replaced by values assigned earlier in the command;
+    unknown names are left as written."""
+    if "$" not in token or not acc.assigned:
+        return token
+
+    def sub(m: re.Match[str]) -> str:
+        name = m.group(1) or m.group(2)
+        return acc.assigned.get(name, m.group(0))
+
+    return _VAR_USE.sub(sub, token)
+
+
+def _expand_braces(token: str, limit: int = 64) -> list[str]:
+    """Shell brace expansion ({a,b}), enough to see ".{e,x}nv" as ".env"."""
+    out: list[str] = []
+    todo = [token]
+    while todo and len(out) + len(todo) <= limit:
+        cur = todo.pop()
+        m = _BRACES.search(cur)
+        if m is None:
+            out.append(cur)
+            continue
+        for alt in m.group(1).split(","):
+            todo.append(cur[: m.start()] + alt + cur[m.end() :])
+    return out + todo
+
+
+def _glob_hits_secret(variant: str, wd: str) -> bool:
+    """Expand a relative pattern inside the workdir; any credential hit,
+    an error, or too many hits to judge counts as sensitive."""
+    try:
+        hits = glob.iglob(os.path.join(glob.escape(wd), variant))
+        for n, hit in enumerate(hits):
+            if n >= MAX_GLOB_HITS:
+                return True
+            real = os.path.realpath(hit)
+            if _within_workdir(real) and (
+                _SENSITIVE.search(real) or _is_secret_path(real)
+            ):
+                return True
+    except (OSError, ValueError, re.error):
+        return True
+    return False
+
+
+def _name_could_match(variant: str) -> bool:
+    """Could a path component of this glob match a credential-like name?
+    As in the shell, a pattern not starting with "." skips dotfiles."""
+    for comp in variant.split("/"):
+        if not _GLOB_CHARS.search(comp):
+            continue
+        for name in _SENSITIVE_NAMES:
+            if name.startswith(".") and not comp.startswith("."):
+                continue
+            if fnmatch.fnmatchcase(name.lower(), comp.lower()):
+                return True
+    return False
+
+
+def _pattern_sensitive(pattern: str) -> bool:
+    """Could this glob or brace pattern name a credential? Inside the
+    workdir it is expanded against the real files; elsewhere it is matched
+    against credential-like names (red team 2026-10-23, F5)."""
+    wd = _workdir()
+    for variant in _expand_braces(pattern):
+        if _SENSITIVE.search(variant):
+            return True
+        if not _GLOB_CHARS.search(variant):
+            continue
+        local = wd is not None and not os.path.isabs(variant) and "~" not in variant
+        if (
+            _glob_hits_secret(variant, wd)
+            if local and wd
+            else _name_could_match(variant)
+        ):
+            return True
+    return False
+
+
 def _note_sensitive(token: str, acc: _Acc) -> None:
+    token = _expand_vars(token, acc)
     if _token_reveals_secret(token) or content_reveals_secret(
         token, entropy="://" not in token
     ):
@@ -751,20 +1010,23 @@ def _note_sensitive(token: str, acc: _Acc) -> None:
         return
     if "://" in token:
         return  # a URL, not a local file
-    # name@file (curl --data-urlencode) and @file forms, external retest N16
+    # name@file (curl --data-urlencode) and @file forms, external retest N16;
+    # rev:path (git show HEAD:.env), red team 2026-10-23 F9
     for part in (
         token,
         token.split("=", 1)[-1],
         token.lstrip("@"),
         token.split("@", 1)[-1],
+        token.split(":", 1)[-1],
+        token.rsplit(":", 1)[-1],
     ):
-        if part and _SENSITIVE.search(part):
+        if part and (_SENSITIVE.search(part) or _pattern_sensitive(part)):
             if token not in acc.sensitive_args:
                 acc.sensitive_args.append(token)
             return
 
 
-def _skip_wrapper(name: str, argv: list[str]) -> list[str]:
+def _skip_wrapper(name: str, argv: list[str], acc: _Acc | None = None) -> list[str]:
     """Return the wrapped command's argv (may be empty)."""
     with_arg = _OPTS_WITH_ARG.get(name, frozenset())
     i, n = 1, len(argv)
@@ -778,6 +1040,8 @@ def _skip_wrapper(name: str, argv: list[str]) -> list[str]:
             i += 2 if tok in with_arg else 1
             continue
         if name == "env" and _ASSIGNMENT.match(tok):
+            if acc is not None:
+                _note_assignment(tok, acc)
             i += 1
             continue
         if leading_param:
@@ -869,13 +1133,23 @@ def _analyze_argv(argv: list[str], acc: _Acc, depth: int) -> None:  # noqa: C901
     if depth > MAX_DEPTH:
         raise _UnparseableError("nesting exceeds limit")
     while argv and _ASSIGNMENT.match(argv[0]):
+        _note_assignment(argv[0], acc)
         argv = argv[1:]
     if not argv:
         return
     for tok in argv[1:]:
         _note_sensitive(tok, acc)
-    name = _canon(argv[0])
+    name = _canon(_expand_vars(argv[0], acc))
     acc.note_exe(name)
+
+    if name == "uv":
+        _uv(argv, acc, depth)
+        return
+    if name == "uvx":
+        acc.interpreter = True  # fetches and runs a package's code
+        return
+    if name == "git":
+        _git(argv, acc, depth)
 
     if name in WRAPPERS:
         if name == "busybox" and len(argv) > 1:
@@ -887,7 +1161,7 @@ def _analyze_argv(argv: list[str], acc: _Acc, depth: int) -> None:  # noqa: C901
                     acc.inline_code = True
                     _analyze_string(argv[j + 1], acc, depth + 1)
                     return
-        inner = _skip_wrapper(name, argv)
+        inner = _skip_wrapper(name, argv, acc)
         if not inner and name == "env":
             acc.sensitive_args.append("env")  # bare env dumps every secret
         if inner:
@@ -943,8 +1217,6 @@ def _analyze_argv(argv: list[str], acc: _Acc, depth: int) -> None:  # noqa: C901
         t == "--remove-source-files" or t.startswith("--delete") for t in argv[1:]
     ):
         acc.destructive_flags = True
-    if name == "git" and "clean" in argv[1:2]:
-        acc.destructive_flags = True
 
     if name == "find":
         for j, tok in enumerate(argv):
@@ -964,6 +1236,123 @@ def _analyze_argv(argv: list[str], acc: _Acc, depth: int) -> None:  # noqa: C901
 
     if name in {"curl", "wget"}:
         _curl_wget_reads(name, argv, acc)
+
+
+def _uv_run_target(argv: list[str]) -> tuple[list[str], bool]:
+    """(what "uv run ..." runs, whether it is a module) after its options."""
+    i = 2
+    while i < len(argv):
+        tok = argv[i]
+        if tok == "--":
+            return argv[i + 1 :], False
+        if tok in {"-m", "--module"}:
+            return argv[i + 1 :], True
+        if tok in {"-s", "--script"}:
+            return argv[i + 1 :], False
+        if not tok.startswith("-"):
+            break
+        i += 2 if tok in _UV_RUN_OPTS_WITH_ARG else 1
+    return argv[i:], False
+
+
+def _uv(argv: list[str], acc: _Acc, depth: int) -> None:
+    """uv run judged by what it runs (red team 2026-10-23, F4): "uv run
+    python -c ..." is inline code, "uv run x.py" is a python script."""
+    sub = argv[1] if len(argv) > 1 else ""
+    if sub == "run":
+        inner, module = _uv_run_target(argv)
+        if module:
+            _analyze_argv(["python", "-m", *inner], acc, depth + 1)
+        elif inner and inner[0].lower().endswith((".py", ".pyw")):
+            _analyze_argv(["python", *inner], acc, depth + 1)
+        elif inner:
+            _analyze_argv(inner, acc, depth + 1)
+    elif sub in _UV_INSTALLS:
+        acc.interpreter = True  # installing runs package build code
+
+
+def _git_key_safe(key: str) -> bool:
+    key = key.strip().lower()
+    return any(
+        key == p or (p.endswith(".") and key.startswith(p)) for p in _GIT_SAFE_KEYS
+    )
+
+
+def _git(argv: list[str], acc: _Acc, depth: int) -> None:  # noqa: C901
+    """git options and subcommands that run other programs (red team
+    2026-10-23, F3): -c core.pager=..., --config-env, --upload-pack,
+    ext:: transports, rebase --exec, bisect run, submodule foreach, and
+    git config writing a key that can run code."""
+    i, n = 1, len(argv)
+    while i < n:
+        tok = argv[i]
+        if tok == "-c":
+            if i + 1 >= n or not _git_key_safe(argv[i + 1].split("=", 1)[0]):
+                acc.inline_code = True
+            i += 2
+            continue
+        if tok.startswith("-c") and len(tok) > 2:
+            if not _git_key_safe(tok[2:].split("=", 1)[0]):
+                acc.inline_code = True
+            i += 1
+            continue
+        if tok.startswith(("--config-env", "--exec-path")):
+            acc.inline_code = True
+            i += 1
+            continue
+        if tok in _GIT_OPTS_WITH_ARG:
+            i += 2
+            continue
+        if tok.startswith("-"):
+            i += 1
+            continue
+        break
+    sub = argv[i] if i < n else ""
+    rest = argv[i + 1 :]
+    for j, tok in enumerate(rest):
+        nxt = rest[j + 1] if j + 1 < len(rest) else ""
+        if (
+            tok.startswith(("ext::", "--upload-pack", "--receive-pack", "--exec="))
+            or (tok == "--exec" and sub in {"archive", "push", "send-pack"})
+            or (tok == "-u" and sub in {"clone", "ls-remote"})
+        ):
+            acc.inline_code = True  # names a program for git to run
+        elif tok in {"-c", "--config"} and sub == "clone":
+            if not _git_key_safe(nxt.split("=", 1)[0]):
+                acc.inline_code = True
+        elif tok.startswith("--config=") and sub == "clone":
+            if not _git_key_safe(tok.split("=", 1)[1].split("=", 1)[0]):
+                acc.inline_code = True
+        elif sub == "rebase" and tok in {"-x", "--exec"}:
+            _analyze_string(nxt, acc, depth + 1)
+            acc.inline_code = True
+        elif sub in {"difftool", "mergetool"} and (
+            tok in {"-x", "--extcmd"} or tok.startswith("--extcmd=")
+        ):
+            acc.inline_code = True
+    if sub == "clean":
+        acc.destructive_flags = True
+    elif sub == "bisect" and "run" in rest:
+        acc.inline_code = True
+        _analyze_argv(rest[rest.index("run") + 1 :], acc, depth + 1)
+    elif sub == "submodule" and "foreach" in rest:
+        acc.inline_code = True
+    elif sub in {"filter-branch", "filter-repo"}:
+        acc.inline_code = True
+    elif sub == "config":
+        opts = [t for t in rest if t.startswith("-")]
+        args = [t for t in rest if not t.startswith("-")]
+        reading = any(
+            o in {"--get", "--get-all", "--get-regexp", "-l", "--list", "--show-origin"}
+            for o in opts
+        ) or (args[:1] in (["get"], ["list"]))
+        if args and args[0] in {"set", "unset", "get", "list"}:
+            args = args[1:]
+        if not reading and len(args) >= 2 and not _git_key_safe(args[0]):
+            acc.inline_code = True  # persists a key that runs code later
+        if not reading and any(o in {"--add", "--replace-all"} for o in opts):
+            if not args or not _git_key_safe(args[0]):
+                acc.inline_code = True
 
 
 def _analyze_string(command: str, acc: _Acc, depth: int) -> None:  # noqa: C901
@@ -1162,7 +1551,8 @@ def shell_findings(shell: Mapping[str, Any] | None) -> list[tuple[str, str]]:
             (
                 SHELL_INLINE_CODE,
                 "command runs code the runtime cannot inspect "
-                "(sh -c, interpreter -c/-e, eval, $(...), or a shell reading stdin)",
+                "(sh -c, interpreter -c/-e, eval, $(...), a shell reading stdin, "
+                "or git or environment settings that run a program)",
             )
         )
     if shell.get("secret_egress"):

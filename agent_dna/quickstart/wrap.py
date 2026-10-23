@@ -87,6 +87,10 @@ def _owner_only_text(path: Path) -> str | None:
             raise QuickstartError(f"{path} is not a regular file")
         if hasattr(os, "geteuid") and st.st_uid != os.geteuid():
             raise QuickstartError(f"{path} belongs to another user")
+        if st.st_nlink > 1:
+            raise QuickstartError(
+                f"{path} has other hard links; replace it with a file of its own"
+            )
         if st.st_mode & 0o077:
             raise QuickstartError(
                 f"{path} is readable by others; run: chmod 600 {path}"
@@ -294,7 +298,7 @@ def cmd_wrap(args: argparse.Namespace) -> int:
 
     from agent_dna.composition import RuntimeConfig, build_production_runtime
     from agent_dna.gateway import GatewayConfig, McpGateway
-    from agent_dna.gateway.errors import GatewayStartupError
+    from agent_dna.gateway.errors import FramingProtocolError, GatewayStartupError
     from agent_dna.gateway.framing import FramingMode
     from agent_dna.gateway.stdio_proxy import serve_stdio
 
@@ -332,6 +336,9 @@ def cmd_wrap(args: argparse.Namespace) -> int:
     )
     try:
         serve_stdio(gateway, client_out=mcp_out)
+    except FramingProtocolError as exc:
+        print(f"pv wrap: session closed: {exc}", file=sys.stderr)
+        return 1
     finally:
         gateway.upstream.close()
     return 0

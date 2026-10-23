@@ -12,8 +12,13 @@ from agent_dna.gateway.framing import (
     MAX_HEADER_BYTES,
     FrameBuffer,
     FramingMode,
+    encode_jsonrpc_message,
+    mcp_error_response,
+    parse_jsonrpc,
 )
 from agent_dna.gateway.runtime import McpGateway
+
+INVALID_REQUEST = -32600  # JSON-RPC 2.0
 
 
 def _read_stdio_message(
@@ -40,7 +45,11 @@ def _read_stdio_message(
                         "incomplete MCP frame (read timeout with pending bytes)"
                     )
                 return None
-        chunk = stream.read(1)
+        # Without a timeout, take whatever is buffered (read1): one byte at a
+        # time made an 8 MiB frame take minutes (red team 2026-10-23, W10).
+        # With one, read a byte so select() and the buffer stay in step.
+        read1 = getattr(stream, "read1", None) if timeout_s is None else None
+        chunk = read1(65536) if read1 is not None else stream.read(1)
         if not chunk:
             if buffer.pending:
                 raise FramingProtocolError(
@@ -78,6 +87,21 @@ def serve_stdio(
             break
         if not raw.strip():
             continue  # blank line between newline-framed messages
+        try:
+            parse_jsonrpc(
+                raw,
+                max_message_bytes=gateway.config.max_message_bytes,
+                max_json_depth=gateway.config.max_json_depth,
+            )
+        except FramingProtocolError as exc:
+            # A malformed message (batch, float id, too deep) is answered and
+            # dropped; the session goes on (red team 2026-10-23, F10).
+            refusal = mcp_error_response(
+                None, code=INVALID_REQUEST, message=f"invalid request: {exc}"
+            )
+            cout.write(mediator._frame(encode_jsonrpc_message(refusal)))
+            cout.flush()
+            continue
         response = mediator.handle_raw(raw)
         if response:
             cout.write(response)

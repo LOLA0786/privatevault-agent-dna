@@ -5,6 +5,24 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Claude Code red team (2026-10-23) closed (ADR 0033)
+- The hook checks Read and Grep, and sends each path's zone, each URL's host
+  class and the protected places a command names. The starter policy blocks
+  reading or writing PrivateVault's state and fetching cloud metadata; asks
+  before reading credentials, writing Claude Code or git configuration or
+  outside the project, and fetching internal addresses.
+- `pv up` and `pv wrap` refuse linked, foreign or group/world-writable state
+  files; `pv up` blocks destructive programs even with an empty policy.
+- Shell guard: `uv run` followed; git configuration and environment variables
+  that run programs are inline code; `$VAR`, glob and brace forms of
+  credential paths, `credentials.*`, `.credentials` and `rev:.env` recognised.
+- Hook refuses a plain-http API on another machine. `pv wrap`: broader
+  secret-name detection, hard-linked secret files refused, malformed messages
+  answered without ending the session.
+- Plugin 0.4.0. `tests/test_redteam_claude_code.py` reproduces every finding.
+- Existing `~/.privatevault/policy.json` files are kept; `pv up` notes when
+  yours differs from the new starter.
+
 ### `pv wrap`: MCP servers whose keys Claude never holds (ADR 0032)
 - `pv wrap --name stripe -- npx -y @stripe/mcp` runs the server behind the
   inline gateway. Its credentials come from an owner-only

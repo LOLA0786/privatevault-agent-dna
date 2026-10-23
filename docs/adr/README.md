@@ -40,6 +40,7 @@ explicit statement that no such test exists.
 | [0030](0030-one-business-transaction-one-effect.md) | The receiver admits each business transaction once | accepted | `tests/receiver/test_receiver_transactions.py::test_second_permit_for_the_same_invoice_is_refused` |
 | [0031](0031-approval-quorum-and-roles.md) | N distinct approvers, by role, satisfy an approval | accepted | `tests/test_approval_quorum.py::test_two_of_two_with_roles_allows_and_seals_the_set` |
 | [0032](0032-wrapped-mcp-servers-hold-their-own-credentials.md) | A wrapped MCP server's credentials stay with the gateway | accepted | `tests/test_pv_wrap.py::test_session_end_to_end` |
+| [0033](0033-the-agent-cannot-rewrite-its-own-guardrails.md) | The agent cannot rewrite its own guardrails | accepted | `tests/test_redteam_claude_code.py::test_hook_decisions` |
 
 0001–0014 are the enforcement-spine decisions. 0015 is the earlier
 loop-discovery placement record, renumbered so the spine could own
@@ -81,3 +82,7 @@ by role, claimed all or none, with the permit naming the set.
 0032 runs an MCP server behind the gateway (`pv wrap`) with its credentials
 in an owner-only file the gateway hands only to the server, deciding each
 call as `mcp.<server>.<tool>` against the same policy and grants as the hook.
+0033 closes the 2026-10-23 red team of the Claude Code integration: paths
+carry a zone and URLs a host class, PrivateVault's state and cloud metadata
+are blocked, configuration that can run code asks, and an emptied or swapped
+policy cannot switch the destructive-command block off.
