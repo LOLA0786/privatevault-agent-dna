@@ -30,27 +30,27 @@ ls, git status, writing a file    allowed
 
 You need a running PrivateVault API, then the plugin.
 
-**1. Start PrivateVault locally** (from a clone of this repository, Python 3.12):
+**1. Start PrivateVault** in a terminal, in the project Claude Code will work
+in. You need [uv](https://docs.astral.sh/uv/) (`brew install uv`, or
+`curl -LsSf https://astral.sh/uv/install.sh | sh`):
 
 ```bash
-P=integrations/claude-code/privatevault/config
-mkdir -p ~/.privatevault
-PV_ALLOW_NO_AUTH=1 \
-PV_DB_PATH=$HOME/.privatevault/ledger.db \
-PV_POLICY_FILE=$P/policy.json \
-PV_GRANTS_FILE=$P/grants.json \
-PV_BASELINE_CAPABILITIES=shell.exec,fs.write,net.fetch \
-PV_SHELL_WORKDIR=$PWD \
-uv run uvicorn api.server:app --port 8000
+uvx --from git+https://github.com/LOLA0786/privatevault-agent-dna pv up
 ```
 
-`PV_ALLOW_NO_AUTH=1` is for a single developer on one machine. For a team,
-run the API with API keys (`PV_API_KEYS_FILE`) or the secure profile
-(`PV_SECURE_PROFILE=1`) and set `PV_API_KEY` below.
+This runs the API on `127.0.0.1:8000` with the starter policy and keeps its
+state in `~/.privatevault` (`ledger.db`, `policy.json`, `grants.json`). Edit
+the policy and grants there; restart `pv up` to load them. Your edits are
+never overwritten. Options: `--port`, `--home`, `--workdir` (the folder the
+shell guard may read to check what a command touches; default: the current
+folder). `pv up --print-env` shows the settings without starting.
 
-`PV_SHELL_WORKDIR` is the folder the shell guard may read to check what a
-command would touch (for example, whether a file it uploads holds secrets).
-Point it at the project Claude Code works in.
+`pv up` runs without authentication, so it listens only on this machine and
+refuses any other address. For a team, run the API with API keys
+(`PV_API_KEYS_FILE`) or the secure profile (`PV_SECURE_PROFILE=1`) and set
+`PV_API_KEY` below.
+
+From a clone instead: `uv run pv up`.
 
 **2. Install the plugin** in Claude Code:
 
@@ -60,6 +60,9 @@ Point it at the project Claude Code works in.
 ```
 
 Restart Claude Code. Try asking Claude to run `rm -rf build`.
+
+If PrivateVault is not running when a session starts, the plugin says so and
+shows the command above; until it is running, checked tool calls are refused.
 
 ## Settings
 
@@ -98,12 +101,14 @@ curl -s localhost:8000/v1/verify                # check the hash chain
 - It checks tool calls Claude Code makes. It does not stop a process those
   commands start from doing other things, and it is not an operating-system
   sandbox. Pair it with one for untrusted code.
-- The shell guard reads only files inside `PV_SHELL_WORKDIR`. Outside it, a
+- The shell guard reads only files inside the project folder (`pv up
+  --workdir`, or `PV_SHELL_WORKDIR`). Outside it, a
   command is judged by names alone.
 - File writes are checked by path, not by content.
 - "Ask" is Claude Code's own prompt. Your answer is not recorded in
   PrivateVault; the decision that asked is.
-- With `PV_ALLOW_NO_AUTH=1` anyone who can reach the API can write decisions
-  as any agent. Keep it on localhost.
+- `pv up` (like any server started with `PV_ALLOW_NO_AUTH=1`) lets any
+  process on this machine write decisions as any agent. It is for one
+  developer; it is not a team deployment.
 
 See `docs/WHAT-WE-DO-NOT-CLAIM.md` in this repository for the full list.

@@ -366,6 +366,11 @@
   ],
   [
    "agent_dna.cli",
+   "agent_dna.quickstart",
+   "lazy"
+  ],
+  [
+   "agent_dna.cli",
    "agent_dna.security.loop_discovery",
    "lazy"
   ],
@@ -3378,6 +3383,7 @@
   "agent_dna.policy_replay": 3,
   "agent_dna.presenter_identity": 5,
   "agent_dna.profile_store": 1,
+  "agent_dna.quickstart": 1,
   "agent_dna.rate": 1,
   "agent_dna.rate_limit": 1,
   "agent_dna.receiver.asgi": 1,
@@ -3455,7 +3461,7 @@
   "agent_dna.backup": 4,
   "agent_dna.change_management": 1,
   "agent_dna.circuit_breaker": 4,
-  "agent_dna.cli": 9,
+  "agent_dna.cli": 10,
   "agent_dna.closure_v01": 4,
   "agent_dna.composition": 35,
   "agent_dna.confidence": 1,
@@ -4172,6 +4178,10 @@
   "agent_dna.profile_store": {
    "group": "agent_dna (core modules)",
    "path": "agent_dna/profile_store.py"
+  },
+  "agent_dna.quickstart": {
+   "group": "agent_dna/quickstart",
+   "path": "agent_dna/quickstart/__init__.py"
   },
   "agent_dna.rate": {
    "group": "agent_dna (core modules)",

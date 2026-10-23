@@ -1,0 +1,20 @@
+[
+  {
+    "agent_id": "claude-code",
+    "capability": "shell.exec",
+    "granted_by": "you@your-company.example",
+    "expires_at": null
+  },
+  {
+    "agent_id": "claude-code",
+    "capability": "fs.write",
+    "granted_by": "you@your-company.example",
+    "expires_at": null
+  },
+  {
+    "agent_id": "claude-code",
+    "capability": "net.fetch",
+    "granted_by": "you@your-company.example",
+    "expires_at": null
+  }
+]

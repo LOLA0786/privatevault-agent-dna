@@ -252,9 +252,18 @@ tool call to `POST /v1/decide` before it runs: block is refused (even under
 `--dangerously-skip-permissions`), require-approval asks you, allow defers
 to Claude Code's own permissions, and no answer refuses. It ships a starter
 policy (destructive and wrapped commands, secret egress, a program
-allowlist). Install with `/plugin marketplace add LOLA0786/privatevault-agent-dna`
-then `/plugin install privatevault@privatevault`; setup and limits are in
-its README (`tests/test_claude_code_plugin.py`).
+allowlist). Two steps, no clone:
+
+```bash
+uvx --from git+https://github.com/LOLA0786/privatevault-agent-dna pv up
+```
+
+then in Claude Code `/plugin marketplace add LOLA0786/privatevault-agent-dna`
+and `/plugin install privatevault@privatevault`. `pv up` runs the API on
+127.0.0.1 only, without authentication, with state in `~/.privatevault`; the
+plugin warns at session start if it is not running. Setup and limits are in
+the plugin's README (`tests/test_claude_code_plugin.py`,
+`tests/test_quickstart.py`).
 
 ## Model validation
 

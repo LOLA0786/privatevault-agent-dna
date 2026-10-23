@@ -78,6 +78,9 @@ Homepage = "https://privatevault.ai"
 include = ["agent_dna*", "api*"]
 exclude = ["tests*", "examples*", "docs*"]
 
+[tool.setuptools.package-data]
+"agent_dna.quickstart" = ["*.json"]
+
 [tool.pytest.ini_options]
 minversion = "8.0"
 testpaths = ["tests"]
