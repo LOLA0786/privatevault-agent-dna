@@ -5,6 +5,15 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Retest (f6bab6f) follow-ups
+- Sandbox: `.env` rules are written as absolute project paths. Claude Code
+  resolves relative globs from the settings file's folder, so `**/.env` left
+  the project's `.env` readable under `pv claude`; checked live, and a project
+  setting cannot switch the sandbox off or re-open the files.
+- Hook: a name resolving into 198.18.0.0/15 (fake-IP proxy DNS) is classed
+  public; a URL written with such an address stays private. Plugin 0.5.1.
+- Tests no longer depend on the machine's DNS resolver.
+
 ### Signed decisions (ADR 0035)
 - `pv up` creates an owner-only Ed25519 signing key, signs every decision
   and publishes `decision-key.pub`; `/v1/decide` returns the signature.

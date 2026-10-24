@@ -206,6 +206,13 @@ def _ip_class(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> str:
     return "public"
 
 
+# Proxies with "fake-IP" DNS (Clash, Surge and similar, common on laptops)
+# answer every name with an address from the benchmarking range 198.18.0.0/15
+# and forward the connection to the real host. A name resolving there is
+# classed public; a URL written with such an address is still private
+# (retest 2026-10-24).
+FAKE_IP_NET = ipaddress.ip_network("198.18.0.0/15")
+
 # Worst first: a name is classed by the worst address it resolves to.
 _CLASS_RANK = ("metadata", "link-local", "loopback", "private", "public")
 DNS_TIMEOUT_S = 2.0
@@ -247,7 +254,11 @@ def host_class(url: str) -> str:
     ip = _ip(host)
     if ip is not None:
         return _ip_class(ip)
-    classes = {_ip_class(a) for a in map(_ip, _resolve(host)) if a is not None}
+    classes = {
+        "public" if a in FAKE_IP_NET else _ip_class(a)
+        for a in map(_ip, _resolve(host))
+        if a is not None
+    }
     for worst in _CLASS_RANK:
         if worst in classes:
             return worst

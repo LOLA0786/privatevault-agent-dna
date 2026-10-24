@@ -88,7 +88,8 @@ uvx --from git+https://github.com/LOLA0786/privatevault-agent-dna pv claude
 # the same as: claude --settings ~/.privatevault/claude-settings.json
 ```
 
-Every Bash command then runs in Claude Code's sandbox (Seatbelt on macOS,
+Start it from the project folder: the `.env` rules are written for the folder
+`pv claude` starts in. Every Bash command then runs in Claude Code's sandbox (Seatbelt on macOS,
 bubblewrap on Linux: `sudo apt install bubblewrap socat`), which denies reading
 PrivateVault's state, `.env` files, `~/.ssh`, `~/.aws` and similar in the
 kernel, however the command is spelled. The plugin's checks still run and

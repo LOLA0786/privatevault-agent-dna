@@ -13,9 +13,12 @@ starts Claude Code with it (``claude --settings <file>``). The settings:
   available (``failIfUnavailable``), and give the model no way to ask for an
   unsandboxed command (``allowUnsandboxedCommands: false``);
 - deny reading PrivateVault's state folder and the usual credential places
-  (``.env`` files anywhere, ``~/.ssh``, ``~/.aws``, ``~/.gnupg``, ``~/.kube``,
-  ``~/.docker``, ``~/.netrc``, ``~/.git-credentials``), and deny writing the
-  state folder.
+  (``.env`` files anywhere in the project, ``~/.ssh``, ``~/.aws``,
+  ``~/.gnupg``, ``~/.kube``, ``~/.docker``, ``~/.netrc``,
+  ``~/.git-credentials``), and deny writing the state folder.
+
+``pv claude`` rewrites the file for the folder it is started in, so start it
+from the project.
 
 A settings file given with ``--settings`` is one the project's own settings
 cannot weaken. The sandbox covers Bash and what it starts; Read, Write and
@@ -36,9 +39,11 @@ from pathlib import Path
 from agent_dna.quickstart import QuickstartError
 
 SETTINGS_NAME = "claude-settings.json"
+# Relative globs are resolved from the settings file's folder, not the
+# project (found 2026-10-24: "**/.env" left the project's .env readable), so
+# project patterns are written absolute, for the project Claude Code opens.
+PROJECT_PATTERNS = ("**/.env", "**/.env.*")
 PROTECTED_PLACES = (
-    "**/.env",
-    "**/.env.*",
     "~/.ssh",
     "~/.aws",
     "~/.gnupg",
@@ -49,31 +54,33 @@ PROTECTED_PLACES = (
 )
 
 
-def claude_settings(home: Path) -> dict:
+def claude_settings(home: Path, project: Path) -> dict:
     """Claude Code settings that sandbox Bash away from PrivateVault's state
-    and from credentials."""
+    and from credentials, for ``project`` (an absolute folder)."""
     state = [str(home), "~/.privatevault"]
+    project_rules = [f"{project.resolve()}/{pattern}" for pattern in PROJECT_PATTERNS]
     return {
         "sandbox": {
             "enabled": True,
             "failIfUnavailable": True,
             "allowUnsandboxedCommands": False,
             "filesystem": {
-                "denyRead": [*dict.fromkeys(state), *PROTECTED_PLACES],
+                "denyRead": [*dict.fromkeys(state), *project_rules, *PROTECTED_PLACES],
                 "denyWrite": list(dict.fromkeys(state)),
             },
         }
     }
 
 
-def write_settings(home: Path) -> Path:
-    """Write (or refresh) the settings file, owner-only, atomically."""
+def write_settings(home: Path, project: Path) -> Path:
+    """Write (or refresh) the settings file for ``project``, owner-only,
+    atomically."""
     path = home / SETTINGS_NAME
     fd, tmp = tempfile.mkstemp(dir=home, prefix=".tmp-")
     try:
         os.fchmod(fd, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            json.dump(claude_settings(home), fh, indent=2)
+            json.dump(claude_settings(home, project), fh, indent=2)
             fh.write("\n")
         os.replace(tmp, path)
     except BaseException:
@@ -113,7 +120,7 @@ def cmd_claude(args: argparse.Namespace) -> int:
     try:
         home = args.home.expanduser().resolve()
         prepare_home(home)
-        settings = write_settings(home)
+        settings = write_settings(home, Path.cwd())
         missing = missing_requirements()
         if missing:
             raise QuickstartError(

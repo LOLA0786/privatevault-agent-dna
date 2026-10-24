@@ -319,7 +319,7 @@ def cmd_up(args: argparse.Namespace) -> int:
         prepare_home(home)
         from agent_dna.quickstart.sandbox import write_settings
 
-        write_settings(home)
+        write_settings(home, workdir)
         env, dropped = server_environment(home, workdir)
         if args.print_env:
             for name in sorted(k for k in env if k.startswith("PV_")):

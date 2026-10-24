@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "privatevault",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "PrivateVault gate for Claude Code: every shell command, file write, web fetch and MCP tool call is checked against your PrivateVault policy before it runs, and recorded in a tamper-evident ledger.",
   "author": {
     "name": "Chandan Galani",
