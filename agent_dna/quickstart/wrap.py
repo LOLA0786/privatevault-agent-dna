@@ -15,8 +15,9 @@ server as its child and sits between them (``agent_dna.gateway``):
 - Every ``tools/call``, resource read and prompt is decided before a byte
   reaches the server, as ``mcp.<name>.<tool>``: the same capability name the
   plugin's hook uses, against the same ``policy.json`` and ``grants.json`` as
-  ``pv up``. Only allow is forwarded; block and require-approval are refused
-  (there is no approval channel through MCP), so grant the tools you use.
+  ``pv up``. Only allow is forwarded; block is refused, and require-approval
+  is refused until a person runs ``pv approve <id>`` for that exact call
+  (ADR 0036, ``agent_dna/quickstart/approvals.py``).
 - Tools the server did not declare are refused; unknown methods fail closed.
 - Decisions are sealed in ``~/.privatevault/mcp/<name>.db``, one hash chain
   per server (one process writes each ledger).
@@ -193,6 +194,11 @@ def gateway_environment(
     del env["PV_ALLOW_NO_AUTH"]
     env["PV_API_KEYS_FILE"] = str(keys_file)
     env["PV_DB_PATH"] = str(home / LEDGER_DIR / f"{name}.db")
+    from agent_dna.quickstart.approvals import bundle_path
+
+    bundle = bundle_path(home)
+    if bundle is not None:  # ADR 0036: pv approve can satisfy require_approval
+        env["PV_APPROVER_TRUST_BUNDLE"] = str(bundle)
     return env
 
 
@@ -320,6 +326,12 @@ def cmd_wrap(args: argparse.Namespace) -> int:
     except (GatewayStartupError, RuntimeError, ValueError, OSError) as exc:
         print(f"pv wrap: gateway refused to start: {exc}", file=sys.stderr)
         return 1
+    from agent_dna.quickstart.approvals import ApprovingMiddleware
+
+    configured = "PV_APPROVER_TRUST_BUNDLE" in env
+    gateway.wrap_middleware(
+        lambda inner: ApprovingMiddleware(inner, home, configured=configured)
+    )
     unpassed = [
         v for v in PROXY_VARS if os.environ.get(v) and v not in credentials.passthrough
     ]

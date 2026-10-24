@@ -33,6 +33,20 @@ from ..trace import AgentAction
 from .models import ToolCallRequest, ToolCallVerdict
 
 
+def execution_action_for(request: ToolCallRequest, agent_id: str) -> dict:
+    """The execution action a decision for this call binds (and an approval
+    for it must name). Auditable context only: generic connectors cannot
+    attest to a wire format."""
+    ctx = request.context or {}
+    return {
+        "subject_principal": str(ctx.get("subject_principal") or agent_id),
+        "subject_key_id": agent_id,
+        "action": request.tool,
+        "resource": str(ctx.get("resource") or request.tool),
+        "parameters": _authority_safe_parameters(dict(request.arguments)),
+    }
+
+
 def _authority_safe_parameters(arguments: dict) -> dict:
     """Project tool arguments into authority-canonicalizable parameters.
 
@@ -136,14 +150,7 @@ class ConnectorMiddleware:
             arguments=dict(request.arguments),
             context={"adapter": request.adapter, **ctx},
         )
-        # Auditable context only; generic connectors cannot attest to a wire format.
-        execution_action = {
-            "subject_principal": str(ctx.get("subject_principal") or agent_id),
-            "subject_key_id": agent_id,
-            "action": request.tool,
-            "resource": str(ctx.get("resource") or request.tool),
-            "parameters": _authority_safe_parameters(dict(request.arguments)),
-        }
+        execution_action = execution_action_for(request, agent_id)
         dispatch_context = {
             "serialization": AUDIT_ONLY_SERIALIZATION,
             "adapter": request.adapter,
@@ -155,9 +162,25 @@ class ConnectorMiddleware:
             ),
         }
 
+        approval_context = None
+        if request.approval is not None:
+            from ..action_v01 import execution_action_digest
+            from ..approval_bridge import ApprovalContext
+
+            approval_context = ApprovalContext(
+                expected_action_digest=execution_action_digest(execution_action),
+                requester_identities=frozenset(
+                    {agent_id, execution_action["subject_principal"]}
+                ),
+            )
         monitor, lock = self._monitor_for(agent_id)
         with lock:
-            result = monitor.process(action, evidence=request.evidence)
+            result = monitor.process(
+                action,
+                evidence=request.evidence,
+                approval=request.approval,
+                approval_context=approval_context,
+            )
             result = self._cross_agent_escalate(request, agent_id, result)
             from ..control_posture import (
                 attach_control_posture,

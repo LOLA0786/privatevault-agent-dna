@@ -908,6 +908,9 @@ def build_parser() -> argparse.ArgumentParser:
     from agent_dna.quickstart.sandbox import add_parser as add_claude_parser
 
     add_claude_parser(sub)
+    from agent_dna.quickstart.approvals import add_parsers as add_approval_parsers
+
+    add_approval_parsers(sub)
 
     return p
 

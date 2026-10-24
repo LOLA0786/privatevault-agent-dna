@@ -371,6 +371,11 @@
   ],
   [
    "agent_dna.cli",
+   "agent_dna.quickstart.approvals",
+   "lazy"
+  ],
+  [
+   "agent_dna.cli",
    "agent_dna.quickstart.sandbox",
    "lazy"
   ],
@@ -716,8 +721,18 @@
   ],
   [
    "agent_dna.connector.middleware",
+   "agent_dna.action_v01",
+   "lazy"
+  ],
+  [
+   "agent_dna.connector.middleware",
    "agent_dna.apikeys",
    "top"
+  ],
+  [
+   "agent_dna.connector.middleware",
+   "agent_dna.approval_bridge",
+   "lazy"
   ],
   [
    "agent_dna.connector.middleware",
@@ -1790,6 +1805,31 @@
    "lazy"
   ],
   [
+   "agent_dna.quickstart.approvals",
+   "agent_dna.action_v01",
+   "lazy"
+  ],
+  [
+   "agent_dna.quickstart.approvals",
+   "agent_dna.approval_v01",
+   "lazy"
+  ],
+  [
+   "agent_dna.quickstart.approvals",
+   "agent_dna.authority_v01",
+   "lazy"
+  ],
+  [
+   "agent_dna.quickstart.approvals",
+   "agent_dna.connector.middleware",
+   "lazy"
+  ],
+  [
+   "agent_dna.quickstart.approvals",
+   "agent_dna.quickstart",
+   "top"
+  ],
+  [
    "agent_dna.quickstart.sandbox",
    "agent_dna.quickstart",
    "top"
@@ -1833,6 +1873,11 @@
    "agent_dna.quickstart.wrap",
    "agent_dna.quickstart",
    "top"
+  ],
+  [
+   "agent_dna.quickstart.wrap",
+   "agent_dna.quickstart.approvals",
+   "lazy"
   ],
   [
    "agent_dna.rate",
@@ -3332,7 +3377,7 @@
  ],
  "fan_in": {
   "agent_dna": 21,
-  "agent_dna.action_v01": 4,
+  "agent_dna.action_v01": 6,
   "agent_dna.adapters": 11,
   "agent_dna.adapters_framework.base": 1,
   "agent_dna.adapters_policy.local": 2,
@@ -3342,14 +3387,14 @@
   "agent_dna.allowlist": 1,
   "agent_dna.amount": 7,
   "agent_dna.apikeys": 11,
-  "agent_dna.approval_bridge": 4,
+  "agent_dna.approval_bridge": 5,
   "agent_dna.approval_policy": 2,
-  "agent_dna.approval_v01": 1,
+  "agent_dna.approval_v01": 2,
   "agent_dna.audit_connector.client": 4,
   "agent_dna.audit_connector.oauth": 1,
   "agent_dna.audit_connector.server": 2,
   "agent_dna.authority_deadline": 1,
-  "agent_dna.authority_v01": 45,
+  "agent_dna.authority_v01": 46,
   "agent_dna.authorization": 3,
   "agent_dna.authorize_binding": 7,
   "agent_dna.change_management": 1,
@@ -3363,7 +3408,7 @@
   "agent_dna.connector.adapters.mcp": 1,
   "agent_dna.connector.adapters.sidecar_transport": 2,
   "agent_dna.connector.cross_agent": 3,
-  "agent_dna.connector.middleware": 3,
+  "agent_dna.connector.middleware": 4,
   "agent_dna.connector.models": 5,
   "agent_dna.consensus": 2,
   "agent_dna.consensus.byzantine": 1,
@@ -3449,7 +3494,8 @@
   "agent_dna.policy_replay": 3,
   "agent_dna.presenter_identity": 5,
   "agent_dna.profile_store": 1,
-  "agent_dna.quickstart": 3,
+  "agent_dna.quickstart": 4,
+  "agent_dna.quickstart.approvals": 2,
   "agent_dna.quickstart.sandbox": 2,
   "agent_dna.quickstart.wrap": 1,
   "agent_dna.rate": 1,
@@ -3529,7 +3575,7 @@
   "agent_dna.backup": 4,
   "agent_dna.change_management": 1,
   "agent_dna.circuit_breaker": 4,
-  "agent_dna.cli": 12,
+  "agent_dna.cli": 13,
   "agent_dna.closure_v01": 4,
   "agent_dna.composition": 35,
   "agent_dna.confidence": 1,
@@ -3540,7 +3586,7 @@
   "agent_dna.connector.adapters.mcp": 1,
   "agent_dna.connector.adapters.sidecar_transport": 1,
   "agent_dna.connector.cross_agent": 9,
-  "agent_dna.connector.middleware": 8,
+  "agent_dna.connector.middleware": 10,
   "agent_dna.consensus": 3,
   "agent_dna.consensus.byzantine": 2,
   "agent_dna.consensus.checker": 1,
@@ -3610,8 +3656,9 @@
   "agent_dna.policy_replay": 1,
   "agent_dna.profile_store": 1,
   "agent_dna.quickstart": 2,
+  "agent_dna.quickstart.approvals": 5,
   "agent_dna.quickstart.sandbox": 1,
-  "agent_dna.quickstart.wrap": 8,
+  "agent_dna.quickstart.wrap": 9,
   "agent_dna.rate": 1,
   "agent_dna.receiver": 5,
   "agent_dna.receiver.asgi": 4,
@@ -4253,6 +4300,10 @@
   "agent_dna.quickstart": {
    "group": "agent_dna/quickstart",
    "path": "agent_dna/quickstart/__init__.py"
+  },
+  "agent_dna.quickstart.approvals": {
+   "group": "agent_dna/quickstart",
+   "path": "agent_dna/quickstart/approvals.py"
   },
   "agent_dna.quickstart.sandbox": {
    "group": "agent_dna/quickstart",

@@ -119,13 +119,27 @@ What changes for that server:
 - Every call is decided as `mcp.stripe.<tool>` before it reaches the server,
   against the same `policy.json` and `grants.json` as `pv up`, and sealed in
   `~/.privatevault/mcp/stripe.db`. This holds even with hooks turned off.
-- Only allowed calls are forwarded. There is no way to approve through MCP,
-  so grant the tools you want Claude to use (then restart Claude Code):
+- Only allowed calls are forwarded. Grant the tools you want Claude to use
+  (then restart Claude Code):
 
 ```json
 {"agent_id": "claude-code", "capability": "mcp.stripe.list_customers",
  "granted_by": "you@your-company.example", "expires_at": null}
 ```
+
+**Approve payments one at a time.** Grant the payment tool and add a policy
+rule that sends it for approval (`"outcome": "require_approval"`, for example
+when `arguments.amount >= 0`). Set up an approver once:
+
+```bash
+uvx --from git+https://github.com/LOLA0786/privatevault-agent-dna pv approvers init --principal you@your-company.example
+```
+
+When Claude makes the call, it is refused with an id. Run `pv approve <id>`
+in your terminal: it shows the tool and arguments and asks you to type `yes`.
+Then ask Claude to make the same call again within five minutes. It runs
+once; different arguments, or the same call again, need a new approval.
+See ADR 0036.
 
 The server gets PATH, HOME, locale and temp settings plus its own key: not
 your shell's other secrets. If it needs anything else from your environment,

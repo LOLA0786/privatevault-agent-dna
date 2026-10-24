@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from typing import Any
 from urllib.parse import urlparse
@@ -272,6 +273,12 @@ class McpGateway:
             upstream=upstream,
             metrics=metrics,
         )
+
+    def wrap_middleware(self, wrap: Callable[[Any], Any]) -> None:
+        """Interpose on every decision this gateway asks for (pv wrap's
+        approval channel, ADR 0036). Call before opening a session; the
+        wrapper must keep ConnectorMiddleware's ``handle`` contract."""
+        self._middleware = wrap(self._middleware)
 
     def dispatch_named_https(
         self, *, method: str, body: bytes, url: str | None = None
