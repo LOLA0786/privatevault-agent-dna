@@ -107,6 +107,9 @@ def world(tmp_path, monkeypatch):
 
     importlib.reload(server)
     hook = _hook()
+    # DNS answers are fixed so results do not depend on the test machine's
+    # resolver; tests below check resolution itself.
+    monkeypatch.setattr(hook, "_resolve", lambda host: ["93.184.216.34"])
     with TestClient(server.app) as client:
 
         def decide(payload):
@@ -571,6 +574,8 @@ def test_hook_and_guard_agree_on_credential_names():
         (["10.0.0.7"], "private"),
         (["127.0.0.1"], "loopback"),
         (["93.184.216.34"], "public"),
+        (["198.18.0.1"], "public"),  # fake-IP proxy DNS
+        (["198.18.0.1", "169.254.169.254"], "metadata"),
         ([], "public"),
     ],
 )
@@ -593,3 +598,7 @@ def test_resolution_gives_up_quietly(monkeypatch):
     monkeypatch.setattr(hook.socket, "getaddrinfo", slow)
     monkeypatch.setattr(hook, "DNS_TIMEOUT_S", 0.2)
     assert hook._resolve("slow.example") == []
+
+
+def test_a_literal_benchmark_address_stays_private():
+    assert _hook().host_class("http://198.18.0.5/") == "private"

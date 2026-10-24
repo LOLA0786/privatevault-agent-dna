@@ -24,26 +24,38 @@ from agent_dna.quickstart.sandbox import SETTINGS_NAME, claude_settings
 
 
 def test_settings_shape(tmp_path):
-    s = claude_settings(tmp_path)["sandbox"]
+    project = tmp_path / "project"
+    project.mkdir()
+    s = claude_settings(tmp_path, project)["sandbox"]
     assert s["enabled"] is True
     assert s["failIfUnavailable"] is True
     assert s["allowUnsandboxedCommands"] is False
     deny_read = s["filesystem"]["denyRead"]
-    for place in (str(tmp_path), "~/.privatevault", "**/.env", "~/.ssh", "~/.aws"):
+    for place in (str(tmp_path), "~/.privatevault", "~/.ssh", "~/.aws"):
         assert place in deny_read
+    # project patterns are absolute: a relative glob is resolved from the
+    # settings file's folder, which left the project's .env readable
+    assert f"{project.resolve()}/**/.env" in deny_read
+    assert f"{project.resolve()}/**/.env.*" in deny_read
+    assert not [p for p in deny_read if p.startswith("**")]
     assert str(tmp_path) in s["filesystem"]["denyWrite"]
 
 
 def test_written_by_pv_up(tmp_path):
     home = tmp_path / "pv"
-    assert pv(["up", "--home", str(home), "--print-env"]) == 0
+    project = tmp_path
+    assert (
+        pv(["up", "--home", str(home), "--workdir", str(project), "--print-env"]) == 0
+    )
     path = home / SETTINGS_NAME
     assert stat.S_IMODE(path.stat().st_mode) == 0o600
-    assert json.loads(path.read_text()) == claude_settings(home.resolve())
+    assert json.loads(path.read_text()) == claude_settings(home.resolve(), project)
     path.write_text("{}")
     path.chmod(0o600)
-    assert pv(["up", "--home", str(home), "--print-env"]) == 0
-    assert json.loads(path.read_text()) == claude_settings(home.resolve())
+    assert (
+        pv(["up", "--home", str(home), "--workdir", str(project), "--print-env"]) == 0
+    )
+    assert json.loads(path.read_text()) == claude_settings(home.resolve(), project)
 
 
 def test_pv_claude_execs_with_settings(tmp_path, monkeypatch):
@@ -52,11 +64,14 @@ def test_pv_claude_execs_with_settings(tmp_path, monkeypatch):
     monkeypatch.setattr(sandbox.shutil, "which", lambda name: f"/usr/bin/{name}")
     monkeypatch.setattr(sandbox.os, "execv", lambda exe, argv: seen.append(argv))
     home = tmp_path / "pv"
+    monkeypatch.chdir(tmp_path)
     assert pv(["claude", "--home", str(home), "--", "-p", "hello"]) == 0
     ((argv),) = seen
     assert argv[:2] == ["/usr/bin/claude", "--settings"]
     assert Path(argv[2]) == home.resolve() / SETTINGS_NAME
     assert argv[3:] == ["-p", "hello"]
+    written = json.loads(Path(argv[2]).read_text())["sandbox"]["filesystem"]
+    assert f"{tmp_path.resolve()}/**/.env" in written["denyRead"]  # for this project
 
 
 def test_pv_claude_needs_the_sandbox_tools(tmp_path, monkeypatch, capsys):

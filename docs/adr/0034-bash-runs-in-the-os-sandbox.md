@@ -30,6 +30,18 @@ Checked by hand with Claude Code 2.1.309 on Linux: under these settings, Bash
 reading `.env` or the state folder failed with a permission error or saw an
 empty folder, while ordinary project commands ran.
 
+## After the retest (24 October 2026)
+The external retest found no bypass, but exercised the sandbox outside
+Claude Code. Running `pv claude` live showed that Claude Code resolves a
+relative glob such as `**/.env` from the settings file's folder, not the
+project, so the project's `.env` stayed readable. The settings now name the
+project by absolute path (`<project>/**/.env`, `<project>/**/.env.*`), and
+`pv claude` rewrites them for the folder it is started in. Checked live: Bash
+gets "Permission denied" for `.env` and nested `.env.*`, and a project
+`.claude/settings.json` that sets `sandbox.enabled: false`,
+`allowUnsandboxedCommands: true` and an `allowRead` for `.env` does not
+loosen it (`tests/test_claude_sandbox_settings.py`).
+
 ## What this costs us
 - On Linux the sandbox needs bubblewrap and socat; `pv up` and `pv claude`
   say so. Without the sandbox, the hook alone applies.
