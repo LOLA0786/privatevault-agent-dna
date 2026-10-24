@@ -28,7 +28,7 @@ flowchart BT
   L5 -->|4| L3
   L5 -->|11| L4
   L6 -->|26| L1
-  L6 -->|7| L2
+  L6 -->|8| L2
   L6 -->|16| L3
   L6 -->|49| L4
   L6 -->|28| L5
@@ -56,7 +56,7 @@ flowchart BT
 | `agent_dna.gateway.__main__` | Out-of-process MCP / HTTPS-egress gateway | `agent_dna.composition`, `agent_dna.gateway.credentials`, `agent_dna.gateway.errors`, `agent_dna.gateway.framing`, `agent_dna.gateway.http_sse_proxy`, `agent_dna.gateway.https_egress`, `agent_dna.gateway.runtime`, `agent_dna.gateway.stdio_proxy` | none |
 | `agent_dna.key_lifecycle` | Key rotation as a governed action | `agent_dna.decision`, `agent_dna.signer`, `agent_dna.trace` | none |
 | `agent_dna.mcp_public_verifier` | Public MCP server exposing ONLY the independent DRP verifier as a | nothing in the core | none |
-| `agent_dna.quickstart` | ``pv up``: a local PrivateVault for one developer, in one command | `agent_dna.quickstart.sandbox` | 3: `agent_dna.cli`, `agent_dna.quickstart.sandbox`, `agent_dna.quickstart.wrap` |
+| `agent_dna.quickstart` | ``pv up``: a local PrivateVault for one developer, in one command | `agent_dna.quickstart.sandbox`, `agent_dna.signer` | 3: `agent_dna.cli`, `agent_dna.quickstart.sandbox`, `agent_dna.quickstart.wrap` |
 | `agent_dna.quickstart.sandbox` | Claude Code's OS sandbox, configured for PrivateVault (ADR 0034) | `agent_dna.quickstart` | 2: `agent_dna.cli`, `agent_dna.quickstart` |
 | `agent_dna.quickstart.wrap` | ``pv wrap``: run an MCP server behind the PrivateVault gateway | `agent_dna.apikeys`, `agent_dna.composition`, `agent_dna.gateway`, `agent_dna.gateway.credentials`, `agent_dna.gateway.errors`, `agent_dna.gateway.framing`, `agent_dna.gateway.stdio_proxy`, `agent_dna.quickstart` | 1: `agent_dna.cli` |
 | `agent_dna.scan` | Read-only analysis of logs a customer already has | `agent_dna.scan.ingest`, `agent_dna.scan.replay` | none |
@@ -214,7 +214,7 @@ flowchart BT
 | `agent_dna.receiver.permit_header` | Strict wire codec for carrying an execution authorization to the receiver | `agent_dna.authority_v01` | 4: `agent_dna.connector.adapters.exact_byte_http`, `agent_dna.receiver`, `agent_dna.receiver.asgi`, `agent_dna.receiver.gate` |
 | `agent_dna.receiver.receipts` | Receiver receipts: signed, hash-chained evidence written by the system of record | `agent_dna.authority_v01`, `agent_dna.key_custody` | 3: `agent_dna.receiver`, `agent_dna.receiver.gate`, `agent_dna.receiver.ledger` |
 | `agent_dna.revocation_list` | Signed revocation list for receivers (grant revocation, part 2) | `agent_dna.authority_v01` | 2: `agent_dna.receiver.gate`, `api.server` |
-| `agent_dna.signer` | Runtime signer selector | `agent_dna.signer_bridge`, `agent_dna.signer_python` | 3: `agent_dna.export_manifest`, `agent_dna.key_lifecycle`, `api.server` |
+| `agent_dna.signer` | Runtime signer selector | `agent_dna.signer_bridge`, `agent_dna.signer_python` | 4: `agent_dna.export_manifest`, `agent_dna.key_lifecycle`, `agent_dna.quickstart`, `api.server` |
 | `agent_dna.signer_bridge` | Rust-backed signer bridge | `agent_dna.signer_python` | 1: `agent_dna.signer` |
 | `agent_dna.signer_python` | ReceiptSigner — Ed25519 signing per drp-spec docs/SIGNING.md | `agent_dna.key_custody` | 3: `agent_dna.composition`, `agent_dna.signer`, `agent_dna.signer_bridge` |
 

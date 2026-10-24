@@ -134,6 +134,8 @@ def api(tmp_path, monkeypatch):
     monkeypatch.setenv("PV_GRANTS_FILE", str(PLUGIN / "config" / "grants.json"))
     monkeypatch.setenv("PV_BASELINE_CAPABILITIES", "shell.exec,fs.write,net.fetch")
     monkeypatch.setenv("PV_SHELL_WORKDIR", str(work))
+    # no pinned decision key: this server does not sign (tests/test_signed_decisions)
+    monkeypatch.setenv("PV_HOME", str(tmp_path / "no-pin"))
     import api.server as server
 
     importlib.reload(server)

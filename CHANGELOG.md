@@ -5,6 +5,16 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Signed decisions (ADR 0035)
+- `pv up` creates an owner-only Ed25519 signing key, signs every decision
+  and publishes `decision-key.pub`; `/v1/decide` returns the signature.
+- The hook accepts an allow or ask only when the record is signed by the
+  pinned key (`PV_DECISION_KEY` or `PV_HOME/decision-key.pub`) and names this
+  agent, capability, request and arguments, within ten minutes. Forged,
+  replayed, re-labelled or foreign-key answers are refused. Ed25519 is
+  verified in the standard library (`hooks/pv_ed25519.py`), checked against
+  libsodium. Plugin 0.5.0. `tests/test_signed_decisions.py`.
+
 ### `pv claude`: Bash in the OS sandbox (ADR 0034)
 - `pv up` writes `~/.privatevault/claude-settings.json`; `pv claude` starts
   Claude Code with it. Every Bash command runs in Claude Code's sandbox,

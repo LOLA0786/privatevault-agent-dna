@@ -38,7 +38,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 2530+ automated tests, run in CI on every commit
+- 2560+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
@@ -715,6 +715,11 @@ Residual gaps we explicitly do **not** claim closed:
   (no catalog or undeclared name → not forwarded). In-process tests
   default to `finding` unless the hardened flag is set.
 - **`sampling/createMessage` is refused, not gated.**
+- **Signed decisions (ADR 0035) need a pinned key.** With none (no
+  `PV_DECISION_KEY` and no `decision-key.pub`), the hook trusts any answer
+  from an https or local API. The local pin is trust on first use; a server
+  on another machine needs `PV_DECISION_KEY` set by the operator. A captured
+  answer for the same call stays valid for the ten-minute clock window.
 - **`pv claude` (ADR 0034) relies on Claude Code's own sandbox.** It covers
   Bash and the processes Bash starts, only when Claude Code is started with
   the settings file, and on Linux only where bubblewrap and socat are

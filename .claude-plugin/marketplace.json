@@ -13,7 +13,7 @@
       "name": "privatevault",
       "source": "./integrations/claude-code/privatevault",
       "description": "Check every shell command, file write, web fetch and MCP tool call against your PrivateVault policy before it runs, with a tamper-evident record of each decision.",
-      "version": "0.4.2"
+      "version": "0.5.0"
     }
   ]
 }

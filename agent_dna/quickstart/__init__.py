@@ -74,6 +74,7 @@ def prepare_home(home: Path) -> dict[str, Path]:
             target.chmod(0o600)
         check_private(target, directory=False)
         paths[name] = target
+    ensure_signing_key(home)
     return paths
 
 
@@ -158,7 +159,54 @@ def server_environment(
             "PV_SHELL_BLOCK_DESTRUCTIVE": "1",
         }
     )
+    signing = read_signing_key(home)
+    if signing is not None:
+        # ADR 0035: every decision is signed; the plugin pins the public key.
+        base["PV_RECEIPT_SIGNING_KEY"], base["PV_TRUSTED_PUBLIC_KEYS"] = signing
     return base, dropped
+
+
+SIGNING_KEY_FILE = "signing.key"
+PUBLIC_KEY_FILE = "decision-key.pub"
+SECRET_SETTINGS = frozenset({"PV_RECEIPT_SIGNING_KEY"})
+
+
+def ensure_signing_key(home: Path) -> str:
+    """Create the decision-signing key on first run (owner-only) and the
+    public key file the plugin pins. Returns the public key."""
+    seed_path, pub_path = home / SIGNING_KEY_FILE, home / PUBLIC_KEY_FILE
+    if not os.path.lexists(seed_path):
+        from agent_dna.signer import generate_keypair
+
+        pair = generate_keypair()
+        fd = os.open(seed_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w", encoding="ascii") as fh:
+            fh.write(pair["signing_key"] + "\n")
+    check_private(seed_path, directory=False)
+    signing = read_signing_key(home)
+    if signing is None:
+        raise QuickstartError(f"{seed_path} does not hold a 64-hex Ed25519 seed")
+    public = signing[1]
+    if not os.path.lexists(pub_path) or pub_path.read_text().strip() != public:
+        pub_path.write_text(public + "\n")
+        pub_path.chmod(0o644)
+    check_private(pub_path, directory=False)
+    return public
+
+
+def read_signing_key(home: Path) -> tuple[str, str] | None:
+    """(seed, public key) from the state folder, or None if there is none."""
+    try:
+        seed = (home / SIGNING_KEY_FILE).read_text(encoding="ascii").strip()
+    except (OSError, ValueError):
+        return None
+    try:
+        from nacl.signing import SigningKey
+
+        public = SigningKey(bytes.fromhex(seed)).verify_key.encode().hex()
+    except (ValueError, TypeError):
+        return None
+    return seed, public
 
 
 def check_port_free(host: str, port: int) -> None:
@@ -185,6 +233,7 @@ def _banner(host: str, port: int, home: Path, workdir: Path, dropped: list[str])
         f"  policy     {home / 'policy.json'}",
         f"  grants     {home / 'grants.json'}",
         f"  project    {workdir}   (the shell guard may read files here)",
+        f"  signing    every decision; the plugin checks it with {home / PUBLIC_KEY_FILE}",
     ]
     if dropped:
         lines.append(f"  ignored    {', '.join(dropped)} (pv up sets its own)")
@@ -274,7 +323,12 @@ def cmd_up(args: argparse.Namespace) -> int:
         env, dropped = server_environment(home, workdir)
         if args.print_env:
             for name in sorted(k for k in env if k.startswith("PV_")):
-                print(f"{name}={env[name]}")
+                shown = (
+                    f"<{home / SIGNING_KEY_FILE}>"
+                    if name in SECRET_SETTINGS
+                    else env[name]
+                )
+                print(f"{name}={shown}")
             return 0
         check_port_free(args.host, args.port)
     except QuickstartError as exc:
