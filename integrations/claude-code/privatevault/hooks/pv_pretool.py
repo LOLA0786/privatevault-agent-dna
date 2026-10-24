@@ -19,7 +19,11 @@ git configuration, credentials and cloud metadata from ordinary work:
 
     allow             -> no output: Claude Code's own permission rules apply
                          as usual (PrivateVault only ever adds restrictions)
-    require_approval  -> "ask": Claude Code asks you before running it
+    require_approval  -> "ask": Claude Code asks you before running it,
+                         but only in a mode where a person is asked
+                         (default, plan); in any other mode (auto,
+                         bypassPermissions, acceptEdits, ...) an "ask" could
+                         be approved with no one looking, so it is "deny"
     block             -> "deny": the tool call does not run; Claude sees why
     API unreachable   -> "deny" (fail closed), or "ask" with PV_FAIL_OPEN=1
 
@@ -476,6 +480,27 @@ def verdict(status: int | None, body: dict[str, Any] | str) -> tuple[str | None,
     return ("ask" if fail_open else "deny"), reason
 
 
+# Permission modes in which Claude Code shows a hook's "ask" to a person.
+# Anything else (auto mode's classifier, bypassPermissions, acceptEdits,
+# a mode added later) may approve it with no one looking (ADR 0037).
+PROMPTING_MODES = frozenset({"default", "plan"})
+
+
+def needs_a_person(
+    decision: str | None, reason: str, mode: object
+) -> tuple[str | None, str]:
+    """Turn an "ask" into "deny" when Claude Code would not show it to a
+    person. An event without a mode (older Claude Code, which always asks)
+    keeps the "ask"."""
+    if decision != "ask" or mode is None or mode in PROMPTING_MODES:
+        return decision, reason
+    return "deny", (
+        f"{reason}. Claude Code is in {mode!r} mode, where this approval could "
+        "be given without you seeing it, so it is refused. To approve it, "
+        "switch to default mode (shift+tab) and ask again."
+    )
+
+
 def main() -> int:
     try:
         event = json.load(sys.stdin)
@@ -504,6 +529,9 @@ def main() -> int:
         # Every call has its own request id, which the signed record must name.
         payload["request_id"] = str(event.get("tool_use_id") or uuid.uuid4())
         decision, reason = checked_verdict(*decide(payload), payload)
+        decision, reason = needs_a_person(
+            decision, reason, event.get("permission_mode")
+        )
     if decision is not None:
         json.dump(
             {
