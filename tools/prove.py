@@ -93,6 +93,9 @@ def run_pytest() -> dict:
     out = proc.stdout
     passed = re.findall(r"^PASSED\s+(\S+)", out, re.M)
     failed = re.findall(r"^FAILED\s+(\S+)", out, re.M)
+    # "FAILED <nodeid> - <first line of the error>", printed so a red CI run
+    # names the test without downloading anything
+    failed_lines = re.findall(r"^FAILED\s+.*$", out, re.M)
     skipped = re.findall(r"^SKIPPED\s+\[(\d+)\]", out, re.M)
     tail = out.strip().splitlines()[-1] if out.strip() else ""
     return {
@@ -102,6 +105,7 @@ def run_pytest() -> dict:
         "summary_line": tail,
         "duration_s": round(time.time() - t0, 2),
         "failed_tests": failed,  # empty on a green run
+        "failed_lines": [line[:300] for line in failed_lines],
         "passed_tests": sorted(passed),  # the full claim ledger
         "ok": proc.returncode == 0 and not failed and len(passed) > 0,
     }
@@ -221,6 +225,8 @@ def main() -> int:
     print("== 1/5 pytest (full suite) ==", flush=True)
     pytest_res = run_pytest()
     print(f"   {pytest_res['summary_line']}")
+    for line in pytest_res.get("failed_lines", []):
+        print(f"   {line}")
     print("== 2/5 adversarial corpus ==", flush=True)
     adv = run_adversarial()
     print(f"   {adv['passed']}/{adv['total']} passed")
