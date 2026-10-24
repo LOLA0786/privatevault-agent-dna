@@ -1785,6 +1785,11 @@
    "lazy"
   ],
   [
+   "agent_dna.quickstart",
+   "agent_dna.signer",
+   "lazy"
+  ],
+  [
    "agent_dna.quickstart.sandbox",
    "agent_dna.quickstart",
    "top"
@@ -3468,7 +3473,7 @@
   "agent_dna.security": 1,
   "agent_dna.security.loop_discovery": 4,
   "agent_dna.shell_guard": 2,
-  "agent_dna.signer": 6,
+  "agent_dna.signer": 7,
   "agent_dna.signer_bridge": 1,
   "agent_dna.signer_python": 5,
   "agent_dna.similarity": 3,
@@ -3604,7 +3609,7 @@
   "agent_dna.policy_gate": 4,
   "agent_dna.policy_replay": 1,
   "agent_dna.profile_store": 1,
-  "agent_dna.quickstart": 1,
+  "agent_dna.quickstart": 2,
   "agent_dna.quickstart.sandbox": 1,
   "agent_dna.quickstart.wrap": 8,
   "agent_dna.rate": 1,

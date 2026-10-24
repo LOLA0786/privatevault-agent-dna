@@ -31,6 +31,11 @@ Settings (environment):
     PV_FAIL_OPEN     "1": ask instead of deny when the API cannot answer
     PV_TIMEOUT_S     seconds to wait for a decision (default 8)
     PV_HOME          PrivateVault's state folder (default ~/.privatevault)
+    PV_DECISION_KEY  the API's Ed25519 public key (64 hex). With it, an
+                     "allow" or "ask" counts only if the decision record is
+                     signed by that key and names this exact call; anything
+                     else is refused. Default: PV_HOME/decision-key.pub,
+                     which pv up writes. Neither: answers are not checked.
     PV_ALLOW_INSECURE_URL  "1": allow a plain-http PV_ENFORCE_URL that is
                      not on this machine (otherwise refused: a forged
                      "allow" could come from anyone on the path)
@@ -40,6 +45,7 @@ Standard library only, so it runs wherever python3 does.
 
 from __future__ import annotations
 
+import hashlib
 import ipaddress
 import json
 import os
@@ -51,7 +57,11 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import uuid
 from typing import Any
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import pv_ed25519  # noqa: E402  (beside this file; standard library only)
 
 MAX_ARG_CHARS = 16_384
 WRITE_TOOLS = {"Write", "Edit", "MultiEdit", "NotebookEdit"}
@@ -277,6 +287,106 @@ def _bounded(value: Any) -> dict:
     return {"truncated": True, "preview": text[:MAX_ARG_CHARS]}
 
 
+MAX_CLOCK_SKEW_S = 600
+
+
+def pinned_key() -> tuple[bytes | None, str]:
+    """(public key, where it came from); (None, "") when none is pinned,
+    (b"", source) when one is configured but unreadable or malformed."""
+    raw = os.environ.get("PV_DECISION_KEY", "").strip()
+    source = "PV_DECISION_KEY"
+    if not raw:
+        home = os.environ.get("PV_HOME") or "~/.privatevault"
+        source = os.path.join(os.path.expanduser(home), "decision-key.pub")
+        try:
+            with open(source, encoding="ascii") as fh:
+                raw = fh.read().strip()
+        except FileNotFoundError:
+            return None, ""
+        except (OSError, ValueError):
+            return b"", source
+    try:
+        key = bytes.fromhex(raw)
+    except ValueError:
+        return b"", source
+    return (key, source) if len(key) == 32 else (b"", source)
+
+
+def _record_hash(record: dict[str, Any]) -> str:
+    payload = {k: v for k, v in record.items() if k != "record_hash"}
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode()).hexdigest()
+
+
+def _arguments_digest(arguments: dict[str, Any]) -> str:
+    canonical = json.dumps(
+        arguments, sort_keys=True, separators=(",", ":"), default=str
+    )
+    return hashlib.sha256(canonical.encode()).hexdigest()
+
+
+def signature_problem(  # noqa: C901 - one check per line of the contract
+    body: dict[str, Any], payload: dict[str, Any], key: bytes
+) -> str | None:
+    """Why this answer is not a decision signed by ``key`` for exactly this
+    call, or None if it is (ADR 0035)."""
+    record, envelope = body.get("record"), body.get("envelope")
+    if not isinstance(record, dict) or not isinstance(envelope, dict):
+        return "the answer carries no signed decision record"
+    record_hash = record.get("record_hash")
+    if not isinstance(record_hash, str) or _record_hash(record) != record_hash:
+        return "the decision record does not match its hash"
+    if (
+        envelope.get("algorithm") != "Ed25519"
+        or envelope.get("signed_hash") != record_hash
+    ):
+        return "the signature is not over this record"
+    if str(envelope.get("public_key", "")).lower() != key.hex():
+        return "the record is signed by a key other than the pinned one"
+    try:
+        signature = bytes.fromhex(str(envelope.get("signature", "")))
+    except ValueError:
+        return "the signature is malformed"
+    if not pv_ed25519.verify(key, record_hash.encode(), signature):
+        return "the signature does not verify"
+    expected = {
+        "agent_id": payload.get("agent_id"),
+        "capability": payload.get("capability"),
+        "request_id": payload.get("request_id"),
+        "arguments_digest": _arguments_digest(payload.get("arguments") or {}),
+    }
+    for name, value in expected.items():
+        if record.get(name) != value:
+            return f"the signed record is for a different call ({name})"
+    if body.get("decision") not in (None, record.get("decision")):
+        return "the answer's decision differs from the signed record's"
+    stamp = record.get("timestamp")
+    if not isinstance(stamp, (int, float)) or abs(stamp - time.time()) > (
+        MAX_CLOCK_SKEW_S
+    ):
+        return "the signed record is not from now"
+    return None
+
+
+def checked_verdict(
+    status: int | None, body: dict[str, Any] | str, payload: dict[str, Any]
+) -> tuple[str | None, str]:
+    """verdict(), but an allow or ask must be a signed decision for this call
+    when a key is pinned."""
+    decision, reason = verdict(status, body)
+    if decision == "deny" or not isinstance(body, dict):
+        return decision, reason
+    key, source = pinned_key()
+    if key is None:
+        return decision, reason
+    if not key:
+        return "deny", f"PrivateVault's pinned key ({source}) is unreadable; refusing"
+    problem = signature_problem(body, payload, key)
+    if problem is not None:
+        return "deny", f"PrivateVault's answer failed the signature check: {problem}"
+    return decision, reason
+
+
 def url_is_trustworthy(base: str) -> bool:
     """https anywhere, or http on this machine (red team 2026-10-23, F13)."""
     parts = urllib.parse.urlsplit(base)
@@ -380,10 +490,9 @@ def main() -> int:
                 "cwd": event.get("cwd"),
             },
         }
-        tool_use_id = event.get("tool_use_id")
-        if tool_use_id:
-            payload["request_id"] = str(tool_use_id)
-        decision, reason = verdict(*decide(payload))
+        # Every call has its own request id, which the signed record must name.
+        payload["request_id"] = str(event.get("tool_use_id") or uuid.uuid4())
+        decision, reason = checked_verdict(*decide(payload), payload)
     if decision is not None:
         json.dump(
             {

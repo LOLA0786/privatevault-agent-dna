@@ -1041,6 +1041,14 @@ def _decided_permit_evidence(result: DecisionResult) -> dict[str, str]:
     return decided_evidence(policy_bundle=evidence["policy_bundle_digest"], grant=grant)
 
 
+def _attach_envelope(content: dict[str, Any], record_hash: str) -> None:
+    """ADR 0035: the signature over this record, so a client holding the
+    server's public key can tell a real answer from a forged one."""
+    envelope = state["recorder"].envelopes.get(record_hash)
+    if envelope is not None:
+        content["envelope"] = envelope
+
+
 @app.post("/v1/decide")
 def decide(req: DecideRequest, principal: FullPrincipal):
     _enforce_identity(principal, req.agent_id)
@@ -1169,6 +1177,7 @@ def decide(req: DecideRequest, principal: FullPrincipal):
         "execution_id": execution_id,
         "record": record.to_dict(),
     }
+    _attach_envelope(content, record.record_hash)
     if ledger is not None and lineage_ctx is not None:
         ledger.record(
             lineage_ctx,

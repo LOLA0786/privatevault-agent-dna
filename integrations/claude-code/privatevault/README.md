@@ -36,6 +36,11 @@ mcp__stripe__create_refund        asks you: no grant exists for 'mcp.stripe.crea
 ls, git status, reading and writing project files   allowed
 ```
 
+Every decision `pv up` makes is signed, and the plugin accepts an "allow"
+only when it is signed by the key `pv up` created and names that exact tool
+call, so nothing else on the network or the machine can answer for
+PrivateVault.
+
 Destructive programs are blocked by the guard itself under `pv up`, even if
 the policy file is emptied, and `pv up` refuses to start when its policy or
 grants file is a link, someone else's, or writable by others.
@@ -141,6 +146,7 @@ Set these in the environment Claude Code starts from:
 | `PV_FAIL_OPEN` | off | `1`: ask instead of refuse when the API cannot answer |
 | `PV_TIMEOUT_S` | `8` | seconds to wait for a decision |
 | `PV_HOME` | `~/.privatevault` | PrivateVault's state folder, which Claude may not read or write |
+| `PV_DECISION_KEY` | `PV_HOME/decision-key.pub` | the API's Ed25519 public key; with it, an allow or ask counts only if signed by that key for this exact call (ADR 0035). Set it for a server on another machine |
 | `PV_ALLOW_INSECURE_URL` | off | `1`: accept a plain-http `PV_ENFORCE_URL` on another machine (refused otherwise: anyone on the path could forge "allow") |
 
 ## What is checked
