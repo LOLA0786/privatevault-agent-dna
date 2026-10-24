@@ -43,6 +43,7 @@ explicit statement that no such test exists.
 | [0033](0033-the-agent-cannot-rewrite-its-own-guardrails.md) | The agent cannot rewrite its own guardrails | accepted | `tests/test_redteam_claude_code.py::test_hook_decisions` |
 | [0034](0034-bash-runs-in-the-os-sandbox.md) | Claude Code's Bash runs in the OS sandbox | accepted | `tests/test_claude_sandbox_settings.py::test_settings_shape` |
 | [0035](0035-the-plugin-accepts-only-signed-decisions.md) | The plugin accepts only signed decisions | accepted | `tests/test_signed_decisions.py::test_hook_refuses_a_forged_answer` |
+| [0036](0036-a-person-approves-one-wrapped-call.md) | A person approves one wrapped call (pv approve) | accepted | `tests/test_pv_approve.py::test_one_approval_runs_one_call` |
 
 0001–0014 are the enforcement-spine decisions. 0015 is the earlier
 loop-discovery placement record, renumbered so the spine could own
@@ -92,3 +93,5 @@ policy cannot switch the destructive-command block off.
 denying PrivateVault's state and credential files in the kernel.
 0035 has `pv up` sign every decision and the hook accept an allow only when
 it is signed by the pinned key and names that exact call.
+0036 adds `pv approve`: a person signs a single-use approval for one wrapped
+call, with those arguments, which the gateway's engine verifies and claims.

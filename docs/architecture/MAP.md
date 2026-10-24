@@ -19,7 +19,7 @@ flowchart LR
   n10["agent_dna/multi_agent<br/>16 modules"]
   n11["agent_dna/observability<br/>3 modules"]
   n12["agent_dna/policy<br/>4 modules"]
-  n13["agent_dna/quickstart<br/>3 modules"]
+  n13["agent_dna/quickstart<br/>4 modules"]
   n14["agent_dna/receiver<br/>8 modules"]
   n15["agent_dna/scan<br/>4 modules"]
   n16["agent_dna/security<br/>2 modules"]
@@ -38,7 +38,7 @@ flowchart LR
   n0 -->|2| n10
   n0 -->|1| n11
   n0 -->|6| n12
-  n0 -.->|3| n13
+  n0 -.->|4| n13
   n0 -->|3| n16
   n0 -->|1| n17
   n0 -->|1| n18
@@ -46,13 +46,14 @@ flowchart LR
   n1 -->|2| n0
   n2 -->|3| n12
   n2 -->|1| n21
-  n4 -->|18| n0
+  n4 -->|20| n0
   n4 -->|5| n10
   n4 -->|1| n14
   n6 -->|1| n0
   n8 -->|6| n0
   n8 -->|4| n4
-  n13 -.->|3| n0
+  n13 -.->|6| n0
+  n13 -.->|1| n4
   n13 -->|5| n8
   n14 -->|13| n0
   n15 -->|8| n0
@@ -98,10 +99,10 @@ flowchart LR
 | `agent_dna/audit_connector` | 5 |
 | `agent_dna/validation` | 5 |
 | `agent_dna/policy` | 4 |
+| `agent_dna/quickstart` | 4 |
 | `agent_dna/scan` | 4 |
 | `agent_dna/governance` | 3 |
 | `agent_dna/observability` | 3 |
-| `agent_dna/quickstart` | 3 |
 | `agent_dna/adapters_framework` | 2 |
 | `agent_dna/eav` | 2 |
 | `agent_dna/economics` | 2 |
@@ -113,7 +114,7 @@ flowchart LR
 
 | Module | Imported by | Imports |
 |---|---:|---:|
-| `agent_dna.authority_v01` | 45 | 1 |
+| `agent_dna.authority_v01` | 46 | 1 |
 | `agent_dna.decision` | 27 | 6 |
 | `agent_dna.trace` | 27 | 0 |
 | `agent_dna` | 21 | 21 |

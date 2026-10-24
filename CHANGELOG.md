@@ -5,6 +5,15 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### `pv approve`: a person approves one wrapped payment call (ADR 0036)
+- `pv approvers init --principal <you>` creates a local approver bundle that
+  `pv wrap` pins. A call the policy sends for approval is refused with an id;
+  `pv approve <id>` (terminal and typed `yes` required) signs a five-minute,
+  single-use approval for that exact action; the retry runs once.
+- The connector carries an approval to the engine with the action's digest,
+  so ADR 0020's checks apply; a replayed or re-filed approval is refused.
+- `tests/test_pv_approve.py` (a real server process behind the real command).
+
 ### Retest (f6bab6f) follow-ups
 - Sandbox: `.env` rules are written as absolute project paths. Claude Code
   resolves relative globs from the settings file's folder, so `**/.env` left

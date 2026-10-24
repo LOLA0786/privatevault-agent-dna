@@ -746,9 +746,15 @@ Residual gaps we explicitly do **not** claim closed:
   `~/.privatevault/mcp-secrets/`. The starter policy asks before shell
   commands that name a secret file; a command that reaches it another way is
   not recognised. Redaction matches exact values only. REQUIRE_APPROVAL is
-  refused through `pv wrap` (no approval channel over MCP), so a hook prompt
-  the user approves still does not run an ungranted tool
+  refused through `pv wrap` until a person runs `pv approve` for that exact
+  call (ADR 0036); a hook prompt the user approves does not count
   (`tests/test_pv_wrap.py`).
+- **`pv approve` (ADR 0036) keeps the approver keys on the agent's
+  machine.** They are protected by PrivateVault's state folder (hook, OS
+  sandbox), the terminal requirement and the shell allowlist, not by a
+  second device; anyone at the keyboard can approve. One approver only;
+  quorums need a hand-written bundle and approval policy
+  (`tests/test_pv_approve.py`).
 - **Correlation residuals:** unmatched/malformed frame floods can
   delay pairing until timeout. `resources/subscribe` freezes only
   `params.uri`.

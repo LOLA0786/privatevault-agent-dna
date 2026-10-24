@@ -20,6 +20,9 @@ class ToolCallRequest:
     arguments: dict[str, Any] = field(default_factory=dict)
     context: dict[str, Any] = field(default_factory=dict)
     evidence: dict | None = None  # UAAL/consensus/economics evidence pass-through
+    # ADR 0020 approval triple (request, artifact, approver_authority_receipt),
+    # judged by the engine's approval bridge for this exact call (ADR 0036)
+    approval: dict | None = None
 
 
 @dataclass(frozen=True, slots=True)
