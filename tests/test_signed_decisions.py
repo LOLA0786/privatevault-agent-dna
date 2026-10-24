@@ -284,3 +284,64 @@ def test_hook_without_a_pin(tmp_path, monkeypatch):
         hook, "decide", lambda payload: (200, {"decision": "allow", "reason": "ok"})
     )
     assert _run(hook, _ls(tmp_path), monkeypatch) is None
+
+
+# ------------------------------------------------- an ask needs a person (0037)
+
+
+def _read_env(work, mode):
+    (work / ".env").write_text("STRIPE_SECRET_KEY=sk_test_demo123\n")
+    event = {
+        "tool_name": "Read",
+        "tool_input": {"file_path": str(work / ".env")},
+        "tool_use_id": f"tu-{mode}",
+        "cwd": str(work),
+    }
+    if mode is not None:
+        event["permission_mode"] = mode
+    return event
+
+
+@pytest.mark.parametrize("mode", [None, "default", "plan"])
+def test_an_ask_reaches_a_person(world, monkeypatch, mode):
+    hook, home, work, _ = world
+    out = _run(hook, _read_env(work, mode), monkeypatch)
+    assert out["permissionDecision"] == "ask"
+    assert "requires approval" in out["permissionDecisionReason"]
+
+
+@pytest.mark.parametrize(
+    "mode", ["auto", "bypassPermissions", "acceptEdits", "dontAsk", "a-new-mode"]
+)
+def test_an_ask_no_one_would_see_is_refused(world, monkeypatch, mode):
+    """Found live (2026-10-24): in auto mode a Read of .env, which the
+    policy sends for approval, ran with no prompt and printed the key."""
+    hook, home, work, _ = world
+    out = _run(hook, _read_env(work, mode), monkeypatch)
+    assert out["permissionDecision"] == "deny"
+    assert repr(mode) in out["permissionDecisionReason"]
+    assert "shift+tab" in out["permissionDecisionReason"]
+
+
+def test_the_mode_never_loosens_a_decision(world, monkeypatch):
+    hook, home, work, _ = world
+    blocked = {**_ls(work), "tool_input": {"command": "rm -rf build"}}
+    allowed = _ls(work, "tu-2")
+    for mode in ("default", "auto", "bypassPermissions"):
+        assert (
+            _run(hook, {**blocked, "permission_mode": mode}, monkeypatch)[
+                "permissionDecision"
+            ]
+            == "deny"
+        )
+        assert _run(hook, {**allowed, "permission_mode": mode}, monkeypatch) is None
+
+
+def test_fail_open_asks_only_when_a_person_would_see_it(tmp_path, monkeypatch):
+    hook = _module("pv_pretool")
+    monkeypatch.setenv("PV_FAIL_OPEN", "1")
+    monkeypatch.setattr(hook, "decide", lambda payload: (None, "connection refused"))
+    event = {**_ls(tmp_path), "permission_mode": "default"}
+    assert _run(hook, event, monkeypatch)["permissionDecision"] == "ask"
+    event["permission_mode"] = "auto"
+    assert _run(hook, event, monkeypatch)["permissionDecision"] == "deny"

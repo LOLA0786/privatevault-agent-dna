@@ -41,6 +41,11 @@ only when it is signed by the key `pv up` created and names that exact tool
 call, so nothing else on the network or the machine can answer for
 PrivateVault.
 
+An action the policy sends for approval is shown to you only in Claude
+Code's default and plan modes. In any other mode (auto, bypass permissions,
+accept edits) nobody would see the question, so it is refused; switch back
+with shift+tab to approve it.
+
 Destructive programs are blocked by the guard itself under `pv up`, even if
 the policy file is emptied, and `pv up` refuses to start when its policy or
 grants file is a link, someone else's, or writable by others.

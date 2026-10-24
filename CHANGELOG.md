@@ -5,6 +5,13 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### An approval needs a person to see it (ADR 0037)
+- Found live: in Claude Code's auto mode, a Read of `.env` that the policy
+  sends for approval ran with no prompt. The hook now turns "ask" into
+  "deny" unless Claude Code is in a mode that shows it to a person (default,
+  plan), and says how to approve it. Plugin 0.6.1.
+- `tests/test_signed_decisions.py::test_an_ask_no_one_would_see_is_refused`.
+
 ### `pv approve`: a person approves one wrapped payment call (ADR 0036)
 - `pv approvers init --principal <you>` creates a local approver bundle that
   `pv wrap` pins. A call the policy sends for approval is refused with an id;

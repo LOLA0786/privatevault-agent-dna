@@ -44,6 +44,7 @@ explicit statement that no such test exists.
 | [0034](0034-bash-runs-in-the-os-sandbox.md) | Claude Code's Bash runs in the OS sandbox | accepted | `tests/test_claude_sandbox_settings.py::test_settings_shape` |
 | [0035](0035-the-plugin-accepts-only-signed-decisions.md) | The plugin accepts only signed decisions | accepted | `tests/test_signed_decisions.py::test_hook_refuses_a_forged_answer` |
 | [0036](0036-a-person-approves-one-wrapped-call.md) | A person approves one wrapped call (pv approve) | accepted | `tests/test_pv_approve.py::test_one_approval_runs_one_call` |
+| [0037](0037-an-approval-needs-a-person.md) | An approval needs a person to see it (no "ask" in auto mode) | accepted | `tests/test_signed_decisions.py::test_an_ask_no_one_would_see_is_refused` |
 
 0001–0014 are the enforcement-spine decisions. 0015 is the earlier
 loop-discovery placement record, renumbered so the spine could own
@@ -95,3 +96,5 @@ denying PrivateVault's state and credential files in the kernel.
 it is signed by the pinned key and names that exact call.
 0036 adds `pv approve`: a person signs a single-use approval for one wrapped
 call, with those arguments, which the gateway's engine verifies and claims.
+0037 refuses an approval Claude Code would not show to a person (auto,
+bypass and accept-edits modes) instead of letting it run unseen.
