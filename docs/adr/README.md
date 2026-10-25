@@ -45,6 +45,7 @@ explicit statement that no such test exists.
 | [0035](0035-the-plugin-accepts-only-signed-decisions.md) | The plugin accepts only signed decisions | accepted | `tests/test_signed_decisions.py::test_hook_refuses_a_forged_answer` |
 | [0036](0036-a-person-approves-one-wrapped-call.md) | A person approves one wrapped call (pv approve) | accepted | `tests/test_pv_approve.py::test_one_approval_runs_one_call` |
 | [0037](0037-an-approval-needs-a-person.md) | An approval needs a person to see it (no "ask" in auto mode) | accepted | `tests/test_signed_decisions.py::test_an_ask_no_one_would_see_is_refused` |
+| [0038](0038-the-pin-is-required-and-the-whole-input-is-bound.md) | The pin is required, and a decision binds the whole input | accepted | `tests/test_signed_decisions.py::test_a_decision_covers_only_its_content` |
 
 0001–0014 are the enforcement-spine decisions. 0015 is the earlier
 loop-discovery placement record, renumbered so the spine could own
@@ -98,3 +99,5 @@ it is signed by the pinned key and names that exact call.
 call, with those arguments, which the gateway's engine verifies and claims.
 0037 refuses an approval Claude Code would not show to a person (auto,
 bypass and accept-edits modes) instead of letting it run unseen.
+0038 makes the decision-key pin required and binds each decision to the
+whole tool input, so an allow for one file content covers no other.

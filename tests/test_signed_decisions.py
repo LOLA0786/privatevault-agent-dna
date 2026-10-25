@@ -11,11 +11,17 @@ Claims -> tests:
   - With a pinned key, a real signed allow for this call passes; a forged,
     unsigned, re-labelled, replayed, stale or foreign-key answer is refused;
     a block stays a block -> test_hook_*
-  - With no key pinned the hook behaves as before -> test_hook_without_a_pin
+  - With no key pinned the hook refuses, unless PV_ALLOW_UNSIGNED=1
+    (ADR 0038) -> test_hook_without_a_pin_refuses
+  - A signed decision names the whole tool input: an allow for one file
+    content does not cover another -> test_a_decision_covers_only_its_content
+  - An MCP input too large to check whole is refused, not truncated
+    -> test_an_oversized_mcp_input_is_refused
 """
 
 from __future__ import annotations
 
+import hashlib
 import importlib
 import importlib.util
 import io
@@ -193,13 +199,16 @@ def test_hook_accepts_a_real_signed_allow(world, monkeypatch):
 
 
 def _answer_for(real, request_id, command="ls"):
+    digest = hashlib.sha256(
+        json.dumps({"command": command}, separators=(",", ":")).encode()
+    ).hexdigest()
     return real(
         {
             "agent_id": "claude-code",
             "capability": "shell.exec",
             "timestamp": 1,
             "request_id": request_id,
-            "arguments": {"command": command, "touches": []},
+            "arguments": {"command": command, "touches": [], "input_sha256": digest},
         }
     )
 
@@ -276,14 +285,65 @@ def test_hook_refuses_when_the_pin_is_malformed(world, monkeypatch):
     )
 
 
-def test_hook_without_a_pin(tmp_path, monkeypatch):
+def test_hook_without_a_pin_refuses(tmp_path, monkeypatch):
+    """ADR 0038: a hardened hook does not run unchecked."""
     hook = _module("pv_pretool")
     monkeypatch.delenv("PV_DECISION_KEY", raising=False)
+    monkeypatch.delenv("PV_ALLOW_UNSIGNED", raising=False)
     monkeypatch.setenv("PV_HOME", str(tmp_path / "empty"))
     monkeypatch.setattr(
         hook, "decide", lambda payload: (200, {"decision": "allow", "reason": "ok"})
     )
+    out = _run(hook, _ls(tmp_path), monkeypatch)
+    assert out["permissionDecision"] == "deny"
+    assert "no PrivateVault decision key is pinned" in out["permissionDecisionReason"]
+    monkeypatch.setenv("PV_ALLOW_UNSIGNED", "1")
     assert _run(hook, _ls(tmp_path), monkeypatch) is None
+
+
+def _write(work, content, tool_use_id):
+    return {
+        "tool_name": "Write",
+        "tool_input": {"file_path": str(work / "app.py"), "content": content},
+        "tool_use_id": tool_use_id,
+        "cwd": str(work),
+    }
+
+
+def test_a_decision_covers_only_its_content(world, monkeypatch):
+    """The reviewer's point (2026-10-25): a write was bound by its path only.
+    Now a genuine signed allow for one content is refused for another."""
+    hook, home, work, real = world
+    seen = []
+    monkeypatch.setattr(hook, "decide", lambda p: seen.append(real(p)) or seen[-1])
+    assert _run(hook, _write(work, "print('ok')\n", "tu-w"), monkeypatch) is None
+    status, answer = seen[0]
+    monkeypatch.setattr(hook, "decide", lambda payload: (status, answer))
+    out = _run(hook, _write(work, "import os; os.system('x')\n", "tu-w"), monkeypatch)
+    assert out["permissionDecision"] == "deny"
+    assert "different call (arguments_digest)" in out["permissionDecisionReason"]
+    assert hook.input_sha256({"a": 1, "b": "x"}) == hook.input_sha256(
+        {"b": "x", "a": 1}
+    )
+
+
+def test_an_oversized_mcp_input_is_refused(world, monkeypatch):
+    hook, home, work, real = world
+    asked = []
+    monkeypatch.setattr(hook, "decide", lambda p: asked.append(p) or real(p))
+    event = {
+        "tool_name": "mcp__s__t",
+        "tool_input": {"blob": "x" * (hook.MAX_INPUT_BYTES + 1)},
+        "tool_use_id": "tu-big",
+        "cwd": str(work),
+    }
+    out = _run(hook, event, monkeypatch)
+    assert out["permissionDecision"] == "deny"
+    assert "limit the policy can check whole" in out["permissionDecisionReason"]
+    assert asked == []  # refused before anything is sent
+    small = {**event, "tool_input": {"blob": "x" * 20_000}}
+    _run(hook, small, monkeypatch)
+    assert asked[-1]["arguments"]["blob"] == "x" * 20_000  # sent whole
 
 
 # ------------------------------------------------- an ask needs a person (0037)
