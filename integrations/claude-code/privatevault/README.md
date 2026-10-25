@@ -166,7 +166,8 @@ Set these in the environment Claude Code starts from:
 | `PV_FAIL_OPEN` | off | `1`: ask instead of refuse when the API cannot answer |
 | `PV_TIMEOUT_S` | `8` | seconds to wait for a decision |
 | `PV_HOME` | `~/.privatevault` | PrivateVault's state folder, which Claude may not read or write |
-| `PV_DECISION_KEY` | `PV_HOME/decision-key.pub` | the API's Ed25519 public key; with it, an allow or ask counts only if signed by that key for this exact call (ADR 0035). Set it for a server on another machine |
+| `PV_DECISION_KEY` | `PV_HOME/decision-key.pub` | the API's Ed25519 public key; an allow or ask counts only if signed by that key for this exact call and input (ADR 0035, 0038). With no key the hook refuses every call. Set it for a server on another machine |
+| `PV_ALLOW_UNSIGNED` | off | `1`: with no key pinned, accept unsigned answers (for a server that cannot sign; not for production) |
 | `PV_ALLOW_INSECURE_URL` | off | `1`: accept a plain-http `PV_ENFORCE_URL` on another machine (refused otherwise: anyone on the path could forge "allow") |
 
 ## What is checked
@@ -177,7 +178,11 @@ Set these in the environment Claude Code starts from:
 | `Read`, `Grep` | `fs.read` | the path (and pattern), and its `zone` |
 | `Write`, `Edit`, `MultiEdit`, `NotebookEdit` | `fs.write` | the file path and its `zone` |
 | `WebFetch` | `net.fetch` | the URL and its `host_class` |
-| `mcp__<server>__<tool>` | `mcp.<server>.<tool>` | the tool input (truncated at 16 KB) |
+| `mcp__<server>__<tool>` | `mcp.<server>.<tool>` | the whole tool input; over 256 KiB it is refused |
+
+Every call also carries `input_sha256`, the digest of the whole tool input
+(for a write, the new content), so a signed decision covers those exact
+bytes and no others.
 
 A path's `zone` is one of `privatevault` (PrivateVault's state),
 `claude-config` (`~/.claude`, the project's `.claude/` and `.mcp.json`),

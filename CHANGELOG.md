@@ -5,6 +5,15 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### The pin is required, and a decision binds the whole input (ADR 0038)
+- From an external review: with no decision key pinned the hook now refuses
+  every call (`PV_ALLOW_UNSIGNED=1` restores the old behaviour, not for
+  production).
+- Every call carries `input_sha256`, the digest of the whole tool input, so
+  a signed allow for one file content does not cover another. MCP inputs are
+  sent whole; over 256 KiB they are refused instead of truncated.
+- Plugin 0.7.0. `tests/test_signed_decisions.py`.
+
 ### An approval needs a person to see it (ADR 0037)
 - Found live: in Claude Code's auto mode, a Read of `.env` that the policy
   sends for approval ran with no prompt. The hook now turns "ask" into

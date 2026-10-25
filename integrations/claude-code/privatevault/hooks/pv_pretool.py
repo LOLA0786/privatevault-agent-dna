@@ -35,11 +35,18 @@ Settings (environment):
     PV_FAIL_OPEN     "1": ask instead of deny when the API cannot answer
     PV_TIMEOUT_S     seconds to wait for a decision (default 8)
     PV_HOME          PrivateVault's state folder (default ~/.privatevault)
-    PV_DECISION_KEY  the API's Ed25519 public key (64 hex). With it, an
-                     "allow" or "ask" counts only if the decision record is
-                     signed by that key and names this exact call; anything
-                     else is refused. Default: PV_HOME/decision-key.pub,
-                     which pv up writes. Neither: answers are not checked.
+    PV_DECISION_KEY  the API's Ed25519 public key (64 hex). An "allow" or
+                     "ask" counts only if the decision record is signed by
+                     that key and names this exact call; anything else is
+                     refused. Default: PV_HOME/decision-key.pub, which pv up
+                     writes. Neither: every call is refused (ADR 0038).
+    PV_ALLOW_UNSIGNED  "1": with no key pinned, accept unsigned answers
+                     (the old behaviour; for a server that cannot sign)
+
+Every call carries input_sha256, the digest of Claude Code's whole tool
+input (a file's new content, an edit's text, every MCP argument), so a
+signed decision names those exact bytes. MCP and other tool inputs are sent
+whole; one larger than 256 KiB is refused rather than cut to a preview.
     PV_ALLOW_INSECURE_URL  "1": allow a plain-http PV_ENFORCE_URL that is
                      not on this machine (otherwise refused: a forged
                      "allow" could come from anyone on the path)
@@ -67,7 +74,7 @@ from typing import Any
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import pv_ed25519  # noqa: E402  (beside this file; standard library only)
 
-MAX_ARG_CHARS = 16_384
+MAX_INPUT_BYTES = 262_144  # whole MCP/other tool input sent to PrivateVault
 WRITE_TOOLS = {"Write", "Edit", "MultiEdit", "NotebookEdit"}
 READ_TOOLS = {"Read", "Grep"}
 # Same names as agent_dna.shell_guard._SENSITIVE (tests keep them in step).
@@ -127,8 +134,8 @@ def capability_for(tool_name: str, tool_input: dict[str, Any]) -> tuple[str, dic
         parts = tool_name.split("__", 2)
         server = parts[1] if len(parts) > 1 else "unknown"
         tool = parts[2] if len(parts) > 2 else "unknown"
-        return f"mcp.{server}.{tool}", _bounded(tool_input)
-    return f"tool.{tool_name}", _bounded(tool_input)
+        return f"mcp.{server}.{tool}", dict(tool_input)
+    return f"tool.{tool_name}", dict(tool_input)
 
 
 def _under(path: str, root: str) -> bool:
@@ -295,11 +302,31 @@ def classify(capability: str, arguments: dict, cwd: str) -> dict:
     return out
 
 
-def _bounded(value: Any) -> dict:
-    text = json.dumps(value, sort_keys=True, default=str)
-    if len(text) <= MAX_ARG_CHARS:
-        return value if isinstance(value, dict) else {"value": value}
-    return {"truncated": True, "preview": text[:MAX_ARG_CHARS]}
+def _canonical(value: Any) -> bytes:
+    return json.dumps(
+        value, sort_keys=True, separators=(",", ":"), default=str
+    ).encode()
+
+
+def input_sha256(tool_input: dict[str, Any]) -> str:
+    """Digest of Claude Code's whole tool input: what a signed decision for
+    this call is bound to (ADR 0038)."""
+    return hashlib.sha256(_canonical(tool_input)).hexdigest()
+
+
+def input_too_large(capability: str, tool_input: dict[str, Any]) -> str | None:
+    """Why this input is refused before asking PrivateVault, or None. MCP and
+    other tools send their whole input; a preview would let the hidden part
+    through unchecked."""
+    if capability.split(".", 1)[0] not in ("mcp", "tool"):
+        return None
+    size = len(_canonical(tool_input))
+    if size <= MAX_INPUT_BYTES:
+        return None
+    return (
+        f"PrivateVault refused this call: its input is {size} bytes, over the "
+        f"{MAX_INPUT_BYTES}-byte limit the policy can check whole"
+    )
 
 
 MAX_CLOCK_SKEW_S = 600
@@ -393,7 +420,13 @@ def checked_verdict(
         return decision, reason
     key, source = pinned_key()
     if key is None:
-        return decision, reason
+        if os.environ.get("PV_ALLOW_UNSIGNED", "") == "1":
+            return decision, reason
+        return "deny", (
+            "no PrivateVault decision key is pinned, so this answer cannot be "
+            "checked; refusing. Set PV_DECISION_KEY to the API's public key, "
+            "or run pv up, which writes ~/.privatevault/decision-key.pub"
+        )
     if not key:
         return "deny", f"PrivateVault's pinned key ({source}) is unreadable; refusing"
     problem = signature_problem(body, payload, key)
@@ -510,10 +543,15 @@ def main() -> int:
     tool_input = event.get("tool_input") or {}
     if not tool_name or not isinstance(tool_input, dict):
         decision, reason = "deny", "PrivateVault gate received an unreadable tool call"
+    elif too_large := input_too_large(
+        capability_for(tool_name, tool_input)[0], tool_input
+    ):
+        decision, reason = "deny", too_large
     else:
         capability, arguments = capability_for(tool_name, tool_input)
         cwd = event.get("cwd") if isinstance(event.get("cwd"), str) else os.getcwd()
         arguments = classify(capability, arguments, cwd)
+        arguments["input_sha256"] = input_sha256(tool_input)
         payload = {
             "agent_id": os.environ.get("PV_AGENT_ID", "claude-code"),
             "capability": capability,

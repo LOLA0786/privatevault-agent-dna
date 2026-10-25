@@ -109,9 +109,9 @@ def test_tool_mapping(tool, tool_input, capability, arguments):
     assert _hook().capability_for(tool, tool_input) == (capability, arguments)
 
 
-def test_large_mcp_input_is_truncated():
+def test_mcp_input_is_sent_whole():
     _cap, args = _hook().capability_for("mcp__s__t", {"blob": "x" * 20_000})
-    assert args["truncated"] is True and len(args["preview"]) == 16_384
+    assert args == {"blob": "x" * 20_000}
 
 
 # ------------------------------------------------------------ real API
@@ -134,8 +134,10 @@ def api(tmp_path, monkeypatch):
     monkeypatch.setenv("PV_GRANTS_FILE", str(PLUGIN / "config" / "grants.json"))
     monkeypatch.setenv("PV_BASELINE_CAPABILITIES", "shell.exec,fs.write,net.fetch")
     monkeypatch.setenv("PV_SHELL_WORKDIR", str(work))
-    # no pinned decision key: this server does not sign (tests/test_signed_decisions)
+    # no pinned decision key: this server does not sign, so the policy is
+    # tested with unsigned answers allowed (signing: tests/test_signed_decisions)
     monkeypatch.setenv("PV_HOME", str(tmp_path / "no-pin"))
+    monkeypatch.setenv("PV_ALLOW_UNSIGNED", "1")
     import api.server as server
 
     importlib.reload(server)

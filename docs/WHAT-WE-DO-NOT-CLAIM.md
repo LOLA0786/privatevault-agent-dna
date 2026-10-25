@@ -715,11 +715,24 @@ Residual gaps we explicitly do **not** claim closed:
   (no catalog or undeclared name → not forwarded). In-process tests
   default to `finding` unless the hardened flag is set.
 - **`sampling/createMessage` is refused, not gated.**
-- **Signed decisions (ADR 0035) need a pinned key.** With none (no
-  `PV_DECISION_KEY` and no `decision-key.pub`), the hook trusts any answer
+- **Signed decisions (ADR 0035, 0038) need a pinned key.** With none (no
+  `PV_DECISION_KEY` and no `decision-key.pub`) the hook refuses every call,
+  unless the operator sets `PV_ALLOW_UNSIGNED=1`, which trusts any answer
   from an https or local API. The local pin is trust on first use; a server
   on another machine needs `PV_DECISION_KEY` set by the operator. A captured
   answer for the same call stays valid for the ten-minute clock window.
+- **What a signed decision binds (ADR 0038).** It names the digest of
+  Claude Code's whole tool input, including a file's new content and an
+  edit's text, so an allow for one content does not cover another. The
+  policy itself sees a write's path and zone, not its content: content is
+  bound, not inspected. MCP inputs are sent whole up to 256 KiB and refused
+  above that. Claude Code runs the input it showed the hook; we rely on
+  that, as on Claude Code reporting its permission mode truthfully.
+- **Coverage is the architectural limit.** Shell inspection reads command
+  text against patterns; the OS sandbox protects only the paths it is
+  configured with; the gateway and dispatcher protect only traffic routed
+  through them. Full enforcement depends on the agent having no other way
+  to act.
 - **`pv claude` (ADR 0034) relies on Claude Code's own sandbox.** It covers
   Bash and the processes Bash starts, only when Claude Code is started with
   the settings file, and on Linux only where bubblewrap and socat are
