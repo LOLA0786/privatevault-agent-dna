@@ -5,6 +5,24 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### `pv doctor`, and the plugin names an unsigned server at session start
+- Found live: the README's `docker compose` quickstart serves an unsigned
+  PrivateVault on port 8000, where the plugin expects `pv up`. `/health`
+  answered, so the session started quietly, and then every tool call was
+  refused with a signature error that did not say why.
+- When a key is pinned, the SessionStart hook now reads the server's own
+  manifest (`GET /`) and, if the server does not sign or signs with another
+  key, says so with the fix. It stays silent when the manifest cannot be
+  read. Plugin 0.7.1.
+- `pv doctor` checks, read-only and one line each: the pinned key against
+  `signing.key`; the server is up and signs with the pinned key; the port
+  does not also answer on a network address; the installed hook is this
+  checkout's; Claude Code's default mode lets approvals reach a person; disk
+  for the ledger. Exit 1 on any FAIL.
+- `tests/test_quickstart_doctor.py` (end to end against the server the
+  Docker image runs and against a real `pv up`),
+  `tests/test_quickstart.py::test_session_start_*`.
+
 ### The pin is required, and a decision binds the whole input (ADR 0038)
 - From an external review: with no decision key pinned the hook now refuses
   every call (`PV_ALLOW_UNSIGNED=1` restores the old behaviour, not for

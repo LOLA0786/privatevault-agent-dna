@@ -911,6 +911,9 @@ def build_parser() -> argparse.ArgumentParser:
     from agent_dna.quickstart.approvals import add_parsers as add_approval_parsers
 
     add_approval_parsers(sub)
+    from agent_dna.quickstart.doctor import add_parser as add_doctor_parser
+
+    add_doctor_parser(sub)
 
     return p
 

@@ -19,7 +19,7 @@ flowchart LR
   n10["agent_dna/multi_agent<br/>16 modules"]
   n11["agent_dna/observability<br/>3 modules"]
   n12["agent_dna/policy<br/>4 modules"]
-  n13["agent_dna/quickstart<br/>4 modules"]
+  n13["agent_dna/quickstart<br/>5 modules"]
   n14["agent_dna/receiver<br/>8 modules"]
   n15["agent_dna/scan<br/>4 modules"]
   n16["agent_dna/security<br/>2 modules"]
@@ -38,7 +38,7 @@ flowchart LR
   n0 -->|2| n10
   n0 -->|1| n11
   n0 -->|6| n12
-  n0 -.->|4| n13
+  n0 -.->|5| n13
   n0 -->|3| n16
   n0 -->|1| n17
   n0 -->|1| n18
@@ -97,9 +97,9 @@ flowchart LR
 | `agent_dna/consensus` | 6 |
 | `agent_dna/adapters_policy` | 5 |
 | `agent_dna/audit_connector` | 5 |
+| `agent_dna/quickstart` | 5 |
 | `agent_dna/validation` | 5 |
 | `agent_dna/policy` | 4 |
-| `agent_dna/quickstart` | 4 |
 | `agent_dna/scan` | 4 |
 | `agent_dna/governance` | 3 |
 | `agent_dna/observability` | 3 |

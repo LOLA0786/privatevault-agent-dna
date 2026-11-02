@@ -15,6 +15,10 @@ Claims -> tests:
   - The plugin warns at session start when the API is down, with the
     command that starts it, and is silent when it is up
     -> test_session_start_*
+  - It also warns when the API is up but every answer would be refused,
+    because the server does not sign or signs with another key than the
+    pinned one, and is silent when it signs with the pinned key
+    -> test_session_start_*_unsigned, *_other_key, *_pinned_key
   - A refused tool call names the start command (local API only)
     -> test_refusal_names_the_start_command
 """
@@ -274,6 +278,74 @@ def test_session_start_silent_when_up(monkeypatch):
     try:
         monkeypatch.setenv("HTTP_PROXY", "http://127.0.0.1:9")  # must be bypassed
         monkeypatch.setenv("http_proxy", "http://127.0.0.1:9")
+        monkeypatch.setenv(
+            "PV_ENFORCE_URL", f"http://127.0.0.1:{server.server_address[1]}"
+        )
+        assert _session_start(monkeypatch) is None
+    finally:
+        server.shutdown()
+
+
+def _serving(manifest: dict):
+    """/health is 200 and GET / is `manifest`."""
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):  # noqa: N802 - stdlib handler name
+            body = json.dumps(
+                {"status": "healthy"} if self.path == "/health" else manifest
+            ).encode()
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *_a):
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return server
+
+
+PINNED = "ab" * 32
+
+
+def _session_start_against(monkeypatch, signing) -> dict | None:
+    server = _serving({"product": "PrivateVault Agent DNA", "signing": signing})
+    try:
+        monkeypatch.setenv("PV_DECISION_KEY", PINNED)
+        monkeypatch.setenv(
+            "PV_ENFORCE_URL", f"http://127.0.0.1:{server.server_address[1]}"
+        )
+        return _session_start(monkeypatch)
+    finally:
+        server.shutdown()
+
+
+def test_session_start_warns_when_up_but_unsigned(monkeypatch):
+    out = _session_start_against(monkeypatch, "disabled")
+    assert "does not sign" in out["systemMessage"]
+    assert "docker ps --filter publish=" in out["systemMessage"]
+    assert START in out["systemMessage"]
+    assert out["hookSpecificOutput"]["hookEventName"] == "SessionStart"
+
+
+def test_session_start_warns_on_other_key(monkeypatch):
+    other = {"algorithm": "Ed25519", "public_key": "cd" * 32}
+    out = _session_start_against(monkeypatch, other)
+    assert "different key" in out["systemMessage"]
+
+
+def test_session_start_silent_on_pinned_key(monkeypatch):
+    pinned = {"algorithm": "Ed25519", "public_key": PINNED.upper()}
+    assert _session_start_against(monkeypatch, pinned) is None
+
+
+def test_session_start_silent_when_nothing_is_pinned(monkeypatch, tmp_path):
+    monkeypatch.setenv("PV_HOME", str(tmp_path))  # no decision-key.pub here
+    server = _serving({"product": "PrivateVault Agent DNA", "signing": "disabled"})
+    try:
+        monkeypatch.delenv("PV_DECISION_KEY", raising=False)
         monkeypatch.setenv(
             "PV_ENFORCE_URL", f"http://127.0.0.1:{server.server_address[1]}"
         )
