@@ -5,6 +5,51 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Three high-severity findings from the 2026-11-10 adversarial review
+Full write-up: `docs/findings/ADVERSARIAL-REVIEW-2026-11-10.md`.
+
+- **A policy hold no longer hides the levels below it (F-1).** A
+  customer-policy `require_approval` rule returned first, so consensus,
+  authorization, economics and drift never ran, and because a policy hold is
+  approvable an approval then allowed actions those levels would have held
+  or, under the secure profile, blocked. A policy hold is now additive: the
+  lower levels run, the stricter verdict stands, an approval lifts the hold
+  only if every level that fired is approvable, and the secure profile's
+  ungranted BLOCK applies whichever level fired first. The other level is
+  sealed into the record's reason (`also held by ...`). A policy `block` and
+  the existing approval flow (ADR 0020) are unchanged.
+  `tests/test_policy_hold_is_additive.py`, including the property that adding
+  a rule never makes a verdict more permissive over all 16 combinations of
+  the lower levels.
+- **Signed checkpoints make record deletion detectable (F-2).** Removing the
+  end of an agent's chain, a whole agent, or one execution event passed
+  `verify_records.py` in signed mode. New `GET /v1/audit/checkpoint` and
+  `python -m agent_dna.checkpoint` produce a signed `pv-checkpoint/1`
+  commitment to the whole log; `verify_records.py --checkpoint` fails an
+  export that does not extend it. The verifier now prints whether origin and
+  completeness were verified (F-7), rejects numbers that overflow to infinity
+  (F-8), and reports a non-object line instead of raising (F-9).
+  `tests/test_checkpoint_completeness.py`,
+  `tests/test_api_completeness_and_quorum.py`.
+  **`tools/verify_records.py` changed: sync the copy in `drp-spec`; the pin
+  in `tests/test_verifier_spec_parity.py` is updated here.**
+- **Consensus rules are the operator's, not the submitter's (F-3, F-4).**
+  The threshold, trust weights and action id used to arrive with the votes.
+  `PV_CONSENSUS_FILE` now pins the voter roster, weights, Ed25519 public keys,
+  threshold and `required_for` capabilities
+  (`examples/config/consensus.example.json`); votes are `pv-vote/2`, signed
+  with the voter's own key for the exact agent, capability and arguments
+  under decision; a cleared quorum is single-use per process. Without a
+  roster, supplied votes are held. The legacy `pv-vote/1` payload is now a
+  JSON array, so a signed REJECT can no longer be re-read as an APPROVE on
+  another action. `tests/test_consensus_checker.py`,
+  `tests/test_secure_quorum.py::test_vote_payload_has_one_reading`.
+  **Breaking for callers that send `threshold` or `trust_scores` in
+  `evidence.consensus`: those requests are now held.**
+- CI portability from the same review: mypy ignore on the GCP KMS import,
+  an explicit validation access in the receiver kit, a root-safe permission
+  test, and the README line pins in `tests/test_pilot_isolation.py`.
+
 ### The pin is required, and a decision binds the whole input (ADR 0038)
 - From an external review: with no decision key pinned the hook now refuses
   every call (`PV_ALLOW_UNSIGNED=1` restores the old behaviour, not for

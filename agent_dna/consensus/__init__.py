@@ -13,7 +13,13 @@ avoid implying threshold classification is consensus. WeightedQuorum
 below is the actual voting logic.
 """
 
-from .checker import ConsensusChecker, ConsensusResult
+from .checker import (
+    ConsensusChecker,
+    ConsensusConfig,
+    ConsensusConfigError,
+    ConsensusResult,
+    Voter,
+)
 from .weighted_quorum import LeaderState, Vote, WeightedQuorum
 
 __all__ = [
@@ -21,7 +27,10 @@ __all__ = [
     "Vote",
     "WeightedQuorum",
     "ConsensusChecker",
+    "ConsensusConfig",
+    "ConsensusConfigError",
     "ConsensusResult",
+    "Voter",
     "ByzantineQuorum",
 ]
 

@@ -53,8 +53,8 @@ _SKIP_RELATIVE = frozenset(
 # a second mention elsewhere in README.md is a new product dependency.
 _ALLOWLIST: frozenset[tuple[str, int, str]] = frozenset(
     {
-        ("README.md", 159, "fineract"),
-        ("README.md", 160, "tests/pilot"),
+        ("README.md", 171, "fineract"),
+        ("README.md", 172, "tests/pilot"),
     }
 )
 

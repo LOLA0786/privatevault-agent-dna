@@ -64,6 +64,7 @@ a route is added without a row here.
 | `GET /v1/verify` | `api/server.py::verify` | audit or full | Re-verify every chain in the store |
 | `GET /v1/audit/export` | `api/server.py::audit_export` | audit or full | All records as JSONL |
 | `GET /v1/audit/envelopes` | `api/server.py::audit_envelope_export` | audit or full | All envelopes as JSONL |
+| `GET /v1/audit/checkpoint` | `api/server.py::audit_checkpoint` | audit or full | Signed commitment to every record held now (count, log head, per-agent heads) |
 | `GET /v1/ops/summary` | `api/server.py::ops_summary` | audit or full | Counts for the operator console |
 | `GET /` | `api/server.py::root` | none | Service description |
 | `GET /health` | `api/server.py::health` | none | Process is up |

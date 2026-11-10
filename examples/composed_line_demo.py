@@ -33,8 +33,12 @@ from agent_dna.circuit_breaker import (
     CircuitBreaker,
     GuardedEngine,
 )
-from agent_dna.consensus import ConsensusChecker
-from agent_dna.consensus.signing import cast_vote, register_key
+from agent_dna.consensus import ConsensusChecker, ConsensusConfig
+from agent_dna.consensus.signing import (
+    cast_vote_v2,
+    consensus_action_id,
+    generate_voter_keypair,
+)
 from agent_dna.decision import Decision, DecisionEngine
 from agent_dna.decision_recorder import DecisionRecorder
 from agent_dna.decision_store import DecisionStore
@@ -93,13 +97,27 @@ def main():
         store=DecisionStore(log),
         signer=ReceiptSigner(seed_hex=keys["signing_key"]),
     )
+    # The operator pins who may vote, how much each vote weighs and how much
+    # approving weight a quorum needs. Callers supply votes, nothing else.
+    voter_keys = {
+        name: generate_voter_keypair() for name in ("finance-agent", "fraud-agent")
+    }
+    quorum = ConsensusConfig.from_dict(
+        {
+            "threshold": 2.0,
+            "voters": [
+                {"agent_id": name, "weight": 1.0, "public_key": k["public_key"]}
+                for name, k in voter_keys.items()
+            ],
+        }
+    )
     engine = DecisionEngine(
         scorer=train(),
         invariants=Invariants(),
         authorizer=Authorizer(),
         uaal=UAALConstraintChecker(),
         economics=CostAnomalyChecker(),
-        consensus=ConsensusChecker(),
+        consensus=ConsensusChecker(quorum),
     )
     # Two breakers, deliberately. The seven-level walk below demonstrates
     # PRECEDENCE AMONG LEVELS, so it runs against an INERT breaker (all
@@ -138,8 +156,30 @@ def main():
     # Same engine, same recorder, same chain -- only the breaker differs.
     breaker_monitor = RuntimeMonitor(GuardedEngine(engine, breaker), recorder=recorder)
 
-    register_key("finance-agent", "secret-finance")
-    settle_votes = [cast_vote("finance-agent", "settle-9982", "REJECT", "settle-9982")]
+    # Votes are signed for one exact action: agent, capability and arguments.
+    settlement = intent_to_action(
+        actor_id="sales-agent-01",
+        verb="settle",
+        target={"type": "payment", "id": "9982"},
+        timestamp=time.time(),
+    )
+    settle_id = consensus_action_id(
+        settlement.agent_id, settlement.capability, settlement.arguments
+    )
+    settle_votes = [
+        cast_vote_v2(
+            voter_keys["fraud-agent"]["signing_key"],
+            agent_id="fraud-agent",
+            action_id=settle_id,
+            vote="APPROVE",
+        ),
+        cast_vote_v2(
+            voter_keys["finance-agent"]["signing_key"],
+            agent_id="finance-agent",
+            action_id=settle_id,
+            vote="REJECT",
+        ),
+    ]
 
     scenarios = [
         (
@@ -165,20 +205,8 @@ def main():
         ),
         (
             "L2  multi-agent consensus   |CRO CAIO|  finance agent dissents on settlement",
-            intent_to_action(
-                actor_id="sales-agent-01",
-                verb="settle",
-                target={"type": "payment", "id": "9982"},
-                timestamp=time.time(),
-            ),
-            {
-                "consensus": {
-                    "action_id": "settle-9982",
-                    "threshold": 0.67,
-                    "votes": settle_votes,
-                    "trust_scores": {"finance-agent": 1.0},
-                }
-            },
+            settlement,
+            {"consensus": {"action_id": settle_id, "votes": settle_votes}},
         ),
         (
             "L3  capability grant        |CISO|      ungranted wire transfer",
@@ -345,7 +373,7 @@ def main():
         print(f"{short:<50} {verdict:<17} {trigger:<12} {'Y' if signed else 'N'}")
     print()
     print(
-        "CTO   : every level is a tested code path, 2560+ automated tests, CI-guarded."
+        "CTO   : every level is a tested code path, 2630+ automated tests, CI-guarded."
     )
     print("CAIO  : drift (L5) is the only probabilistic level — it can escalate, never")
     print("        override a deterministic BLOCK above it.")

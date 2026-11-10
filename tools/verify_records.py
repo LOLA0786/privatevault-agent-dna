@@ -44,13 +44,29 @@ Checks:
       envelope signed by a trusted key. (--allow-unsigned-executions
       relaxes this for legacy exports; signed ones are still checked.)
   11. Duplicate JSON object keys are rejected, and an export with no
-      records fails.
+      records fails. A number that overflows to infinity (1e999) is
+      rejected like the NaN/Infinity literals, and a line that is JSON
+      but not an object fails with a message.
+  12. COMPLETENESS: with --checkpoint, the export must EXTEND the
+      checkpoint -- its first record_count records must reproduce the
+      checkpoint's log_head (sha256 accumulator over record hashes in
+      file order), its counts and every agent's chain head. Checks 1-10
+      cannot see a record removed from the END of a chain, a whole agent
+      removed, or an execution event removed; this one does. With
+      trusted keys the checkpoint must carry a valid Ed25519 signature
+      from one of them. Without --checkpoint the output states that
+      completeness was NOT verified.
+
+The output also states whether ORIGIN was verified: without envelopes and
+a trusted key, a history rewritten and rehashed end to end is internally
+consistent and passes checks 1-9.
 
 Exit codes: 0 pass, 1 fail, 2 usage.
 Usage:
   python3 verify_records.py <records.jsonl>
   python3 verify_records.py <records.jsonl> \
-      --envelopes <envelopes.jsonl> --trusted-key <public-key-hex>
+      --envelopes <envelopes.jsonl> --trusted-key <public-key-hex> \
+      --checkpoint <checkpoint.json>
 """
 
 import argparse
@@ -136,6 +152,207 @@ def _reject_nonfinite(token):
     raise ValueError(f"non-finite number {token!r} is not valid JSON")
 
 
+def _finite_float(token):
+    # "1e999" is valid JSON grammar but parses to inf; parse_constant only
+    # sees the NaN/Infinity literals.
+    value = float(token)
+    if value != value or value in (float("inf"), float("-inf")):
+        raise ValueError(f"non-finite number {token!r} is not valid JSON")
+    return value
+
+
+CHECKPOINT_SPEC = "pv-checkpoint/1"
+LOG_GENESIS = hashlib.sha256(b"pv-log/1").hexdigest()
+CHECKPOINT_FIELDS = frozenset(
+    {
+        "spec",
+        "checkpoint_id",
+        "created_at",
+        "record_count",
+        "decision_count",
+        "execution_count",
+        "log_head",
+        "agents",
+        "checkpoint_hash",
+        "signature",
+    }
+)
+
+
+def _advance(head: str, record_hash: str) -> str:
+    return hashlib.sha256((head + record_hash).encode()).hexdigest()
+
+
+def _checkpoint_hash(checkpoint: dict) -> str:
+    body = {
+        k: v for k, v in checkpoint.items() if k not in ("checkpoint_hash", "signature")
+    }
+    canonical = json.dumps(body, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(b"pv-checkpoint/1:" + canonical.encode()).hexdigest()
+
+
+def _is_count(value) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
+def _checkpoint_signature(checkpoint: dict, trusted_keys) -> str | None:
+    """None when the signature is valid and trusted, else the reason."""
+    envelope = checkpoint.get("signature")
+    if not isinstance(envelope, dict):
+        return "is unsigned"
+    if envelope.get("algorithm") != "Ed25519":
+        return "has an unsupported signature algorithm"
+    if envelope.get("signed_hash") != checkpoint.get("checkpoint_hash"):
+        return "signature covers a different hash"
+    public_key = envelope.get("public_key")
+    signature = envelope.get("signature")
+    if not isinstance(public_key, str) or not HEX64.match(public_key):
+        return "signature public_key is not 64 lowercase hex"
+    if not isinstance(signature, str) or not HEX128.match(signature):
+        return "signature is not 128 lowercase hex"
+    if public_key not in trusted_keys:
+        return f"is signed by untrusted key {public_key}"
+    try:
+        from nacl.encoding import HexEncoder
+        from nacl.exceptions import BadSignatureError
+        from nacl.signing import VerifyKey
+    except ImportError:
+        return "cannot be checked: trusted signature verification requires PyNaCl"
+    try:
+        VerifyKey(public_key, encoder=HexEncoder).verify(
+            envelope["signed_hash"].encode(), bytes.fromhex(signature)
+        )
+    except (BadSignatureError, ValueError):
+        return "has an invalid Ed25519 signature"
+    return None
+
+
+def _verify_checkpoint(  # noqa: C901 - ordered validation checklist
+    path: str,
+    log: list[tuple[str, str, str]],
+    trusted_keys,
+) -> tuple[list[str], str]:
+    """Check that the export extends one checkpoint.
+
+    ``log`` is (record_hash, kind, agent_id) for every record in file order.
+    Returns (failures, one-line summary).
+    """
+    label = f"checkpoint {path}"
+    try:
+        with open(path, encoding="utf-8") as source:
+            checkpoint = json.loads(
+                source.read(),
+                parse_constant=_reject_nonfinite,
+                parse_float=_finite_float,
+                object_pairs_hook=_reject_duplicate_keys,
+            )
+    except (OSError, ValueError) as exc:
+        return [f"{label}: unreadable ({exc})"], "unreadable"
+    if not isinstance(checkpoint, dict):
+        return [f"{label}: expected a JSON object"], "malformed"
+
+    failures = []
+    unknown = set(checkpoint) - CHECKPOINT_FIELDS
+    missing = CHECKPOINT_FIELDS - set(checkpoint)
+    if unknown:
+        failures.append(f"{label}: unknown field(s) {sorted(unknown)}")
+    if missing:
+        failures.append(f"{label}: missing field(s) {sorted(missing)}")
+        return failures, "malformed"
+    if checkpoint["spec"] != CHECKPOINT_SPEC:
+        failures.append(
+            f"{label}: spec {checkpoint['spec']!r} is not {CHECKPOINT_SPEC}"
+        )
+    counts = [
+        checkpoint[k] for k in ("record_count", "decision_count", "execution_count")
+    ]
+    agents = checkpoint["agents"]
+    if (
+        not all(_is_count(c) for c in counts)
+        or not isinstance(checkpoint["log_head"], str)
+        or not HEX64.match(checkpoint["log_head"])
+        or not isinstance(agents, dict)
+        or not all(
+            isinstance(a, dict)
+            and set(a) == {"decisions", "head"}
+            and _is_count(a["decisions"])
+            and isinstance(a["head"], str)
+            for a in agents.values()
+        )
+    ):
+        failures.append(f"{label}: malformed counts, log_head or agents")
+        return failures, "malformed"
+    if _checkpoint_hash(checkpoint) != checkpoint["checkpoint_hash"]:
+        failures.append(f"{label}: checkpoint_hash mismatch (contents were altered)")
+        return failures, "altered"
+
+    signed = "unsigned, origin not verified"
+    if trusted_keys:
+        problem = _checkpoint_signature(checkpoint, trusted_keys)
+        if problem is not None:
+            failures.append(f"{label}: {problem}")
+        else:
+            signed = "signed by a trusted key"
+
+    count, decision_count, execution_count = counts
+    cid = checkpoint["checkpoint_id"]
+    if len(log) < count:
+        failures.append(
+            f"{label}: INCOMPLETE EXPORT -- checkpoint {cid} covers {count} "
+            f"records, the export has {len(log)}; {count - len(log)} record(s) "
+            "are missing"
+        )
+        return failures, "export is shorter than the checkpoint"
+
+    head = LOG_GENESIS
+    seen_decisions = seen_executions = 0
+    seen_agents: dict[str, dict] = {}
+    for record_hash, kind, agent in log[:count]:
+        head = _advance(head, record_hash)
+        if kind == "execution":
+            seen_executions += 1
+        else:
+            seen_decisions += 1
+            entry = seen_agents.setdefault(agent, {"decisions": 0, "head": ""})
+            entry["decisions"] += 1
+            entry["head"] = record_hash
+
+    if head != checkpoint["log_head"]:
+        failures.append(
+            f"{label}: INCOMPLETE OR ALTERED EXPORT -- the first {count} records "
+            f"do not reproduce checkpoint {cid} (log_head mismatch): records "
+            "present at the checkpoint were removed, reordered or replaced"
+        )
+        for agent in sorted(set(agents) - set(seen_agents)):
+            failures.append(
+                f"{label}: agent {agent!r} is in the checkpoint, not the export"
+            )
+        for agent in sorted(set(agents) & set(seen_agents)):
+            if agents[agent] != seen_agents[agent]:
+                failures.append(
+                    f"{label}: agent {agent!r} had {agents[agent]['decisions']} "
+                    f"decision(s) at the checkpoint, the export shows "
+                    f"{seen_agents[agent]['decisions']} in that range"
+                )
+        if seen_executions != execution_count:
+            failures.append(
+                f"{label}: {execution_count} execution event(s) at the "
+                f"checkpoint, {seen_executions} in the export"
+            )
+    elif (
+        seen_decisions != decision_count
+        or seen_executions != execution_count
+        or seen_agents != agents
+    ):
+        failures.append(f"{label}: counts or agent heads disagree with log_head")
+
+    beyond = len(log) - count
+    summary = f"{cid} covers {count} record(s), {signed}" + (
+        f"; {beyond} later record(s) not covered" if beyond else ""
+    )
+    return failures, summary
+
+
 def _reject_duplicate_keys(pairs):
     # json.loads keeps the LAST duplicate; grep/log viewers see the
     # first. One signature must never cover two readings of a line.
@@ -202,6 +419,7 @@ def _verify_envelopes(  # noqa: C901 - ordered validation checklist
                 envelope = json.loads(
                     line,
                     parse_constant=_reject_nonfinite,
+                    parse_float=_finite_float,
                     object_pairs_hook=_reject_duplicate_keys,
                 )
             except ValueError as exc:
@@ -339,8 +557,10 @@ def verify(  # noqa: C901 - mirrors the protocol check order
     envelopes_path: str | None = None,
     trusted_keys: frozenset[str] | None = None,
     allow_unsigned_executions: bool = False,
+    checkpoint_paths: tuple[str, ...] = (),
 ) -> int:
     failures = []
+    log = []  # (record_hash, kind, agent_id) in file order, for checkpoints
     chains = {}  # agent_id -> expected prev_hash (decisions)
     anchored = {}  # agent_id -> anchor hash (non-genesis origins)
     decisions = {}  # decision_id -> {"hash","decision","agent"} (first occurrence)
@@ -361,12 +581,23 @@ def verify(  # noqa: C901 - mirrors the protocol check order
                 rec = json.loads(
                     line,
                     parse_constant=_reject_nonfinite,
+                    parse_float=_finite_float,
                     object_pairs_hook=_reject_duplicate_keys,
                 )
             except ValueError as e:
                 failures.append(f"line {lineno}: invalid JSON ({e})")
                 continue
+            if not isinstance(rec, dict):
+                failures.append(f"line {lineno}: expected a JSON object")
+                continue
 
+            log.append(
+                (
+                    str(rec.get("record_hash", "")),
+                    "execution" if rec.get("kind") == "execution" else "decision",
+                    str(rec.get("agent_id")),
+                )
+            )
             pv = rec.get("protocol_version")
             kind = rec.get("kind", "decision")
             if kind == "decision":
@@ -587,6 +818,14 @@ def verify(  # noqa: C901 - mirrors the protocol check order
             )
             failures.extend(envelope_failures)
 
+    checkpoint_summaries = []
+    for checkpoint_path in checkpoint_paths:
+        checkpoint_failures, summary = _verify_checkpoint(
+            checkpoint_path, log, trusted_keys
+        )
+        failures.extend(checkpoint_failures)
+        checkpoint_summaries.append(summary)
+
     if total == 0:
         failures.append("export contains no records")
 
@@ -606,6 +845,24 @@ def verify(  # noqa: C901 - mirrors the protocol check order
         print(f"invalid envelopes: {signature_stats['invalid']}")
         print(f"untrusted keys  : {signature_stats['untrusted']}")
         print(f"unexpected envs : {signature_stats['unexpected']}")
+    print(
+        "origin          : "
+        + (
+            "verified against trusted key(s)"
+            if signature_stats is not None
+            else "NOT VERIFIED -- no envelopes and trusted key supplied; a "
+            "history rewritten and rehashed end to end passes"
+        )
+    )
+    if checkpoint_summaries:
+        for summary in checkpoint_summaries:
+            print(f"completeness    : checkpoint {summary}")
+    else:
+        print(
+            "completeness    : NOT VERIFIED -- no --checkpoint supplied; records "
+            "removed from the end of a chain, whole agents and execution "
+            "events can be missing"
+        )
     print(f"failures        : {len(failures)}")
     for msg in failures:
         print(f"  FAIL {msg}")
@@ -635,6 +892,13 @@ def main(argv: list[str] | None = None) -> int:
         help="legacy exports only: do not require envelopes on execution "
         "events (ENFORCEMENT DIVERGENCE can then be erased by rehashing)",
     )
+    parser.add_argument(
+        "--checkpoint",
+        action="append",
+        default=[],
+        help="signed log checkpoint (pv-checkpoint/1) the export must extend; "
+        "may be repeated, one per checkpoint you hold",
+    )
     args = parser.parse_args(argv)
 
     if bool(args.envelopes) != bool(args.trusted_key):
@@ -645,6 +909,7 @@ def main(argv: list[str] | None = None) -> int:
         envelopes_path=args.envelopes,
         trusted_keys=frozenset(args.trusted_key),
         allow_unsigned_executions=args.allow_unsigned_executions,
+        checkpoint_paths=tuple(args.checkpoint),
     )
 
 

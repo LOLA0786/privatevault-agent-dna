@@ -1,5 +1,10 @@
 # PrivateVault Agent DNA
 
+[![ci](https://github.com/LOLA0786/privatevault-agent-dna/actions/workflows/ci.yml/badge.svg)](https://github.com/LOLA0786/privatevault-agent-dna/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/LOLA0786/privatevault-agent-dna/actions/workflows/codeql.yml/badge.svg)](https://github.com/LOLA0786/privatevault-agent-dna/actions/workflows/codeql.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)
+
 Decision security runtime for autonomous AI agents. Sits between an
 agent and its executors, evaluates every action against a fixed
 precedence of deterministic rules before it runs, and writes a
@@ -23,7 +28,7 @@ agent ──► POST /v1/decide ──► precedence engine ──► 200 / 202 
 
 ```bash
 pip install -e ".[dev]"
-python -m pytest -q                    # 2560+ tests
+python -m pytest -q                    # 2630+ tests
 ```
 
 Three properties worth checking before reading further:
@@ -42,6 +47,13 @@ python tools/verify_records.py <audit export .jsonl>
 python tools/verify_records.py <audit export .jsonl> \
   --envelopes <envelope export .jsonl> \
   --trusted-key <trusted public key>
+
+# completeness: the export must extend a signed checkpoint you hold
+curl -H "x-api-key: $AUDIT_KEY" $PV/v1/audit/checkpoint > checkpoint.json
+python tools/verify_records.py <audit export .jsonl> \
+  --envelopes <envelope export .jsonl> \
+  --trusted-key <trusted public key> \
+  --checkpoint checkpoint.json
 
 # deterministic cross-agent security loop discovery
 pv loop discover --input examples/loop_discovery/clean.jsonl \
@@ -136,7 +148,7 @@ the code drifts from it (`tests/test_precedence_contract.py`).
 | L0    | Enterprise constraints| deterministic, evidence-checked | BLOCK                   |
 | L1    | Behavioral invariants | deterministic contract          | BLOCK                   |
 | L2    | Customer policy       | deterministic, data-driven      | BLOCK / REQUIRE_APPROVAL|
-| L3    | Multi-agent consensus | evidence-gated, signed votes    | REQUIRE_APPROVAL        |
+| L3    | Multi-agent consensus | pinned roster, signed votes     | REQUIRE_APPROVAL        |
 | L4    | Capability grants     | deterministic authz             | REQUIRE_APPROVAL        |
 | L5    | Economics             | deterministic cost/ROI check    | REQUIRE_APPROVAL        |
 | L6    | Learned drift         | probabilistic, advisory only    | REQUIRE_APPROVAL        |
@@ -168,13 +180,20 @@ are anchored back to the decision that authorized them.
 | Tampering attempt                       | Detected by            |
 |-----------------------------------------|------------------------|
 | Edit any field of any record            | record_hash mismatch   |
-| Delete or reorder records               | per-agent chain break  |
+| Delete a record mid-chain, or reorder   | per-agent chain break  |
+| Delete the end of a chain, a whole agent, or an execution event | signed checkpoint (`--checkpoint`) |
 | Forge an execution result               | anchor mismatch        |
 | BLOCK recorded, action ran anyway       | enforcement divergence |
 
 `tools/verify_records.py` re-derives chain integrity from the record export.
 With detached envelopes and independently supplied keys, it also verifies
-trusted signing origin. Wire format, JSON Schemas, and canonical vectors are
+trusted signing origin. Chains and signatures show the records present are
+genuine; they cannot show that records are missing from the end of a chain.
+For that, fetch `GET /v1/audit/checkpoint` on a schedule, keep the
+checkpoints where the operator cannot rewrite them, and pass them with
+`--checkpoint`: an export that does not extend every checkpoint fails. The
+verifier prints whether origin and completeness were verified, so a PASS
+without them is not misread. Wire format, JSON Schemas, and canonical vectors are
 published
 separately as the DRP specification
 ([github.com/LOLA0786/drp-spec](https://github.com/LOLA0786/drp-spec),
@@ -186,8 +205,8 @@ this repository.
 `POST /v1/decide` is the enforcement surface. Companion endpoints:
 `/v1/outcome` (executor feedback), `/v1/envelope/{hash}` (signature
 retrieval), `/v1/blocked`, `/v1/divergent`, `/v1/lineage/{id}`
-(queries), `/v1/verify` and `/v1/audit/export` (verifier-ready
-JSONL), `/metrics` (Prometheus). API keys are SHA-256-hashed at rest
+(queries), `/v1/verify`, `/v1/audit/export` (verifier-ready
+JSONL) and `/v1/audit/checkpoint` (signed completeness commitment), `/metrics` (Prometheus). API keys are SHA-256-hashed at rest
 and scoped; an audit-scoped key cannot call `/v1/decide`
 (`test_api_audit_scope.py`).
 

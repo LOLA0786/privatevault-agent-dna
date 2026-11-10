@@ -38,12 +38,17 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from agent_dna.apikeys import generate_key  # noqa: E402
+from agent_dna.checkpoint import build_checkpoint  # noqa: E402
 from agent_dna.composition import (  # noqa: E402
     RuntimeConfig,
     build_production_runtime,
 )
 from agent_dna.connector import ToolCallRequest  # noqa: E402
-from agent_dna.consensus.signing import cast_vote, register_key  # noqa: E402
+from agent_dna.consensus.signing import (  # noqa: E402
+    cast_vote_v2,
+    consensus_action_id,
+    generate_voter_keypair,
+)
 from agent_dna.decision import Decision, DecisionEngine  # noqa: E402
 from agent_dna.decision_recorder import DecisionRecorder  # noqa: E402
 from agent_dna.grants import GrantRegistry  # noqa: E402
@@ -151,6 +156,21 @@ def main():  # noqa: C901 - linear executable acceptance scenario
             ]
         )
     )
+    # Operator-pinned quorum: who may vote, each weight, and the threshold.
+    voter_keys = {
+        name: generate_voter_keypair() for name in ("fraud-agent", "risk-agent")
+    }
+    (tmp / "consensus.json").write_text(
+        json.dumps(
+            {
+                "threshold": 2.0,
+                "voters": [
+                    {"agent_id": name, "weight": 1.0, "public_key": k["public_key"]}
+                    for name, k in voter_keys.items()
+                ],
+            }
+        )
+    )
     signing_seed = hashlib.sha256(b"executive-demo-deployment-key").hexdigest()
     os.environ["PV_RECEIPT_SIGNING_KEY"] = signing_seed
     signing_public_key = ReceiptSigner(seed_hex=signing_seed).public_key
@@ -161,6 +181,7 @@ def main():  # noqa: C901 - linear executable acceptance scenario
             keys_file=str(tmp / "keys.json"),
             policy_file=str(tmp / "policy.json"),
             grants_file=str(tmp / "grants.json"),
+            consensus_file=str(tmp / "consensus.json"),
             breaker_max_amount=50000.0,  # per-window spending cap; omitted
             # amounts fail closed (PV-01) even for non-payment tools.
             breaker_window_seconds=60.0,
@@ -262,17 +283,26 @@ def main():  # noqa: C901 - linear executable acceptance scenario
     )
 
     banner(
-        "5. MULTI-AGENT CONSENSUS (L3, pv-vote/1) — a fraud "
+        "5. MULTI-AGENT CONSENSUS (L3, pv-vote/2) — a fraud "
         "dissent cannot be shouted down or replayed"
     )
-    register_key("fraud-agent", "fraud-secret")
-    dissent = cast_vote("fraud-agent", "settle-9982", "REJECT", "settle-9982")
+    settle_args = {"target": "9982", "amount": 0}
+    settle_id = consensus_action_id("payments-agent-01", "payments.settle", settle_args)
+
+    def vote(name, value):
+        return cast_vote_v2(
+            voter_keys[name]["signing_key"],
+            agent_id=name,
+            action_id=settle_id,
+            vote=value,
+        )
+
+    approval = vote("risk-agent", "APPROVE")
     consensus_ev = {
         "consensus": {
-            "action_id": "settle-9982",
-            "threshold": 0.67,
-            "votes": [dissent, dissent, dissent],  # replayed 3x: counts ONCE
-            "trust_scores": {"fraud-agent": 1.0},
+            "action_id": settle_id,
+            # one approval replayed 3x counts ONCE; the fraud dissent stands
+            "votes": [approval, approval, approval, vote("fraud-agent", "REJECT")],
         }
     }
     expect(
@@ -280,13 +310,14 @@ def main():  # noqa: C901 - linear executable acceptance scenario
         call(
             key,
             "payments.settle",
-            arguments={"target": "9982", "amount": 0},
+            arguments=settle_args,
             evidence=consensus_ev,
         ),
         "require_approval",
         "consensus",
         "RBI dual-control: a negative attestation escalates; "
-        "duplicate/replayed votes carry zero extra weight",
+        "duplicate/replayed votes carry zero extra weight; the roster, "
+        "weights and threshold are the operator's, never the caller's",
     )
 
     banner(
@@ -431,6 +462,33 @@ def main():  # noqa: C901 - linear executable acceptance scenario
     if v2 != "FAIL":
         FAILURES.append("deletion verified clean")
 
+    # Completeness: the chain cannot see a record removed from the END.
+    with open(export, encoding="utf-8") as handle:
+        checkpoint = build_checkpoint(
+            handle, signer=ReceiptSigner(seed_hex=signing_seed)
+        )
+    checkpoint_path = tmp / "checkpoint.json"
+    checkpoint_path.write_text(json.dumps(checkpoint))
+    truncated = tmp / "truncated.jsonl"
+    truncated.write_text("\n".join(lines[:-1]) + "\n")
+    v3, _ = verify(truncated)
+    pr = subprocess.run(
+        [
+            sys.executable,
+            str(verifier),
+            str(truncated),
+            "--checkpoint",
+            str(checkpoint_path),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    v4 = "PASS" if "VERDICT: PASS" in pr.stdout else "FAIL"
+    print(f"  last record removed  : VERDICT {v3}  (chain alone cannot see it)")
+    print(f"  ... with checkpoint  : VERDICT {v4}  (export no longer extends it)")
+    if v4 != "FAIL" or "INCOMPLETE EXPORT" not in pr.stdout:
+        FAILURES.append("truncated export verified clean against its checkpoint")
+
     banner("9. RESTART SURVIVAL — the evidence outlives the process")
     fresh = DecisionRecorder(store=SQLiteDecisionStore(db))
     chains = fresh.graph.verify_all()
@@ -452,7 +510,7 @@ def main():  # noqa: C901 - linear executable acceptance scenario
     identity binding          -> credential = agent; auditors read-only
     customer policy (named)   -> DLP rule id inside the sealed record
     UAAL monetary conservation-> tampered amounts blocked pre-execution
-    pv-vote/1 consensus       -> dissent escalates; replay counts once
+    pv-vote/2 consensus       -> dissent escalates; replay counts once
     spending circuit breaker  -> the CROSSING payment blocks, atomically
     grants + live budgets     -> CFO approval named in every record;
                                  budgets decrement on execution

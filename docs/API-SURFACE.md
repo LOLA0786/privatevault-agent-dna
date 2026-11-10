@@ -35,7 +35,7 @@ Two scopes:
 | Scope | Grants |
 |---|---|
 | `full` | Every endpoint, including enforcement |
-| `audit` | Read-only audit endpoints only (`/v1/verify`, `/v1/audit/export`) |
+| `audit` | Read-only audit endpoints only (`/v1/verify`, `/v1/audit/export`, `/v1/audit/checkpoint`) |
 
 An `audit` key is explicitly rejected on enforcement endpoints. Full
 scope satisfies audit requirements; the reverse does not.
@@ -223,6 +223,15 @@ baseline; auditors must be able to see when it is active.
 wire format. `GET /v1/envelope/{record_hash}` returns the Ed25519
 signature envelope for a sealed record. Export and verify require
 `audit` or `full` scope.
+
+`GET /v1/audit/checkpoint` returns a signed `pv-checkpoint/1` commitment to
+every record the store holds at that moment: the record count, a running
+hash over all record hashes in append order, and each agent's chain head.
+Chains and signatures cannot show that records are missing from the end of
+a chain, that an agent is missing, or that an execution event was removed.
+A checkpoint can: `verify_records.py --checkpoint` fails any export that
+does not extend it. It only helps if someone other than the operator keeps
+it, so fetch it on a schedule into storage this service cannot write.
 
 Signatures are over the `record_hash`, never over a re-serialized
 body. Rationale in `drp-spec/docs/SIGNING.md`.

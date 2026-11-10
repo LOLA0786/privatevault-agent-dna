@@ -58,6 +58,8 @@ verified.
 | [AGENTIC-TRUST-CONTROLS-MAPPING.md](AGENTIC-TRUST-CONTROLS-MAPPING.md) | reference | Agentic trust controls mapped to the code |
 | [compliance/soc2/control_mapping.md](compliance/soc2/control_mapping.md) | reference | SOC 2 control mapping |
 | [findings/PHASE1-FOLLOW-UPS.md](findings/PHASE1-FOLLOW-UPS.md) | current | Open follow-ups from Phase 1 |
+| [findings/EXTERNAL-REVIEW-2026-11-10.md](findings/EXTERNAL-REVIEW-2026-11-10.md) | reference | External review: what was reproduced from a clean clone, and three portability fixes |
+| [findings/ADVERSARIAL-REVIEW-2026-11-10.md](findings/ADVERSARIAL-REVIEW-2026-11-10.md) | current | Adversarial review of the enforcement core, verifier and consensus: ten findings, their status and the tests that pin each fix |
 
 ## Integrating and operating
 

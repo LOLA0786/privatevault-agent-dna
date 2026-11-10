@@ -43,7 +43,7 @@ sequenceDiagram
         G->>E: decide
         Note over E: any exception becomes BLOCK (engine_fault)
         E->>E: L0 uaal_constraint, authorization lookup, drift signal
-        E->>E: decide_from ladder, first firing level wins
+        E->>E: decide_from ladder, first firing level wins (a policy hold adds to the levels below)
         E-->>G: DecisionResult
         G->>B: finalize(reservation, verdict)
         G-->>M: DecisionResult

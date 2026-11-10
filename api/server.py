@@ -11,6 +11,7 @@ response is returned — no decision without a record.
 
 Audit surface:
   GET /v1/audit/export  -> canonical JSONL (feed to tools/verify_records.py)
+  GET /v1/audit/checkpoint -> signed commitment to the whole log (completeness)
   GET /v1/verify        -> in-process chain verification per agent
 """
 
@@ -1465,6 +1466,22 @@ def audit_envelope_export():
         state["store"].export_envelopes_jsonl,
         "privatevault_envelopes.jsonl",
     )
+
+
+@app.get(
+    "/v1/audit/checkpoint",
+    dependencies=[Depends(require_audit_or_full_key)],
+)
+def audit_checkpoint():
+    """Signed commitment to every record the store holds right now.
+
+    Fetch it on a schedule and keep it somewhere this service cannot
+    write. ``verify_records.py --checkpoint`` then refuses any later export
+    that does not extend it, which is how removed records are detected.
+    """
+    from agent_dna.checkpoint import checkpoint_for_store
+
+    return checkpoint_for_store(state["store"], signer=state.get("signer"))
 
 
 # ---------- misc -------------------------------------------------------------------
