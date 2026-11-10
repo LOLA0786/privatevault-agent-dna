@@ -69,6 +69,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from ..multi_agent_security.independence import ATTRIBUTES, independence_shortfall
+from ..multi_agent_security.nonce_ledger import MemoryNonceLedger, NonceLedger
 from .signing import (
     APPROVE,
     REJECT,
@@ -86,6 +88,8 @@ class Voter:
     agent_id: str
     weight: float
     public_key: str  # 64 lowercase hex, Ed25519
+    # What the operator declares about the voter, for independence rules.
+    attributes: Mapping[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -94,6 +98,8 @@ class ConsensusConfig:
     voters: Mapping[str, Voter]
     required_for: tuple[str, ...] = ()
     allow_minority_threshold: bool = False
+    # e.g. {"provider": 2}: approving voters must span two providers.
+    require_distinct: Mapping[str, int] = field(default_factory=dict)
 
     @property
     def total_weight(self) -> float:
@@ -114,6 +120,7 @@ class ConsensusConfig:
             "voters",
             "required_for",
             "allow_minority_threshold",
+            "require_distinct",
         }
         if unknown:
             raise ConsensusConfigError(f"unknown field(s) {sorted(unknown)}")
@@ -143,7 +150,22 @@ class ConsensusConfig:
                 raise ConsensusConfigError(
                     f"voter {agent_id!r}: weight must be positive and finite"
                 )
-            voters[agent_id] = Voter(agent_id, weight, str(key))
+            attributes: dict[str, str] = {}
+            for name in ATTRIBUTES:
+                value = entry.get(name)
+                if value is None:
+                    continue
+                if not isinstance(value, str) or not value:
+                    raise ConsensusConfigError(
+                        f"voter {agent_id!r}: {name} must be a non-empty string"
+                    )
+                attributes[name] = value
+            extra = set(entry) - {"agent_id", "public_key", "weight", *ATTRIBUTES}
+            if extra:
+                raise ConsensusConfigError(
+                    f"voter {agent_id!r}: unknown field(s) {sorted(extra)}"
+                )
+            voters[agent_id] = Voter(agent_id, weight, str(key), attributes)
         if len({v.public_key for v in voters.values()}) != len(voters):
             raise ConsensusConfigError("two voters share one public key")
 
@@ -175,11 +197,35 @@ class ConsensusConfig:
         ):
             raise ConsensusConfigError("required_for must be a list of strings")
 
+        distinct_raw = raw.get("require_distinct", {})
+        if not isinstance(distinct_raw, dict):
+            raise ConsensusConfigError("require_distinct must be an object")
+        distinct: dict[str, int] = {}
+        for name, needed in distinct_raw.items():
+            if name not in ATTRIBUTES:
+                raise ConsensusConfigError(
+                    f"require_distinct: {name!r} is not one of {list(ATTRIBUTES)}"
+                )
+            if isinstance(needed, bool) or not isinstance(needed, int) or needed < 2:
+                raise ConsensusConfigError(
+                    f"require_distinct.{name} must be an integer of at least 2"
+                )
+            available = {
+                v.attributes[name] for v in voters.values() if name in v.attributes
+            }
+            if len(available) < needed:
+                raise ConsensusConfigError(
+                    f"require_distinct.{name} needs {needed} distinct values; the "
+                    f"roster declares {len(available)}: no quorum could ever clear"
+                )
+            distinct[name] = needed
+
         return cls(
             threshold=threshold,
             voters=voters,
             required_for=tuple(required),
             allow_minority_threshold=minority,
+            require_distinct=distinct,
         )
 
     @classmethod
@@ -217,12 +263,17 @@ class ConsensusChecker:
         self,
         config: ConsensusConfig | None = None,
         clock: Callable[[], float] = time.time,
+        ledger: NonceLedger | None = None,
     ) -> None:
         self.config = config
         self._clock = clock
         self._lock = threading.Lock()
-        # (agent_id, nonce) -> expires_at, for votes that already cleared
-        self._cleared: dict[tuple[str, str], float] = {}
+        # Votes that already cleared a quorum. In memory by default (one
+        # process); a SqliteNonceLedger makes it hold across replicas.
+        self._ledger: NonceLedger = (
+            ledger if ledger is not None else MemoryNonceLedger()
+        )
+        self._ledger_shared = ledger is not None
 
     # ------------------------------------------------------------------
 
@@ -239,12 +290,18 @@ class ConsensusChecker:
             }
         cfg = self.config
         required = ", ".join(cfg.required_for) if cfg.required_for else "none"
+        distinct = (
+            ", ".join(f"{n}>={k}" for n, k in sorted(cfg.require_distinct.items()))
+            or "none"
+        )
         return {
             "status": "attached",
             "detail": (
                 f"pv-vote/2 quorum: {len(cfg.voters)} pinned voter(s), threshold "
                 f"{cfg.threshold} of total weight {cfg.total_weight}; required "
-                f"for: {required}; ceiling REQUIRE_APPROVAL"
+                f"for: {required}; independence: {distinct}; single-use: "
+                f"{'shared ledger' if self._ledger_shared else 'this process only'}"
+                "; ceiling REQUIRE_APPROVAL"
             ),
         }
 
@@ -312,8 +369,6 @@ class ConsensusChecker:
         counted: dict[str, dict[str, Any]] = {}
         nonces: set[str] = set()
         with self._lock:
-            for key in [k for k, exp in self._cleared.items() if exp <= now]:
-                del self._cleared[key]
             for vote in votes:
                 if not isinstance(vote, dict):
                     continue
@@ -323,7 +378,7 @@ class ConsensusChecker:
                 nonce = vote.get("nonce")
                 if not isinstance(nonce, str) or not nonce or nonce in nonces:
                     continue
-                if (voter.agent_id, nonce) in self._cleared:
+                if self._ledger.seen(voter.agent_id, nonce, now):
                     continue  # already cleared a quorum: single use
                 if not verify_vote_v2(
                     vote, action_id=expected, public_key=voter.public_key, now=now
@@ -339,8 +394,28 @@ class ConsensusChecker:
                 cfg.voters[a].weight for a, v in counted.items() if v["vote"] == REJECT
             )
             if approve >= cfg.threshold:
-                for a, v in counted.items():
-                    self._cleared[(a, v["nonce"])] = float(v["expires_at"])
+                approvers = [a for a, v in counted.items() if v["vote"] == APPROVE]
+                shortfall = independence_shortfall(
+                    approvers,
+                    {a: cfg.voters[a].attributes for a in approvers},
+                    cfg.require_distinct,
+                )
+                if shortfall:
+                    return self._flag(
+                        "independence_shortfall: the approving weight reaches the "
+                        "threshold, but the approving voters are not independent "
+                        "enough (" + "; ".join(shortfall) + "); quorum_shortfall"
+                    )
+                spent = [
+                    (a, v["nonce"], float(v["expires_at"])) for a, v in counted.items()
+                ]
+                # One transaction: with a shared ledger, two replicas racing
+                # on the same votes cannot both clear.
+                if not self._ledger.consume(spent, now):
+                    return self._flag(
+                        "quorum_replayed: these votes already cleared a quorum "
+                        "(quorum_shortfall)"
+                    )
                 return ConsensusResult(flagged=False, checks_run=["quorum"])
 
         return self._flag(

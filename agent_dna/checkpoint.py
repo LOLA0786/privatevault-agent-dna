@@ -116,6 +116,63 @@ def build_checkpoint(
     return checkpoint
 
 
+def signature_problem(
+    checkpoint: dict[str, Any], trusted_keys: Iterable[str]
+) -> str | None:
+    """None when the checkpoint is signed by a trusted key, else the reason."""
+    envelope = checkpoint.get("signature")
+    if not isinstance(envelope, dict):
+        return "is unsigned"
+    if envelope.get("algorithm") != "Ed25519":
+        return "has an unsupported signature algorithm"
+    if envelope.get("signed_hash") != checkpoint.get("checkpoint_hash"):
+        return "signature covers a different hash"
+    public_key = envelope.get("public_key")
+    signature = envelope.get("signature")
+    if not isinstance(public_key, str) or not isinstance(signature, str):
+        return "signature is malformed"
+    if public_key not in frozenset(trusted_keys):
+        return f"is signed by untrusted key {public_key}"
+    try:
+        from nacl.encoding import HexEncoder
+        from nacl.exceptions import BadSignatureError
+        from nacl.signing import VerifyKey
+
+        VerifyKey(public_key.encode(), encoder=HexEncoder).verify(
+            envelope["signed_hash"].encode(), bytes.fromhex(signature)
+        )
+    except (BadSignatureError, ValueError):
+        return "has an invalid Ed25519 signature"
+    return None
+
+
+def export_failures(
+    checkpoint: dict[str, Any], records: list[dict[str, Any]]
+) -> list[str]:
+    """Why ``records`` (an export, in order) does not extend ``checkpoint``.
+
+    The same rule ``tools/verify_records.py --checkpoint`` applies: the
+    first ``record_count`` records must reproduce ``log_head``.
+    """
+    name = checkpoint.get("checkpoint_id", "checkpoint")
+    count = checkpoint["record_count"]
+    if len(records) < count:
+        return [
+            f"{name}: INCOMPLETE EXPORT -- covers {count} records, the export "
+            f"has {len(records)}; {count - len(records)} record(s) are missing"
+        ]
+    head = LOG_GENESIS
+    for record in records[:count]:
+        head = advance(head, str(record.get("record_hash", "")))
+    if head != checkpoint["log_head"]:
+        return [
+            f"{name}: INCOMPLETE OR ALTERED EXPORT -- the first {count} records "
+            "do not reproduce the checkpoint (log_head mismatch): records "
+            "present at the checkpoint were removed, reordered or replaced"
+        ]
+    return []
+
+
 def checkpoint_for_store(store: Any, *, signer: Any = None) -> dict[str, Any]:
     """Checkpoint of everything a store would export right now."""
     with tempfile.TemporaryDirectory() as tmp:

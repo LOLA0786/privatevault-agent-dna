@@ -62,6 +62,7 @@ from .grant_revocation import GrantRevocationLedger
 from .grant_spend import GrantSpendLedger
 from .grants import GrantRegistry
 from .manifold import CapabilityManifold
+from .multi_agent_security.nonce_ledger import SqliteNonceLedger
 from .open_authorizer import OpenAuthorizer
 from .pg_compat import PgCompatConnection, is_database_url
 from .runtime import RuntimeMonitor
@@ -111,6 +112,9 @@ class RuntimeConfig:
     policy_file: str | None = None  # customer YAML/JSON rules
     # Operator-pinned quorum: voter roster, weights, threshold, required_for.
     consensus_file: str | None = None
+    # SQLite file shared by every replica, so a cleared quorum is single-use
+    # across all of them. Unset: single-use holds per process only.
+    consensus_nonce_db: str | None = None
     opa_endpoint: str | None = None  # OPA adapter (policy_file wins)
     opa_policy_path: str = "agent/governance"
     opa_deadline: float = 1.0  # TOTAL budget, all retries
@@ -148,6 +152,7 @@ class RuntimeConfig:
             keys_file=os.getenv("PV_API_KEYS_FILE"),
             policy_file=os.getenv("PV_POLICY_FILE"),
             consensus_file=os.getenv("PV_CONSENSUS_FILE") or None,
+            consensus_nonce_db=os.getenv("PV_CONSENSUS_NONCE_DB") or None,
             opa_endpoint=os.getenv("PV_OPA_ENDPOINT"),
             opa_policy_path=os.getenv("PV_OPA_POLICY_PATH", "agent/governance"),
             opa_deadline=_env_float("PV_OPA_DEADLINE") or 1.0,
@@ -688,7 +693,12 @@ def build_production_runtime(
     # An unreadable or invalid file refuses startup: a quorum that silently
     # fell back to "unconfigured" would hold every vote instead of counting it.
     consensus = ConsensusChecker(
-        ConsensusConfig.from_file(cfg.consensus_file) if cfg.consensus_file else None
+        ConsensusConfig.from_file(cfg.consensus_file) if cfg.consensus_file else None,
+        ledger=(
+            SqliteNonceLedger(cfg.consensus_nonce_db)
+            if cfg.consensus_nonce_db
+            else None
+        ),
     )
     comp["consensus"] = consensus.describe()
     economics = CostAnomalyChecker()

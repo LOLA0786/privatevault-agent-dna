@@ -146,9 +146,10 @@ cleared quorum cannot be presented twice to the same process. With no
 roster, supplied votes are held and the composition manifest says so. An
 invalid roster refuses startup.
 
-Still open: single-use tracking is per process, so with several replicas the
-same votes can clear once per replica inside the vote TTL. A durable nonce
-ledger is the fix.
+Follow-up, done: `PV_CONSENSUS_NONCE_DB` names a SQLite ledger shared by
+every replica, so a cleared quorum is single-use across replicas and
+restarts (`tests/multi_agent_security/test_quorum_hardening.py`). Still open:
+replicas on separate hosts with only PostgreSQL in common.
 
 ## F-4 (Medium): delimiter injection in the vote payload
 
@@ -237,5 +238,6 @@ loop detector.
    `approvals.token_present` with an artifact the server verifies.
 3. F-2 follow-up: ship the scheduled checkpoint fetch (a CronJob in the Helm
    chart writing to customer-held storage).
-4. F-3 follow-up: a durable nonce ledger shared by replicas.
+4. F-3 follow-up: the shared nonce ledger exists for one host or a shared
+   volume; a PostgreSQL-backed one is still needed for separate hosts.
 5. F-10: tag the remaining signed artifact types in the next DRP version.
