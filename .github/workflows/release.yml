@@ -38,7 +38,7 @@ jobs:
       packages: write        # push the image to GHCR
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
       # A release tag is SSH-signed by a release manager listed in
       # .github/allowed_signers (in the tagged commit, so changing the list
       # goes through review). git only checks that the key is listed; the
@@ -114,7 +114,7 @@ jobs:
           subject-name: ${{ steps.image.outputs.name }}
           subject-digest: ${{ steps.image.outputs.sha }}
           push-to-registry: true
-      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
       - name: Sign the image (keyless)
         run: cosign sign --yes "${{ steps.image.outputs.ref }}"
       # Verify as a consumer would, before anything is published: the
