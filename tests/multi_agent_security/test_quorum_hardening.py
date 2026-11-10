@@ -3,8 +3,11 @@ ConsensusChecker and the real server."""
 
 import importlib
 import json
+import sqlite3
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
+from unittest.mock import Mock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -16,10 +19,12 @@ from agent_dna.consensus.signing import (
     generate_voter_keypair,
 )
 from agent_dna.multi_agent_security import (
+    LedgerUnavailable,
     MemoryNonceLedger,
     SqliteNonceLedger,
     independence_shortfall,
 )
+from agent_dna.multi_agent_security.nonce_ledger import RETENTION_GRACE
 from agent_dna.signer import generate_keypair
 from tests.decide_binding import decide_json
 
@@ -166,21 +171,71 @@ def test_shared_ledger_makes_a_cleared_quorum_single_use_everywhere(tmp_path):
 def test_racing_replicas_cannot_both_consume_the_same_votes(tmp_path):
     path = tmp_path / "votes.db"
     entries = [("fraud", "n1", time.time() + 300), ("legal", "n2", time.time() + 300)]
-    results = []
-    barrier = threading.Barrier(8)
+    barrier = threading.Barrier(8, timeout=10)
 
-    def replica():
-        ledger = SqliteNonceLedger(path)
-        barrier.wait()
-        results.append(ledger.consume(entries, time.time()))
+    def replica(_):
+        ledger = None
+        try:
+            ledger = SqliteNonceLedger(path)
+            barrier.wait()
+            return ledger.consume(entries, time.time())
+        except BaseException:
+            # An initialization failure must fail the test, not strand all
+            # the remaining workers at an unbounded barrier/join.
+            barrier.abort()
+            raise
+        finally:
+            if ledger is not None:
+                ledger.close()
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(replica, range(8)))
+    assert sorted(results) == [False] * 7 + [True]
+
+
+def test_wal_initialization_retries_transient_busy_only(tmp_path, monkeypatch):
+    connection = sqlite3.connect(tmp_path / "busy.db", isolation_level=None)
+    wrapped = Mock(wraps=connection)
+    busy = sqlite3.OperationalError("database is locked")
+    busy.sqlite_errorcode = sqlite3.SQLITE_BUSY
+    calls = []
+
+    def execute(sql, *params):
+        calls.append(sql)
+        if len(calls) == 1:
+            raise busy
+        return connection.execute(sql, *params)
+
+    wrapped.execute.side_effect = execute
+    monkeypatch.setattr(sqlite3, "connect", lambda *a, **kw: wrapped)
+    ledger = SqliteNonceLedger(tmp_path / "busy.db")
+    try:
+        assert calls[:2] == ["PRAGMA journal_mode=WAL"] * 2
+        assert ledger.consume([("a", "one", 2000)], 1000)
+        assert not ledger.consume([("a", "one", 2000)], 1000)
+    finally:
         ledger.close()
 
-    threads = [threading.Thread(target=replica) for _ in range(8)]
-    for thread in threads:
-        thread.start()
-    for thread in threads:
-        thread.join()
-    assert sorted(results) == [False] * 7 + [True]
+
+@pytest.mark.parametrize("code", [sqlite3.SQLITE_BUSY, sqlite3.SQLITE_CORRUPT])
+def test_wal_initialization_failure_is_bounded_and_closes_connection(
+    monkeypatch, tmp_path, code
+):
+    connection = Mock()
+    error = sqlite3.OperationalError("injected initialization failure")
+    error.sqlite_errorcode = code
+    connection.execute.side_effect = error
+    monkeypatch.setattr(sqlite3, "connect", lambda *a, **kw: connection)
+    ticks = iter([0.0, 11.0])
+    monkeypatch.setattr(
+        "agent_dna.multi_agent_security.nonce_ledger.time.monotonic",
+        lambda: next(ticks),
+    )
+    with pytest.raises(LedgerUnavailable, match="initialization failure") as raised:
+        SqliteNonceLedger(tmp_path / "failed.db")
+    assert isinstance(raised.value.__cause__, sqlite3.OperationalError)
+    assert connection.execute.call_count == 1
+    connection.close.assert_called_once()
 
 
 @pytest.mark.parametrize("make", [lambda p: MemoryNonceLedger(), SqliteNonceLedger])
@@ -192,8 +247,12 @@ def test_ledger_is_all_or_nothing_and_forgets_expired_votes(tmp_path, make):
     assert not ledger.consume([("b", "2", now + 10), ("a", "1", now + 10)], now)
     assert not ledger.seen("b", "2", now)
     assert ledger.seen("a", "1", now)
-    assert not ledger.seen("a", "1", now + 11)
-    assert ledger.consume([("a", "1", now + 30)], now + 11)
+    # an expired vote stays spent for RETENTION_GRACE, then is forgotten
+    assert ledger.seen("a", "1", now + 11)
+    assert not ledger.consume([("a", "1", now + 30)], now + 11)
+    later = now + 10 + RETENTION_GRACE + 1
+    assert not ledger.seen("a", "1", later)
+    assert ledger.consume([("a", "1", later + 30)], later)
 
 
 # ---- on the real server ----------------------------------------------------

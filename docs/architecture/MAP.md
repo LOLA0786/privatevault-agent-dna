@@ -17,7 +17,7 @@ flowchart LR
   n8["agent_dna/gateway<br/>14 modules"]
   n9["agent_dna/governance<br/>3 modules"]
   n10["agent_dna/multi_agent<br/>16 modules"]
-  n11["agent_dna/multi_agent_security<br/>5 modules"]
+  n11["agent_dna/multi_agent_security<br/>7 modules"]
   n12["agent_dna/observability<br/>3 modules"]
   n13["agent_dna/policy<br/>4 modules"]
   n14["agent_dna/quickstart<br/>4 modules"]
@@ -37,7 +37,7 @@ flowchart LR
   n0 -->|1| n6
   n0 -->|1| n7
   n0 -->|2| n10
-  n0 -->|1| n11
+  n0 -->|2| n11
   n0 -->|1| n12
   n0 -->|6| n13
   n0 -.->|4| n14
@@ -66,7 +66,7 @@ flowchart LR
   n20 -->|1| n4
   n20 -->|3| n12
   n20 -->|1| n17
-  n21 -->|79| n0
+  n21 -->|85| n0
   n21 -->|1| n4
   n21 -->|7| n5
   n21 -->|2| n7
@@ -99,10 +99,10 @@ flowchart LR
 | `agent_dna/gateway` | 14 |
 | `agent_dna/connector` | 10 |
 | `agent_dna/receiver` | 8 |
+| `agent_dna/multi_agent_security` | 7 |
 | `agent_dna/consensus` | 6 |
 | `agent_dna/adapters_policy` | 5 |
 | `agent_dna/audit_connector` | 5 |
-| `agent_dna/multi_agent_security` | 5 |
 | `agent_dna/validation` | 5 |
 | `agent_dna/policy` | 4 |
 | `agent_dna/quickstart` | 4 |
@@ -121,20 +121,20 @@ flowchart LR
 | Module | Imported by | Imports |
 |---|---:|---:|
 | `agent_dna.authority_v01` | 46 | 1 |
-| `agent_dna.decision` | 27 | 6 |
-| `agent_dna.trace` | 27 | 0 |
+| `agent_dna.decision` | 28 | 6 |
+| `agent_dna.trace` | 28 | 0 |
 | `agent_dna` | 21 | 21 |
+| `agent_dna.advisory` | 14 | 0 |
 | `agent_dna.execution_v01` | 14 | 5 |
 | `agent_dna.multi_agent.interaction_graph` | 14 | 1 |
-| `agent_dna.advisory` | 13 | 0 |
 | `agent_dna.multi_agent.base` | 13 | 1 |
 | `agent_dna.gateway.errors` | 12 | 0 |
 | `agent_dna.key_custody` | 12 | 0 |
 | `agent_dna.adapters` | 11 | 1 |
 | `agent_dna.apikeys` | 11 | 1 |
 | `agent_dna.decision_record` | 9 | 4 |
+| `agent_dna.decision_recorder` | 9 | 5 |
 | `agent_dna.gateway.framing` | 9 | 4 |
-| `agent_dna.signer` | 9 | 2 |
 
 ## Import-time cycles
 

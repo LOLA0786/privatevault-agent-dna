@@ -1542,6 +1542,18 @@ def ready():
                 "detail": type(exc).__name__,
             },
         )
+    # A quorum that cannot be recorded as spent cannot clear: say so here
+    # instead of reporting ready while every vote is held.
+    core = getattr(state.get("engine"), "engine", state.get("engine"))
+    probe = getattr(getattr(core, "consensus", None), "health", None)
+    ledger_problem = probe() if callable(probe) else None
+    if ledger_problem is not None:
+        set_ready(False)
+        _log.error("readiness: quorum ledger unavailable: %s", ledger_problem)
+        return JSONResponse(
+            status_code=503,
+            content={"status": "not_ready", "reason": "quorum_ledger_unavailable"},
+        )
     set_ready(True)
     reg = state.get("apikeys")
     auth_enabled = isinstance(reg, ApiKeyRegistry) and reg.enabled

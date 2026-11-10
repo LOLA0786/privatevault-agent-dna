@@ -5,6 +5,52 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Multi-agent security: delegation on the decision path, and the findings left open
+Scope and limits: `docs/MULTI-AGENT-SECURITY.md`.
+
+- **Delegation is enforced inside `/v1/decide`.** `PV_DELEGATION_FILE` pins
+  roots, agent keys, an audience and where a chain is mandatory. The gate
+  only restricts; the holder proves its key with a signed presentation bound
+  to the chain, the exact action and the deployment, spent once in the
+  shared ledger; a refusal cannot be approved; an allowed decision seals the
+  chain hash in its reason. `tests/multi_agent_security/test_gate.py`.
+- **Single-use ledger in PostgreSQL**, used automatically with
+  `PV_DATABASE_URL`, so replicas on separate hosts share it.
+- **Clock skew:** a used vote is kept 300 seconds past its expiry, so a
+  replica with a fast clock cannot free it.
+- **Ledger health:** an unwritable or corrupt ledger refuses startup; a
+  later failure is a named hold and turns `/ready` to 503.
+- **Voter labels are normalized** and non-ASCII labels refused, so spelling
+  variants and look-alikes cannot satisfy an independence rule.
+- **One key is one identity:** a key pinned under two names, or as root and
+  agent, is refused. `revoked_agents` revokes an identity, which a link-hash
+  revocation alone does not.
+  `tests/multi_agent_security/test_hardening.py`.
+
+### Multi-agent security review follow-up
+
+- Counterparty audits recompute DRP record hashes before checking held
+  checkpoints. Editing payloads while retaining their old hashes now fails.
+  Receipts use the validated stored count; acknowledgement verification
+  recomputes the checkpoint hash and binds that count. Corrupt checkpoint
+  files and malformed exports return audit failures. Regressions and
+  standalone-verifier parity: `tests/multi_agent_security/test_counterparty.py`.
+- Delegation refuses oversized/non-finite numbers rather than throwing
+  before signature verification. **Breaking:** `authorize` now requires
+  proof of the final delegate's pinned key on a receiver-issued, single-use
+  challenge covering the exact request hash. The challenge state is local
+  to the receiving instance; there is no bearer fallback or integration
+  into `/v1/decide`. Migration and remaining review findings are documented
+  in `docs/MULTI-AGENT-SECURITY.md`. Regressions include copied chains,
+  changed requests, wrong keys, expiry and 16 concurrent attempts at one
+  proof: `tests/multi_agent_security/test_delegation.py`.
+- The multi-agent demo now uses real DRP records and exercised 11 scenarios at that point,
+  including copied-chain refusal, proof replay and payload-only tampering.
+- Concurrent quorum-ledger startup retries `SQLITE_BUSY` while enabling WAL,
+  with a ten-second bound and connection cleanup on failure. Consumption is
+  not retried. The race test now propagates worker failures instead of
+  waiting forever at its barrier. `tests/multi_agent_security/test_quorum_hardening.py`.
+
 ### Multi-Agent Security Layer (`agent_dna/multi_agent_security/`)
 Owner: Chandan Galani. Scope and limits: `docs/MULTI-AGENT-SECURITY.md`.
 

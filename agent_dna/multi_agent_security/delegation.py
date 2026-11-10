@@ -14,6 +14,9 @@ amount ceiling, an expiry and whether the delegate may delegate further.
 Each link is signed by its delegator's Ed25519 key and names the hash of the
 link before it. The receiver verifies the whole chain with nothing but the
 operator-pinned keys (``TrustAnchors``); no service call is needed.
+An authorization also requires the final delegate to sign a fresh challenge
+from the receiver, binding the chain and exact request. A chain alone is not
+caller authentication.
 
 The rule that matters: a link can never grant more than the link before it.
 
@@ -49,6 +52,8 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from .possession import DelegationChallenges
+
 SPEC = "pv-delegation/1"
 MAX_DEPTH = 8
 MAX_TTL = 24 * 3600.0
@@ -79,14 +84,47 @@ class DelegationError(ValueError):
 class TrustAnchors:
     """Operator-pinned keys. Nothing in a chain can add to these.
 
-    ``roots``   who may start a chain (the operator, a human principal)
-    ``agents``  every agent that may appear as a delegator after the root
-    ``revoked`` link hashes that no longer count
+    ``roots``          who may start a chain (the operator, a human principal)
+    ``agents``         every agent in the chain, including its final delegate
+    ``revoked``        link hashes that no longer count
+    ``revoked_agents`` identities that no longer count, as delegator or
+                       delegate. Revoking a link hash alone does not stop its
+                       signer issuing the same grant again under a new nonce;
+                       revoking the identity does.
+
+    One key is one identity. A key pinned under two names, or as both a
+    root and an agent, would let its holder start a chain and then extend
+    it as a different party, so construction refuses it.
     """
 
     roots: Mapping[str, str]
     agents: Mapping[str, str]
     revoked: frozenset[str] = field(default_factory=frozenset)
+    revoked_agents: frozenset[str] = field(default_factory=frozenset)
+
+    def __post_init__(self) -> None:
+        seen: dict[str, str] = {}
+        for kind, table in (("root", self.roots), ("agent", self.agents)):
+            for name, key in table.items():
+                if not isinstance(name, str) or not name:
+                    raise ValueError(f"{kind} name must be a non-empty string")
+                if not _is_hex(key, 64):
+                    raise ValueError(
+                        f"{kind} {name!r}: public key must be 64 lowercase hex"
+                    )
+                other = seen.get(key)
+                if other is not None:
+                    raise ValueError(
+                        f"{kind} {name!r} and {other} share one public key: "
+                        "one key is one identity"
+                    )
+                seen[key] = f"{kind} {name!r}"
+        both = set(self.roots) & set(self.agents)
+        if both:
+            raise ValueError(
+                f"{sorted(both)} pinned as both a root and an agent: a name "
+                "must mean one identity"
+            )
 
 
 @dataclass(frozen=True)
@@ -106,11 +144,11 @@ def _is_hex(value: Any, length: int) -> bool:
 
 
 def _number(value: Any) -> bool:
-    return (
-        not isinstance(value, bool)
-        and isinstance(value, int | float)
-        and math.isfinite(value)
-    )
+    try:
+        return type(value) in (int, float) and math.isfinite(value)
+    except OverflowError:
+        # math.isfinite converts ints to float; hostile JSON ints need not fit.
+        return False
 
 
 def _valid_pattern(pattern: Any) -> bool:
@@ -217,6 +255,8 @@ def _check_signature(link: Mapping[str, Any], public_key: str, index: int) -> No
     from nacl.signing import VerifyKey
 
     try:
+        if not _is_hex(public_key, 64):
+            raise ValueError("invalid pinned key")
         VerifyKey(public_key.encode(), encoder=HexEncoder).verify(
             link_hash(link).encode(), bytes.fromhex(link["signature"])
         )
@@ -257,6 +297,8 @@ def verify_chain(  # noqa: C901 - ordered refusal checklist
 
     Raises ``DelegationError`` naming the first rule that failed.
     """
+    if now is not None and not _number(now):
+        raise DelegationError("verification time must be finite")
     moment = time.time() if now is None else float(now)
     if not isinstance(chain, list) or not chain:
         raise DelegationError("chain must be a non-empty list of links")
@@ -270,6 +312,9 @@ def verify_chain(  # noqa: C901 - ordered refusal checklist
         digest = link_hash(link)
         if digest in anchors.revoked:
             raise DelegationError(f"link {index}: revoked")
+        for party in (link["delegator"], link["delegate"]):
+            if party in anchors.revoked_agents:
+                raise DelegationError(f"link {index}: {party!r} is revoked")
         if link["issued_at"] > moment + CLOCK_SKEW_SECONDS:
             raise DelegationError(f"link {index}: issued in the future")
         if moment >= link["expires_at"]:
@@ -311,7 +356,7 @@ def verify_chain(  # noqa: C901 - ordered refusal checklist
     return previous
 
 
-def authorize(  # noqa: C901 - ordered refusal checklist
+def within_scope(  # noqa: C901 - ordered refusal checklist
     chain: Any,
     anchors: TrustAnchors,
     *,
@@ -320,9 +365,13 @@ def authorize(  # noqa: C901 - ordered refusal checklist
     amount: float | None = None,
     now: float | None = None,
 ) -> DelegationDecision:
-    """May ``agent_id`` perform ``capability`` (for ``amount``) under ``chain``?
+    """Is this action inside what ``chain`` hands to ``agent_id``?
 
-    Never raises: any problem is a refusal with the reason.
+    Chain validity, final delegate, capability and ceiling -- everything
+    except proof that the caller holds the final delegate's key. ``allowed``
+    here is NOT an authorization: a chain is a bearer document until the
+    holder is proven. ``authorize`` (receiver-issued challenge) and
+    ``DelegationGate`` (signed presentation) each add that proof.
     """
     try:
         last = verify_chain(chain, anchors, now=now)
@@ -330,6 +379,10 @@ def authorize(  # noqa: C901 - ordered refusal checklist
         return DelegationDecision(False, f"delegation_invalid: {exc}")
     depth = len(chain)
     digest = link_hash(last)
+    if not isinstance(agent_id, str) or not agent_id:
+        return DelegationDecision(False, "delegation_invalid: invalid agent_id")
+    if not isinstance(capability, str) or not capability:
+        return DelegationDecision(False, "delegation_invalid: invalid capability")
     if last["delegate"] != agent_id:
         return DelegationDecision(
             False,
@@ -346,6 +399,10 @@ def authorize(  # noqa: C901 - ordered refusal checklist
             depth,
         )
     ceiling = last["max_amount"]
+    if amount is not None and (not _number(amount) or amount < 0):
+        return DelegationDecision(
+            False, "delegation_invalid: invalid amount", digest, depth
+        )
     if ceiling is not None:
         if amount is None or not _number(amount) or amount < 0:
             return DelegationDecision(
@@ -362,4 +419,57 @@ def authorize(  # noqa: C901 - ordered refusal checklist
                 digest,
                 depth,
             )
+    return DelegationDecision(True, "delegation_in_scope", digest, depth)
+
+
+def authorize(
+    chain: Any,
+    anchors: TrustAnchors,
+    *,
+    agent_id: str,
+    capability: str,
+    amount: float | None = None,
+    now: float | None = None,
+    proof: Any = None,
+    challenges: DelegationChallenges | None = None,
+    request_hash: str | None = None,
+) -> DelegationDecision:
+    """May ``agent_id`` perform ``capability`` (for ``amount``) under ``chain``?
+
+    Malformed chains and requests are refusals. ``challenges`` is the
+    receiver's own state, never constructed from submitted data. The receiver
+    hashes the exact request bytes into ``request_hash`` and checks that the
+    capability/amount describe those bytes. Missing proof refuses by default.
+    """
+    scoped = within_scope(
+        chain, anchors, agent_id=agent_id, capability=capability, amount=amount, now=now
+    )
+    if not scoped.allowed:
+        return scoped
+    digest, depth = scoped.chain_hash, scoped.depth
+    assert digest is not None
+    if proof is None or not isinstance(challenges, DelegationChallenges):
+        return DelegationDecision(False, "delegation_proof_required", digest, depth)
+    if not isinstance(request_hash, str) or not _is_hex(request_hash, 64):
+        return DelegationDecision(
+            False, "delegation_invalid: request_hash required", digest, depth
+        )
+    key = anchors.agents.get(agent_id)
+    if key is None:
+        return DelegationDecision(
+            False, "delegation_invalid: final delegate has no pinned key", digest, depth
+        )
+    problem = challenges.verify_and_consume(
+        proof,
+        public_key=key,
+        chain_hash=digest,
+        agent_id=agent_id,
+        capability=capability,
+        amount=amount,
+        request_hash=request_hash,
+    )
+    if problem is not None:
+        return DelegationDecision(
+            False, f"delegation_proof_invalid: {problem}", digest, depth
+        )
     return DelegationDecision(True, "delegation_ok", digest, depth)

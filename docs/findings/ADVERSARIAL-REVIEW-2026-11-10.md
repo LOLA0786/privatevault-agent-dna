@@ -148,8 +148,9 @@ invalid roster refuses startup.
 
 Follow-up, done: `PV_CONSENSUS_NONCE_DB` names a SQLite ledger shared by
 every replica, so a cleared quorum is single-use across replicas and
-restarts (`tests/multi_agent_security/test_quorum_hardening.py`). Still open:
-replicas on separate hosts with only PostgreSQL in common.
+restarts (`tests/multi_agent_security/test_quorum_hardening.py`), and a
+PostgreSQL ledger is used automatically with `PV_DATABASE_URL` for replicas on
+separate hosts (`tests/multi_agent_security/test_hardening.py`).
 
 ## F-4 (Medium): delimiter injection in the vote payload
 
@@ -238,6 +239,5 @@ loop detector.
    `approvals.token_present` with an artifact the server verifies.
 3. F-2 follow-up: ship the scheduled checkpoint fetch (a CronJob in the Helm
    chart writing to customer-held storage).
-4. F-3 follow-up: the shared nonce ledger exists for one host or a shared
-   volume; a PostgreSQL-backed one is still needed for separate hosts.
+4. F-3 follow-up: done (SQLite and PostgreSQL shared ledgers).
 5. F-10: tag the remaining signed artifact types in the next DRP version.

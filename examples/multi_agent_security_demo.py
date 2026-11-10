@@ -9,13 +9,17 @@ Exits non-zero if any attack succeeds.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
+from agent_dna.advisory import AdvisorySignal, Severity  # noqa: E402
 from agent_dna.checkpoint import build_checkpoint  # noqa: E402
 from agent_dna.consensus import ConsensusChecker, ConsensusConfig  # noqa: E402
 from agent_dna.consensus.signing import (  # noqa: E402
@@ -23,14 +27,26 @@ from agent_dna.consensus.signing import (  # noqa: E402
     consensus_action_id,
     generate_voter_keypair,
 )
+from agent_dna.decision import DecisionEngine  # noqa: E402
+from agent_dna.decision_recorder import DecisionRecorder  # noqa: E402
 from agent_dna.multi_agent_security import (  # noqa: E402
     CounterpartyLedger,
+    DelegationChallenges,
+    DelegationGate,
+    DelegationPolicy,
     SqliteNonceLedger,
     TrustAnchors,
     authorize,
+    delegated_action_id,
     issue_link,
+    link_hash,
+    sign_possession,
+    sign_presentation,
 )
+from agent_dna.open_authorizer import OpenAuthorizer  # noqa: E402
 from agent_dna.signer import ReceiptSigner, generate_keypair  # noqa: E402
+from agent_dna.sqlite_store import SQLiteDecisionStore  # noqa: E402
+from agent_dna.trace import AgentAction  # noqa: E402
 
 FAILURES: list[str] = []
 
@@ -76,13 +92,46 @@ def scene_delegation() -> None:
         parent=root,
     )
 
-    def ask(chain, capability, amount):
-        return authorize(
-            chain, anchors, agent_id="payer", capability=capability, amount=amount
-        )
+    receiver = DelegationChallenges("demo-payments-receiver")
 
-    d = ask([root, honest], "payments.pay_invoice", 150)
+    def proof_for(chain, capability, amount):
+        # Receiver owns these exact bytes. No network payment is sent.
+        request_bytes = json.dumps(
+            {"capability": capability, "amount": amount}
+        ).encode()
+        digest = hashlib.sha256(request_bytes).hexdigest()
+        challenge = receiver.issue(
+            chain_hash=link_hash(chain[-1]),
+            agent_id="payer",
+            capability=capability,
+            amount=amount,
+            request_hash=digest,
+        )
+        return {
+            "agent_id": "payer",
+            "capability": capability,
+            "amount": amount,
+            "request_hash": digest,
+            "challenges": receiver,
+            "proof": sign_possession(keys["payer"]["signing_key"], challenge),
+        }
+
+    def ask(chain, capability, amount):
+        return authorize(chain, anchors, **proof_for(chain, capability, amount))
+
+    params = proof_for([root, honest], "payments.pay_invoice", 150)
+    d = authorize([root, honest], anchors, **params)
     expect("payer pays 150 under a 200 ceiling", d.allowed, True)
+    d = authorize([root, honest], anchors, **params)
+    expect("same signed request presented again", d.allowed, False, d.reason)
+    d = authorize(
+        [root, honest],
+        anchors,
+        agent_id="payer",
+        capability="payments.pay_invoice",
+        amount=150,
+    )
+    expect("copied chain with no payer signature", d.allowed, False, d.reason)
     d = ask([root, honest], "payments.pay_invoice", 450)
     expect("payer pays 450 (planner held 500, gave 200)", d.allowed, False, d.reason)
     d = ask([root, greedy], "payments.refund", 40_000)
@@ -151,14 +200,35 @@ def scene_quorum(tmp: Path) -> None:
     expect("same votes replayed to a second replica", not r.flagged, False, r.reason)
 
 
+class _DemoScorer:
+    def score(self, action, prev=None):
+        return AdvisorySignal(
+            agent_id=action.agent_id,
+            capability=action.capability,
+            drift_score=0.0,
+            severity=Severity.INFO,
+            reasons=[],
+        )
+
+
 def scene_counterparty(tmp: Path) -> None:
     print("\n4. DENIABILITY -- the other party holds your checkpoint")
     seller = generate_keypair()
     seller_signer = ReceiptSigner(seed_hex=seller["signing_key"])
-    records = [
-        f'{{"record_hash":"{i:064x}","kind":"decision","agent_id":"s"}}'
-        for i in range(1, 6)
-    ]
+    # Real DRP records, generated locally with a demo-only open authorizer.
+    store = SQLiteDecisionStore(tmp / "demo-records.db")
+    engine = DecisionEngine(scorer=_DemoScorer(), authorizer=OpenAuthorizer())
+    recorder = DecisionRecorder(store=store, signer=seller_signer)
+    try:
+        for _ in range(5):
+            action = AgentAction(
+                agent_id="seller", capability="ledger.read", timestamp=time.time()
+            )
+            recorder.record(action, engine.decide(action))
+        export_path = Path(store.export_jsonl(tmp / "records.jsonl"))
+        records = export_path.read_text().splitlines()
+    finally:
+        store.close()
     ledger = CounterpartyLedger(tmp / "seller.jsonl", [seller["public_key"]])
     ledger.accept(build_checkpoint(records, signer=seller_signer))
 
@@ -170,6 +240,105 @@ def scene_counterparty(tmp: Path) -> None:
         False,
         failures[0] if failures else "",
     )
+    edited = json.loads(records[0])
+    edited["capability"] = "payments.wire_everything"
+    tampered = [json.dumps(edited), *records[1:]]
+    failures = ledger.audit(tampered)
+    expect(
+        "seller edits contents but keeps the original hash",
+        failures == [],
+        False,
+        failures[0] if failures else "",
+    )
+
+
+def scene_live_gate() -> None:
+    print("\n5. ON THE DECISION PATH -- the runtime checks the chain on every call")
+    keys = {
+        n: generate_voter_keypair() for n in ("operator", "planner", "payer", "thief")
+    }
+    policy = DelegationPolicy.from_dict(
+        {
+            "audience": "pv-demo",
+            "roots": {"operator": keys["operator"]["public_key"]},
+            "agents": {n: keys[n]["public_key"] for n in ("planner", "payer")},
+            "required_agents": ["payer"],
+        }
+    )
+    engine = DecisionEngine(
+        scorer=_QuietScorer(),
+        authorizer=OpenAuthorizer(),
+        delegation=DelegationGate(policy),
+    )
+    root = issue_link(
+        keys["operator"]["signing_key"],
+        delegator="operator",
+        delegate="planner",
+        capabilities=["payments."],
+        max_amount=500.0,
+        may_delegate=True,
+    )
+    leaf = issue_link(
+        keys["planner"]["signing_key"],
+        delegator="planner",
+        delegate="payer",
+        capabilities=["payments.pay_invoice"],
+        max_amount=200.0,
+        parent=root,
+    )
+    arguments = {"amount": 150, "payee_id": "V-100"}
+
+    def decide(signer: str | None):
+        evidence = None
+        if signer is not None:
+            evidence = {
+                "delegation": {
+                    "chain": [root, leaf],
+                    "presentation": sign_presentation(
+                        keys[signer]["signing_key"],
+                        audience="pv-demo",
+                        chain_hash=link_hash(leaf),
+                        action_id=delegated_action_id(
+                            "payer", "payments.pay_invoice", arguments
+                        ),
+                    ),
+                }
+            }
+        action = AgentAction(
+            agent_id="payer",
+            capability="payments.pay_invoice",
+            timestamp=time.time(),
+            arguments=dict(arguments),
+        )
+        return engine.decide(action, evidence=evidence)
+
+    r = decide(None)
+    expect(
+        "sub-agent acts on its standing grant, no chain",
+        r.decision.value == "allow",
+        False,
+        r.reason,
+    )
+    r = decide("thief")
+    expect(
+        "copied chain, presented without the holder's key",
+        r.decision.value == "allow",
+        False,
+        r.reason,
+    )
+    r = decide("payer")
+    expect("chain presented by its holder", r.decision.value == "allow", True, r.reason)
+
+
+class _QuietScorer:
+    def score(self, action, prev=None):
+        return AdvisorySignal(
+            agent_id=action.agent_id,
+            capability=action.capability,
+            drift_score=0.0,
+            severity=Severity.INFO,
+            reasons=[],
+        )
 
 
 def main() -> int:
@@ -178,11 +347,12 @@ def main() -> int:
         scene_delegation()
         scene_quorum(Path(tmp))
         scene_counterparty(Path(tmp))
+        scene_live_gate()
     print()
     if FAILURES:
         print(f"RESULT: {len(FAILURES)} scenario(s) went the wrong way: {FAILURES}")
         return 1
-    print("RESULT: 8 of 8 scenarios went the right way")
+    print("RESULT: 14 of 14 scenarios went the right way")
     return 0
 
 

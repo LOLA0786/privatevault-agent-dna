@@ -41,14 +41,39 @@ from .delegation import (
     issue_link,
     link_hash,
     verify_chain,
+    within_scope,
 )
-from .independence import ATTRIBUTES, independence_shortfall
-from .nonce_ledger import MemoryNonceLedger, NonceLedger, SqliteNonceLedger
+from .gate import (
+    DelegationConfigError,
+    DelegationGate,
+    DelegationPolicy,
+    delegated_action_id,
+    sign_presentation,
+)
+from .independence import ATTRIBUTES, independence_shortfall, normalize_label
+from .nonce_ledger import (
+    LedgerUnavailable,
+    MemoryNonceLedger,
+    NonceLedger,
+    PostgresNonceLedger,
+    SqliteNonceLedger,
+)
+from .possession import DelegationChallenges, sign_possession
 
 __all__ = [
+    "within_scope",
+    "sign_presentation",
+    "normalize_label",
+    "delegated_action_id",
+    "PostgresNonceLedger",
+    "LedgerUnavailable",
+    "DelegationPolicy",
+    "DelegationGate",
+    "DelegationConfigError",
     "ATTRIBUTES",
     "CheckpointRejected",
     "CounterpartyLedger",
+    "DelegationChallenges",
     "DelegationDecision",
     "DelegationError",
     "MemoryNonceLedger",
@@ -59,6 +84,7 @@ __all__ = [
     "independence_shortfall",
     "issue_link",
     "link_hash",
+    "sign_possession",
     "verify_acknowledgement",
     "verify_chain",
 ]

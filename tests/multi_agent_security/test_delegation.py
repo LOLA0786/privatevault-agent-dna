@@ -2,16 +2,20 @@
 and the receiver proves that offline from operator-pinned keys."""
 
 import time
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 
 import pytest
 
 from agent_dna.consensus.signing import generate_voter_keypair
 from agent_dna.multi_agent_security import (
+    DelegationChallenges,
     DelegationError,
     TrustAnchors,
     authorize,
     issue_link,
     link_hash,
+    sign_possession,
     verify_chain,
 )
 
@@ -47,15 +51,42 @@ def refused(chain, match):
         verify_chain(chain, ANCHORS)
 
 
+def proof_for(
+    chain,
+    *,
+    signer="C",
+    capability="payments.pay_invoice",
+    amount=80,
+    request_hash="a" * 64,
+    challenges=None,
+    ttl=60,
+):
+    challenges = challenges or DelegationChallenges("payments-api")
+    challenge = challenges.issue(
+        chain_hash=link_hash(chain[-1]),
+        agent_id="C",
+        capability=capability,
+        amount=amount,
+        request_hash=request_hash,
+        ttl=ttl,
+    )
+    return {
+        "agent_id": "C",
+        "capability": capability,
+        "amount": amount,
+        "request_hash": request_hash,
+        "challenges": challenges,
+        "proof": sign_possession(KEYS[signer]["signing_key"], challenge),
+    }
+
+
 # ---- an honest chain -------------------------------------------------------
 
 
 def test_three_hop_chain_verifies_and_authorizes_within_scope():
     chain = chain_abc()
     assert verify_chain(chain, ANCHORS)["delegate"] == "C"
-    ok = authorize(
-        chain, ANCHORS, agent_id="C", capability="payments.pay_invoice", amount=80
-    )
+    ok = authorize(chain, ANCHORS, **proof_for(chain))
     assert ok.allowed and ok.depth == 3
     assert ok.chain_hash == link_hash(chain[-1])
 
@@ -240,3 +271,179 @@ def test_depth_is_bounded():
         )
     with pytest.raises(DelegationError, match="deeper than"):
         verify_chain(chain, anchors)
+
+
+@pytest.mark.parametrize("field", ["max_amount", "issued_at", "expires_at"])
+@pytest.mark.parametrize(
+    "value", [10**400, -(10**400), float("inf"), float("nan"), True]
+)
+def test_hostile_numbers_are_refused_before_signature_verification(field, value):
+    chain = chain_abc()
+    chain[0][field] = value  # attacker needs no signing key
+    decision = authorize(
+        chain, ANCHORS, agent_id="C", capability="payments.pay_invoice", amount=1
+    )
+    assert not decision.allowed and "delegation_invalid" in decision.reason
+
+
+@pytest.mark.parametrize("amount", [10**400, float("nan"), float("inf"), True, "1", -1])
+def test_invalid_request_amount_refused_even_without_ceiling(amount):
+    chain = [link("operator", "C", amount=None)]
+    decision = authorize(
+        chain, ANCHORS, agent_id="C", capability="payments.pay_invoice", amount=amount
+    )
+    assert not decision.allowed and "invalid amount" in decision.reason
+
+
+@pytest.mark.parametrize("now", [10**400, float("nan"), float("inf"), True, "tomorrow"])
+def test_invalid_verification_time_fails_closed(now):
+    decision = authorize(
+        chain_abc(), ANCHORS, agent_id="C", capability="payments.pay_invoice", now=now
+    )
+    assert not decision.allowed and "verification time" in decision.reason
+
+
+def test_copied_chain_and_claimed_final_identity_are_not_enough():
+    decision = authorize(
+        chain_abc(), ANCHORS, agent_id="C", capability="payments.pay_invoice", amount=80
+    )
+    assert not decision.allowed and decision.reason == "delegation_proof_required"
+
+
+@pytest.mark.parametrize("signer", ["operator", "A", "B", "M"])
+def test_only_final_delegate_key_can_sign_request(signer):
+    chain = chain_abc()
+    decision = authorize(chain, ANCHORS, **proof_for(chain, signer=signer))
+    assert not decision.allowed and "final delegate's pinned key" in decision.reason
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"amount": 81},
+        {"request_hash": "b" * 64},
+        {"request_hash": None},
+        {"challenges": None},
+        {"capability": None},
+    ],
+)
+def test_proof_cannot_be_moved_to_a_different_request(changes):
+    chain = chain_abc()
+    params = proof_for(chain)
+    decision = authorize(chain, ANCHORS, **(params | changes))
+    assert not decision.allowed
+    assert authorize(
+        chain, ANCHORS, **params
+    ).allowed  # failed attempt did not spend it
+
+
+def test_proof_is_bound_to_chain_even_when_authority_matches():
+    first, second = chain_abc(), chain_abc()
+    params = proof_for(first)
+    assert not authorize(second, ANCHORS, **params).allowed
+    assert authorize(first, ANCHORS, **params).allowed
+
+
+def test_proof_cannot_change_capability_even_within_delegated_scope():
+    chain = [link("operator", "C")]
+    params = proof_for(chain)
+    result = authorize(chain, ANCHORS, **(params | {"capability": "payments.refund"}))
+    assert not result.allowed and "does not cover" in result.reason
+    assert authorize(chain, ANCHORS, **params).allowed
+
+
+def test_bad_signature_does_not_consume_holder_challenge():
+    chain = chain_abc()
+    params = proof_for(chain)
+    forged = params | {"proof": params["proof"] | {"signature": "0" * 128}}
+    assert not authorize(chain, ANCHORS, **forged).allowed
+    assert authorize(chain, ANCHORS, **params).allowed
+
+
+@pytest.mark.parametrize("audience", ["payments-api", "another-api"])
+def test_proof_is_refused_by_other_receiver_or_after_restart(audience):
+    chain = chain_abc()
+    params = proof_for(chain)
+    other = params | {"challenges": DelegationChallenges(audience)}
+    assert not authorize(chain, ANCHORS, **other).allowed
+    assert authorize(chain, ANCHORS, **params).allowed
+
+
+def test_replayed_proof_is_single_use_even_under_racing_threads():
+    chain = chain_abc()
+    params = proof_for(chain)
+    barrier = Barrier(16)
+
+    def attempt(_):
+        barrier.wait()
+        return authorize(chain, ANCHORS, **params).allowed
+
+    with ThreadPoolExecutor(max_workers=16) as pool:
+        results = list(pool.map(attempt, range(16)))
+    assert sum(results) == 1
+    assert not authorize(chain, ANCHORS, **params).allowed
+
+
+def test_expired_proof_refused_even_when_wall_clock_moves_back(monkeypatch):
+    chain = chain_abc()
+    clock = [100.0]
+    monkeypatch.setattr(
+        "agent_dna.multi_agent_security.possession.time.monotonic", lambda: clock[0]
+    )
+    params = proof_for(chain, ttl=1)
+    clock[0] += 2
+    # Wall-clock rollback cannot extend the receiver's monotonic deadline.
+    earlier = time.time() - 1
+    monkeypatch.setattr(
+        "agent_dna.multi_agent_security.possession.time.time", lambda: earlier
+    )
+    decision = authorize(chain, ANCHORS, **params)
+    assert not decision.allowed and "expired" in decision.reason
+
+
+@pytest.mark.parametrize(
+    "field,value", [("audience", "other"), ("expires_at", 10**100), ("amount", 81)]
+)
+def test_holder_cannot_edit_and_resign_receiver_challenge(field, value):
+    chain = chain_abc()
+    params = proof_for(chain)
+    edited = params["proof"]["challenge"] | {field: value}
+    forged = params | {"proof": sign_possession(KEYS["C"]["signing_key"], edited)}
+    assert not authorize(chain, ANCHORS, **forged).allowed
+    assert authorize(chain, ANCHORS, **params).allowed
+
+
+def test_missing_pinned_final_delegate_key_refuses_proof():
+    chain = chain_abc()
+    anchors = TrustAnchors(
+        roots=ANCHORS.roots,
+        agents={k: v for k, v in ANCHORS.agents.items() if k != "C"},
+    )
+    result = authorize(chain, anchors, **proof_for(chain))
+    assert not result.allowed and "final delegate has no pinned key" in result.reason
+
+
+@pytest.mark.parametrize(
+    "proof",
+    [
+        None,
+        [],
+        {},
+        {"challenge": [], "signature": "x"},
+        {"challenge": {"nonce": "a" * 64}, "signature": "z" * 128},
+    ],
+)
+def test_malformed_possession_proof_refused(proof):
+    chain = chain_abc()
+    params = proof_for(chain)
+    assert not authorize(chain, ANCHORS, **(params | {"proof": proof})).allowed
+
+
+def test_pending_challenge_limit_refuses_without_evicting_live_request():
+    chain = chain_abc()
+    receiver = DelegationChallenges("payments-api", max_pending=1)
+    params = proof_for(chain, challenges=receiver)
+    with pytest.raises(ValueError, match="too many pending"):
+        proof_for(chain, challenges=receiver)
+    assert authorize(chain, ANCHORS, **params).allowed
+    assert authorize(chain, ANCHORS, **proof_for(chain, challenges=receiver)).allowed

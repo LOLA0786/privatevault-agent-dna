@@ -38,7 +38,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 2700+ automated tests, run in CI on every commit
+- 2835+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
@@ -312,11 +312,11 @@ does not:
   evidence is then held, and consensus adds no approval path. The
   composition manifest (`GET /v1/runtime`) says which state a deployment
   is in.
-- Single-use tracking of a cleared quorum is per process unless
-  `PV_CONSENSUS_NONCE_DB` names a SQLite file every replica shares; then it
-  holds across replicas and restarts. Replicas on separate hosts with only
-  PostgreSQL in common are not covered: the same votes can clear once per
-  replica inside the vote TTL (300 s by default, 1 h at most).
+- Single-use tracking of a cleared quorum is per process unless the
+  runtime has a shared ledger: PostgreSQL when `PV_DATABASE_URL` is set, or
+  the SQLite file named by `PV_CONSENSUS_NONCE_DB`. Then it holds across
+  replicas and restarts. Replica clocks more than 300 seconds apart can
+  still let a spent vote be used again.
 - `require_distinct` can demand that approving voters span distinct models,
   providers or operators. It runs over what the operator declared in the
   roster; independence is not measured.

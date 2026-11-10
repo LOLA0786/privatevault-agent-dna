@@ -62,7 +62,8 @@ from .grant_revocation import GrantRevocationLedger
 from .grant_spend import GrantSpendLedger
 from .grants import GrantRegistry
 from .manifold import CapabilityManifold
-from .multi_agent_security.nonce_ledger import SqliteNonceLedger
+from .multi_agent_security.gate import DelegationGate, DelegationPolicy
+from .multi_agent_security.nonce_ledger import PostgresNonceLedger, SqliteNonceLedger
 from .open_authorizer import OpenAuthorizer
 from .pg_compat import PgCompatConnection, is_database_url
 from .runtime import RuntimeMonitor
@@ -115,6 +116,9 @@ class RuntimeConfig:
     # SQLite file shared by every replica, so a cleared quorum is single-use
     # across all of them. Unset: single-use holds per process only.
     consensus_nonce_db: str | None = None
+    # Operator-pinned delegation roots, agent keys, audience and where a
+    # chain is mandatory. Unset: delegation is not checked on /v1/decide.
+    delegation_file: str | None = None
     opa_endpoint: str | None = None  # OPA adapter (policy_file wins)
     opa_policy_path: str = "agent/governance"
     opa_deadline: float = 1.0  # TOTAL budget, all retries
@@ -153,6 +157,7 @@ class RuntimeConfig:
             policy_file=os.getenv("PV_POLICY_FILE"),
             consensus_file=os.getenv("PV_CONSENSUS_FILE") or None,
             consensus_nonce_db=os.getenv("PV_CONSENSUS_NONCE_DB") or None,
+            delegation_file=os.getenv("PV_DELEGATION_FILE") or None,
             opa_endpoint=os.getenv("PV_OPA_ENDPOINT"),
             opa_policy_path=os.getenv("PV_OPA_POLICY_PATH", "agent/governance"),
             opa_deadline=_env_float("PV_OPA_DEADLINE") or 1.0,
@@ -673,6 +678,44 @@ def _breaker_groups_from(
     return _load_breaker_groups(path)
 
 
+def _compose_delegation(cfg: RuntimeConfig, comp: dict[str, Any]) -> Any:
+    """Delegation on the decision path (multi-agent security layer).
+
+    An unreadable or invalid PV_DELEGATION_FILE refuses startup.
+    """
+    if not cfg.delegation_file:
+        comp["delegation"] = {
+            "status": "not attached",
+            "detail": "PV_DELEGATION_FILE unset: delegation chains are not checked",
+        }
+        return None
+    delegation = DelegationGate(
+        DelegationPolicy.from_file(cfg.delegation_file),
+        ledger=(
+            SqliteNonceLedger(cfg.consensus_nonce_db)
+            if cfg.consensus_nonce_db
+            else None
+        ),
+    )
+    comp["delegation"] = delegation.describe()
+    return delegation
+
+
+def _share_single_use_ledger(
+    pool: Any, consensus: Any, delegation: Any, comp: dict[str, Any]
+) -> None:
+    """Separate hosts share PostgreSQL, not a file: keep the single-use
+    ledger there so a spent quorum or presentation is spent everywhere."""
+    if pool is None:
+        return
+    shared_votes = PostgresNonceLedger(pool)
+    consensus.use_ledger(shared_votes)
+    comp["consensus"] = consensus.describe()
+    if delegation is not None:
+        delegation.use_ledger(shared_votes)
+        comp["delegation"] = delegation.describe()
+
+
 def build_production_runtime(
     config: RuntimeConfig | None = None,
 ) -> ProductionRuntime:
@@ -701,6 +744,7 @@ def build_production_runtime(
         ),
     )
     comp["consensus"] = consensus.describe()
+    delegation = _compose_delegation(cfg, comp)
     economics = CostAnomalyChecker()
     comp["economics"] = {
         "status": "attached",
@@ -797,6 +841,7 @@ def build_production_runtime(
         scorer=_train_scorer(baseline_caps),
         uaal=uaal,
         consensus=consensus,
+        delegation=delegation,
         economics=economics,
         policy=policy,
         authorizer=authorizer,
@@ -813,6 +858,7 @@ def build_production_runtime(
 
     store = _open_decision_store(cfg)
     pool = getattr(store, "pool", None)  # PostgreSQL: one database, all ledgers
+    _share_single_use_ledger(pool, consensus, delegation, comp)
 
     # ---- breaker: always attached; unconfigured thresholds are inert ----
     breaker_db: str | PgCompatConnection = (

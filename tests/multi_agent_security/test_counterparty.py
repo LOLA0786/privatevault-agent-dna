@@ -1,8 +1,12 @@
 """Mutual checkpoints: once the other party holds your checkpoint, dropping
 history is something they can show."""
 
+import hashlib
 import itertools
 import json
+import runpy
+import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -17,6 +21,7 @@ from agent_dna.multi_agent_security import (
     CounterpartyLedger,
     verify_acknowledgement,
 )
+from agent_dna.multi_agent_security.counterparty import _record_hash
 from agent_dna.open_authorizer import OpenAuthorizer
 from agent_dna.signer import ReceiptSigner, generate_keypair
 from agent_dna.sqlite_store import SQLiteDecisionStore
@@ -109,7 +114,7 @@ def test_rewriting_one_disclosed_record_is_caught(parties):
     forged["record_hash"] = "0" * 64
     lines[1] = json.dumps(forged)
     failures = ledger.audit(lines)
-    assert failures and "log_head mismatch" in failures[0]
+    assert any("log_head mismatch" in failure for failure in failures)
 
 
 def test_a_checkpoint_that_goes_backwards_is_not_accepted(parties):
@@ -213,3 +218,140 @@ def test_audit_with_nothing_held_says_so(parties):
 def test_a_ledger_needs_a_pinned_key(tmp_path):
     with pytest.raises(ValueError, match="must be pinned"):
         CounterpartyLedger(tmp_path / "x.jsonl", [])
+
+
+@pytest.mark.parametrize("kind", ["decision", "execution"])
+def test_payload_edit_with_original_hash_fails_both_auditors(parties, kind):
+    seller, _, ledger = parties
+    seller.act(times=4)
+    checkpoint = ledger.accept(seller.checkpoint())
+    lines = seller.export()
+    index = next(i for i, line in enumerate(lines) if json.loads(line)["kind"] == kind)
+    edited = json.loads(lines[index])
+    edited["capability" if kind == "decision" else "outcome_note"] = (
+        "payments.wire_everything, approved by CFO"
+    )
+    lines[index] = json.dumps(edited)  # deliberately keep the original record_hash
+    failures = ledger.audit(lines)
+    assert any("record_hash mismatch" in failure for failure in failures)
+    path = seller.tmp / "tampered.jsonl"
+    path.write_text("\n".join(lines) + "\n")
+    cp_path = seller.tmp / "checkpoint.json"
+    cp_path.write_text(json.dumps(checkpoint))
+    independent = subprocess.run(
+        [
+            sys.executable,
+            "tools/verify_records.py",
+            str(path),
+            "--checkpoint",
+            str(cp_path),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert independent.returncode != 0
+    assert "hash mismatch" in independent.stdout
+
+
+def test_rehashing_edited_payload_still_fails_held_checkpoint(parties):
+    seller, _, ledger = parties
+    seller.act()
+    ledger.accept(seller.checkpoint())
+    lines = seller.export()
+    record = json.loads(lines[0])
+    record["capability"] = "payments.wire_everything"
+    body = {k: v for k, v in record.items() if k != "record_hash"}
+    record["record_hash"] = hashlib.sha256(
+        json.dumps(body, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    lines[0] = json.dumps(record)
+    assert any("log_head mismatch" in f for f in ledger.audit(lines))
+
+
+def test_record_hash_matches_standalone_verifier_for_live_export(parties):
+    seller, _, _ = parties
+    seller.act(times=3)
+    independent_hash = runpy.run_path("tools/verify_records.py")["compute_hash"]
+    for line in seller.export():
+        record = json.loads(line)
+        assert _record_hash(record) == independent_hash(record) == record["record_hash"]
+
+
+def test_cannot_get_receipt_for_a_million_records_by_reusing_a_held_hash(parties):
+    seller, buyer, ledger = parties
+    seller.act(times=4)  # four decisions + four executions
+    checkpoint = ledger.accept(seller.checkpoint())
+    assert checkpoint["record_count"] == 8
+    with pytest.raises(CheckpointRejected, match="checkpoint_hash mismatch"):
+        ledger.acknowledge({**checkpoint, "record_count": 1_000_000}, buyer.signer)
+    ack = ledger.acknowledge(checkpoint, buyer.signer)
+    assert ack["record_count"] == ledger.held()[0]["record_count"] == 8
+
+
+@pytest.mark.parametrize(
+    "field,value", [("record_count", 1_000_000), ("log_head", "0" * 64)]
+)
+def test_ack_cannot_authenticate_changed_checkpoint_contents(parties, field, value):
+    seller, buyer, ledger = parties
+    seller.act()
+    checkpoint = ledger.accept(seller.checkpoint())
+    ack = ledger.acknowledge(checkpoint, buyer.signer)
+    assert "checkpoint_hash mismatch" in verify_acknowledgement(
+        ack, {**checkpoint, field: value}, [buyer.keys["public_key"]]
+    )
+
+
+@pytest.mark.parametrize("count", [1_000_000, True, -1])
+def test_even_a_correctly_signed_ack_must_match_checkpoint_count(parties, count):
+    seller, buyer, ledger = parties
+    seller.act()
+    checkpoint = ledger.accept(seller.checkpoint())
+    ack = ledger.acknowledge(checkpoint, buyer.signer)
+    ack["record_count"] = count
+    body = {k: v for k, v in ack.items() if k not in ("ack_hash", "signature")}
+    ack["ack_hash"] = hashlib.sha256(
+        b"pv-checkpoint-ack/1:"
+        + json.dumps(body, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    ack["signature"] = buyer.signer.sign_hash(ack["ack_hash"]).to_dict()
+    assert "record_count" in verify_acknowledgement(
+        ack, checkpoint, [buyer.keys["public_key"]]
+    )
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        None,
+        "{",
+        "[]",
+        "null",
+        '{"record_hash": "a", "record_hash": "b"}',
+        '{"nested": {"amount": NaN}}',
+        '{"amount": 1e400}',
+    ],
+)
+def test_malformed_export_is_a_failure_not_a_crash(parties, line):
+    seller, _, ledger = parties
+    seller.act()
+    ledger.accept(seller.checkpoint())
+    assert any("invalid record" in failure for failure in ledger.audit([line]))
+
+
+@pytest.mark.parametrize("corruption", ["json", "contents", "signature"])
+def test_corrupted_checkpoint_file_cannot_pass_audit_or_issue_receipt(
+    parties, corruption
+):
+    seller, buyer, ledger = parties
+    seller.act()
+    checkpoint = ledger.accept(seller.checkpoint())
+    broken = json.loads(json.dumps(checkpoint))
+    if corruption == "contents":
+        broken["record_count"] = 1_000_000
+    elif corruption == "signature":
+        broken["signature"]["signature"] = "0" * 128
+    ledger.path.write_text("{" if corruption == "json" else json.dumps(broken) + "\n")
+    assert "cannot read held checkpoints" in ledger.audit(seller.export())[0]
+    with pytest.raises(CheckpointRejected, match="cannot read held checkpoints"):
+        ledger.acknowledge(checkpoint, buyer.signer)
