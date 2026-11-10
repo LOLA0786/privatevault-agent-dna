@@ -38,7 +38,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 2650+ automated tests, run in CI on every commit
+- 2700+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
@@ -312,14 +312,22 @@ does not:
   evidence is then held, and consensus adds no approval path. The
   composition manifest (`GET /v1/runtime`) says which state a deployment
   is in.
-- Single-use tracking of a cleared quorum is per process. With several API
-  replicas, the same votes can clear once per replica inside the vote TTL
-  (300 s by default, 1 h at most). A durable nonce ledger is not shipped.
+- Single-use tracking of a cleared quorum is per process unless
+  `PV_CONSENSUS_NONCE_DB` names a SQLite file every replica shares; then it
+  holds across replicas and restarts. Replicas on separate hosts with only
+  PostgreSQL in common are not covered: the same votes can clear once per
+  replica inside the vote TTL (300 s by default, 1 h at most).
+- `require_distinct` can demand that approving voters span distinct models,
+  providers or operators. It runs over what the operator declared in the
+  roster; independence is not measured.
 - Voters are keys. Nothing here shows that the reviewers behind them are
   independent of each other or of the acting agent.
 
 Tests: `tests/test_consensus_checker.py`,
-`tests/test_api_completeness_and_quorum.py`, `tests/test_secure_quorum.py`.
+`tests/test_api_completeness_and_quorum.py`, `tests/test_secure_quorum.py`,
+`tests/multi_agent_security/test_quorum_hardening.py`. Delegation chains and
+mutual checkpoints, and what they do not cover:
+[MULTI-AGENT-SECURITY.md](MULTI-AGENT-SECURITY.md).
 
 **Cross-agent invariants (topology, temporal-ordering, authority)
 are now wired into the live connector enforcement path** as an

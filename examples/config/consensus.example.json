@@ -1,21 +1,36 @@
 {
   "threshold": 2.0,
-  "required_for": ["payments.", "deploy.production"],
+  "required_for": [
+    "payments.",
+    "deploy.production"
+  ],
   "voters": [
     {
       "agent_id": "fraud-agent",
       "weight": 1.0,
-      "public_key": "0000000000000000000000000000000000000000000000000000000000000001"
+      "public_key": "0000000000000000000000000000000000000000000000000000000000000001",
+      "model": "model-a",
+      "provider": "provider-a",
+      "operator": "your-company"
     },
     {
       "agent_id": "finance-agent",
       "weight": 1.0,
-      "public_key": "0000000000000000000000000000000000000000000000000000000000000002"
+      "public_key": "0000000000000000000000000000000000000000000000000000000000000002",
+      "model": "model-a",
+      "provider": "provider-a",
+      "operator": "your-company"
     },
     {
       "agent_id": "legal-agent",
       "weight": 1.0,
-      "public_key": "0000000000000000000000000000000000000000000000000000000000000003"
+      "public_key": "0000000000000000000000000000000000000000000000000000000000000003",
+      "model": "model-b",
+      "provider": "provider-b",
+      "operator": "outside-firm"
     }
-  ]
+  ],
+  "require_distinct": {
+    "provider": 2
+  }
 }

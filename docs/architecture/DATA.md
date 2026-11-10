@@ -49,6 +49,7 @@ under an advisory lock so concurrent instances cannot fork a chain.
 | `execution_authorization_mint` | `/v1/authorize` via `claim_or_replay_mint` | `/v1/authorize`, revocation scan | One live permit per decision (ADR 0016) |
 | `execution_authorization_consume` | the sidecar via `try_consume_unless_suspended` | the sidecar, `decision_execution_status` | A permit is used at most once (ADR 0004) |
 | `approval_consume` | `agent_dna/approval_bridge.py::ApprovalBridge.consider` via `try_consume_approval` | the approval bridge | An approval is used at most once (ADR 0020); `not_after` keeps its verified expiry, which caps the permit (ADR 0024) |
+| `used_votes` | `agent_dna/multi_agent_security/nonce_ledger.py::SqliteNonceLedger.consume` | `agent_dna/consensus/checker.py::ConsensusChecker.check` | Votes that already cleared a quorum, one row per (voter, nonce) until the vote expires. Shared by every replica that opens `PV_CONSENSUS_NONCE_DB`, so a cleared quorum is single-use across them. |
 | `suspensions` | `agent_dna/grant_revocation.py::GrantRevocationLedger.revoke`, late-revocation path of `/v1/authorize` | the sidecar (same transaction as consume), `/v1/revocations` | Permits, agents or organisations that must not dispatch |
 
 ## Grants

@@ -141,6 +141,8 @@ LAYERS: list[tuple[str, str, tuple[str, ...]]] = [
             "agent_dna.governance.*",
             "agent_dna.multi_agent",
             "agent_dna.multi_agent.*",
+            "agent_dna.multi_agent_security",
+            "agent_dna.multi_agent_security.*",
             "agent_dna.security",
             "agent_dna.security.*",
             "agent_dna.control_posture",

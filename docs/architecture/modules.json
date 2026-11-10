@@ -531,6 +531,11 @@
   ],
   [
    "agent_dna.composition",
+   "agent_dna.multi_agent_security.nonce_ledger",
+   "top"
+  ],
+  [
+   "agent_dna.composition",
    "agent_dna.open_authorizer",
    "top"
   ],
@@ -802,6 +807,16 @@
   [
    "agent_dna.consensus.checker",
    "agent_dna.consensus.signing",
+   "top"
+  ],
+  [
+   "agent_dna.consensus.checker",
+   "agent_dna.multi_agent_security.independence",
+   "top"
+  ],
+  [
+   "agent_dna.consensus.checker",
+   "agent_dna.multi_agent_security.nonce_ledger",
    "top"
   ],
   [
@@ -1667,6 +1682,31 @@
   [
    "agent_dna.multi_agent.world_state",
    "agent_dna.multi_agent.interaction_graph",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent_security",
+   "agent_dna.multi_agent_security.counterparty",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent_security",
+   "agent_dna.multi_agent_security.delegation",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent_security",
+   "agent_dna.multi_agent_security.independence",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent_security",
+   "agent_dna.multi_agent_security.nonce_ledger",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent_security.counterparty",
+   "agent_dna.checkpoint",
    "top"
   ],
   [
@@ -2855,6 +2895,31 @@
    "top"
   ],
   [
+   "examples.multi_agent_security_demo",
+   "agent_dna.checkpoint",
+   "top"
+  ],
+  [
+   "examples.multi_agent_security_demo",
+   "agent_dna.consensus",
+   "top"
+  ],
+  [
+   "examples.multi_agent_security_demo",
+   "agent_dna.consensus.signing",
+   "top"
+  ],
+  [
+   "examples.multi_agent_security_demo",
+   "agent_dna.multi_agent_security",
+   "top"
+  ],
+  [
+   "examples.multi_agent_security_demo",
+   "agent_dna.signer",
+   "top"
+  ],
+  [
    "examples.profile_versioning_demo",
    "agent_dna",
    "top"
@@ -3413,7 +3478,7 @@
   "agent_dna.authorization": 3,
   "agent_dna.authorize_binding": 7,
   "agent_dna.change_management": 1,
-  "agent_dna.checkpoint": 2,
+  "agent_dna.checkpoint": 4,
   "agent_dna.circuit_breaker": 4,
   "agent_dna.closure_v01": 3,
   "agent_dna.composition": 6,
@@ -3426,11 +3491,11 @@
   "agent_dna.connector.cross_agent": 3,
   "agent_dna.connector.middleware": 4,
   "agent_dna.connector.models": 5,
-  "agent_dna.consensus": 2,
+  "agent_dna.consensus": 3,
   "agent_dna.consensus.byzantine": 1,
   "agent_dna.consensus.checker": 1,
   "agent_dna.consensus.secure_quorum": 2,
-  "agent_dna.consensus.signing": 7,
+  "agent_dna.consensus.signing": 8,
   "agent_dna.consensus.weighted_quorum": 1,
   "agent_dna.control_posture": 5,
   "agent_dna.decision": 27,
@@ -3493,6 +3558,11 @@
   "agent_dna.multi_agent.topology": 2,
   "agent_dna.multi_agent.trust": 2,
   "agent_dna.multi_agent.world_state": 2,
+  "agent_dna.multi_agent_security": 1,
+  "agent_dna.multi_agent_security.counterparty": 1,
+  "agent_dna.multi_agent_security.delegation": 1,
+  "agent_dna.multi_agent_security.independence": 2,
+  "agent_dna.multi_agent_security.nonce_ledger": 3,
   "agent_dna.observability.logger": 2,
   "agent_dna.observability.metrics": 2,
   "agent_dna.observability.prometheus_bridge": 2,
@@ -3535,7 +3605,7 @@
   "agent_dna.security": 1,
   "agent_dna.security.loop_discovery": 4,
   "agent_dna.shell_guard": 2,
-  "agent_dna.signer": 8,
+  "agent_dna.signer": 9,
   "agent_dna.signer_bridge": 1,
   "agent_dna.signer_python": 5,
   "agent_dna.similarity": 3,
@@ -3594,7 +3664,7 @@
   "agent_dna.circuit_breaker": 4,
   "agent_dna.cli": 13,
   "agent_dna.closure_v01": 4,
-  "agent_dna.composition": 35,
+  "agent_dna.composition": 36,
   "agent_dna.confidence": 1,
   "agent_dna.connector": 2,
   "agent_dna.connector.adapters": 2,
@@ -3606,7 +3676,7 @@
   "agent_dna.connector.middleware": 10,
   "agent_dna.consensus": 3,
   "agent_dna.consensus.byzantine": 2,
-  "agent_dna.consensus.checker": 1,
+  "agent_dna.consensus.checker": 3,
   "agent_dna.consensus.secure_quorum": 1,
   "agent_dna.control_posture": 2,
   "agent_dna.decision": 6,
@@ -3661,6 +3731,8 @@
   "agent_dna.multi_agent.topology": 2,
   "agent_dna.multi_agent.trust": 2,
   "agent_dna.multi_agent.world_state": 2,
+  "agent_dna.multi_agent_security": 4,
+  "agent_dna.multi_agent_security.counterparty": 1,
   "agent_dna.observability.metrics": 1,
   "agent_dna.operation_registry": 2,
   "agent_dna.permit_evidence": 1,
@@ -3732,6 +3804,7 @@
   "examples.langgraph_hitl.test_hitl_binding": 3,
   "examples.multi_agent_consensus_demo": 2,
   "examples.multi_agent_procurement_demo": 1,
+  "examples.multi_agent_security_demo": 5,
   "examples.profile_versioning_demo": 2,
   "examples.refund_authorization_demo": 4,
   "examples.runtime_demo": 4,
@@ -4246,6 +4319,26 @@
    "group": "agent_dna/multi_agent",
    "path": "agent_dna/multi_agent/world_state.py"
   },
+  "agent_dna.multi_agent_security": {
+   "group": "agent_dna/multi_agent_security",
+   "path": "agent_dna/multi_agent_security/__init__.py"
+  },
+  "agent_dna.multi_agent_security.counterparty": {
+   "group": "agent_dna/multi_agent_security",
+   "path": "agent_dna/multi_agent_security/counterparty.py"
+  },
+  "agent_dna.multi_agent_security.delegation": {
+   "group": "agent_dna/multi_agent_security",
+   "path": "agent_dna/multi_agent_security/delegation.py"
+  },
+  "agent_dna.multi_agent_security.independence": {
+   "group": "agent_dna/multi_agent_security",
+   "path": "agent_dna/multi_agent_security/independence.py"
+  },
+  "agent_dna.multi_agent_security.nonce_ledger": {
+   "group": "agent_dna/multi_agent_security",
+   "path": "agent_dna/multi_agent_security/nonce_ledger.py"
+  },
   "agent_dna.observability.logger": {
    "group": "agent_dna/observability",
    "path": "agent_dna/observability/logger.py"
@@ -4589,6 +4682,10 @@
   "examples.multi_agent_procurement_demo": {
    "group": "examples",
    "path": "examples/multi_agent_procurement_demo.py"
+  },
+  "examples.multi_agent_security_demo": {
+   "group": "examples",
+   "path": "examples/multi_agent_security_demo.py"
   },
   "examples.profile_versioning_demo": {
    "group": "examples",

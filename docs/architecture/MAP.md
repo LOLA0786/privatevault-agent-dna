@@ -17,19 +17,20 @@ flowchart LR
   n8["agent_dna/gateway<br/>14 modules"]
   n9["agent_dna/governance<br/>3 modules"]
   n10["agent_dna/multi_agent<br/>16 modules"]
-  n11["agent_dna/observability<br/>3 modules"]
-  n12["agent_dna/policy<br/>4 modules"]
-  n13["agent_dna/quickstart<br/>4 modules"]
-  n14["agent_dna/receiver<br/>8 modules"]
-  n15["agent_dna/scan<br/>4 modules"]
-  n16["agent_dna/security<br/>2 modules"]
-  n17["agent_dna/store<br/>1 modules"]
-  n18["agent_dna/validation<br/>5 modules"]
-  n19["api<br/>1 modules"]
-  n20["examples<br/>29 modules"]
-  n21["experimental<br/>62 modules"]
-  n22["rust/pv_runtime (PyO3)"]
-  n23["tools<br/>38 modules"]
+  n11["agent_dna/multi_agent_security<br/>5 modules"]
+  n12["agent_dna/observability<br/>3 modules"]
+  n13["agent_dna/policy<br/>4 modules"]
+  n14["agent_dna/quickstart<br/>4 modules"]
+  n15["agent_dna/receiver<br/>8 modules"]
+  n16["agent_dna/scan<br/>4 modules"]
+  n17["agent_dna/security<br/>2 modules"]
+  n18["agent_dna/store<br/>1 modules"]
+  n19["agent_dna/validation<br/>5 modules"]
+  n20["api<br/>1 modules"]
+  n21["examples<br/>30 modules"]
+  n22["experimental<br/>62 modules"]
+  n23["rust/pv_runtime (PyO3)"]
+  n24["tools<br/>38 modules"]
   n0 -.->|1| n2
   n0 -->|5| n4
   n0 -->|1| n5
@@ -37,49 +38,53 @@ flowchart LR
   n0 -->|1| n7
   n0 -->|2| n10
   n0 -->|1| n11
-  n0 -->|6| n12
-  n0 -.->|4| n13
-  n0 -->|3| n16
-  n0 -->|1| n17
+  n0 -->|1| n12
+  n0 -->|6| n13
+  n0 -.->|4| n14
+  n0 -->|3| n17
   n0 -->|1| n18
-  n0 -->|1| n22
+  n0 -->|1| n19
+  n0 -->|1| n23
   n1 -->|2| n0
-  n2 -->|3| n12
-  n2 -->|1| n21
+  n2 -->|3| n13
+  n2 -->|1| n22
   n4 -->|20| n0
   n4 -->|5| n10
-  n4 -->|1| n14
+  n4 -->|1| n15
+  n5 -->|2| n11
   n6 -->|1| n0
   n8 -->|6| n0
   n8 -->|4| n4
-  n13 -.->|6| n0
-  n13 -.->|1| n4
-  n13 -->|5| n8
-  n14 -->|13| n0
-  n15 -->|8| n0
-  n16 -->|2| n0
-  n19 -->|26| n0
-  n19 -->|1| n4
-  n19 -->|3| n11
-  n19 -->|1| n16
-  n20 -->|77| n0
+  n11 -->|1| n0
+  n14 -.->|6| n0
+  n14 -.->|1| n4
+  n14 -->|5| n8
+  n15 -->|13| n0
+  n16 -->|8| n0
+  n17 -->|2| n0
+  n20 -->|26| n0
   n20 -->|1| n4
-  n20 -->|5| n5
-  n20 -->|2| n7
-  n20 -->|2| n9
-  n20 -->|2| n10
-  n20 -->|1| n11
-  n20 -->|1| n21
-  n21 -->|15| n0
-  n21 -->|1| n5
-  n23 -->|43| n0
-  n23 -->|3| n4
-  n23 -->|1| n12
-  n23 -->|2| n14
-  n23 -->|3| n15
-  n23 -.->|3| n19
-  n23 -->|1| n21
-  n23 -->|1| n22
+  n20 -->|3| n12
+  n20 -->|1| n17
+  n21 -->|79| n0
+  n21 -->|1| n4
+  n21 -->|7| n5
+  n21 -->|2| n7
+  n21 -->|2| n9
+  n21 -->|2| n10
+  n21 -->|1| n11
+  n21 -->|1| n12
+  n21 -->|1| n22
+  n22 -->|15| n0
+  n22 -->|1| n5
+  n24 -->|43| n0
+  n24 -->|3| n4
+  n24 -->|1| n13
+  n24 -->|2| n15
+  n24 -->|3| n16
+  n24 -.->|3| n20
+  n24 -->|1| n22
+  n24 -->|1| n23
 ```
 
 ## Directories
@@ -89,7 +94,7 @@ flowchart LR
 | `agent_dna (core modules)` | 81 |
 | `experimental` | 62 |
 | `tools` | 38 |
-| `examples` | 29 |
+| `examples` | 30 |
 | `agent_dna/multi_agent` | 16 |
 | `agent_dna/gateway` | 14 |
 | `agent_dna/connector` | 10 |
@@ -97,6 +102,7 @@ flowchart LR
 | `agent_dna/consensus` | 6 |
 | `agent_dna/adapters_policy` | 5 |
 | `agent_dna/audit_connector` | 5 |
+| `agent_dna/multi_agent_security` | 5 |
 | `agent_dna/validation` | 5 |
 | `agent_dna/policy` | 4 |
 | `agent_dna/quickstart` | 4 |
@@ -128,7 +134,7 @@ flowchart LR
 | `agent_dna.apikeys` | 11 | 1 |
 | `agent_dna.decision_record` | 9 | 4 |
 | `agent_dna.gateway.framing` | 9 | 4 |
-| `agent_dna.decision_recorder` | 8 | 5 |
+| `agent_dna.signer` | 9 | 2 |
 
 ## Import-time cycles
 

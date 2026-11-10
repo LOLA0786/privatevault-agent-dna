@@ -5,6 +5,28 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Multi-Agent Security Layer (`agent_dna/multi_agent_security/`)
+Owner: Chandan Galani. Scope and limits: `docs/MULTI-AGENT-SECURITY.md`.
+
+- **Delegation that can only shrink (`pv-delegation/1`).** Signed chains in
+  which each link narrows the one before it (capabilities, per-action
+  ceiling, expiry, onward delegation), verified offline against
+  operator-pinned keys. Library only: not consulted by `/v1/decide`.
+  `tests/multi_agent_security/test_delegation.py`.
+- **Voter independence.** `require_distinct` in `PV_CONSENSUS_FILE` requires
+  approving voters to span distinct declared models, providers or operators.
+  Enforced on the live path.
+- **Single-use quorums across replicas.** `PV_CONSENSUS_NONCE_DB` names a
+  SQLite ledger shared by every replica, so a cleared quorum cannot be
+  replayed to another replica or after a restart. Closes the per-process
+  limit noted under F-3 for replicas that share a volume.
+  `tests/multi_agent_security/test_quorum_hardening.py`.
+- **Mutual checkpoints.** `CounterpartyLedger` keeps the other party's
+  signed checkpoints, issues signed receipts, and audits later exports
+  against them. `tests/multi_agent_security/test_counterparty.py`.
+- `examples/multi_agent_security_demo.py` attempts each attack and exits
+  non-zero if one succeeds.
+
 ### Three high-severity findings from the 2026-11-10 adversarial review
 Full write-up: `docs/findings/ADVERSARIAL-REVIEW-2026-11-10.md`.
 

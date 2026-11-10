@@ -56,6 +56,7 @@ verified.
 | [owasp-llm-2026-coverage.md](owasp-llm-2026-coverage.md) | reference | OWASP LLM Top 10 (2026) coverage |
 | [owasp-llm-top10-2025-coverage.md](owasp-llm-top10-2025-coverage.md) | reference | OWASP LLM Top 10 (2025) coverage table |
 | [AGENTIC-TRUST-CONTROLS-MAPPING.md](AGENTIC-TRUST-CONTROLS-MAPPING.md) | reference | Agentic trust controls mapped to the code |
+| [MULTI-AGENT-SECURITY.md](MULTI-AGENT-SECURITY.md) | current | Multi-Agent Security Layer: delegation that only shrinks, voter independence, single-use quorums across replicas, mutual checkpoints, and what each does not cover |
 | [compliance/soc2/control_mapping.md](compliance/soc2/control_mapping.md) | reference | SOC 2 control mapping |
 | [findings/PHASE1-FOLLOW-UPS.md](findings/PHASE1-FOLLOW-UPS.md) | current | Open follow-ups from Phase 1 |
 | [findings/EXTERNAL-REVIEW-2026-11-10.md](findings/EXTERNAL-REVIEW-2026-11-10.md) | reference | External review: what was reproduced from a clean clone, and three portability fixes |
