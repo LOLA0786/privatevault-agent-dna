@@ -545,6 +545,10 @@ def test_gate_does_not_depend_on_host_uid_matching_the_container_user():
     assert stat.S_IMODE((KIT / "entrypoint.sh").stat().st_mode) & 0o111
 
 
+@pytest.mark.skipif(
+    hasattr(os, "geteuid") and os.geteuid() == 0,
+    reason="root bypasses file modes; chmod 0 cannot produce the unreadable key",
+)
 def test_unreadable_key_file_error_is_actionable(tmp_path):
     """A key the gate user cannot read is a configuration error with
     guidance, not a bare PermissionError. Mode 0400, which the entrypoint

@@ -4,6 +4,7 @@ Unified Runtime Decision Engine.
 
 from __future__ import annotations
 
+import inspect
 import logging
 import os
 import uuid
@@ -109,6 +110,11 @@ class DecisionResult:
     # DecisionRecord.approval_ref ahead of grant_id. None otherwise.
     approval_artifact_digest: str | None = None
 
+    # Levels that fired in addition to triggered_by: the level under a
+    # customer-policy hold, or the level an ungranted BLOCK overrode. An
+    # approval may lift a hold only if every one of them is approvable.
+    also_fired: list[str] = field(default_factory=list)
+
     def to_dict(self):
 
         return {
@@ -205,6 +211,19 @@ class DecisionEngine:
         self.uaal = uaal
         self.economics = economics
         self.consensus = consensus
+        # Checkers written before votes were bound to the action take only
+        # ``evidence``; ConsensusChecker also takes the action under decision.
+        self._consensus_binds_action = False
+        if consensus is not None:
+            try:
+                names = set(inspect.signature(consensus.check).parameters)
+            except (TypeError, ValueError):
+                names = set()
+            self._consensus_binds_action = {
+                "agent_id",
+                "capability",
+                "arguments",
+            } <= names
         self.policy = policy
 
         self.evidence_engine = EvidenceEngine()
@@ -268,6 +287,17 @@ class DecisionEngine:
         # whether it blocks or requires approval -- the one
         # asymmetry in the precedence chain.
         #
+        # A policy BLOCK is final and returns here. A policy
+        # REQUIRE_APPROVAL is ADDITIVE: the levels below still run, and
+        # the verdict is the stricter of the two. It used to return
+        # first, so the levels under it never ran -- and because a policy
+        # hold is approvable, adding a rule like "large payments need
+        # sign-off" let an approval lift a hold that drift, economics or
+        # consensus would have made non-approvable, and skipped the
+        # secure profile's ungranted BLOCK. Adding a rule must never make
+        # an action easier to run.
+        #
+        policy_hold: DecisionResult | None = None
         if self.policy is not None:
             pol = self.policy.check(
                 agent_id=agent_id,
@@ -276,81 +306,97 @@ class DecisionEngine:
                 evidence=evidence,
             )
             if pol.fired:
-                pol_decision = (
-                    Decision.BLOCK
-                    if pol.outcome == "block"
-                    else Decision.REQUIRE_APPROVAL
-                )
-                return make(
-                    pol_decision,
-                    "policy",
-                    pol.reason,
-                    policy_id=getattr(pol, "matched_rule_id", None),
+                rule_id = getattr(pol, "matched_rule_id", None)
+                if pol.outcome == "block":
+                    return make(Decision.BLOCK, "policy", pol.reason, policy_id=rule_id)
+                policy_hold = make(
+                    Decision.REQUIRE_APPROVAL, "policy", pol.reason, policy_id=rule_id
                 )
 
-        #
-        # 1.5. Consensus — multi-agent quorum, when evidence is
-        # supplied. Evidence-gated: absent evidence means SKIPPED,
-        # never silently passed. Never BLOCKs; a quorum shortfall is
-        # a governance signal, not a proven security violation.
-        #
+        def below_policy() -> DecisionResult:
+            #
+            # 1.5. Consensus — multi-agent quorum. Evidence-gated: absent
+            # evidence means SKIPPED (or a hold where the operator requires
+            # a quorum), never silently passed. Never BLOCKs; a quorum shortfall is
+            # a governance signal, not a proven security violation.
+            #
 
-        if self.consensus is not None:
-            con = self.consensus.check(evidence=evidence)
-            if con.flagged:
-                return make(
-                    Decision.REQUIRE_APPROVAL,
-                    "consensus",
-                    con.reason,
-                )
+            if self.consensus is not None:
+                if self._consensus_binds_action:
+                    con = self.consensus.check(
+                        evidence=evidence,
+                        agent_id=agent_id,
+                        capability=capability,
+                        arguments=arguments,
+                    )
+                else:
+                    con = self.consensus.check(evidence=evidence)
+                if con.flagged:
+                    return make(
+                        Decision.REQUIRE_APPROVAL,
+                        "consensus",
+                        con.reason,
+                    )
 
-        #
-        # 2. Unauthorized capability.
-        #
+            #
+            # 2. Unauthorized capability.
+            #
 
-        if not authorized:
-            return make(
-                Decision.REQUIRE_APPROVAL,
-                "authorization",
-                (f"Capability '{capability}' is not covered by an approved grant."),
-            )
-
-        #
-        # 2.5. Economics — cost anomaly / ROI floor. Deterministic,
-        # never BLOCKs; ceiling is REQUIRE_APPROVAL, same as
-        # authorization and drift.
-        #
-
-        if self.economics is not None:
-            econ = self.economics.check(evidence=evidence)
-            if econ.flagged:
+            if not authorized:
                 return make(
                     Decision.REQUIRE_APPROVAL,
-                    "economics",
-                    "; ".join(econ.reasons),
+                    "authorization",
+                    (f"Capability '{capability}' is not covered by an approved grant."),
                 )
 
-        #
-        # 3. Learned behavioral drift.
-        #
+            #
+            # 2.5. Economics — cost anomaly / ROI floor. Deterministic,
+            # never BLOCKs; ceiling is REQUIRE_APPROVAL, same as
+            # authorization and drift.
+            #
 
-        if signal.drift_score >= self.drift_threshold:
+            if self.economics is not None:
+                econ = self.economics.check(evidence=evidence)
+                if econ.flagged:
+                    return make(
+                        Decision.REQUIRE_APPROVAL,
+                        "economics",
+                        "; ".join(econ.reasons),
+                    )
+
+            #
+            # 3. Learned behavioral drift.
+            #
+
+            if signal.drift_score >= self.drift_threshold:
+                return make(
+                    Decision.REQUIRE_APPROVAL,
+                    "drift",
+                    (f"Behavioral drift {signal.drift_score:.2f}")
+                    + self._drift_hint(capability),
+                )
+
+            #
+            # 4. Normal behavior.
+            #
+
             return make(
-                Decision.REQUIRE_APPROVAL,
-                "drift",
-                (f"Behavioral drift {signal.drift_score:.2f}")
-                + self._drift_hint(capability),
+                Decision.ALLOW,
+                "baseline",
+                "Behavior matches trusted profile.",
             )
 
-        #
-        # 4. Normal behavior.
-        #
-
-        return make(
-            Decision.ALLOW,
-            "baseline",
-            "Behavior matches trusted profile.",
-        )
+        lower = below_policy()
+        if policy_hold is None:
+            return lower
+        if lower.decision is Decision.ALLOW:
+            return policy_hold
+        # Both the rule and a level under it fired. The rule names the
+        # verdict; the lower level travels with it, so the record shows it
+        # and _apply_approval can refuse when it is not approvable.
+        policy_hold.also_fired = [lower.triggered_by]
+        policy_hold.reason += f"; also held by {lower.triggered_by}: {lower.reason}"
+        return policy_hold
 
     def decide(
         self,
@@ -417,9 +463,14 @@ class DecisionEngine:
 
         if result.decision is not Decision.REQUIRE_APPROVAL:
             return result
-        if result.triggered_by not in APPROVABLE_TRIGGERS:
+        blocking = [
+            trigger
+            for trigger in (result.triggered_by, *result.also_fired)
+            if trigger not in APPROVABLE_TRIGGERS
+        ]
+        if blocking:
             result.reason += (
-                f"; approval refused: {result.triggered_by} escalations "
+                f"; approval refused: {', '.join(blocking)} escalations "
                 "are not satisfiable by an approval"
             )
             return result
@@ -607,14 +658,23 @@ class DecisionEngine:
         )
         if auth_reason is not None and result.triggered_by == "authorization":
             result.reason = auth_reason
-            if (
-                result.decision is Decision.REQUIRE_APPROVAL
-                and auth_reason.startswith(NO_GRANT_PREFIX)
-                and ungranted_decision() == "block"
-            ):
-                # No grant at all is not a request to escalate: under the
-                # secure profile (or PV_UNGRANTED_DECISION=block) it is a
-                # hard refusal that no approval can turn into an ALLOW.
-                result.decision = Decision.BLOCK
-                result.severity = Severity.CRITICAL
+        if (
+            not authorized
+            and auth_reason is not None
+            and result.decision is Decision.REQUIRE_APPROVAL
+            and auth_reason.startswith(NO_GRANT_PREFIX)
+            and ungranted_decision() == "block"
+        ):
+            # No grant at all is not a request to escalate: under the
+            # secure profile (or PV_UNGRANTED_DECISION=block) it is a
+            # hard refusal that no approval can turn into an ALLOW. That
+            # holds whichever level named the hold: a customer-policy rule
+            # or a consensus shortfall firing above authorization used to
+            # return first and leave this an approvable REQUIRE_APPROVAL.
+            if result.triggered_by != "authorization":
+                result.also_fired = [result.triggered_by]
+                result.reason = f"{auth_reason}; also held by {result.triggered_by}"
+                result.triggered_by = "authorization"
+            result.decision = Decision.BLOCK
+            result.severity = Severity.CRITICAL
         return result

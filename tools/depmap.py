@@ -71,6 +71,7 @@ LAYERS: list[tuple[str, str, tuple[str, ...]]] = [
             "agent_dna.receiver.permit_header",
             "agent_dna.revocation_list",
             "agent_dna.export_manifest",
+            "agent_dna.checkpoint",
             "agent_dna.authorize_binding",
         ),
     ),

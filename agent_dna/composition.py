@@ -53,7 +53,7 @@ from .connector.adapters.execution_trust import (
     load_execution_trust_bundle,
 )
 from .connector.adapters.sidecar_transport import TlsHttpsSidecarTransport
-from .consensus import ConsensusChecker
+from .consensus import ConsensusChecker, ConsensusConfig
 from .decision import DecisionEngine
 from .decision_recorder import DecisionRecorder
 from .dynamics import BehaviorDynamics
@@ -109,6 +109,8 @@ class RuntimeConfig:
     database_timeout: float = 5.0  # PV_DATABASE_TIMEOUT: wait for a connection (s)
     keys_file: str | None = None
     policy_file: str | None = None  # customer YAML/JSON rules
+    # Operator-pinned quorum: voter roster, weights, threshold, required_for.
+    consensus_file: str | None = None
     opa_endpoint: str | None = None  # OPA adapter (policy_file wins)
     opa_policy_path: str = "agent/governance"
     opa_deadline: float = 1.0  # TOTAL budget, all retries
@@ -145,6 +147,7 @@ class RuntimeConfig:
             database_timeout=_env_float("PV_DATABASE_TIMEOUT") or 5.0,
             keys_file=os.getenv("PV_API_KEYS_FILE"),
             policy_file=os.getenv("PV_POLICY_FILE"),
+            consensus_file=os.getenv("PV_CONSENSUS_FILE") or None,
             opa_endpoint=os.getenv("PV_OPA_ENDPOINT"),
             opa_policy_path=os.getenv("PV_OPA_POLICY_PATH", "agent/governance"),
             opa_deadline=_env_float("PV_OPA_DEADLINE") or 1.0,
@@ -681,11 +684,13 @@ def build_production_runtime(
         "status": "attached",
         "detail": "evidence-gated; absent evidence skips, never passes",
     }
-    consensus = ConsensusChecker()
-    comp["consensus"] = {
-        "status": "attached",
-        "detail": "pv-vote/1 evidence-gated quorum; ceiling REQUIRE_APPROVAL",
-    }
+    # The roster, weights and threshold are the operator's (PV_CONSENSUS_FILE).
+    # An unreadable or invalid file refuses startup: a quorum that silently
+    # fell back to "unconfigured" would hold every vote instead of counting it.
+    consensus = ConsensusChecker(
+        ConsensusConfig.from_file(cfg.consensus_file) if cfg.consensus_file else None
+    )
+    comp["consensus"] = consensus.describe()
     economics = CostAnomalyChecker()
     comp["economics"] = {
         "status": "attached",

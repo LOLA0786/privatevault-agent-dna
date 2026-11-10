@@ -310,6 +310,11 @@
    "top"
   ],
   [
+   "agent_dna.checkpoint",
+   "agent_dna.signer",
+   "lazy"
+  ],
+  [
    "agent_dna.circuit_breaker",
    "agent_dna.amount",
    "top"
@@ -796,7 +801,7 @@
   ],
   [
    "agent_dna.consensus.checker",
-   "agent_dna.consensus.secure_quorum",
+   "agent_dna.consensus.signing",
    "top"
   ],
   [
@@ -2341,6 +2346,11 @@
   ],
   [
    "api.server",
+   "agent_dna.checkpoint",
+   "lazy"
+  ],
+  [
+   "api.server",
    "agent_dna.composition",
    "top"
   ],
@@ -2677,6 +2687,11 @@
   [
    "examples.executive_acceptance_demo",
    "agent_dna.apikeys",
+   "top"
+  ],
+  [
+   "examples.executive_acceptance_demo",
+   "agent_dna.checkpoint",
    "top"
   ],
   [
@@ -3398,6 +3413,7 @@
   "agent_dna.authorization": 3,
   "agent_dna.authorize_binding": 7,
   "agent_dna.change_management": 1,
+  "agent_dna.checkpoint": 2,
   "agent_dna.circuit_breaker": 4,
   "agent_dna.closure_v01": 3,
   "agent_dna.composition": 6,
@@ -3413,8 +3429,8 @@
   "agent_dna.consensus": 2,
   "agent_dna.consensus.byzantine": 1,
   "agent_dna.consensus.checker": 1,
-  "agent_dna.consensus.secure_quorum": 3,
-  "agent_dna.consensus.signing": 6,
+  "agent_dna.consensus.secure_quorum": 2,
+  "agent_dna.consensus.signing": 7,
   "agent_dna.consensus.weighted_quorum": 1,
   "agent_dna.control_posture": 5,
   "agent_dna.decision": 27,
@@ -3519,7 +3535,7 @@
   "agent_dna.security": 1,
   "agent_dna.security.loop_discovery": 4,
   "agent_dna.shell_guard": 2,
-  "agent_dna.signer": 7,
+  "agent_dna.signer": 8,
   "agent_dna.signer_bridge": 1,
   "agent_dna.signer_python": 5,
   "agent_dna.similarity": 3,
@@ -3574,6 +3590,7 @@
   "agent_dna.authorize_binding": 5,
   "agent_dna.backup": 4,
   "agent_dna.change_management": 1,
+  "agent_dna.checkpoint": 1,
   "agent_dna.circuit_breaker": 4,
   "agent_dna.cli": 13,
   "agent_dna.closure_v01": 4,
@@ -3691,7 +3708,7 @@
   "agent_dna.validation.drift": 1,
   "agent_dna.validation.report": 2,
   "agent_dna.wire_serialization_v01": 1,
-  "api.server": 30,
+  "api.server": 31,
   "examples.amlsim.run_amlsim_sample": 6,
   "examples.authority_blast_radius_demo": 1,
   "examples.authority_derivation_demo": 1,
@@ -3706,7 +3723,7 @@
   "examples.diff_demo": 2,
   "examples.end_to_end_demo": 4,
   "examples.enterprise_payment_closure_demo": 4,
-  "examples.executive_acceptance_demo": 12,
+  "examples.executive_acceptance_demo": 13,
   "examples.fingerprint_demo": 2,
   "examples.governance_market_entry_demo": 2,
   "examples.invariant_demo": 1,
@@ -3876,6 +3893,10 @@
   "agent_dna.change_management": {
    "group": "agent_dna (core modules)",
    "path": "agent_dna/change_management.py"
+  },
+  "agent_dna.checkpoint": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/checkpoint.py"
   },
   "agent_dna.circuit_breaker": {
    "group": "agent_dna (core modules)",

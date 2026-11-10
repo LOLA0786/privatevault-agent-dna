@@ -38,7 +38,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 2560+ automated tests, run in CI on every commit
+- 2630+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
@@ -289,13 +289,37 @@ first phase of our pilot process, not an afterthought.
 
 ## Multi-agent capability
 
-**Multi-agent consensus (signed, trust-weighted quorum voting) is
-wired into the live precedence order** as an evidence-gated level:
-absent vote evidence, the check is skipped, never silently passed; a
-quorum shortfall escalates to REQUIRE_APPROVAL, it can never
-independently BLOCK. Forged and unsigned votes are proven to
-contribute zero weight (`tests/test_secure_quorum.py`,
-`tests/test_consensus_checker.py`).
+**Multi-agent consensus (signed, weighted quorum voting) is wired into
+the live precedence order.** What a passing quorum proves, and what it
+does not:
+
+- The voter roster, each voter's weight and Ed25519 public key, and the
+  threshold are pinned by the operator in `PV_CONSENSUS_FILE`. The caller
+  supplies votes only; a `threshold` or `trust_scores` field in the request
+  is refused. Until 2026-11 those values arrived with the votes, so the
+  submitter chose its own quorum rules.
+- Every vote is signed for one exact action: the service recomputes the
+  action id from the agent, capability and arguments under decision. Votes
+  for another action, or for the same action with a changed argument, count
+  zero.
+- The threshold must exceed half the roster's total weight unless the
+  operator opts out, so votes the submitter withholds cannot change the
+  outcome.
+- Absent vote evidence is skipped, never passed, unless the capability is
+  listed in `required_for`, where it is a hold. A shortfall escalates to
+  REQUIRE_APPROVAL; consensus never BLOCKs on its own.
+- **Without `PV_CONSENSUS_FILE` no vote can be verified.** Supplied vote
+  evidence is then held, and consensus adds no approval path. The
+  composition manifest (`GET /v1/runtime`) says which state a deployment
+  is in.
+- Single-use tracking of a cleared quorum is per process. With several API
+  replicas, the same votes can clear once per replica inside the vote TTL
+  (300 s by default, 1 h at most). A durable nonce ledger is not shipped.
+- Voters are keys. Nothing here shows that the reviewers behind them are
+  independent of each other or of the acting agent.
+
+Tests: `tests/test_consensus_checker.py`,
+`tests/test_api_completeness_and_quorum.py`, `tests/test_secure_quorum.py`.
 
 **Cross-agent invariants (topology, temporal-ordering, authority)
 are now wired into the live connector enforcement path** as an
@@ -948,6 +972,32 @@ verifies correctly. Defending against this requires HSM- or TEE-backed signing
 with attestation, which is roadmap, not shipped. "Verifiable without trusting
 the operator" is therefore too strong: the correct claim is "verifiable
 without trusting the operator's later handling of the evidence."
+
+## Completeness of an export needs a checkpoint someone else holds
+
+The hash chains and signatures show that the records in an export are
+genuine and that none was removed from the middle of an agent's chain. They
+do not show that the export is complete. Removing the last records of a
+chain, every record of an agent, or a single execution event (including the
+one that reports a BLOCK executed anyway) leaves a file that passes chain
+and signature verification.
+
+`GET /v1/audit/checkpoint` returns a signed commitment to the whole log.
+`verify_records.py --checkpoint` fails any export that does not extend it
+(`tests/test_checkpoint_completeness.py`). Limits:
+
+- A checkpoint protects records that existed when it was taken. Records
+  written and removed between two checkpoints are not covered, so the
+  interval between fetches is the exposure.
+- It must be kept by a party who cannot rewrite it. A checkpoint fetched
+  from the operator together with the export proves only that the two
+  agree. No transparency log or external anchoring is shipped; scheduling
+  the fetch into customer-held storage is the deployment's job.
+- The log head depends on export order. Both stores export in insertion
+  order (`ORDER BY seq`); a store migration that renumbers rows would make
+  old checkpoints unverifiable.
+- Without `--checkpoint` the verifier prints `completeness : NOT VERIFIED`
+  and still returns PASS for a consistent file.
 
 ## Role-based influence control is not on the /v1/decide path
 

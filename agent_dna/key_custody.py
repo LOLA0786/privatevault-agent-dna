@@ -205,7 +205,9 @@ class GcpKmsSigner:
             )
         if client is None:
             try:
-                from google.cloud import kms  # type: ignore[import-not-found]
+                from google.cloud import (  # type: ignore[import-not-found,import-untyped,unused-ignore]
+                    kms,
+                )
             except ImportError as exc:
                 raise SignerError(
                     "gcpkms: keys need google-cloud-kms: "

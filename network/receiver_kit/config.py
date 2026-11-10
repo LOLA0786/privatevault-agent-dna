@@ -495,7 +495,7 @@ def settings_from_env(env: Mapping[str, str] | None = None) -> GateSettings:
     # Fail at configuration time, not at the first request: a pinned bundle
     # file that cannot be loaded or disagrees with the issuer values refuses
     # to start the gate.
-    settings.trust_bundle
+    _ = settings.trust_bundle
     return settings
 
 

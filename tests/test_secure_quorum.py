@@ -197,3 +197,18 @@ def test_malformed_vote_is_zero_weight_not_crash():
     assert not q.submit("x", {"agent_id": "h1"})  # missing everything
     assert not q.submit("x", {})  # empty
     assert not q.check_quorum("x")
+
+
+def test_vote_payload_has_one_reading():
+    """The pv-vote/1 payload was "|".join(fields), unescaped: a REJECT on
+    action id ``x|bob|APPROVE|h`` signed the same bytes as an APPROVE on
+    action ``x``. The payload is now a JSON array, so the two differ."""
+    from agent_dna.consensus.signing import vote_payload
+
+    reject_on_crafted_id = vote_payload(
+        "wire-9M|fraud|APPROVE|h", "fraud", "REJECT", "m", "n", 1.0, 2.0
+    )
+    approve_on_real_id = vote_payload(
+        "wire-9M", "fraud", "APPROVE", "h|fraud|REJECT|m", "n", 1.0, 2.0
+    )
+    assert reject_on_crafted_id != approve_on_real_id

@@ -20,13 +20,31 @@ import sys
 
 from agent_dna import AgentAction, DecisionEngine
 from agent_dna.composition import _train_scorer
-from agent_dna.consensus.checker import ConsensusChecker
-from agent_dna.consensus.signing import register_key, sign_message
+from agent_dna.consensus.checker import ConsensusChecker, ConsensusConfig
+from agent_dna.consensus.signing import (
+    cast_vote_v2,
+    consensus_action_id,
+    generate_voter_keypair,
+)
 from agent_dna.grants import GrantRegistry
 from agent_dna.observability.logger import get_logger
 from agent_dna.observability.metrics import MetricsExporter
 
 logger = get_logger("pv_coding_demo")
+
+# The operator pins the reviewers, their weights and the threshold.
+VOTER_KEYS = {
+    name: generate_voter_keypair() for name in ("security-agent", "finance-agent")
+}
+QUORUM = ConsensusConfig.from_dict(
+    {
+        "threshold": 2.0,
+        "voters": [
+            {"agent_id": name, "weight": 1.0, "public_key": keys["public_key"]}
+            for name, keys in VOTER_KEYS.items()
+        ],
+    }
+)
 
 # The coding agent's declared normal behaviour. Without this, an agent
 # with no history scores maximum drift on every action and the engine
@@ -68,15 +86,23 @@ def build_engine():
         scorer=_train_scorer(BASELINE),
         invariants=BulkExportInvariant(),
         authorizer=grants,
-        consensus=ConsensusChecker(),
+        consensus=ConsensusChecker(QUORUM),
         drift_threshold=0.8,
     )
 
 
 def demo():
-    register_key("security-agent", "secret-sec")
-    register_key("finance-agent", "secret-fin")
-    register_key("code-agent-01", "secret-code")
+    # Votes are signed for one exact action: agent, capability, arguments.
+    deploy_id = consensus_action_id("code-agent-01", "deploy.production", None)
+    deploy_votes = [
+        cast_vote_v2(
+            VOTER_KEYS[name]["signing_key"],
+            agent_id=name,
+            action_id=deploy_id,
+            vote=vote,
+        )
+        for name, vote in (("security-agent", "APPROVE"), ("finance-agent", "REJECT"))
+    ]
 
     metrics = MetricsExporter()
     engine = build_engine()
@@ -90,31 +116,7 @@ def demo():
                 "code-agent-01",
                 "deploy.production",
                 3.0,
-                evidence={
-                    "consensus": {
-                        "action_id": "deploy-prod-001",
-                        "votes": [
-                            {
-                                "agent_id": "security-agent",
-                                "vote": "APPROVE",
-                                "signature": sign_message(
-                                    "security-agent", "hash-deploy"
-                                ),
-                                "message_hash": "hash-deploy",
-                            },
-                            {
-                                "agent_id": "finance-agent",
-                                "vote": "REJECT",
-                                "signature": sign_message(
-                                    "finance-agent", "hash-deploy"
-                                ),
-                                "message_hash": "hash-deploy",
-                            },
-                        ],
-                        "threshold": 0.67,
-                        "trust_scores": {"security-agent": 1.0, "finance-agent": 0.9},
-                    }
-                },
+                evidence={"consensus": {"action_id": deploy_id, "votes": deploy_votes}},
             ),
         ),
         (

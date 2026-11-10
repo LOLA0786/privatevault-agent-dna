@@ -1,0 +1,21 @@
+{
+  "threshold": 2.0,
+  "required_for": ["payments.", "deploy.production"],
+  "voters": [
+    {
+      "agent_id": "fraud-agent",
+      "weight": 1.0,
+      "public_key": "0000000000000000000000000000000000000000000000000000000000000001"
+    },
+    {
+      "agent_id": "finance-agent",
+      "weight": 1.0,
+      "public_key": "0000000000000000000000000000000000000000000000000000000000000002"
+    },
+    {
+      "agent_id": "legal-agent",
+      "weight": 1.0,
+      "public_key": "0000000000000000000000000000000000000000000000000000000000000003"
+    }
+  ]
+}
