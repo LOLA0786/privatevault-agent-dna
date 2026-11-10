@@ -14,7 +14,7 @@ flowchart BT
   L1["L1 Contracts and primitives<br/>22 modules"]
   L2["L2 Evidence: records, permits, signatures<br/>15 modules"]
   L3["L3 Ledgers: SQLite and PostgreSQL<br/>13 modules"]
-  L4["L4 Decision engine: the precedence ladder and what it consults<br/>78 modules"]
+  L4["L4 Decision engine: the precedence ladder and what it consults<br/>80 modules"]
   L5["L5 Enforcement runtime: monitor, breaker, recorder, gates, sidecar<br/>33 modules"]
   L6["L6 Composition and entry points<br/>22 modules"]
   L2 -->|23| L1
@@ -30,7 +30,7 @@ flowchart BT
   L6 -->|28| L1
   L6 -->|10| L2
   L6 -->|16| L3
-  L6 -->|50| L4
+  L6 -->|51| L4
   L6 -->|29| L5
   L2 -.->|1 upward| L4
   L3 -.->|4 upward| L4
@@ -51,7 +51,7 @@ flowchart BT
 | `agent_dna.audit_connector.server` | PrivateVault Audit: a read-only remote MCP server for risk and audit teams | `agent_dna.audit_connector.client`, `agent_dna.audit_connector.oauth` | 2: `agent_dna.audit_connector`, `agent_dna.audit_connector.__main__` |
 | `agent_dna.backup` | Backups of the PrivateVault ledgers, and restores that prove themselves | `agent_dna.authority_v01`, `agent_dna.key_custody`, `agent_dna.pg_store`, `agent_dna.sqlite_store` | none |
 | `agent_dna.cli` | pv — PrivateVault command line | `agent_dna.authority_v01`, `agent_dna.discovery`, `agent_dna.grant_revocation`, `agent_dna.pg_store`, `agent_dna.policy_gate`, `agent_dna.policy_miner`, `agent_dna.policy_replay`, `agent_dna.quickstart`, `agent_dna.quickstart.approvals`, `agent_dna.quickstart.sandbox`, `agent_dna.quickstart.wrap`, `agent_dna.security.loop_discovery`, `agent_dna.sqlite_store` | none |
-| `agent_dna.composition` | Production composition root (audit Commit set 3) | `agent_dna.adapters`, `agent_dna.adapters_policy.opa`, `agent_dna.apikeys`, `agent_dna.approval_bridge`, `agent_dna.approval_policy`, `agent_dna.authority_v01`, `agent_dna.circuit_breaker`, `agent_dna.connector`, `agent_dna.connector.adapters.exact_byte_http`, `agent_dna.connector.adapters.execution_trust`, `agent_dna.connector.adapters.sidecar_transport`, `agent_dna.connector.cross_agent`, `agent_dna.consensus`, `agent_dna.decision`, `agent_dna.decision_recorder`, `agent_dna.dynamics`, `agent_dna.economics`, `agent_dna.grant_revocation`, `agent_dna.grant_spend`, `agent_dna.grants`, `agent_dna.key_custody`, `agent_dna.manifold`, `agent_dna.multi_agent_security.nonce_ledger`, `agent_dna.open_authorizer`, `agent_dna.pg_compat`, `agent_dna.pg_shared_state`, `agent_dna.pg_store`, `agent_dna.policy.checker`, `agent_dna.policy.loader`, `agent_dna.policy_replay`, `agent_dna.runtime`, `agent_dna.scorer`, `agent_dna.signer_python`, `agent_dna.sqlite_store`, `agent_dna.trace`, `agent_dna.uaal_layer` | 4: `agent_dna.gateway.__main__`, `agent_dna.gateway.runtime`, `agent_dna.quickstart.wrap`, `api.server` |
+| `agent_dna.composition` | Production composition root (audit Commit set 3) | `agent_dna.adapters`, `agent_dna.adapters_policy.opa`, `agent_dna.apikeys`, `agent_dna.approval_bridge`, `agent_dna.approval_policy`, `agent_dna.authority_v01`, `agent_dna.circuit_breaker`, `agent_dna.connector`, `agent_dna.connector.adapters.exact_byte_http`, `agent_dna.connector.adapters.execution_trust`, `agent_dna.connector.adapters.sidecar_transport`, `agent_dna.connector.cross_agent`, `agent_dna.consensus`, `agent_dna.decision`, `agent_dna.decision_recorder`, `agent_dna.dynamics`, `agent_dna.economics`, `agent_dna.grant_revocation`, `agent_dna.grant_spend`, `agent_dna.grants`, `agent_dna.key_custody`, `agent_dna.manifold`, `agent_dna.multi_agent_security.gate`, `agent_dna.multi_agent_security.nonce_ledger`, `agent_dna.open_authorizer`, `agent_dna.pg_compat`, `agent_dna.pg_shared_state`, `agent_dna.pg_store`, `agent_dna.policy.checker`, `agent_dna.policy.loader`, `agent_dna.policy_replay`, `agent_dna.runtime`, `agent_dna.scorer`, `agent_dna.signer_python`, `agent_dna.sqlite_store`, `agent_dna.trace`, `agent_dna.uaal_layer` | 4: `agent_dna.gateway.__main__`, `agent_dna.gateway.runtime`, `agent_dna.quickstart.wrap`, `api.server` |
 | `agent_dna.discovery` | Offline, low-compute discovery loop for PrivateVault controls | `agent_dna.policy.checker`, `agent_dna.policy.schema`, `agent_dna.policy_gate`, `agent_dna.policy_miner`, `agent_dna.security.loop_discovery`, `agent_dna.validation.metrics` | 2: `agent_dna`, `agent_dna.cli` |
 | `agent_dna.gateway.__main__` | Out-of-process MCP / HTTPS-egress gateway | `agent_dna.composition`, `agent_dna.gateway.credentials`, `agent_dna.gateway.errors`, `agent_dna.gateway.framing`, `agent_dna.gateway.http_sse_proxy`, `agent_dna.gateway.https_egress`, `agent_dna.gateway.runtime`, `agent_dna.gateway.stdio_proxy` | none |
 | `agent_dna.key_lifecycle` | Key rotation as a governed action | `agent_dna.decision`, `agent_dna.signer`, `agent_dna.trace` | none |
@@ -156,11 +156,13 @@ flowchart BT
 | `agent_dna.multi_agent.topology` | Topology invariant: *which agent is allowed to talk to which agent* | `agent_dna.multi_agent.base`, `agent_dna.multi_agent.interaction_graph` | 2: `agent_dna.multi_agent`, `agent_dna.multi_agent.runtime_validator` |
 | `agent_dna.multi_agent.trust` | Trust-score invariants for directed agent interactions | `agent_dna.multi_agent.base`, `agent_dna.multi_agent.interaction_graph` | 2: `agent_dna.multi_agent`, `agent_dna.multi_agent.runtime_validator` |
 | `agent_dna.multi_agent.world_state` | World-State Behavioral Invariant | `agent_dna.multi_agent.base`, `agent_dna.multi_agent.interaction_graph` | 2: `agent_dna.multi_agent`, `agent_dna.multi_agent.runtime_validator` |
-| `agent_dna.multi_agent_security` | Multi-Agent Security Layer -- trust between agents | `agent_dna.multi_agent_security.counterparty`, `agent_dna.multi_agent_security.delegation`, `agent_dna.multi_agent_security.independence`, `agent_dna.multi_agent_security.nonce_ledger` | none |
+| `agent_dna.multi_agent_security` | Multi-Agent Security Layer -- trust between agents | `agent_dna.multi_agent_security.counterparty`, `agent_dna.multi_agent_security.delegation`, `agent_dna.multi_agent_security.gate`, `agent_dna.multi_agent_security.independence`, `agent_dna.multi_agent_security.nonce_ledger`, `agent_dna.multi_agent_security.possession` | none |
 | `agent_dna.multi_agent_security.counterparty` | Mutual checkpoints: each party holds the other's history commitment | `agent_dna.checkpoint` | 1: `agent_dna.multi_agent_security` |
-| `agent_dna.multi_agent_security.delegation` | Delegation that can only shrink (pv-delegation/1) | nothing in the core | 1: `agent_dna.multi_agent_security` |
+| `agent_dna.multi_agent_security.delegation` | Delegation that can only shrink (pv-delegation/1) | `agent_dna.multi_agent_security.possession` | 2: `agent_dna.multi_agent_security`, `agent_dna.multi_agent_security.gate` |
+| `agent_dna.multi_agent_security.gate` | DelegationGate -- delegation enforced on the live decision path | `agent_dna.multi_agent_security.delegation`, `agent_dna.multi_agent_security.nonce_ledger` | 2: `agent_dna.composition`, `agent_dna.multi_agent_security` |
 | `agent_dna.multi_agent_security.independence` | Voter independence | nothing in the core | 2: `agent_dna.consensus.checker`, `agent_dna.multi_agent_security` |
-| `agent_dna.multi_agent_security.nonce_ledger` | Single-use ledger for cleared quorums | nothing in the core | 3: `agent_dna.composition`, `agent_dna.consensus.checker`, `agent_dna.multi_agent_security` |
+| `agent_dna.multi_agent_security.nonce_ledger` | Single-use ledger for cleared quorums | nothing in the core | 4: `agent_dna.composition`, `agent_dna.consensus.checker`, `agent_dna.multi_agent_security`, `agent_dna.multi_agent_security.gate` |
+| `agent_dna.multi_agent_security.possession` | Receiver-issued, single-use proof of the final delegate's signing key | nothing in the core | 2: `agent_dna.multi_agent_security`, `agent_dna.multi_agent_security.delegation` |
 | `agent_dna.open_authorizer` | Development-only open authorizer — operator-configured, never caller-toggled | nothing in the core | 2: `agent_dna.composition`, `agent_dna.scan.replay` |
 | `agent_dna.operation_registry` | Which operations a capability may perform (ADR 0025) | `agent_dna.advisory`, `agent_dna.decision` | 1: `api.server` |
 | `agent_dna.permit_evidence` | The evidence a permit cites is the server's, not the caller's (ADR 0026) | `agent_dna.control_posture` | 1: `api.server` |

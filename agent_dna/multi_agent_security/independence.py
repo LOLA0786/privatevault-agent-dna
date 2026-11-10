@@ -17,6 +17,9 @@ and at least two operators. A voter with no declared value for an attribute
 contributes nothing toward it, so an undeclared roster cannot satisfy a rule
 by omission.
 
+Labels are normalized when the roster is loaded (``normalize_label``), so
+spelling variants of one provider cannot be counted as several.
+
 Limit: these are the operator's declarations. Nothing here measures whether
 two differently-labelled voters are in fact independent, or whether a voter
 runs the model its roster entry says.
@@ -27,6 +30,22 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 
 ATTRIBUTES = ("model", "provider", "operator")
+
+
+def normalize_label(value: str) -> str:
+    """One spelling per label, or a ValueError.
+
+    "Acme", "acme " and "ACME" are one provider. Compatibility forms are
+    folded (NFKC), case is folded and whitespace is collapsed. A label that
+    is still not plain printable ASCII is refused: a Cyrillic "а" in "аcme"
+    renders like "acme" and would otherwise count as a second provider.
+    """
+    import unicodedata
+
+    folded = " ".join(unicodedata.normalize("NFKC", value).casefold().split())
+    if not folded or not folded.isascii() or not folded.isprintable():
+        raise ValueError(f"label {value!r} must be printable ASCII after normalization")
+    return folded
 
 
 def independence_shortfall(

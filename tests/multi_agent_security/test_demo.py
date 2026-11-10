@@ -12,5 +12,5 @@ def test_demo_refuses_every_attack():
         check=False,
     )
     assert done.returncode == 0, done.stdout + done.stderr
-    assert "RESULT: 8 of 8 scenarios went the right way" in done.stdout
+    assert "RESULT: 14 of 14 scenarios went the right way" in done.stdout
     assert "[FAIL]" not in done.stdout

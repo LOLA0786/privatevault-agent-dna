@@ -69,8 +69,16 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from ..multi_agent_security.independence import ATTRIBUTES, independence_shortfall
-from ..multi_agent_security.nonce_ledger import MemoryNonceLedger, NonceLedger
+from ..multi_agent_security.independence import (
+    ATTRIBUTES,
+    independence_shortfall,
+    normalize_label,
+)
+from ..multi_agent_security.nonce_ledger import (
+    LedgerUnavailable,
+    MemoryNonceLedger,
+    NonceLedger,
+)
 from .signing import (
     APPROVE,
     REJECT,
@@ -159,7 +167,12 @@ class ConsensusConfig:
                     raise ConsensusConfigError(
                         f"voter {agent_id!r}: {name} must be a non-empty string"
                     )
-                attributes[name] = value
+                try:
+                    attributes[name] = normalize_label(value)
+                except ValueError as exc:
+                    raise ConsensusConfigError(
+                        f"voter {agent_id!r}: {name}: {exc}"
+                    ) from exc
             extra = set(entry) - {"agent_id", "public_key", "weight", *ATTRIBUTES}
             if extra:
                 raise ConsensusConfigError(
@@ -277,6 +290,11 @@ class ConsensusChecker:
 
     # ------------------------------------------------------------------
 
+    def use_ledger(self, ledger: NonceLedger) -> None:
+        """Attach the shared single-use ledger once the runtime has one."""
+        self._ledger = ledger
+        self._ledger_shared = True
+
     def describe(self) -> dict[str, str]:
         """Composition-manifest entry: what this level can and cannot do."""
         if self.config is None:
@@ -365,6 +383,23 @@ class ConsensusChecker:
         if not isinstance(votes, list):
             return self._flag("consensus_malformed: votes must be a list")
 
+        try:
+            return self._count(cfg, votes, expected)
+        except LedgerUnavailable as exc:
+            # A quorum that cannot be recorded as spent must not clear.
+            return self._flag(
+                f"consensus_ledger_unavailable: {exc}; no quorum can clear until "
+                "the single-use ledger is writable (quorum_shortfall)"
+            )
+
+    def health(self) -> str | None:
+        """None when a quorum could be recorded now, else why not."""
+        probe = getattr(self._ledger, "health", None)
+        return probe() if callable(probe) else None
+
+    def _count(
+        self, cfg: ConsensusConfig, votes: list[Any], expected: str
+    ) -> ConsensusResult:
         now = self._clock()
         counted: dict[str, dict[str, Any]] = {}
         nonces: set[str] = set()

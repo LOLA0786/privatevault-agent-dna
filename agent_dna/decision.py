@@ -192,6 +192,7 @@ class DecisionEngine:
         uaal=None,  # optional UAALConstraintChecker (L0)
         economics=None,  # optional CostAnomalyChecker
         consensus=None,  # optional ConsensusChecker
+        delegation=None,  # optional multi_agent_security.DelegationGate
         policy=None,  # optional PolicyChecker (customer YAML/JSON rules)
         approvals=None,  # optional ApprovalBridge (ADR 0020)
     ):
@@ -211,6 +212,9 @@ class DecisionEngine:
         self.uaal = uaal
         self.economics = economics
         self.consensus = consensus
+        # Restricts authorization only: a chain never grants what the
+        # agent's own grant does not.
+        self.delegation = delegation
         # Checkers written before votes were bound to the action take only
         # ``evidence``; ConsensusChecker also takes the action under decision.
         self._consensus_binds_action = False
@@ -648,6 +652,32 @@ class DecisionEngine:
         merged_evidence = dict(action.evidence or {})
         if evidence is not None:
             merged_evidence.update(evidence)
+
+        # Delegation (multi-agent security layer). Part of the authorization
+        # level: it can only take authorization away. A refusal is a hold
+        # that no approval lifts ("delegation" travels in also_fired).
+        delegation = None
+        if self.delegation is not None:
+            delegated_amount: float | None = None
+            raw_delegated = (action.arguments or {}).get("amount")
+            if raw_delegated is not None:
+                try:
+                    delegated_amount = float(coerce_amount(raw_delegated))
+                except InvalidAmountError:
+                    delegated_amount = float("nan")  # refused by the gate
+            delegation = self.delegation.check(
+                agent_id=action.agent_id,
+                capability=action.capability,
+                arguments=action.arguments,
+                amount=delegated_amount,
+                evidence=merged_evidence,
+            )
+            if delegation.refused:
+                if authorized or auth_reason is None:
+                    auth_reason = delegation.reason
+                authorized = False
+                grant_id = None
+
         result = self.decide_from(
             signal=signal,
             invariant=invariant,
@@ -658,6 +688,15 @@ class DecisionEngine:
         )
         if auth_reason is not None and result.triggered_by == "authorization":
             result.reason = auth_reason
+        if delegation is not None and delegation.checked:
+            if delegation.refused:
+                if "delegation" not in result.also_fired:
+                    result.also_fired.append("delegation")
+                if delegation.reason not in result.reason:
+                    result.reason += f"; also held by delegation: {delegation.reason}"
+            elif result.decision is Decision.ALLOW:
+                # Sealed into the signed record: which chain this ran under.
+                result.reason += f"; {delegation.reason}"
         if (
             not authorized
             and auth_reason is not None

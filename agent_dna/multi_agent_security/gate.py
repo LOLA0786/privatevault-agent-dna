@@ -1,0 +1,419 @@
+"""
+DelegationGate -- delegation enforced on the live decision path.
+
+``delegation.py`` is a library a receiving service calls. This gate puts the
+same rules inside ``/v1/decide``, so an agent acting on handed-down
+authority is checked on every call by the runtime, not by whichever caller
+remembered to.
+
+What the operator pins (``PV_DELEGATION_FILE``):
+
+    {
+      "audience": "pv-prod-eu",
+      "roots":  {"operator": "<ed25519 public key>"},
+      "agents": {"planner": "<key>", "payer": "<key>"},
+      "revoked": ["<link hash>"],
+      "revoked_agents": ["old-agent"],
+      "required_for": ["payments."],
+      "required_agents": ["payer"]
+    }
+
+What the caller supplies, in ``evidence["delegation"]``:
+
+    {"chain": [...links...], "presentation": {...}}
+
+The gate only ever RESTRICTS. A valid chain grants nothing the agent's own
+grant does not: the grant check still runs, and the action must be inside
+both. Without the chain, an agent listed in ``required_agents`` (or acting
+on a capability in ``required_for``) is refused, so a sub-agent cannot fall
+back on a standing grant to do what its delegator never handed it.
+
+Holder binding. A chain is a document; anyone who copies it holds the same
+bytes. So the caller also sends a PRESENTATION signed with the final
+delegate's own key, over this chain, this exact action (agent, capability
+and arguments, hashed by the service), this deployment's ``audience`` and a
+lifetime of at most ``MAX_PRESENTATION_TTL`` seconds. Each presentation is
+spent once in the shared single-use ledger. A copied chain without the key
+is refused; a captured presentation is good for one action, the one it was
+signed for, on one deployment, and has already been used.
+
+This differs from ``possession.DelegationChallenges`` on purpose. That one
+is a receiver-issued challenge held in one process's memory, right for a
+service that talks to the agent directly. ``/v1/decide`` is one call that
+may land on any replica, so the proof here is self-contained and its
+single use is recorded in the ledger every replica shares.
+
+A refusal is a hold that no approval can lift: the result names
+``delegation`` among the levels that fired.
+
+Limits:
+    * A presentation's freshness rests on clocks (TTL plus 30 s skew); its
+      single use rests on the ledger. With the in-memory ledger that is per
+      process.
+    * ``max_amount`` is per action; cumulative spend is the grant ledger's.
+    * The signing key must live in a broker the model cannot read. A model
+      that can sign presentations can present.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import secrets
+import time
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+from .delegation import (
+    CLOCK_SKEW_SECONDS,
+    TrustAnchors,
+    _is_hex,
+    _number,
+    covers,
+    within_scope,
+)
+from .nonce_ledger import MemoryNonceLedger, NonceLedger
+
+PRESENTATION_SPEC = "pv-delegation-presentation/1"
+MAX_PRESENTATION_TTL = 120.0
+_TAG = b"pv-delegation-presentation/1:"
+_PRESENTATION_FIELDS = frozenset(
+    {
+        "spec",
+        "audience",
+        "chain_hash",
+        "action_id",
+        "nonce",
+        "issued_at",
+        "expires_at",
+        "signature",
+    }
+)
+_CONFIG_FIELDS = frozenset(
+    {
+        "audience",
+        "roots",
+        "agents",
+        "revoked",
+        "revoked_agents",
+        "required_for",
+        "required_agents",
+    }
+)
+
+
+class DelegationConfigError(ValueError):
+    """The pinned delegation configuration is unusable. Startup must refuse."""
+
+
+def delegated_action_id(
+    agent_id: str, capability: str, arguments: Mapping[str, Any] | None
+) -> str:
+    """What a presentation is signed for: one exact action.
+
+    Change the payee or the amount and the presentation no longer verifies.
+    """
+    canonical = json.dumps(
+        {"agent_id": agent_id, "arguments": arguments or {}, "capability": capability},
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+        allow_nan=False,
+    )
+    return "sha256:" + hashlib.sha256(canonical.encode()).hexdigest()
+
+
+def _presentation_bytes(presentation: Mapping[str, Any]) -> bytes:
+    body = {k: v for k, v in presentation.items() if k != "signature"}
+    return (
+        _TAG
+        + json.dumps(
+            body, sort_keys=True, separators=(",", ":"), allow_nan=False
+        ).encode()
+    )
+
+
+def sign_presentation(
+    signing_key_hex: str,
+    *,
+    audience: str,
+    chain_hash: str,
+    action_id: str,
+    ttl: float = 60.0,
+    now: float | None = None,
+) -> dict[str, Any]:
+    """Sign one presentation with the final delegate's key.
+
+    Runs in the agent's credential broker, after the broker has checked
+    that ``action_id`` is the action it means to take. Never in the model.
+    """
+    from nacl.encoding import HexEncoder
+    from nacl.signing import SigningKey
+
+    issued_at = time.time() if now is None else float(now)
+    presentation: dict[str, Any] = {
+        "spec": PRESENTATION_SPEC,
+        "audience": audience,
+        "chain_hash": chain_hash,
+        "action_id": action_id,
+        "nonce": secrets.token_hex(32),
+        "issued_at": issued_at,
+        "expires_at": issued_at + float(ttl),
+    }
+    key = SigningKey(signing_key_hex.encode(), encoder=HexEncoder)
+    presentation["signature"] = key.sign(
+        _presentation_bytes(presentation)
+    ).signature.hex()
+    return presentation
+
+
+def _strings(raw: Any, name: str) -> tuple[str, ...]:
+    if not isinstance(raw, list) or not all(isinstance(v, str) and v for v in raw):
+        raise DelegationConfigError(f"{name} must be a list of non-empty strings")
+    return tuple(raw)
+
+
+@dataclass(frozen=True)
+class DelegationPolicy:
+    audience: str
+    anchors: TrustAnchors
+    required_for: tuple[str, ...] = ()
+    required_agents: frozenset[str] = frozenset()
+
+    def requires(self, agent_id: str, capability: str) -> bool:
+        return agent_id in self.required_agents or any(
+            covers(pattern, capability) for pattern in self.required_for
+        )
+
+    @classmethod
+    def from_dict(cls, raw: Any) -> DelegationPolicy:
+        if not isinstance(raw, dict):
+            raise DelegationConfigError("delegation config must be a JSON object")
+        unknown = set(raw) - _CONFIG_FIELDS
+        if unknown:
+            raise DelegationConfigError(f"unknown field(s) {sorted(unknown)}")
+        audience = raw.get("audience")
+        if not isinstance(audience, str) or not audience:
+            raise DelegationConfigError(
+                "audience must name this deployment: it stops a presentation "
+                "signed for one deployment being replayed to another"
+            )
+        roots, agents = raw.get("roots"), raw.get("agents")
+        if not isinstance(roots, dict) or not roots:
+            raise DelegationConfigError("roots must be a non-empty object")
+        if not isinstance(agents, dict) or not agents:
+            raise DelegationConfigError("agents must be a non-empty object")
+        revoked = _strings(raw.get("revoked", []), "revoked")
+        if not all(_is_hex(h, 64) for h in revoked):
+            raise DelegationConfigError("revoked must hold link hashes")
+        required_for = _strings(raw.get("required_for", []), "required_for")
+        if any("*" in p or len(p) < 2 for p in required_for):
+            raise DelegationConfigError(
+                "required_for takes exact names or prefixes ending in a dot"
+            )
+        try:
+            anchors = TrustAnchors(
+                roots=dict(roots),
+                agents=dict(agents),
+                revoked=frozenset(revoked),
+                revoked_agents=frozenset(
+                    _strings(raw.get("revoked_agents", []), "revoked_agents")
+                ),
+            )
+        except ValueError as exc:
+            raise DelegationConfigError(str(exc)) from exc
+        return cls(
+            audience=audience,
+            anchors=anchors,
+            required_for=required_for,
+            required_agents=frozenset(
+                _strings(raw.get("required_agents", []), "required_agents")
+            ),
+        )
+
+    @classmethod
+    def from_file(cls, path: str | Path) -> DelegationPolicy:
+        try:
+            raw = json.loads(Path(path).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            raise DelegationConfigError(
+                f"cannot load delegation config {str(path)!r}: {type(exc).__name__}"
+            ) from exc
+        return cls.from_dict(raw)
+
+
+@dataclass(frozen=True)
+class GateVerdict:
+    checked: bool  # False: no chain supplied and none required
+    refused: bool
+    reason: str = ""
+    chain_hash: str | None = None
+    depth: int = 0
+
+
+_SKIPPED = GateVerdict(checked=False, refused=False)
+
+
+class DelegationGate:
+    def __init__(
+        self,
+        policy: DelegationPolicy,
+        *,
+        ledger: NonceLedger | None = None,
+        clock: Callable[[], float] = time.time,
+    ) -> None:
+        self.policy = policy
+        self._ledger: NonceLedger = (
+            ledger if ledger is not None else MemoryNonceLedger()
+        )
+        self._ledger_shared = ledger is not None
+        self._clock = clock
+
+    def use_ledger(self, ledger: NonceLedger) -> None:
+        self._ledger = ledger
+        self._ledger_shared = True
+
+    def describe(self) -> dict[str, str]:
+        policy = self.policy
+        required = ", ".join(policy.required_for) or "none"
+        agents = ", ".join(sorted(policy.required_agents)) or "none"
+        return {
+            "status": "attached",
+            "detail": (
+                f"pv-delegation/1 on the decision path: {len(policy.anchors.roots)} "
+                f"root(s), {len(policy.anchors.agents)} agent key(s), audience "
+                f"{policy.audience!r}; required for capabilities: {required}; "
+                f"required for agents: {agents}; holder-signed presentation, "
+                "single-use: "
+                f"{'shared ledger' if self._ledger_shared else 'this process only'}"
+                "; restricts only, never grants"
+            ),
+        }
+
+    @staticmethod
+    def _refuse(
+        reason: str, chain_hash: str | None = None, depth: int = 0
+    ) -> GateVerdict:
+        return GateVerdict(True, True, reason, chain_hash, depth)
+
+    def check(  # noqa: C901 - ordered refusal checklist
+        self,
+        *,
+        agent_id: str,
+        capability: str,
+        arguments: Mapping[str, Any] | None,
+        amount: float | None,
+        evidence: Mapping[str, Any] | None,
+    ) -> GateVerdict:
+        """Never raises for caller input: every problem is a refusal."""
+        supplied = (evidence or {}).get("delegation")
+        if supplied is None:
+            if self.policy.requires(agent_id, capability):
+                return self._refuse(
+                    f"delegation_required: {agent_id!r} may perform "
+                    f"{capability!r} only under a delegation chain, and none "
+                    "was presented"
+                )
+            return _SKIPPED
+        if not isinstance(supplied, dict) or set(supplied) != {"chain", "presentation"}:
+            return self._refuse(
+                "delegation_invalid: evidence must hold exactly a chain and a "
+                "presentation"
+            )
+
+        now = self._clock()
+        scoped = within_scope(
+            supplied["chain"],
+            self.policy.anchors,
+            agent_id=agent_id,
+            capability=capability,
+            amount=amount,
+            now=now,
+        )
+        if not scoped.allowed:
+            return self._refuse(scoped.reason, scoped.chain_hash, scoped.depth)
+        chain_hash, depth = scoped.chain_hash, scoped.depth
+        assert chain_hash is not None
+
+        problem = self._presentation_problem(
+            supplied["presentation"],
+            agent_id=agent_id,
+            capability=capability,
+            arguments=arguments,
+            chain_hash=chain_hash,
+            now=now,
+        )
+        if problem is not None:
+            return self._refuse(
+                f"delegation_holder_unproven: {problem}", chain_hash, depth
+            )
+        return GateVerdict(
+            True,
+            False,
+            f"delegation chain {chain_hash[:16]} verified (depth {depth}), holder "
+            "proven",
+            chain_hash,
+            depth,
+        )
+
+    def _presentation_problem(  # noqa: C901 - ordered refusal checklist
+        self,
+        presentation: Any,
+        *,
+        agent_id: str,
+        capability: str,
+        arguments: Mapping[str, Any] | None,
+        chain_hash: str,
+        now: float,
+    ) -> str | None:
+        from nacl.encoding import HexEncoder
+        from nacl.exceptions import BadSignatureError
+        from nacl.signing import VerifyKey
+
+        if (
+            not isinstance(presentation, dict)
+            or set(presentation) != _PRESENTATION_FIELDS
+        ):
+            return "malformed presentation"
+        if presentation["spec"] != PRESENTATION_SPEC:
+            return f"spec is not {PRESENTATION_SPEC}"
+        if presentation["audience"] != self.policy.audience:
+            return "signed for a different deployment (audience mismatch)"
+        if presentation["chain_hash"] != chain_hash:
+            return "signed for a different chain"
+        try:
+            expected = delegated_action_id(agent_id, capability, arguments)
+        except (TypeError, ValueError, RecursionError):
+            return "action arguments are not canonical JSON"
+        if presentation["action_id"] != expected:
+            return "signed for a different action"
+        nonce, signature = presentation["nonce"], presentation["signature"]
+        if not _is_hex(nonce, 64) or not _is_hex(signature, 128):
+            return "malformed nonce or signature"
+        issued, expires = presentation["issued_at"], presentation["expires_at"]
+        if not _number(issued) or not _number(expires):
+            return "timestamps must be finite numbers"
+        if not 0 < expires - issued <= MAX_PRESENTATION_TTL:
+            return f"lifetime must be within (0, {MAX_PRESENTATION_TTL:g}] s"
+        if issued > now + CLOCK_SKEW_SECONDS:
+            return "issued in the future"
+        if now >= expires:
+            return "expired"
+        key = self.policy.anchors.agents.get(agent_id)
+        if key is None:
+            return f"{agent_id!r} has no pinned key to prove"
+        try:
+            VerifyKey(key.encode(), encoder=HexEncoder).verify(
+                _presentation_bytes(presentation), bytes.fromhex(signature)
+            )
+        except (BadSignatureError, ValueError, TypeError, RecursionError):
+            return f"signature does not verify under {agent_id!r}'s pinned key"
+        # Last, and only for a presentation that verified: spend it. Garbage
+        # cannot burn a real holder's nonce, and a second use is refused on
+        # every replica that shares the ledger.
+        entry = (f"delegation:{agent_id}", nonce, float(expires))
+        if not self._ledger.consume([entry], now):
+            return "presentation already used"
+        return None
