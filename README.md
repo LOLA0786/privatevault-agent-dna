@@ -28,7 +28,7 @@ agent ──► POST /v1/decide ──► precedence engine ──► 200 / 202 
 
 ```bash
 pip install -e ".[dev]"
-python -m pytest -q                    # 2950+ tests
+python -m pytest -q                    # 2985+ tests
 ```
 
 Three properties worth checking before reading further:

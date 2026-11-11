@@ -267,7 +267,7 @@ class _SensitivePaths:
     for a relative path, as it resolves from the caller's working directory
     (".config" typed in the home directory is ~/.config)."""
 
-    def search(self, text: str) -> re.Match[str] | None:
+    def search(self, text: str) -> re.Match[str] | None:  # noqa: C901 - ordered checks
         found = _SENSITIVE_PATTERN.search(text)
         if found is not None:
             return found
@@ -287,12 +287,43 @@ class _SensitivePaths:
         home = os.path.expanduser("~")
         for candidate in candidates:
             if candidate == posixpath.join(home, ".config"):
-                return _SENSITIVE_PATTERN.search("/.ssh")  # a real match object
-            if _HOME_ROOT.match(candidate) or candidate == home:
+                return _A_MATCH
+            if _could_be_home_config(candidate, home):
+                return _A_MATCH
+            if _home_or_above(candidate, home):
                 pins = _PINS.get()
                 if pins is not None:
                     pins["home_root"] = True
         return None
+
+
+_A_MATCH = re.match("", "")  # callers only test whether search() found something
+_ABOVE_HOME = re.compile(r"^(~[^/]*|\$HOME|\$\{HOME\})(/\.\.)+$")
+
+
+def _home_or_above(candidate: str, home: str) -> bool:
+    """Is this the home directory, or a directory that contains it?
+
+    "/", "/home", "/Users" and "~/.." hold every home directory beneath
+    them, so a recursive reader pointed there reads the same credential
+    stores as one pointed at "~".
+    """
+    if _HOME_ROOT.match(candidate) or candidate == home:
+        return True
+    if candidate in ("/", "/home", "/Users") or _ABOVE_HOME.match(candidate):
+        return True
+    return candidate.startswith("/") and home.startswith(candidate.rstrip("/") + "/")
+
+
+def _could_be_home_config(candidate: str, home: str) -> bool:
+    """A glob directly under a home directory that can expand to ".config"
+    ("~/.c*", or ".c*" typed while standing in the home directory)."""
+    if not _GLOB_CHARS.search(candidate):
+        return False
+    parent, _, last = candidate.rpartition("/")
+    if not (parent and (_HOME_ROOT.match(parent) or parent == home)):
+        return False
+    return fnmatch.fnmatchcase(".config", last)
 
 
 _SENSITIVE = _SensitivePaths()

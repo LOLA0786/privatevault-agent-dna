@@ -80,6 +80,7 @@ from agent_dna.authorize_binding import (
     AUTHORIZE_PRESENTER_NOT_PINNED,
     AUTHORIZE_PRESENTER_REQUIRED,
     AUTHORIZE_PRESENTER_UNCONFIGURED,
+    AUTHORIZE_RECORD_HASH_MISMATCH,
     AUTHORIZE_SIGNER_UNAVAILABLE,
     AUTHORIZE_STORE_UNAVAILABLE,
     bind_authorize_to_sealed_allow,
@@ -1770,6 +1771,57 @@ def _resolve_presenter(req: AuthorizeRequest) -> str | None:
     return requested
 
 
+def _require_untampered(record: dict[str, Any], store: Any) -> None:
+    """The record a permit is minted from must be the record that was signed.
+
+    Minting read the decision back from the database and trusted it. Anyone
+    able to write to that database, with no signing key, could change a
+    sealed expiry, graft another decision's seal, or turn a stored BLOCK
+    into an ALLOW, and a signed permit was minted from the result. So, on
+    every mint: recompute the record's hash from its stored contents, and
+    check the stored signature over that hash against the keys this server
+    trusts. An edit changes the hash; a recomputed hash has no signature.
+    """
+    stored_hash = record.get("record_hash")
+    body = {k: v for k, v in record.items() if k != "record_hash"}
+    try:
+        canonical = _pv_json.dumps(
+            body, sort_keys=True, separators=(",", ":"), allow_nan=False
+        )
+    except (TypeError, ValueError):
+        canonical = None
+    if (
+        canonical is None
+        or not isinstance(stored_hash, str)
+        or hashlib.sha256(canonical.encode()).hexdigest() != stored_hash
+    ):
+        _authorize_refusal(
+            403,
+            AUTHORIZE_RECORD_HASH_MISMATCH,
+            "the stored decision does not match its own hash: the decision "
+            "store was altered after this record was sealed",
+        )
+    runtime = state.get("runtime")
+    trusted = getattr(runtime, "trusted_public_keys", None) or frozenset()
+    signer = state.get("signer")
+    if signer is not None:
+        trusted = frozenset(trusted) | {signer.public_key}
+    if not trusted:
+        return  # signing is off: the hash check is all there is to do
+    getter = getattr(store, "get_envelope", None)
+    envelope = getter(stored_hash) if callable(getter) else None
+    if not isinstance(envelope, dict) or not verify_trusted_envelope(
+        envelope, stored_hash, trusted_keys=trusted
+    ):
+        _authorize_refusal(
+            403,
+            AUTHORIZE_RECORD_HASH_MISMATCH,
+            "the stored decision carries no valid signature from a key this "
+            "server trusts: it was not sealed by this deployment, or the "
+            "decision store was altered",
+        )
+
+
 def _require_sealed_allow_for_authorize(req: AuthorizeRequest) -> dict[str, Any]:
     """Load and bind a sealed ALLOW; refuse with distinct reason codes."""
     if not req.decision_id and not req.record_hash:
@@ -1798,6 +1850,7 @@ def _require_sealed_allow_for_authorize(req: AuthorizeRequest) -> dict[str, Any]
             AUTHORIZE_DECISION_NOT_FOUND,
             "no sealed decision matches the supplied reference",
         )
+    _require_untampered(record, store)
 
     bind_reason = bind_authorize_to_sealed_allow(
         record,
@@ -1905,15 +1958,15 @@ def _cap_by_delegation(
         # Belt and braces: where this deployment requires a chain for the
         # agent or capability, an ALLOW with no seal was not made under one
         # this server can vouch for, whichever path produced it.
-        if gate is not None and gate.policy.requires(
-            str(record.get("agent_id")), str(record.get("capability"))
-        ):
-            _authorize_refusal(
-                403,
-                AUTHORIZE_AUTHORITY_UNKNOWN,
-                "this decision requires a delegation chain and its sealed "
-                "record carries none; decide again",
+        problem = (
+            gate.unsealed_problem(
+                str(record.get("agent_id")), str(record.get("capability"))
             )
+            if gate is not None
+            else None
+        )
+        if problem is not None:
+            _authorize_refusal(403, AUTHORIZE_AUTHORITY_UNKNOWN, problem)
         return deadline
     revoked = gate.revocation_of(sealed) if gate is not None else None
     if revoked is not None:

@@ -393,3 +393,218 @@ def test_a_broken_edit_refuses_everything_until_it_is_fixed(mint_env, tmp_path):
     assert verdict.refused and "delegation_config_invalid" in verdict.reason
     _config_file(tmp_path)  # fixed
     assert _mint(mint_env, _authorize_body(record)).status_code == 200
+
+
+# ---- review of #226 (Medium): minting trusted whatever the database held ----
+#
+# On a running server the reviewer edited a seal's expiry in the database,
+# grafted another decision's seal, and flipped a stored BLOCK to ALLOW. All
+# three minted a signed permit. No signing key was needed, only write access
+# to the decision store.
+
+import hashlib  # noqa: E402
+import json  # noqa: E402
+
+import pytest  # noqa: E402
+
+from agent_dna.signer import generate_keypair  # noqa: E402
+from tests.test_authorize_mint_claim import (  # noqa: E402
+    _decide_allow,
+    build_mint_env,
+)
+
+
+@pytest.fixture
+def signed_env(tmp_path, monkeypatch):
+    """The mint environment with decision records signed, as the secure
+    profile and any production deployment run."""
+    keys = generate_keypair()
+    monkeypatch.setenv("PV_RECEIPT_SIGNING_KEY", keys["signing_key"])
+    monkeypatch.setenv("PV_TRUSTED_PUBLIC_KEYS", keys["public_key"])
+    yield from build_mint_env(tmp_path, monkeypatch)
+
+
+def _store(env):
+    return env["server"].state["store"]
+
+
+def _rewrite(env, record, mutate, *, rehash=False, graft_envelope_from=None):
+    """Edit a stored decision the way someone with database access would."""
+    conn = _store(env)._conn
+    body = dict(record)
+    mutate(body)
+    old_hash = record["record_hash"]
+    if rehash:
+        unsigned = {k: v for k, v in body.items() if k != "record_hash"}
+        body["record_hash"] = hashlib.sha256(
+            json.dumps(unsigned, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+    conn.execute(
+        "UPDATE records SET body = ? WHERE record_id = ?",
+        (json.dumps(body), record["decision_id"]),
+    )
+    if graft_envelope_from is not None:
+        donor = _store(env).get_envelope(graft_envelope_from)
+        conn.execute(
+            "INSERT OR REPLACE INTO envelopes (record_hash, agent_id, envelope) "
+            "VALUES (?, ?, ?)",
+            (body["record_hash"], body["agent_id"], json.dumps(donor)),
+        )
+    conn.commit()
+    assert _store(env).get_decision(record["decision_id"]) != record
+    return body, old_hash
+
+
+def _refused_as_tampered(env, body):
+    refused = _mint(env, body)
+    assert refused.status_code == 403, refused.text
+    assert _reason(refused) == "AUTHORIZE_RECORD_HASH_MISMATCH"
+    return refused.json()["detail"]["detail"]
+
+
+def test_an_untouched_record_still_mints(mint_env):  # noqa: F811
+    record = _decide_allow(mint_env["client"], mint_env["key"])
+    assert _mint(mint_env, _authorize_body(record)).status_code == 200
+
+
+def test_a_seal_edited_in_the_database_does_not_mint(mint_env):  # noqa: F811
+    record, _ = _delegated_allow(mint_env, ttl=20)
+    far_future = record["reason"].replace(
+        f'"expires_at":{sealed_delegation(record["reason"])["expires_at"]}',
+        '"expires_at":9999999999.0',
+    )
+    assert far_future != record["reason"]
+    _rewrite(mint_env, record, lambda b: b.update(reason=far_future))
+    detail = _refused_as_tampered(mint_env, _authorize_body(record))
+    assert "does not match its own hash" in detail
+
+
+def test_a_seal_grafted_from_another_decision_does_not_mint(mint_env):  # noqa: F811
+    short, _ = _delegated_allow(mint_env, ttl=20)
+    long_lived, _ = _delegated_allow(mint_env, ttl=3600)
+    donor_seal = long_lived["reason"][long_lived["reason"].rfind("; delegation=") :]
+    own = short["reason"][: short["reason"].rfind("; delegation=")]
+    _rewrite(mint_env, short, lambda b: b.update(reason=own + donor_seal))
+    _refused_as_tampered(mint_env, _authorize_body(short))
+
+
+def test_a_stored_block_flipped_to_allow_does_not_mint(mint_env):  # noqa: F811
+    allowed = _decide_allow(mint_env["client"], mint_env["key"])
+    # a genuine BLOCK for the same agent and action: a chain is required
+    _engine(mint_env).delegation = DelegationGate(_policy())
+    blocked = mint_env["client"].post(
+        "/v1/decide",
+        headers={"X-API-Key": mint_env["key"]},
+        json=decide_json(
+            AGENT,
+            CAP,
+            arguments=dict(ARGS),
+            resource="crm:contact",
+            org=ORG,
+            dispatch_context=dispatch_context_for(
+                adapter="https",
+                transport="https",
+                operation="GET /v1/contacts",
+                destination="crm.store.example",
+                wire_content_type="application/json",
+            ),
+        ),
+    )
+    assert blocked.status_code == 403, blocked.text
+    block = blocked.json()["record"]
+    assert block["decision"] == "block"
+    _engine(mint_env).delegation = None
+
+    def flip(body):
+        body.update(
+            decision="allow",
+            triggered_by="baseline",
+            reason="Behavior matches trusted profile.",
+        )
+
+    flipped, _ = _rewrite(mint_env, block, flip)
+    body = _authorize_body({**allowed, **flipped})
+    _refused_as_tampered(mint_env, body)
+
+
+def test_without_record_signing_only_the_hash_is_checked(mint_env):  # noqa: F811
+    """A stated limit, pinned so it cannot change unnoticed: with decision
+    signing off there is no signature to check, so an edit whose hash was
+    recomputed is not detected. Run with PV_RECEIPT_SIGNING_KEY (the secure
+    profile does) to close it; the two tests below show it closed."""
+    record, _ = _delegated_allow(mint_env, ttl=600)
+    edited, _ = _rewrite(
+        mint_env, record, lambda b: b.update(reason=b["reason"] + " "), rehash=True
+    )
+    assert _mint(mint_env, _authorize_body(edited)).status_code == 200
+
+
+def test_recomputing_the_hash_does_not_help_without_the_signing_key(signed_env):  # noqa: F811
+    """A careful attacker fixes the hash too. The signature is over the old
+    hash, and there is none for the new one."""
+    record, _ = _delegated_allow(signed_env, ttl=20)
+    edited, _ = _rewrite(
+        signed_env,
+        record,
+        lambda b: b.update(reason=b["reason"].replace('"depth":2', '"depth":2 ')),
+        rehash=True,
+    )
+    body = _authorize_body(edited)
+    detail = _refused_as_tampered(signed_env, body)
+    assert "no valid signature" in detail
+
+
+def test_borrowing_another_records_signature_does_not_help(signed_env):  # noqa: F811
+    record, _ = _delegated_allow(signed_env, ttl=20)
+    edited, old_hash = _rewrite(
+        signed_env,
+        record,
+        lambda b: b.update(reason=b["reason"] + " "),
+        rehash=True,
+        graft_envelope_from=record["record_hash"],
+    )
+    detail = _refused_as_tampered(signed_env, _authorize_body(edited))
+    assert "no valid signature" in detail
+
+
+# ---- review of #226 (Low): a decision with no chain skipped the file --------
+
+
+def _plain_config(tmp_path, **extra):
+    path = tmp_path / "delegation.json"
+    path.write_text(
+        json.dumps(
+            {
+                "audience": "pv-test",
+                "roots": {"operator": KEYS["operator"]["public_key"]},
+                "agents": {n: KEYS[n]["public_key"] for n in ("planner", AGENT)},
+                **extra,
+            }
+        )
+    )
+    return path
+
+
+def test_an_unsealed_allow_follows_a_requirement_added_to_the_file(mint_env, tmp_path):  # noqa: F811
+    path = _plain_config(tmp_path)  # nothing requires a chain yet
+    _engine(mint_env).delegation = DelegationGate.from_file(path)
+    record = _decide_allow(mint_env["client"], mint_env["key"])
+    assert sealed_delegation(record["reason"]) is None
+    _plain_config(tmp_path, required_agents=[AGENT])  # edited, no restart
+    refused = _mint(mint_env, _authorize_body(record))
+    assert refused.status_code == 403, refused.text
+    assert "requires a delegation chain" in refused.json()["detail"]["detail"]
+
+
+def test_an_unsealed_allow_does_not_mint_while_the_file_is_broken(mint_env, tmp_path):  # noqa: F811
+    """'A file that does not load refuses everything' was not true for a
+    decision that never had a chain."""
+    path = _plain_config(tmp_path)
+    _engine(mint_env).delegation = DelegationGate.from_file(path)
+    record = _decide_allow(mint_env["client"], mint_env["key"])
+    path.write_text("{ not json")
+    refused = _mint(mint_env, _authorize_body(record))
+    assert refused.status_code == 403, refused.text
+    assert "configuration is unusable" in refused.json()["detail"]["detail"]
+    _plain_config(tmp_path)
+    assert _mint(mint_env, _authorize_body(record)).status_code == 200
