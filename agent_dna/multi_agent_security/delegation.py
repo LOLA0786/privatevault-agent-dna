@@ -108,6 +108,12 @@ class TrustAnchors:
             for name, key in table.items():
                 if not isinstance(name, str) or not name:
                     raise ValueError(f"{kind} name must be a non-empty string")
+                if name != name.strip() or not name.isprintable():
+                    # "payer" and "payer " would both load and read alike.
+                    raise ValueError(
+                        f"{kind} name {name!r} has surrounding whitespace or "
+                        "non-printable characters"
+                    )
                 if not _is_hex(key, 64):
                     raise ValueError(
                         f"{kind} {name!r}: public key must be 64 lowercase hex"
@@ -133,6 +139,13 @@ class DelegationDecision:
     reason: str
     chain_hash: str | None = None
     depth: int = 0
+    # Set when the chain verified: when its authority ends (the earliest
+    # link expiry, which narrowing makes the last link's), every link hash
+    # and every identity in it. A decision made under the chain must not
+    # outlive the first or survive the revocation of any of the others.
+    expires_at: float | None = None
+    links: tuple[str, ...] = ()
+    parties: tuple[str, ...] = ()
 
 
 def _is_hex(value: Any, length: int) -> bool:
@@ -419,7 +432,17 @@ def within_scope(  # noqa: C901 - ordered refusal checklist
                 digest,
                 depth,
             )
-    return DelegationDecision(True, "delegation_in_scope", digest, depth)
+    parties: list[str] = [chain[0]["delegator"]]
+    parties.extend(link["delegate"] for link in chain)
+    return DelegationDecision(
+        True,
+        "delegation_in_scope",
+        digest,
+        depth,
+        expires_at=float(min(link["expires_at"] for link in chain)),
+        links=tuple(link_hash(link) for link in chain),
+        parties=tuple(parties),
+    )
 
 
 def authorize(

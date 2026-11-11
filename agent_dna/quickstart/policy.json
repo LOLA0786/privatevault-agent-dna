@@ -256,8 +256,7 @@
         "operator": "in",
         "value": [
           "loopback",
-          "private",
-          "unresolved"
+          "private"
         ]
       }
     }

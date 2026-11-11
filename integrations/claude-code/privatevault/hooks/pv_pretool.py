@@ -86,6 +86,9 @@ SENSITIVE = re.compile(
     # token and credential databases), the GitHub CLI (hosts.yml holds the
     # OAuth token) and the Azure CLI (MSAL token cache).
     r"|(^|/)\.config/(gcloud|gh)(/|$)"
+    # The whole ~/.config directory: a recursive read of it (grep -r, tar,
+    # cp -r) takes the gcloud and gh token stores with it.
+    r"|^(~|\$HOME|\$\{HOME\}|/home/[^/]+|/Users/[^/]+|/root)/\.config$"
     r"|(^|/)(application_default_credentials\.json|access_tokens\.db|"
     r"credentials\.db|msal_token_cache[^/]*|accessTokens\.json)$"
     r"|^/proc/[^/]+/environ$"
@@ -253,24 +256,39 @@ def _resolve(host: str) -> list[str]:
     return list(dict.fromkeys(found)) if not worker.is_alive() else []
 
 
-def host_class(url: str) -> str:
-    """What kind of host a URL names. A name is resolved and classed by the
-    worst address it points to, so a public name for 169.254.169.254 is
-    metadata (red team retest: DNS). A name that does not resolve is
-    private by an internal suffix, else "unresolved": never public."""
+def classify_host(url: str) -> tuple[str, bool | None]:
+    """(host class, whether the name resolved).
+
+    A name is resolved and classed by the worst address it points to, so a
+    public name for 169.254.169.254 is metadata (red team retest: DNS). The
+    second value is None where resolution does not apply (an address,
+    localhost, an invalid URL).
+
+    A name that does not resolve within DNS_TIMEOUT_S is "private": where it
+    points is unknown, and unknown is treated as internal. It used to be
+    classed public: a resolver that stalls past the timeout, or a name that
+    starts resolving a moment later, then pointed the real fetch at an
+    internal or metadata address unchecked.
+
+    The class is "private", not a new name, on purpose. The policy file
+    lives in the user's PrivateVault home and ``pv up`` never overwrites
+    it, so a class only a NEW policy file knows about would leave every
+    existing install treating these names as before. Every shipped policy
+    already requires a person for "private".
+    """
     try:
         host = (urllib.parse.urlsplit(url).hostname or "").rstrip(".").lower()
     except ValueError:
-        return "invalid"
+        return "invalid", None
     if not host:
-        return "invalid"
+        return "invalid", None
     if host in METADATA_HOSTS:
-        return "metadata"
+        return "metadata", None
     if host == "localhost" or host.endswith(".localhost"):
-        return "loopback"
+        return "loopback", None
     ip = _ip(host)
     if ip is not None:
-        return _ip_class(ip)
+        return _ip_class(ip), None
     classes = {
         "public" if a in FAKE_IP_NET else _ip_class(a)
         for a in map(_ip, _resolve(host))
@@ -278,14 +296,13 @@ def host_class(url: str) -> str:
     }
     for worst in _CLASS_RANK:
         if worst in classes:
-            return worst
-    if host.endswith((".internal", ".local", ".lan")):
-        return "private"
-    # The name did not resolve within DNS_TIMEOUT_S, so where it points is
-    # unknown. It used to be classed public: a resolver that stalls past the
-    # timeout, or a name that starts resolving a moment later, then pointed
-    # the real fetch at an internal or metadata address unchecked.
-    return "unresolved"
+            return worst, True
+    return "private", False
+
+
+def host_class(url: str) -> str:
+    """What kind of host a URL names; see ``classify_host``."""
+    return classify_host(url)[0]
 
 
 def touches(command: str) -> list[str]:
@@ -308,7 +325,10 @@ def classify(capability: str, arguments: dict, cwd: str) -> dict:
     if capability in {"fs.read", "fs.write"} and isinstance(out.get("path"), str):
         out["zone"] = zone_of(out["path"], cwd)
     elif capability == "net.fetch" and isinstance(out.get("url"), str):
-        out["host_class"] = host_class(out["url"])
+        out["host_class"], resolved = classify_host(out["url"])
+        if resolved is False:
+            # lets a policy tell "internal" from "did not resolve"
+            out["host_resolved"] = False
     elif capability == "shell.exec" and isinstance(out.get("command"), str):
         out["touches"] = touches(out["command"])
     return out
