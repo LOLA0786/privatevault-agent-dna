@@ -115,6 +115,10 @@ class DecisionResult:
     # approval may lift a hold only if every one of them is approvable.
     also_fired: list[str] = field(default_factory=list)
 
+    # Set when the action was presented under a verified delegation chain.
+    # decide() appends it to the reason of any ALLOW. Not serialized itself.
+    delegation_seal: str = ""
+
     def to_dict(self):
 
         return {
@@ -417,6 +421,14 @@ class DecisionEngine:
                 result = self._apply_approval(
                     action, result, approval, approval_context
                 )
+            if result.decision is Decision.ALLOW and result.delegation_seal:
+                # Sealed into the signed record, last: which chain this ran
+                # under, when its authority ends and who it rests on.
+                # Minting reads it back. It used to be added only when the
+                # engine allowed outright, so an approved hold carried no
+                # seal and minted after its chain had expired or been
+                # revoked.
+                result.reason += result.delegation_seal
             return result
         except Exception as exc:
             #
@@ -516,6 +528,7 @@ class DecisionEngine:
             grant_id=None,
             policy_id=result.policy_id,
             approval_artifact_digest=verdict.artifact_digest,
+            delegation_seal=result.delegation_seal,
         )
 
     def _decide_unsafe(  # noqa: C901
@@ -688,15 +701,11 @@ class DecisionEngine:
         )
         if auth_reason is not None and result.triggered_by == "authorization":
             result.reason = auth_reason
-        if (
-            delegation is not None
-            and delegation.checked
-            and not delegation.refused
-            and result.decision is Decision.ALLOW
-        ):
-            # Sealed into the signed record: which chain this ran under, when
-            # its authority ends and who it rests on. Minting reads it back.
-            result.reason += f"; {delegation.reason}{delegation.seal}"
+        if delegation is not None and delegation.checked and not delegation.refused:
+            # Carried on the result and sealed into the reason by decide(),
+            # AFTER any approval is applied: a held action that a person
+            # then approves is an ALLOW made under this chain too.
+            result.delegation_seal = f"; {delegation.reason}{delegation.seal}"
         if (
             not authorized
             and auth_reason is not None

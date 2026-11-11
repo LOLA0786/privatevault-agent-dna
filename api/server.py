@@ -1899,10 +1899,22 @@ def _cap_by_delegation(
         sealed = sealed_delegation(record.get("reason"))
     except ValueError as exc:
         _authorize_refusal(403, AUTHORIZE_AUTHORITY_UNKNOWN, str(exc))
-    if sealed is None:
-        return deadline
     core = getattr(state.get("engine"), "engine", state.get("engine"))
     gate = getattr(core, "delegation", None)
+    if sealed is None:
+        # Belt and braces: where this deployment requires a chain for the
+        # agent or capability, an ALLOW with no seal was not made under one
+        # this server can vouch for, whichever path produced it.
+        if gate is not None and gate.policy.requires(
+            str(record.get("agent_id")), str(record.get("capability"))
+        ):
+            _authorize_refusal(
+                403,
+                AUTHORIZE_AUTHORITY_UNKNOWN,
+                "this decision requires a delegation chain and its sealed "
+                "record carries none; decide again",
+            )
+        return deadline
     revoked = gate.revocation_of(sealed) if gate is not None else None
     if revoked is not None:
         _authorize_refusal(

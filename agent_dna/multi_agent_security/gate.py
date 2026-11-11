@@ -227,6 +227,20 @@ def sign_presentation(
     return presentation
 
 
+def _no_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    """A JSON object with a repeated key has two readings; refuse it.
+
+    json.loads keeps the last value silently, so a second "revoked_agents"
+    lower in the file would replace the first.
+    """
+    out: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in out:
+            raise ValueError(f"duplicate key {key!r}")
+        out[key] = value
+    return out
+
+
 def _strings(raw: Any, name: str) -> tuple[str, ...]:
     if not isinstance(raw, list) or not all(isinstance(v, str) and v for v in raw):
         raise DelegationConfigError(f"{name} must be a list of non-empty strings")
@@ -246,7 +260,7 @@ class DelegationPolicy:
         )
 
     @classmethod
-    def from_dict(cls, raw: Any) -> DelegationPolicy:
+    def from_dict(cls, raw: Any) -> DelegationPolicy:  # noqa: C901 - checklist
         if not isinstance(raw, dict):
             raise DelegationConfigError("delegation config must be a JSON object")
         unknown = set(raw) - _CONFIG_FIELDS
@@ -271,14 +285,32 @@ class DelegationPolicy:
             raise DelegationConfigError(
                 "required_for takes exact names or prefixes ending in a dot"
             )
+        revoked_agents = _strings(raw.get("revoked_agents", []), "revoked_agents")
+        required_agents = _strings(raw.get("required_agents", []), "required_agents")
+        # A name in these lists that matches no pinned identity does
+        # nothing: " planner" or "Planner" would load and revoke no one.
+        known = set(roots) | set(agents)
+        for field_name, names, pool in (
+            ("revoked_agents", revoked_agents, known),
+            ("required_agents", required_agents, set(agents)),
+        ):
+            for name in names:
+                if name in pool:
+                    continue
+                near = [
+                    k for k in sorted(pool) if k.casefold() == name.strip().casefold()
+                ]
+                hint = f" (did you mean {near[0]!r}?)" if near else ""
+                raise DelegationConfigError(
+                    f"{field_name}: {name!r} is not a pinned identity{hint}; "
+                    "it would have no effect"
+                )
         try:
             anchors = TrustAnchors(
                 roots=dict(roots),
                 agents=dict(agents),
                 revoked=frozenset(revoked),
-                revoked_agents=frozenset(
-                    _strings(raw.get("revoked_agents", []), "revoked_agents")
-                ),
+                revoked_agents=frozenset(revoked_agents),
             )
         except ValueError as exc:
             raise DelegationConfigError(str(exc)) from exc
@@ -286,18 +318,20 @@ class DelegationPolicy:
             audience=audience,
             anchors=anchors,
             required_for=required_for,
-            required_agents=frozenset(
-                _strings(raw.get("required_agents", []), "required_agents")
-            ),
+            required_agents=frozenset(required_agents),
         )
 
     @classmethod
     def from_file(cls, path: str | Path) -> DelegationPolicy:
         try:
-            raw = json.loads(Path(path).read_text(encoding="utf-8"))
+            raw = json.loads(
+                Path(path).read_text(encoding="utf-8"),
+                object_pairs_hook=_no_duplicate_keys,
+            )
         except (OSError, ValueError) as exc:
             raise DelegationConfigError(
-                f"cannot load delegation config {str(path)!r}: {type(exc).__name__}"
+                f"cannot load delegation config {str(path)!r}: "
+                f"{type(exc).__name__}: {exc}"
             ) from exc
         return cls.from_dict(raw)
 
@@ -316,7 +350,13 @@ SEAL_MARK = "; delegation="
 
 
 def seal_delegation(
-    *, chain_hash: str, depth: int, expires_at: float, links: Any, parties: Any
+    *,
+    chain_hash: str,
+    depth: int,
+    expires_at: float,
+    links: Any,
+    parties: Any,
+    keys: Any = (),
 ) -> str:
     """What an ALLOW made under a chain must carry into its signed record.
 
@@ -332,6 +372,7 @@ def seal_delegation(
             "chain": chain_hash,
             "depth": depth,
             "expires_at": expires_at,
+            "keys": dict(keys),
             "links": list(links),
             "parties": list(parties),
         },
@@ -358,7 +399,9 @@ def sealed_delegation(reason: Any) -> dict[str, Any] | None:
         raise ValueError("sealed delegation is not valid JSON") from exc
     if (
         not isinstance(sealed, dict)
-        or set(sealed) != {"chain", "depth", "expires_at", "links", "parties"}
+        or set(sealed) != {"chain", "depth", "expires_at", "keys", "links", "parties"}
+        or not isinstance(sealed["keys"], dict)
+        or not all(_is_hex(k, 64) for k in sealed["keys"].values())
         or not _is_hex(sealed["chain"], 64)
         or not _number(sealed["expires_at"])
         or not isinstance(sealed["links"], list)
@@ -387,6 +430,52 @@ class DelegationGate:
         )
         self._ledger_shared = ledger is not None
         self._clock = clock
+        self._source: Path | None = None
+        self._source_stamp: tuple[int, int] | None = None
+        self._config_problem: str | None = None
+
+    @classmethod
+    def from_file(
+        cls,
+        path: str | Path,
+        *,
+        ledger: NonceLedger | None = None,
+        clock: Callable[[], float] = time.time,
+    ) -> DelegationGate:
+        """A gate that follows its configuration file.
+
+        The file is re-read whenever it changes on disk, so a revocation
+        written to it takes effect on the next decision or mint with no
+        restart. If the changed file cannot be loaded, the gate refuses
+        everything until it can: a half-written revocation must not leave
+        the old, unrevoked configuration in force.
+        """
+        gate = cls(DelegationPolicy.from_file(path), ledger=ledger, clock=clock)
+        gate._source = Path(path)
+        gate._source_stamp = gate._stamp()
+        return gate
+
+    def _stamp(self) -> tuple[int, int] | None:
+        assert self._source is not None
+        try:
+            stat = self._source.stat()
+        except OSError:
+            return None
+        return (stat.st_mtime_ns, stat.st_size)
+
+    def _refresh(self) -> None:
+        if self._source is None:
+            return
+        stamp = self._stamp()
+        if stamp == self._source_stamp and self._config_problem is None:
+            return
+        try:
+            self.policy = DelegationPolicy.from_file(self._source)
+        except DelegationConfigError as exc:
+            self._config_problem = str(exc)
+        else:
+            self._config_problem = None
+        self._source_stamp = stamp
 
     def use_ledger(self, ledger: NonceLedger) -> None:
         self._ledger = ledger
@@ -410,6 +499,8 @@ class DelegationGate:
                 f"required for agents: {agents}; holder-signed presentation, "
                 "single-use: "
                 f"{'shared ledger' if self._ledger_shared else 'this process only'}"
+                "; configuration "
+                f"{'reloaded when the file changes' if self._source else 'fixed'}"
                 "; restricts only, never grants"
             ),
         }
@@ -430,6 +521,12 @@ class DelegationGate:
         evidence: Mapping[str, Any] | None,
     ) -> GateVerdict:
         """Never raises for caller input: every problem is a refusal."""
+        self._refresh()
+        if self._config_problem is not None:
+            return self._refuse(
+                f"delegation_config_invalid: {self._config_problem}; nothing is "
+                "allowed under delegation until the file loads"
+            )
         supplied = (evidence or {}).get("delegation")
         if supplied is None:
             if self.policy.requires(agent_id, capability):
@@ -496,15 +593,31 @@ class DelegationGate:
                 expires_at=scoped.expires_at,
                 links=scoped.links,
                 parties=scoped.parties,
+                keys=scoped.keys,
             ),
         )
 
     def revocation_of(self, sealed: Mapping[str, Any]) -> str | None:
-        """Why a sealed delegation no longer counts under today's pins."""
+        """Why a sealed delegation no longer counts under today's pins.
+
+        Checked when a permit is minted. Beyond explicit revocation, the
+        decision stops counting if any party in its chain is no longer
+        pinned, or is pinned under a different key than it verified with:
+        rotating a key or removing an agent withdraws what was decided
+        under the old one.
+        """
+        self._refresh()
+        if self._config_problem is not None:
+            return f"the delegation configuration is unusable ({self._config_problem})"
         anchors = self.policy.anchors
         for party in sealed["parties"]:
             if party in anchors.revoked_agents:
                 return f"{party!r} is revoked"
+            pinned = anchors.roots.get(party) or anchors.agents.get(party)
+            if pinned is None:
+                return f"{party!r} is no longer a pinned identity"
+            if sealed["keys"].get(party) != pinned:
+                return f"{party!r}'s pinned key changed since this decision"
         for digest in sealed["links"]:
             if digest in anchors.revoked:
                 return f"link {digest[:16]} is revoked"

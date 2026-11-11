@@ -616,3 +616,46 @@ def test_arguments_and_bound_parameters_must_be_the_same_values(tmp_path, monkey
         assert "must match arguments" in refused.text
         body["execution_action"]["parameters"] = {"amount": 1.0, "payee_id": "V-100"}
         assert client.post("/v1/decide", json=body).status_code == 422
+
+
+# ---- review of #225: names in lists, duplicate keys, sealed keys -------------
+
+
+@pytest.mark.parametrize(
+    "field, name, hint",
+    [
+        ("revoked_agents", " planner", "did you mean 'planner'"),
+        ("revoked_agents", "Planner", "did you mean 'planner'"),
+        ("revoked_agents", "nobody", "not a pinned identity"),
+        ("required_agents", "Payer", "did you mean 'payer'"),
+        (
+            "required_agents",
+            "operator",
+            "not a pinned identity",
+        ),  # a root, not an agent
+    ],
+)
+def test_a_name_that_matches_no_identity_refuses_to_load(field, name, hint):
+    """A revoked name with a leading space or other capitalization used to
+    load silently and revoke no one."""
+    with pytest.raises(DelegationConfigError, match=hint):
+        DelegationPolicy.from_dict(config(**{field: [name]}))
+
+
+def test_duplicate_keys_in_the_file_refuse_to_load(tmp_path):
+    """json.loads keeps the last value: a second, empty "revoked_agents"
+    lower in the file would silently undo the first."""
+    good = json.dumps(config(revoked_agents=["planner"]))
+    path = tmp_path / "delegation.json"
+    path.write_text(good[:-1] + ', "revoked_agents": []}')
+    with pytest.raises(DelegationConfigError, match="duplicate key 'revoked_agents'"):
+        DelegationPolicy.from_file(path)
+
+
+def test_the_seal_records_the_key_each_party_verified_under():
+    from agent_dna.multi_agent_security.gate import sealed_delegation
+
+    sealed = sealed_delegation(decide(engine(), evidence()).reason)
+    assert sealed["keys"] == {
+        name: KEYS[name]["public_key"] for name in ("operator", "planner", "payer")
+    }

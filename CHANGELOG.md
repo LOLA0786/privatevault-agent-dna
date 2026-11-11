@@ -5,6 +5,32 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Review of #225
+- **High: an approved hold now carries the delegation seal.** The seal was
+  added only when the engine allowed outright. A delegated action that was
+  held and then approved produced an ALLOW with no seal, so minting checked
+  neither the chain's expiry nor its revocation. The seal is now appended
+  to every ALLOW after any approval is applied, and minting refuses a
+  decision that requires a chain and carries no seal.
+  `tests/multi_agent_security/test_mint.py::test_approved_allow_does_not_mint_after_its_chain_expired`.
+- **Revocation routes.** The seal records the key each party verified
+  under; minting refuses if a party's key was rotated or the party removed.
+  `PV_DELEGATION_FILE` is re-read when it changes, so a revocation applies
+  without a restart, and an unloadable edit refuses everything.
+- **Names in `revoked_agents` and `required_agents` must match a pinned
+  identity exactly**; a stray space or different capitalization refused to
+  load nothing and revoked no one. Consensus voter names get the whitespace
+  rule. Duplicate keys in either configuration file refuse to load.
+- **Three more spellings of the token stores are caught:** `~user/.config`,
+  `.config` typed in the home directory (the hook now sends the working
+  directory), and a recursive reader pointed at the whole home directory.
+  `tests/test_redteam_claude_code.py`.
+- **IPv6 forms of the metadata address** (IPv4-compatible, NAT64, 6to4) are
+  classed as metadata and blocked.
+- Documentation corrected where it overclaimed: revocation is per server
+  from its own file, the `~/.config` rule covers named forms only, and the
+  name rule's scope is stated.
+
 ### Reviews of #223 and #224
 - **High: an expired delegation no longer mints.** A sealed ALLOW could be
   taken to `/v1/authorize` after its delegation chain had expired and a

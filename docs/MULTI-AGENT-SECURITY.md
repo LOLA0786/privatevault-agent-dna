@@ -79,13 +79,29 @@ The caller sends `evidence.delegation = {"chain": [...], "presentation": {...}}`
   out-of-scope or replayed delegation is not a question for a person. As a
   hold, an interactive client such as the Claude Code hook would show it as
   a prompt its user could answer "allow".
-- **An allowed decision carries the chain to the mint.** The sealed reason
+- **Every allowed decision carries the chain to the mint**, whether the
+  engine allowed it outright or a person approved a hold. The sealed reason
   ends with the chain hash, every link hash, every identity in the chain
-  and when the delegated authority ends. `/v1/authorize` reads it back: it
-  refuses to mint after that time, caps a permit's expiry at it, and
-  refuses if any identity or link in the chain has since been revoked. The
-  values are in the signed record, so a restart or another replica applies
-  the same limits. Tests: `tests/multi_agent_security/test_mint.py`.
+  with the key it verified under, and when the delegated authority ends.
+  `/v1/authorize` reads it back and refuses to mint when:
+  - that time has passed (and it caps a permit's expiry at it);
+  - an identity or link in the chain is revoked;
+  - an identity in the chain is no longer pinned, or is pinned under a
+    different key (a rotation or removal withdraws what was decided);
+  - the configuration requires a chain for the agent or capability and the
+    record carries no seal.
+
+  The expiry is in the signed record, so any replica applies it. The
+  revocation checks use the configuration of the server doing the mint:
+  see the limits below. Tests: `tests/multi_agent_security/test_mint.py`.
+- **The configuration file is followed.** A change to `PV_DELEGATION_FILE`
+  is picked up on the next decision or mint with no restart. If the changed
+  file does not load, everything under delegation is refused until it does.
+- **Names must be exact.** Identity names, and every name in
+  `revoked_agents` and `required_agents`, must match a pinned identity
+  character for character; a name with stray whitespace, different
+  capitalization or no match refuses to load. A repeated key in the file
+  refuses to load. Consensus voter names follow the same whitespace rule.
 
 `sign_presentation(...)` belongs in the agent's credential broker, never in
 the model. `GET /v1/runtime` reports the gate under `composition.delegation`.
@@ -226,15 +242,17 @@ but that checkpoint does not authenticate their origin or completeness.
 - **`max_amount` is per action.** Cumulative spend stays with the grant
   ledger. Limits on other arguments (a payee allow-list, for instance) are
   not expressible in a chain yet.
-- **Revocation lists are not distributed.** `revoked` and `revoked_agents`
-  are whatever the configuration holds; a change needs a restart. Revoking
-  a link hash does not stop its signer issuing the same grant again, which
-  is what `revoked_agents` is for. Short expiries remain the dependable
-  control.
-- **Revocation does not recall a permit already minted.** Once a revoked
-  identity is in the configuration, new decisions and new mints under its
-  chains are refused. A permit minted before that lives out its own
-  lifetime, which is capped at the chain's expiry.
+- **Revocation is per server, from its own file.** Each replica reads its
+  own copy of `PV_DELEGATION_FILE`. A replica that has not been given the
+  updated file does not know about a revocation, at decision or at mint.
+  Nothing distributes the file; that is the deployment's job. Revoking a
+  link hash does not stop its signer issuing the same grant again, which is
+  what `revoked_agents` is for. Short expiries remain the dependable control.
+- **Revocation does not recall a permit already minted.** A permit minted
+  before a revocation lives out its own lifetime, which is capped at the
+  chain's expiry.
+- **A change is detected by the file's modification time and size.** An
+  edit that changes neither is not seen until the next one that does.
 - **A presentation's freshness rests on clocks.** Its lifetime is at most
   120 seconds plus 30 seconds of skew; its single use rests on the ledger.
 - **The signing key is the holder.** A model that can reach the key can

@@ -752,3 +752,85 @@ def test_ordinary_commands_are_not_swept_up(command):
     from agent_dna.shell_guard import analyze_shell_arguments
 
     assert not analyze_shell_arguments({"command": command}).get("touches_sensitive")
+
+
+# ---- review of #225: three more spellings, and IPv6 forms of metadata -------
+
+
+@pytest.mark.parametrize(
+    "command, cwd",
+    [
+        ("grep -r oauth ~user/.config", None),
+        ("grep -r oauth .config", "/Users/someone"),
+        ("grep -r oauth .config", "/home/dev"),
+        ("cat .config/gh/hosts.yml", "/home/dev"),
+        ("cat .config//gh/./hosts.yml", "/Users/someone"),
+        ("find ~ -name hosts.yml -exec cat {} ;", None),
+        ("grep --include=hosts.yml -r oauth ~", None),
+        ("grep -r token $HOME", None),
+        ("rg oauth_token /Users/someone", None),
+        ("tar czf /tmp/h.tgz ~user", None),
+    ],
+)
+def test_token_stores_reached_from_the_home_directory_are_caught(command, cwd):
+    """The ~user form, ".config" typed while standing in the home directory,
+    and a recursive search of the whole home directory narrowed to one file
+    name each read the GitHub token with no prompt."""
+    from agent_dna.shell_guard import analyze_shell_arguments
+
+    arguments = {"command": command}
+    if cwd is not None:
+        arguments["cwd"] = cwd
+    assert analyze_shell_arguments(arguments)["touches_sensitive"], command
+
+
+@pytest.mark.parametrize(
+    "command, cwd",
+    [
+        ("cd ~ && ls", None),
+        ("ls ~", None),
+        ("echo ~", None),
+        ("git -C ~/code/app status", None),
+        ("grep -r oauth .config", "/srv/linux-kernel"),  # not a home directory
+        ("find . -name '*.py'", "/Users/someone/code/app"),
+        ("grep -r TODO src", "/Users/someone/code/app"),
+    ],
+)
+def test_naming_the_home_directory_alone_is_not_a_finding(command, cwd):
+    from agent_dna.shell_guard import analyze_shell_arguments
+
+    arguments = {"command": command}
+    if cwd is not None:
+        arguments["cwd"] = cwd
+    assert not analyze_shell_arguments(arguments).get("touches_sensitive"), command
+
+
+def test_the_hook_tells_the_runtime_where_a_command_runs(tmp_path):
+    hook = _hook()
+    args = hook.classify(
+        "shell.exec", {"command": "grep -r oauth .config"}, str(tmp_path)
+    )
+    assert args["cwd"] == str(tmp_path)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://[::169.254.169.254]/latest/meta-data/",  # IPv4-compatible
+        "http://[64:ff9b::a9fe:a9fe]/latest/meta-data/",  # NAT64
+        "http://[::ffff:169.254.169.254]/latest/",  # mapped (already caught)
+        "http://[2002:a9fe:a9fe::]/latest/",  # 6to4
+    ],
+)
+def test_ipv6_spellings_of_the_metadata_address_are_metadata(url):
+    """Two of these asked for approval where every other numeric form of
+    169.254.169.254 is blocked."""
+    assert _hook().host_class(url) == "metadata"
+
+
+def test_ordinary_ipv6_addresses_keep_their_class():
+    hook = _hook()
+    assert hook.host_class("http://[2606:4700:4700::1111]/") == "public"
+    assert hook.host_class("http://[::1]/") == "loopback"
+    assert hook.host_class("http://[64:ff9b::808:808]/") == "public"  # NAT64 of 8.8.8.8
+    assert hook.host_class("http://[::10.0.0.7]/") == "private"

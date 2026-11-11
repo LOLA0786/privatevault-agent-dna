@@ -221,7 +221,7 @@ _SENSITIVE_PATTERN = re.compile(
     r"|(^|/)\.config/(gcloud|gh)(/|$)"
     # The whole ~/.config directory: a recursive read of it (grep -r, tar,
     # cp -r) takes the gcloud and gh token stores with it.
-    r"|^(~|\$HOME|\$\{HOME\}|/home/[^/]+|/Users/[^/]+|/root)/\.config$"
+    r"|^(~[^/]*|\$HOME|\$\{HOME\}|/home/[^/]+|/Users/[^/]+|/root)/\.config$"
     r"|(^|/)(application_default_credentials\.json|access_tokens\.db|"
     r"credentials\.db|msal_token_cache[^/]*|accessTokens\.json)$"
     r"|^/proc/[^/]+/environ$"
@@ -242,14 +242,57 @@ def _lexical(path: str) -> str:
     return folded if folded != "." else path
 
 
+# The home directory itself, however it is written ("~", "~user", "$HOME",
+# an absolute path). Not sensitive by name: see _HOME_SWEEPERS.
+_HOME_ROOT = re.compile(r"^(~[^/]*|\$HOME|\$\{HOME\}|/home/[^/]+|/Users/[^/]+|/root)$")
+# Programs that read every file under a directory they are pointed at. Aimed
+# at the home directory they take ~/.ssh, ~/.aws and the token stores under
+# ~/.config with them, whatever name filter narrows the search
+# ("find ~ -name hosts.yml -exec cat {} +", "grep --include=hosts.yml -r ~").
+_HOME_SWEEPERS = frozenset(
+    {"grep", "egrep", "fgrep", "rg", "ag", "ack", "find", "fd", "tar", "zip"}
+    | {"7z", "cp", "rsync", "scp", "cat", "xargs", "bsdtar", "cpio", "dd"}
+)
+
+
+def _caller_cwd() -> str | None:
+    """The directory the caller says the command runs in, for this analysis."""
+    pins = _PINS.get()
+    cwd = pins.get("cwd") if pins is not None else None
+    return cwd if isinstance(cwd, str) and cwd.startswith("/") else None
+
+
 class _SensitivePaths:
-    """``_SENSITIVE_PATTERN`` applied to a path as written and as folded."""
+    """``_SENSITIVE_PATTERN`` applied to a path as written, as folded, and,
+    for a relative path, as it resolves from the caller's working directory
+    (".config" typed in the home directory is ~/.config)."""
 
     def search(self, text: str) -> re.Match[str] | None:
         found = _SENSITIVE_PATTERN.search(text)
-        if found is not None or "/" not in text:
+        if found is not None:
             return found
-        return _SENSITIVE_PATTERN.search(_lexical(text))
+        folded = _lexical(text) if "/" in text else text
+        if folded != text:
+            found = _SENSITIVE_PATTERN.search(folded)
+            if found is not None:
+                return found
+        candidates = [folded]
+        cwd = _caller_cwd()
+        if cwd and folded and not folded.startswith(("/", "~", "$", "-")):
+            anchored = _lexical(posixpath.join(cwd, folded))
+            candidates.append(anchored)
+            found = _SENSITIVE_PATTERN.search(anchored)
+            if found is not None:
+                return found
+        home = os.path.expanduser("~")
+        for candidate in candidates:
+            if candidate == posixpath.join(home, ".config"):
+                return _SENSITIVE_PATTERN.search("/.ssh")  # a real match object
+            if _HOME_ROOT.match(candidate) or candidate == home:
+                pins = _PINS.get()
+                if pins is not None:
+                    pins["home_root"] = True
+        return None
 
 
 _SENSITIVE = _SensitivePaths()
@@ -1626,6 +1669,8 @@ def analyze_shell_arguments(arguments: Mapping[str, Any] | None) -> dict[str, An
         "data": {},
         "files_opened": 0,
         "hash_budget": MAX_HASH_BYTES_PER_ANALYSIS,
+        # where the caller says the command runs; resolves relative paths
+        "cwd": (arguments or {}).get("cwd"),
     }
     reset = _PINS.set(pins)
     try:
@@ -1641,6 +1686,9 @@ def analyze_shell_arguments(arguments: Mapping[str, Any] | None) -> dict[str, An
         sensitive_reads = [
             p for p in reads if _SENSITIVE.search(p) or _note_fs_probe(p)
         ]
+        if pins.get("home_root") and any(e in _HOME_SWEEPERS for e in acc.executables):
+            # a recursive reader pointed at the whole home directory
+            sensitive_reads.append("~")
     finally:
         _PINS.reset(reset)
     pinned = [

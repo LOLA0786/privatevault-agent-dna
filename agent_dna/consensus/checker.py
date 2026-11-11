@@ -145,6 +145,12 @@ class ConsensusConfig:
             weight = entry.get("weight", 1.0)
             if not isinstance(agent_id, str) or not agent_id:
                 raise ConsensusConfigError("voter agent_id must be a string")
+            if agent_id != agent_id.strip() or not agent_id.isprintable():
+                # "v1" and "v1 " would both load and read alike.
+                raise ConsensusConfigError(
+                    f"voter agent_id {agent_id!r} has surrounding whitespace or "
+                    "non-printable characters"
+                )
             if agent_id in voters:
                 raise ConsensusConfigError(f"duplicate voter {agent_id!r}")
             if not _is_hex(key, 64):
@@ -244,12 +250,25 @@ class ConsensusConfig:
     @classmethod
     def from_file(cls, path: str | Path) -> ConsensusConfig:
         try:
-            raw = json.loads(Path(path).read_text(encoding="utf-8"))
+            raw = json.loads(
+                Path(path).read_text(encoding="utf-8"),
+                object_pairs_hook=_no_duplicate_keys,
+            )
         except (OSError, ValueError) as exc:
             raise ConsensusConfigError(
-                f"cannot load consensus config {str(path)!r}: {type(exc).__name__}"
+                f"cannot load consensus config {str(path)!r}: "
+                f"{type(exc).__name__}: {exc}"
             ) from exc
         return cls.from_dict(raw)
+
+
+def _no_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in out:
+            raise ValueError(f"duplicate key {key!r}")
+        out[key] = value
+    return out
 
 
 def _is_hex(value: Any, length: int) -> bool:
