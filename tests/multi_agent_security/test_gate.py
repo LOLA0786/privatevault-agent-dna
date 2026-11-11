@@ -1,5 +1,6 @@
 """Delegation enforced inside /v1/decide: chains are checked on every call,
-the holder must prove its key, and a refusal cannot be approved away."""
+the holder must prove its key for the action exactly as it will run, and a
+refusal is a BLOCK."""
 
 import importlib
 import json
@@ -21,10 +22,11 @@ from agent_dna.multi_agent_security import (
     link_hash,
     sign_presentation,
 )
+from agent_dna.multi_agent_security.gate import sealed_dispatch
 from agent_dna.open_authorizer import OpenAuthorizer
 from agent_dna.signer import generate_keypair
 from agent_dna.trace import AgentAction
-from tests.decide_binding import decide_json
+from tests.decide_binding import decide_json, dispatch_context_for
 
 AUDIENCE = "pv-test"
 CAP = "payments.pay_invoice"
@@ -104,7 +106,9 @@ def decide(eng, ev=None, agent="payer", cap=CAP, args=ARGS):
 
 
 def held(result, fragment):
-    assert result.decision is Decision.REQUIRE_APPROVAL, result.reason
+    """A delegation refusal is a BLOCK, never a hold a user could wave through."""
+    assert result.decision is Decision.BLOCK, result.reason
+    assert result.triggered_by == "authorization"
     assert "delegation" in result.also_fired
     assert fragment in result.reason, result.reason
 
@@ -272,8 +276,95 @@ def test_a_delegation_refusal_cannot_be_approved_away(tmp_path):
         approval=world.approver.approve(action, request_id="req-inv-1"),
         approval_context=world.context(action),
     )
-    assert result.decision is Decision.REQUIRE_APPROVAL
-    assert "delegation escalations are not satisfiable by an approval" in result.reason
+    assert result.decision is Decision.BLOCK
+    assert "delegation_required" in result.reason
+    assert result.approval_artifact_digest is None
+
+
+def test_a_forged_presentation_is_a_block_not_a_question():
+    """As a hold, the Claude Code hook would have shown this as an "ask"
+    the user could answer with allow."""
+    result = decide(engine(), evidence(signer="thief"))
+    assert result.decision is Decision.BLOCK
+    assert result.decision is not Decision.REQUIRE_APPROVAL
+
+
+# ---- the presentation covers where the action runs -------------------------
+
+BOUND = {
+    "destination": "payments.bank.example",
+    "operation": "POST /v1/transfers",
+    "transport": "https",
+    "wire_content_type": "application/json",
+    "resource": "account:ops-eur",
+    "subject_principal": "payer@bank.example",
+    "action": CAP,
+}
+
+
+def bound_evidence(signed_for, sent):
+    links = chain()
+    return {
+        "bound": sent,
+        "delegation": {
+            "chain": links,
+            "presentation": sign_presentation(
+                KEYS["payer"]["signing_key"],
+                audience=AUDIENCE,
+                chain_hash=link_hash(links[-1]),
+                action_id=delegated_action_id("payer", CAP, ARGS, signed_for),
+            ),
+        },
+    }
+
+
+def test_presentation_signed_for_the_sealed_dispatch_is_allowed():
+    result = decide(engine(), bound_evidence(BOUND, BOUND))
+    assert result.decision is Decision.ALLOW, result.reason
+
+
+@pytest.mark.parametrize(
+    "field, value",
+    [
+        ("resource", "account:attacker"),
+        ("subject_principal", "cfo@bank.example"),
+        ("destination", "payments.evil.example"),
+        ("operation", "POST /v1/refunds"),
+        ("transport", "http"),
+    ],
+)
+def test_changing_where_the_action_runs_voids_the_presentation(field, value):
+    """Same agent, tool and arguments; a different resource, principal,
+    destination or operation. Each was an ALLOW before 2026-11-11."""
+    held(
+        decide(engine(), bound_evidence(BOUND, {**BOUND, field: value})),
+        "different action",
+    )
+
+
+def test_presentation_without_a_dispatch_is_not_valid_for_one_and_vice_versa():
+    held(decide(engine(), bound_evidence(None, BOUND)), "different action")
+    ev = bound_evidence(BOUND, BOUND)
+    del ev["bound"]
+    held(decide(engine(), ev), "different action")
+
+
+def test_ledger_failure_in_the_gate_is_a_named_block():
+    from agent_dna.multi_agent_security import LedgerUnavailable
+
+    class Broken:
+        def seen(self, *a):
+            raise LedgerUnavailable("disk is read-only")
+
+        def consume(self, *a):
+            raise LedgerUnavailable("disk is read-only")
+
+        def health(self):
+            return "disk is read-only"
+
+    eng = engine(ledger=Broken())
+    held(decide(eng, evidence()), "delegation_ledger_unavailable")
+    assert eng.delegation.health() == "disk is read-only"
 
 
 # ---- configuration ---------------------------------------------------------
@@ -343,36 +434,87 @@ def _client(tmp_path, monkeypatch, raw=None):
     return TestClient(server.app)
 
 
-def _post(client, ev=None, args=ARGS):
+def _request(ev=None, args=ARGS, **binding):
     extra = {"evidence": ev} if ev is not None else {}
-    return client.post(
-        "/v1/decide", json=decide_json("payer", CAP, arguments=args, **extra)
-    )
+    return decide_json("payer", CAP, arguments=args, **binding, **extra)
+
+
+def _server_evidence(signer="payer", **binding):
+    """Evidence whose presentation covers the request exactly as sent."""
+    body = _request(**binding)
+    bound = sealed_dispatch(body["execution_action"], body["dispatch_context"])
+    links = chain()
+    return {
+        "delegation": {
+            "chain": links,
+            "presentation": sign_presentation(
+                KEYS[signer]["signing_key"],
+                audience=AUDIENCE,
+                chain_hash=link_hash(links[-1]),
+                action_id=delegated_action_id("payer", CAP, ARGS, bound),
+            ),
+        }
+    }
+
+
+def _post(client, ev=None, **binding):
+    return client.post("/v1/decide", json=_request(ev, **binding))
 
 
 def test_server_enforces_delegation_on_every_decide(tmp_path, monkeypatch):
     with _client(tmp_path, monkeypatch) as client:
         bare = _post(client)
-        assert bare.status_code == 202
+        assert bare.status_code == 403
         assert "delegation_required" in bare.json()["reason"]
 
-        ev = evidence()
+        ev = _server_evidence()
         ok = _post(client, ev)
         assert ok.status_code == 200, ok.text
         assert "holder proven" in ok.json()["reason"]
         assert "holder proven" in ok.json()["record"]["reason"]  # sealed
 
         replay = _post(client, ev)
-        assert replay.status_code == 202
+        assert replay.status_code == 403
         assert "presentation already used" in replay.json()["reason"]
 
-        stolen = _post(client, evidence(signer="thief"))
-        assert stolen.status_code == 202
+        stolen = _post(client, _server_evidence(signer="thief"))
+        assert stolen.status_code == 403
         assert "delegation_holder_unproven" in stolen.json()["reason"]
 
         detail = client.get("/v1/runtime").json()["composition"]["delegation"]
         assert detail["status"] == "attached"
         assert "single-use: shared ledger" in detail["detail"]
+
+
+@pytest.mark.parametrize(
+    "changed",
+    [
+        {"resource": "account:attacker"},
+        {"org": "evil.example"},  # the principal acted as
+        {"dispatch_context": dispatch_context_for(destination="evil.example")},
+        {"dispatch_context": dispatch_context_for(operation="POST /v1/refunds")},
+    ],
+)
+def test_server_refuses_a_valid_proof_moved_to_another_target(
+    tmp_path, monkeypatch, changed
+):
+    """The reviewer's finding: with a valid proof, the resource, the person
+    acted as and the destination could each be changed and still allow."""
+    with _client(tmp_path, monkeypatch) as client:
+        signed_for_default = _server_evidence()
+        moved = _post(client, signed_for_default, **changed)
+        assert moved.status_code == 403, moved.text
+        assert "different action" in moved.json()["reason"]
+        # the same presentation, sent unchanged, is still good: the refusal
+        # did not burn it
+        assert _post(client, signed_for_default).status_code == 200
+
+
+def test_caller_cannot_supply_the_sealed_dispatch_itself(tmp_path, monkeypatch):
+    with _client(tmp_path, monkeypatch) as client:
+        body = _request({"bound": {"resource": "x"}})
+        del body["execution_action"], body["dispatch_context"]
+        assert client.post("/v1/decide", json=body).status_code == 422
 
 
 def test_server_without_a_delegation_file_reports_it(tmp_path, monkeypatch):

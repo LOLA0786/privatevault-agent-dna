@@ -30,7 +30,7 @@ flowchart BT
   L6 -->|28| L1
   L6 -->|10| L2
   L6 -->|16| L3
-  L6 -->|51| L4
+  L6 -->|52| L4
   L6 -->|29| L5
   L2 -.->|1 upward| L4
   L3 -.->|4 upward| L4
@@ -64,7 +64,7 @@ flowchart BT
 | `agent_dna.scan.ingest` | Normalize heterogeneous agent logs into AgentAction | `agent_dna.trace` | 2: `agent_dna.scan`, `agent_dna.scan.replay` |
 | `agent_dna.scan.inventory` | What the agents in a log can actually do | `agent_dna.trace` | none |
 | `agent_dna.scan.replay` | Replay a customer's own log through the engine, enforcing nothing | `agent_dna.decision`, `agent_dna.dynamics`, `agent_dna.manifold`, `agent_dna.open_authorizer`, `agent_dna.scan.ingest`, `agent_dna.scorer`, `agent_dna.trace` | 1: `agent_dna.scan` |
-| `api.server` | PrivateVault Agent DNA — Decision Security API | `agent_dna.action_v01`, `agent_dna.apikeys`, `agent_dna.approval_bridge`, `agent_dna.authority_deadline`, `agent_dna.authority_v01`, `agent_dna.authorize_binding`, `agent_dna.checkpoint`, `agent_dna.composition`, `agent_dna.connector.cross_agent`, `agent_dna.control_posture`, `agent_dna.decision`, `agent_dna.decision_graph`, `agent_dna.dispatch_context_v01`, `agent_dna.execution_v01`, `agent_dna.key_custody`, `agent_dna.ledger_reads`, `agent_dna.lineage`, `agent_dna.observability.logger`, `agent_dna.observability.metrics`, `agent_dna.observability.prometheus_bridge`, `agent_dna.operation_registry`, `agent_dna.permit_evidence`, `agent_dna.presenter_identity`, `agent_dna.rate_limit`, `agent_dna.request_bounds`, `agent_dna.revocation_list`, `agent_dna.runtime`, `agent_dna.security.loop_discovery`, `agent_dna.signer`, `agent_dna.trace`, `agent_dna.wire_serialization_v01` | none |
+| `api.server` | PrivateVault Agent DNA — Decision Security API | `agent_dna.action_v01`, `agent_dna.apikeys`, `agent_dna.approval_bridge`, `agent_dna.authority_deadline`, `agent_dna.authority_v01`, `agent_dna.authorize_binding`, `agent_dna.checkpoint`, `agent_dna.composition`, `agent_dna.connector.cross_agent`, `agent_dna.control_posture`, `agent_dna.decision`, `agent_dna.decision_graph`, `agent_dna.dispatch_context_v01`, `agent_dna.execution_v01`, `agent_dna.key_custody`, `agent_dna.ledger_reads`, `agent_dna.lineage`, `agent_dna.multi_agent_security.gate`, `agent_dna.observability.logger`, `agent_dna.observability.metrics`, `agent_dna.observability.prometheus_bridge`, `agent_dna.operation_registry`, `agent_dna.permit_evidence`, `agent_dna.presenter_identity`, `agent_dna.rate_limit`, `agent_dna.request_bounds`, `agent_dna.revocation_list`, `agent_dna.runtime`, `agent_dna.security.loop_discovery`, `agent_dna.signer`, `agent_dna.trace`, `agent_dna.wire_serialization_v01` | none |
 
 ## L5: Enforcement runtime: monitor, breaker, recorder, gates, sidecar
 
@@ -159,7 +159,7 @@ flowchart BT
 | `agent_dna.multi_agent_security` | Multi-Agent Security Layer -- trust between agents | `agent_dna.multi_agent_security.counterparty`, `agent_dna.multi_agent_security.delegation`, `agent_dna.multi_agent_security.gate`, `agent_dna.multi_agent_security.independence`, `agent_dna.multi_agent_security.nonce_ledger`, `agent_dna.multi_agent_security.possession` | none |
 | `agent_dna.multi_agent_security.counterparty` | Mutual checkpoints: each party holds the other's history commitment | `agent_dna.checkpoint` | 1: `agent_dna.multi_agent_security` |
 | `agent_dna.multi_agent_security.delegation` | Delegation that can only shrink (pv-delegation/1) | `agent_dna.multi_agent_security.possession` | 2: `agent_dna.multi_agent_security`, `agent_dna.multi_agent_security.gate` |
-| `agent_dna.multi_agent_security.gate` | DelegationGate -- delegation enforced on the live decision path | `agent_dna.multi_agent_security.delegation`, `agent_dna.multi_agent_security.nonce_ledger` | 2: `agent_dna.composition`, `agent_dna.multi_agent_security` |
+| `agent_dna.multi_agent_security.gate` | DelegationGate -- delegation enforced on the live decision path | `agent_dna.multi_agent_security.delegation`, `agent_dna.multi_agent_security.nonce_ledger` | 3: `agent_dna.composition`, `agent_dna.multi_agent_security`, `api.server` |
 | `agent_dna.multi_agent_security.independence` | Voter independence | nothing in the core | 2: `agent_dna.consensus.checker`, `agent_dna.multi_agent_security` |
 | `agent_dna.multi_agent_security.nonce_ledger` | Single-use ledger for cleared quorums | nothing in the core | 4: `agent_dna.composition`, `agent_dna.consensus.checker`, `agent_dna.multi_agent_security`, `agent_dna.multi_agent_security.gate` |
 | `agent_dna.multi_agent_security.possession` | Receiver-issued, single-use proof of the final delegate's signing key | nothing in the core | 2: `agent_dna.multi_agent_security`, `agent_dna.multi_agent_security.delegation` |

@@ -31,6 +31,7 @@ checker turns into a hold with that reason, and ``health()`` reports it to
 
 from __future__ import annotations
 
+import secrets
 import sqlite3
 import threading
 import time
@@ -112,8 +113,7 @@ class SqliteNonceLedger:
             # Prove the file can be written NOW. A read-only file opens and
             # answers reads; without this it would start "healthy" and then
             # fail every quorum.
-            self._db.execute("BEGIN IMMEDIATE")
-            self._db.execute("ROLLBACK")
+            self._write_probe()
         except sqlite3.Error as exc:
             self._db.close()
             raise LedgerUnavailable(
@@ -188,15 +188,29 @@ class SqliteNonceLedger:
         except sqlite3.Error:
             pass
 
+    def _write_probe(self) -> None:
+        """Write a row and roll it back.
+
+        Taking the write lock is not enough: in WAL mode ``BEGIN IMMEDIATE``
+        succeeds on a database file that is read-only, and only the first
+        real write fails. So the probe performs one.
+        """
+        self._db.execute("BEGIN IMMEDIATE")
+        try:
+            self._db.execute(
+                "INSERT INTO used_votes (agent_id, nonce, expires_at)"
+                " VALUES ('__write_probe__', ?, 0)",
+                (secrets.token_hex(8),),
+            )
+        finally:
+            self._rollback_quietly()
+
     def health(self) -> str | None:
         """None when the ledger can be written right now, else the reason."""
         with self._lock:
             try:
-                self._db.execute("BEGIN IMMEDIATE")
-                self._db.execute("SELECT 1 FROM used_votes LIMIT 1").fetchone()
-                self._db.execute("ROLLBACK")
+                self._write_probe()
             except sqlite3.Error as exc:
-                self._rollback_quietly()
                 return f"{type(exc).__name__}: {exc}"
         return None
 
@@ -270,7 +284,12 @@ class PostgresNonceLedger:
     def health(self) -> str | None:
         try:
             with self._pool.connection() as conn:
-                conn.execute("SELECT 1 FROM used_votes LIMIT 1").fetchone()
+                with conn.transaction(force_rollback=True):
+                    conn.execute(
+                        "INSERT INTO used_votes (agent_id, nonce, expires_at)"
+                        " VALUES ('__write_probe__', %s, 0)",
+                        (secrets.token_hex(8),),
+                    )
         except Exception as exc:
             return f"{type(exc).__name__}: {exc}"
         return None

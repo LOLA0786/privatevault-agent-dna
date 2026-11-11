@@ -64,13 +64,20 @@ The caller sends `evidence.delegation = {"chain": [...], "presentation": {...}}`
 - **A chain is mandatory where the operator says so.** An agent in
   `required_agents`, or any agent using a capability in `required_for`, is
   held without one, so a sub-agent cannot fall back on a standing grant.
-- **The holder must prove its key.** The presentation is signed by the final
-  delegate's pinned key over this chain, this exact action (agent,
-  capability and arguments, hashed by the service), this deployment's
-  `audience`, and a lifetime of at most 120 seconds. It is spent once in the
-  shared ledger. A copied chain without the key is held.
-- **A refusal cannot be approved away.** The result lists `delegation` among
-  the levels that fired, and an approval is refused.
+- **The holder must prove its key, for the action as it will run.** The
+  presentation is signed by the final delegate's pinned key over this
+  chain, this deployment's `audience`, a lifetime of at most 120 seconds,
+  and one exact action: the agent, capability and arguments, and the
+  dispatch the runtime seals for the request (destination, operation,
+  transport, content type, resource, and the principal acted as). Change
+  any of them and the presentation is refused; build the value to sign
+  with `delegated_action_id(agent, capability, arguments,
+  sealed_dispatch(execution_action, dispatch_context))`. It is spent once
+  in the shared ledger. A copied chain without the key is refused.
+- **A refusal is a BLOCK (403), not a hold.** A missing, forged,
+  out-of-scope or replayed delegation is not a question for a person. As a
+  hold, an interactive client such as the Claude Code hook would show it as
+  a prompt its user could answer "allow".
 - **An allowed decision records the chain.** The sealed reason carries the
   chain hash and depth.
 
@@ -170,9 +177,14 @@ restart, is held. Where the record lives:
 
 A used entry is kept for 300 seconds after it expires, so a replica whose
 clock runs ahead cannot free a vote that a slower replica would still
-accept. A ledger that cannot be written refuses startup; one that fails
-later holds every quorum with `consensus_ledger_unavailable` and turns
-`/ready` to 503 `quorum_ledger_unavailable`.
+accept. A ledger that cannot be written refuses startup, including the case
+where only the database file is read-only: the startup and readiness probes
+write a row and roll it back, because taking the write lock alone succeeds
+on such a file. A ledger that fails later holds every quorum with
+`consensus_ledger_unavailable`, blocks delegated decisions with
+`delegation_ledger_unavailable`, and turns `/ready` to 503
+`quorum_ledger_unavailable` (both the quorum and the delegation ledger are
+probed).
 Tests: `tests/multi_agent_security/test_hardening.py`.
 
 ## Mutual checkpoints
@@ -213,6 +225,9 @@ but that checkpoint does not authenticate their origin or completeness.
   a link hash does not stop its signer issuing the same grant again, which
   is what `revoked_agents` is for. Short expiries remain the dependable
   control.
+- **Revocation does not recall what was already allowed.** A decision
+  allowed just before an identity is revoked stays usable for as long as
+  the permit minted from it lives. Nothing here voids outstanding permits.
 - **A presentation's freshness rests on clocks.** Its lifetime is at most
   120 seconds plus 30 seconds of skew; its single use rests on the ledger.
 - **The signing key is the holder.** A model that can reach the key can

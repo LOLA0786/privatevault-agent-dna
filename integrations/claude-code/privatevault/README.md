@@ -188,8 +188,9 @@ A path's `zone` is one of `privatevault` (PrivateVault's state),
 `claude-config` (`~/.claude`, the project's `.claude/` and `.mcp.json`),
 `git-internals` (anything inside `.git/`), `credentials`, `outside-project` or
 `project`; symlinks are followed. A URL's `host_class` is `metadata`,
-`link-local`, `loopback`, `private`, `public` or `invalid`; a host name is
-resolved and classed by the worst address it points to. Policy rules can match these fields.
+`link-local`, `loopback`, `private`, `unresolved`, `public` or `invalid`; a
+host name is resolved and classed by the worst address it points to, and a
+name that does not resolve in time is `unresolved`, never `public`. Policy rules can match these fields.
 
 Edit `config/policy.json` (rules) and `config/grants.json` (what the agent may
 do at all) to fit your project. An MCP tool with no grant asks you first. Add

@@ -250,13 +250,14 @@
       "id": "net-fetch-internal",
       "capability": "net.fetch",
       "outcome": "require_approval",
-      "reason": "fetches from this machine or the internal network",
+      "reason": "fetches from this machine, the internal network, or a name that did not resolve when checked",
       "condition": {
         "field": "arguments.host_class",
         "operator": "in",
         "value": [
           "loopback",
-          "private"
+          "private",
+          "unresolved"
         ]
       }
     }

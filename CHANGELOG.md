@@ -5,6 +5,32 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Review of #223: delegation gate and two older gaps
+- **A presentation now covers where the action runs.** It was signed over
+  the agent, capability and arguments only, so with a valid proof the
+  target resource, the principal acted as and the destination could each
+  be changed and still allow. The signed value now includes the dispatch
+  the runtime seals (`sealed_dispatch`), the same values `/v1/decide`
+  exposes as `evidence.bound`.
+  `tests/multi_agent_security/test_gate.py::test_server_refuses_a_valid_proof_moved_to_another_target`.
+  **Breaking for anything already signing presentations:** pass the sealed
+  dispatch to `delegated_action_id`.
+- **A delegation refusal is a BLOCK (403), no longer a hold (202).** The
+  Claude Code hook showed the hold as a prompt the user could allow.
+- **A read-only ledger file now refuses startup and fails `/ready`.** The
+  probe only took the write lock, which succeeds on a read-only database
+  file in WAL mode; it now writes and rolls back. `/ready` also probes the
+  delegation gate's ledger, and a ledger failure inside the gate is a named
+  refusal. `tests/multi_agent_security/test_hardening.py`.
+- **Claude Code hook: a name that does not resolve is `unresolved`, not
+  `public`**, and the shipped policy requires a person for it. A resolver
+  stalling past the timeout made any name public.
+- **gcloud, GitHub CLI and Azure CLI token files are credentials** for the
+  hook, the shell guard and the sandbox settings.
+  `tests/test_redteam_claude_code.py`.
+- Not fixed, documented: a decision allowed before an identity is revoked
+  stays usable for its permit's lifetime.
+
 ### Multi-agent security: delegation on the decision path, and the findings left open
 Scope and limits: `docs/MULTI-AGENT-SECURITY.md`.
 

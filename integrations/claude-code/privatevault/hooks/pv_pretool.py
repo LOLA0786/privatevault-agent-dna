@@ -81,7 +81,13 @@ READ_TOOLS = {"Read", "Grep"}
 SENSITIVE = re.compile(
     r"(^|/)(\.env(\.[^/]*)?|\.netrc|\.npmrc|\.pypirc|\.git-credentials|"
     r"id_(rsa|dsa|ecdsa|ed25519)[^/]*|\.?credentials(\.[^/]*)?|[^/]*\.(pem|key|p12|pfx))$"
-    r"|(^|/)\.(ssh|aws|gnupg|kube|docker)(/|$)"
+    r"|(^|/)\.(ssh|aws|gnupg|kube|docker|azure)(/|$)"
+    # CLI token stores: gcloud (application default credentials, access
+    # token and credential databases), the GitHub CLI (hosts.yml holds the
+    # OAuth token) and the Azure CLI (MSAL token cache).
+    r"|(^|/)\.config/(gcloud|gh)(/|$)"
+    r"|(^|/)(application_default_credentials\.json|access_tokens\.db|"
+    r"credentials\.db|msal_token_cache[^/]*|accessTokens\.json)$"
     r"|^/proc/[^/]+/environ$"
     r"|secret",
     re.IGNORECASE,
@@ -251,7 +257,7 @@ def host_class(url: str) -> str:
     """What kind of host a URL names. A name is resolved and classed by the
     worst address it points to, so a public name for 169.254.169.254 is
     metadata (red team retest: DNS). A name that does not resolve is
-    classed by its suffix."""
+    private by an internal suffix, else "unresolved": never public."""
     try:
         host = (urllib.parse.urlsplit(url).hostname or "").rstrip(".").lower()
     except ValueError:
@@ -273,7 +279,13 @@ def host_class(url: str) -> str:
     for worst in _CLASS_RANK:
         if worst in classes:
             return worst
-    return "private" if host.endswith((".internal", ".local", ".lan")) else "public"
+    if host.endswith((".internal", ".local", ".lan")):
+        return "private"
+    # The name did not resolve within DNS_TIMEOUT_S, so where it points is
+    # unknown. It used to be classed public: a resolver that stalls past the
+    # timeout, or a name that starts resolving a moment later, then pointed
+    # the real fetch at an internal or metadata address unchecked.
+    return "unresolved"
 
 
 def touches(command: str) -> list[str]:

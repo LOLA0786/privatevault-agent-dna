@@ -121,6 +121,7 @@ from agent_dna.lineage import (
     lineage_manifest,
     lineage_mode,
 )
+from agent_dna.multi_agent_security.gate import sealed_dispatch
 from agent_dna.observability.logger import get_logger
 from agent_dna.observability.metrics import MetricsExporter
 from agent_dna.observability.prometheus_bridge import (
@@ -1077,15 +1078,7 @@ def decide(req: DecideRequest, principal: FullPrincipal):
         # so rules can match on where and how the bytes are sent, e.g.
         #   {"field": "evidence.bound.operation", "operator": "not_in",
         #    "value": ["POST /v1/refunds"]}  -> block
-        evidence["bound"] = {
-            "destination": dispatch_context["destination"],
-            "operation": dispatch_context["operation"],
-            "transport": dispatch_context["transport"],
-            "wire_content_type": dispatch_context["wire_content_type"],
-            "resource": execution_action["resource"],
-            "subject_principal": execution_action["subject_principal"],
-            "action": execution_action["action"],
-        }
+        evidence["bound"] = sealed_dispatch(execution_action, dispatch_context)
     elif "bound" in evidence:
         raise HTTPException(
             status_code=422,
@@ -1545,8 +1538,12 @@ def ready():
     # A quorum that cannot be recorded as spent cannot clear: say so here
     # instead of reporting ready while every vote is held.
     core = getattr(state.get("engine"), "engine", state.get("engine"))
-    probe = getattr(getattr(core, "consensus", None), "health", None)
-    ledger_problem = probe() if callable(probe) else None
+    ledger_problem = None
+    for level in ("consensus", "delegation"):
+        probe = getattr(getattr(core, level, None), "health", None)
+        ledger_problem = probe() if callable(probe) else None
+        if ledger_problem is not None:
+            break
     if ledger_problem is not None:
         set_ready(False)
         _log.error("readiness: quorum ledger unavailable: %s", ledger_problem)
