@@ -146,6 +146,9 @@ class DelegationDecision:
     expires_at: float | None = None
     links: tuple[str, ...] = ()
     parties: tuple[str, ...] = ()
+    # The pinned key each party verified under, so a later key rotation or
+    # removal can be told from "still the same identity".
+    keys: tuple[tuple[str, str], ...] = ()
 
 
 def _is_hex(value: Any, length: int) -> bool:
@@ -442,6 +445,11 @@ def within_scope(  # noqa: C901 - ordered refusal checklist
         expires_at=float(min(link["expires_at"] for link in chain)),
         links=tuple(link_hash(link) for link in chain),
         parties=tuple(parties),
+        keys=tuple(
+            (party, key)
+            for party in parties
+            if (key := anchors.roots.get(party) or anchors.agents.get(party))
+        ),
     )
 
 

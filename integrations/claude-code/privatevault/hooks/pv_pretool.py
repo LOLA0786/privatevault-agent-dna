@@ -88,7 +88,7 @@ SENSITIVE = re.compile(
     r"|(^|/)\.config/(gcloud|gh)(/|$)"
     # The whole ~/.config directory: a recursive read of it (grep -r, tar,
     # cp -r) takes the gcloud and gh token stores with it.
-    r"|^(~|\$HOME|\$\{HOME\}|/home/[^/]+|/Users/[^/]+|/root)/\.config$"
+    r"|^(~[^/]*|\$HOME|\$\{HOME\}|/home/[^/]+|/Users/[^/]+|/root)/\.config$"
     r"|(^|/)(application_default_credentials\.json|access_tokens\.db|"
     r"credentials\.db|msal_token_cache[^/]*|accessTokens\.json)$"
     r"|^/proc/[^/]+/environ$"
@@ -209,9 +209,31 @@ def _ip(host: str) -> ipaddress.IPv4Address | ipaddress.IPv6Address | None:
             ip = ipaddress.ip_address(socket.inet_aton(host))
         except (OSError, ValueError):
             return None
-    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
-        return ip.ipv4_mapped
+    if isinstance(ip, ipaddress.IPv6Address):
+        return _embedded_ipv4(ip) or ip
     return ip
+
+
+_NAT64 = ipaddress.ip_network("64:ff9b::/96")
+_6TO4 = ipaddress.ip_network("2002::/16")
+
+
+def _embedded_ipv4(ip: ipaddress.IPv6Address) -> ipaddress.IPv4Address | None:
+    """The IPv4 address an IPv6 address stands for, if it stands for one.
+
+    ::ffff:a.b.c.d (mapped), ::a.b.c.d (compatible), 64:ff9b::a.b.c.d
+    (NAT64) and 2002:AABB:CCDD:: (6to4) all reach the IPv4 host. Written
+    that way, the metadata address 169.254.169.254 was classed by its IPv6
+    form and asked for approval where every other spelling is blocked.
+    """
+    if ip.ipv4_mapped:
+        return ip.ipv4_mapped
+    value = int(ip)
+    if ip in _NAT64 or (value >> 32 == 0 and value > 1):
+        return ipaddress.IPv4Address(value & 0xFFFFFFFF)
+    if ip in _6TO4:
+        return ipaddress.IPv4Address((value >> 80) & 0xFFFFFFFF)
+    return None
 
 
 def _ip_class(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> str:
@@ -331,6 +353,9 @@ def classify(capability: str, arguments: dict, cwd: str) -> dict:
             out["host_resolved"] = False
     elif capability == "shell.exec" and isinstance(out.get("command"), str):
         out["touches"] = touches(out["command"])
+        # where the command runs, so the runtime can resolve relative paths:
+        # ".config" typed in the home directory is ~/.config
+        out["cwd"] = os.path.abspath(cwd)
     return out
 
 

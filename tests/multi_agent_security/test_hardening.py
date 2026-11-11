@@ -388,3 +388,22 @@ def test_sqlite_error_type_is_preserved_as_the_cause(tmp_path):
     with pytest.raises(LedgerUnavailable) as raised:
         SqliteNonceLedger(path)
     assert isinstance(raised.value.__cause__, sqlite3.Error)
+
+
+@pytest.mark.parametrize("name", ["v1 ", " v1", "v\t1", "v1\u200b"])
+def test_voter_names_that_only_look_alike_refuse_to_load(name):
+    """Delegation identities were checked; consensus voter names were not."""
+    raw = roster(["acme", "globex", "initech"])
+    raw["voters"][0]["agent_id"] = name
+    with pytest.raises(ConsensusConfigError, match="whitespace or non-printable"):
+        ConsensusConfig.from_dict(raw)
+
+
+def test_duplicate_keys_in_the_consensus_file_refuse_to_load(tmp_path):
+    import json
+
+    good = json.dumps(roster(["acme", "globex", "initech"]))
+    path = tmp_path / "consensus.json"
+    path.write_text(good[:-1] + ', "threshold": 0.1}')
+    with pytest.raises(ConsensusConfigError, match="duplicate key"):
+        ConsensusConfig.from_file(path)

@@ -62,7 +62,7 @@ from .grant_revocation import GrantRevocationLedger
 from .grant_spend import GrantSpendLedger
 from .grants import GrantRegistry
 from .manifold import CapabilityManifold
-from .multi_agent_security.gate import DelegationGate, DelegationPolicy
+from .multi_agent_security.gate import DelegationGate
 from .multi_agent_security.nonce_ledger import PostgresNonceLedger, SqliteNonceLedger
 from .open_authorizer import OpenAuthorizer
 from .pg_compat import PgCompatConnection, is_database_url
@@ -689,8 +689,8 @@ def _compose_delegation(cfg: RuntimeConfig, comp: dict[str, Any]) -> Any:
             "detail": "PV_DELEGATION_FILE unset: delegation chains are not checked",
         }
         return None
-    delegation = DelegationGate(
-        DelegationPolicy.from_file(cfg.delegation_file),
+    delegation = DelegationGate.from_file(
+        cfg.delegation_file,
         ledger=(
             SqliteNonceLedger(cfg.consensus_nonce_db)
             if cfg.consensus_nonce_db

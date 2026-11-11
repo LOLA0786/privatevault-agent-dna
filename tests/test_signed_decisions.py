@@ -198,7 +198,7 @@ def test_hook_accepts_a_real_signed_allow(world, monkeypatch):
     assert checked == [1]
 
 
-def _answer_for(real, request_id, command="ls"):
+def _answer_for(real, request_id, command="ls", *, cwd):
     digest = hashlib.sha256(
         json.dumps({"command": command}, separators=(",", ":")).encode()
     ).hexdigest()
@@ -208,7 +208,13 @@ def _answer_for(real, request_id, command="ls"):
             "capability": "shell.exec",
             "timestamp": 1,
             "request_id": request_id,
-            "arguments": {"command": command, "touches": [], "input_sha256": digest},
+            "arguments": {
+                "command": command,
+                "touches": [],
+                # the hook reports where the command runs (review of #225)
+                "cwd": os.path.abspath(cwd),
+                "input_sha256": digest,
+            },
         }
     )
 
@@ -226,9 +232,9 @@ def _answer_for(real, request_id, command="ls"):
 )
 def test_hook_refuses_a_forged_answer(world, monkeypatch, forge, why):
     hook, home, work, real = world
-    status, genuine = _answer_for(real, "tu-1")
-    _, other = _answer_for(real, "someone-else")
-    _, blocked = _answer_for(real, "tu-1", command="rm -rf build")
+    status, genuine = _answer_for(real, "tu-1", cwd=work)
+    _, other = _answer_for(real, "someone-else", cwd=work)
+    _, blocked = _answer_for(real, "tu-1", command="rm -rf build", cwd=work)
     forged = json.loads(json.dumps(genuine))
     if forge == "unsigned":
         forged.pop("envelope")
@@ -260,7 +266,7 @@ def test_hook_refuses_a_forged_answer(world, monkeypatch, forge, why):
 
 def test_hook_refuses_a_stale_answer(world, monkeypatch):
     hook, home, work, real = world
-    status, genuine = _answer_for(real, "tu-1")
+    status, genuine = _answer_for(real, "tu-1", cwd=work)
     monkeypatch.setattr(hook, "decide", lambda payload: (status, genuine))
     monkeypatch.setattr(
         hook.time, "time", lambda: genuine["record"]["timestamp"] + 3600
