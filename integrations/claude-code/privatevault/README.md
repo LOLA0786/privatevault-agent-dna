@@ -215,13 +215,21 @@ curl -s localhost:8000/v1/verify                # check the hash chain
 - File writes are checked by path and zone, not by content.
 - Credential files are recognised by how the command names them. The
   gcloud, GitHub CLI and Azure CLI token stores are caught under any path
-  spelling (`//`, `/./`, `..`, globs, `~user`), as `.config` typed while in
-  the home directory (the hook reports the working directory), as a read of
-  the whole `~/.config`, and when `grep`, `find`, `tar`, `cp`, `rsync` and
-  similar are pointed at the home directory itself. Not caught: a path
-  built at run time, a program outside that list reading the home
-  directory, and stores relocated by `CLOUDSDK_CONFIG`, `GH_CONFIG_DIR` or
-  `AZURE_CONFIG_DIR`. The sandbox settings are the backstop for those.
+  spelling (`//`, `/./`, `..`, globs including one that can expand to
+  `.config`, `~user`), as `.config` typed while in the home directory (the
+  hook reports the working directory), and as a read of the whole
+  `~/.config`. `grep`, `rg`, `find`, `tar`, `cp`, `rsync` and similar
+  pointed at the home directory, or at a directory that contains it (`/`,
+  `/home`, `/Users`, `~/..`), are caught, and so are the Read, Grep and
+  Glob tools pointed there.
+  Not caught, as far as is known: a path built at run time (a variable, a
+  command substitution, an interpreter one-liner that walks the tree), a
+  program outside the list above reading the home directory, a directory
+  above home reached through a symlink the hook cannot see from the command
+  text, and stores relocated by `CLOUDSDK_CONFIG`, `GH_CONFIG_DIR` or
+  `AZURE_CONFIG_DIR`. This list is what review has found so far, not a
+  proof of completeness. These rules produce a prompt; the sandbox
+  settings are the boundary, and the sandbox has not been tested.
 - `host_class` resolves the host name when the hook runs. The fetch resolves
   it again, so a name that changes its answer in between (DNS rebinding) is
   not caught.

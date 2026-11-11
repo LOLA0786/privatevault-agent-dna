@@ -834,3 +834,75 @@ def test_ordinary_ipv6_addresses_keep_their_class():
     assert hook.host_class("http://[::1]/") == "loopback"
     assert hook.host_class("http://[64:ff9b::808:808]/") == "public"  # NAT64 of 8.8.8.8
     assert hook.host_class("http://[::10.0.0.7]/") == "private"
+
+
+# ---- review of #226: searching from above the home directory ----------------
+
+
+@pytest.mark.parametrize(
+    "command, cwd",
+    [
+        ("find /home -name hosts.yml -exec cat {} +", None),
+        ("grep -r oauth /home", None),
+        ("grep -r oauth /", None),
+        ("grep -r oauth ~/..", None),
+        ("grep -r oauth /Users", None),
+        ("rg oauth /home/dev/..", None),
+        ("grep -r id_rsa /home", None),  # the same trick against .ssh
+        ("cat .c*/gh/hosts.yml", "/home/dev"),
+        ("grep -r oauth .c*", "/home/dev"),
+        ("grep -r oauth ~/.c*", None),
+    ],
+)
+def test_reading_from_above_the_home_directory_is_caught(command, cwd):
+    """ "/", "/home" and "~/.." contain every home directory; a recursive
+    reader pointed there read the token stores, and ~/.ssh, with no prompt.
+    So did a glob that can expand to ".config"."""
+    from agent_dna.shell_guard import analyze_shell_arguments
+
+    arguments = {"command": command}
+    if cwd is not None:
+        arguments["cwd"] = cwd
+    assert analyze_shell_arguments(arguments)["touches_sensitive"], command
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "ls /",
+        "ls /home",
+        "cd / && ls",
+        "find /usr/lib -name '*.so'",
+        "grep -r main /etc/nginx",
+        "cat /etc/hostname",
+    ],
+)
+def test_ordinary_use_of_system_directories_is_not_a_finding(command):
+    from agent_dna.shell_guard import analyze_shell_arguments
+
+    assert not analyze_shell_arguments({"command": command}).get("touches_sensitive")
+
+
+def test_search_tools_pointed_at_or_above_home_are_credentials(tmp_path, monkeypatch):
+    """The Grep tool pointed at the home directory, /home or / read the
+    token stores without a prompt."""
+    hook = _hook()
+    home = tmp_path / "home" / "dev"
+    project = home / "code" / "app"
+    project.mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(home))
+    for target in (str(home), str(home.parent), "/", "~", "~/..", "../.."):
+        assert hook.zone_of(target, str(project)) == "credentials", target
+    # the project itself, and ordinary places outside it, are unchanged
+    assert hook.zone_of("src/main.py", str(project)) == "project"
+    assert hook.zone_of(".", str(project)) == "project"
+    assert hook.zone_of("/usr/lib", str(project)) == "outside-project"
+    assert hook.zone_of(str(home / "notes"), str(project)) == "outside-project"
+
+
+def test_a_session_opened_in_the_home_directory_asks_before_searching_it(
+    tmp_path, monkeypatch
+):
+    hook = _hook()
+    monkeypatch.setenv("HOME", str(tmp_path))
+    assert hook.zone_of(".", str(tmp_path)) == "credentials"

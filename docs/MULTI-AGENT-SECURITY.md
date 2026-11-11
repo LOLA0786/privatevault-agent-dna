@@ -79,8 +79,10 @@ The caller sends `evidence.delegation = {"chain": [...], "presentation": {...}}`
   out-of-scope or replayed delegation is not a question for a person. As a
   hold, an interactive client such as the Claude Code hook would show it as
   a prompt its user could answer "allow".
-- **Every allowed decision carries the chain to the mint**, whether the
-  engine allowed it outright or a person approved a hold. The sealed reason
+- **An allowed decision made under a presented chain carries it to the
+  mint**, whether the engine allowed it outright, a person approved a hold,
+  or a quorum cleared it. A decision made with no chain carries no seal;
+  the last bullet of this list is what covers that case. The sealed reason
   ends with the chain hash, every link hash, every identity in the chain
   with the key it verified under, and when the delegated authority ends.
   `/v1/authorize` reads it back and refuses to mint when:
@@ -96,7 +98,17 @@ The caller sends `evidence.delegation = {"chain": [...], "presentation": {...}}`
   see the limits below. Tests: `tests/multi_agent_security/test_mint.py`.
 - **The configuration file is followed.** A change to `PV_DELEGATION_FILE`
   is picked up on the next decision or mint with no restart. If the changed
-  file does not load, everything under delegation is refused until it does.
+  file does not load, every decision the gate is asked about is refused and
+  nothing mints, sealed or not, until it loads. Decisions and mints that
+  never reach this server's gate are outside that statement.
+- **A chain is required by capability name, folded.** `required_for`
+  matches after folding case, compatibility forms and whitespace, and a
+  capability that is not plain ASCII always needs a chain while
+  `required_for` is in use, so `CRM.read_contact` does not walk past
+  `crm.`. What a chain grants is still compared exactly. This guards
+  names only: nothing here ties a capability name to what is actually
+  sent. `PV_OPERATIONS_FILE` does that, and `required_agents` does not
+  depend on names at all.
 - **Names must be exact.** Identity names, and every name in
   `revoked_agents` and `required_agents`, must match a pinned identity
   character for character; a name with stray whitespace, different
@@ -233,6 +245,39 @@ and checkpoint-completeness check, not a replacement for the standalone
 verifier's full DRP schema, chain, lineage and per-record envelope checks.
 Records after the newest held checkpoint have their content hashes checked,
 but that checkpoint does not authenticate their origin or completeness.
+
+## Minting re-checks the stored record
+
+`/v1/authorize` reads the sealed decision back from the decision store.
+Before using it, it recomputes the record's hash from the stored contents
+and, when decision signing is on, verifies the stored signature over that
+hash against the keys the server trusts. An edit to a stored record changes
+its hash; a recomputed hash has no signature. A sealed expiry edited in the
+database, a seal grafted from another decision, and a stored BLOCK flipped
+to ALLOW are each refused with `AUTHORIZE_RECORD_HASH_MISMATCH`.
+
+With decision signing off (`PV_RECEIPT_SIGNING_KEY` unset) only the hash is
+checked, so someone who can write to the database and recomputes the hash
+is not detected. The secure profile requires the signing key.
+Tests: `tests/multi_agent_security/test_mint.py`.
+
+## Conditions for relying on this for payments
+
+These come from an outside red-team review of the mint path, not from the
+authors:
+
+1. Run the secure profile with `PV_OPERATIONS_FILE` pinned, and make chains
+   mandatory with `required_agents`, not only `required_for`.
+2. Keep decision signing on (the secure profile does). Until it is, only
+   the server process should be able to write to the decision database.
+3. Copy every revocation to every replica's delegation file, and keep chain
+   lifetimes short.
+4. Treat the home-directory rules in the Claude Code hook as a prompt, not
+   a boundary; the sandbox is the boundary and has not been tested.
+
+Not verified by that review or by the authors: real multi-host replicas,
+the sandbox itself, and the `pv backup`/`restore` and `pv approve`/`pv wrap`
+flows under attack.
 
 ## What this layer does not do
 

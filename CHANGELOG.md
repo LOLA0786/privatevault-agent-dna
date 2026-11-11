@@ -5,6 +5,28 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Review of #226
+- **Minting re-checks the stored decision.** It trusted the record as read
+  from the database: an edited seal expiry, a grafted seal and a stored
+  BLOCK flipped to ALLOW each minted a signed permit. The record's hash is
+  now recomputed on every mint and, with decision signing on, its stored
+  signature is verified against the trusted keys. With signing off only the
+  hash is checked; that limit is pinned by a test and documented.
+  `tests/multi_agent_security/test_mint.py`.
+- **A respelled capability no longer walks past `required_for`.**
+  `CRM.read_contact` did not match `crm.`, was allowed with no seal and
+  minted. The requirement is matched after folding, and non-ASCII names
+  always need a chain while `required_for` is in use.
+- **A decision with no chain follows the delegation file at mint**, and is
+  refused while the file does not load.
+- **Reading from above the home directory is caught**: recursive readers
+  pointed at `/`, `/home`, `/Users` or `~/..`, globs that can expand to
+  `.config`, and the Read, Grep and Glob tools pointed at or above home.
+  `tests/test_redteam_claude_code.py`.
+- Documentation corrected in the three places it overclaimed, and the
+  reviewer's conditions for payment use are recorded in
+  `docs/MULTI-AGENT-SECURITY.md`.
+
 ### Review of #225
 - **High: an approved hold now carries the delegation seal.** The seal was
   added only when the engine allowed outright. A delegated action that was

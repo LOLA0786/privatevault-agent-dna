@@ -169,6 +169,14 @@ def _roots(path: str) -> list[str]:
     return list(dict.fromkeys([os.path.normpath(p), os.path.realpath(p)]))
 
 
+def _holds_home(path: str) -> bool:
+    """Is this the home directory or a directory that contains it?"""
+    home = os.path.realpath(os.path.expanduser("~"))
+    return (
+        path == home or path == os.sep or home.startswith(path.rstrip(os.sep) + os.sep)
+    )
+
+
 def zone_of(path: str, cwd: str) -> str:
     """Where a file path points, for the policy (red team 2026-10-23, F2,
     F7, F12): PrivateVault's own state, Claude Code or git configuration
@@ -193,7 +201,11 @@ def zone_of(path: str, cwd: str) -> str:
                 return "claude-config"
         if ".git" in c.split(os.sep)[:-1]:
             return "git-internals"  # hooks and config run code on later commands
-    if any(SENSITIVE.search(c) for c in cands):
+    # Credential files by name; and the home directory or a directory that
+    # contains it ("/", "/home", "/Users"), because a search pointed there
+    # walks ~/.ssh, ~/.aws and the token stores under ~/.config. Every
+    # installed policy already asks a person for this zone.
+    if any(SENSITIVE.search(c) or _holds_home(c) for c in cands):
         return "credentials"
     # outside if the path as written or its real target leaves the project
     if not all(any(_under(c, r) for r in project) for c in cands):

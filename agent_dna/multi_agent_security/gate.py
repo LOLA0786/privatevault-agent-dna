@@ -227,6 +227,17 @@ def sign_presentation(
     return presentation
 
 
+def _fold_capability(name: str) -> str | None:
+    """A capability name with case, compatibility forms and whitespace
+    folded away; None when what is left is not plain printable ASCII."""
+    import unicodedata
+
+    folded = "".join(unicodedata.normalize("NFKC", name).casefold().split())
+    if not folded or not folded.isascii() or not folded.isprintable():
+        return None
+    return folded
+
+
 def _no_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     """A JSON object with a repeated key has two readings; refuse it.
 
@@ -255,8 +266,29 @@ class DelegationPolicy:
     required_agents: frozenset[str] = frozenset()
 
     def requires(self, agent_id: str, capability: str) -> bool:
-        return agent_id in self.required_agents or any(
-            covers(pattern, capability) for pattern in self.required_for
+        """Must this agent present a chain for this capability?
+
+        The capability is compared after folding (case, compatibility
+        forms, whitespace), and a capability that is not plain printable
+        ASCII is always required when ``required_for`` is in use. Compared
+        literally, ``CRM.read_contact`` did not match ``crm.`` and walked
+        past the requirement, then minted for the same real request. A
+        folded match only decides that a chain is REQUIRED; what the chain
+        grants is still compared exactly, so the variant is then refused.
+
+        This is a guard on names. Tying a capability name to what is
+        actually sent is ``PV_OPERATIONS_FILE``'s job.
+        """
+        if agent_id in self.required_agents:
+            return True
+        if not self.required_for:
+            return False
+        folded = _fold_capability(capability)
+        if folded is None:
+            return True  # look-alike or malformed name: do not let it pass
+        return any(
+            covers(_fold_capability(pattern) or pattern, folded)
+            for pattern in self.required_for
         )
 
     @classmethod
@@ -596,6 +628,27 @@ class DelegationGate:
                 keys=scoped.keys,
             ),
         )
+
+    def unsealed_problem(self, agent_id: str, capability: str) -> str | None:
+        """Why a decision with NO delegation seal must not mint, or None.
+
+        Follows the configuration file like every other check: a decision
+        that never had a chain used to be judged against the configuration
+        as last loaded, and skipped the refuse-everything rule for a file
+        that does not load.
+        """
+        self._refresh()
+        if self._config_problem is not None:
+            return (
+                "the delegation configuration is unusable "
+                f"({self._config_problem}); nothing mints until it loads"
+            )
+        if self.policy.requires(agent_id, capability):
+            return (
+                "this decision requires a delegation chain and its sealed "
+                "record carries none; decide again"
+            )
+        return None
 
     def revocation_of(self, sealed: Mapping[str, Any]) -> str | None:
         """Why a sealed delegation no longer counts under today's pins.

@@ -659,3 +659,52 @@ def test_the_seal_records_the_key_each_party_verified_under():
     assert sealed["keys"] == {
         name: KEYS[name]["public_key"] for name in ("operator", "planner", "payer")
     }
+
+
+# ---- review of #226 (Medium): a different spelling walked past required_for --
+
+
+@pytest.mark.parametrize(
+    "capability",
+    [
+        "CRM.read_contact",
+        "Crm.Read_Contact",
+        "crm .read_contact",
+        " crm.read_contact",
+        "ｃｒｍ.read_contact",  # fullwidth letters
+        "сrm.read_contact",  # Cyrillic с
+        "crm.read\u200b_contact",
+    ],
+)
+def test_a_respelled_capability_still_needs_a_chain(capability):
+    """With required_for ["crm."], CRM.read_contact was held for a missing
+    grant, approved and allowed with no seal, then minted for the same real
+    request. A variant now needs a chain, and no chain covers it."""
+    policy = DelegationPolicy.from_dict(
+        config(required_agents=[], required_for=["crm."])
+    )
+    assert policy.requires("anyone", capability), capability
+    eng = engine(required_agents=[], required_for=["crm."])
+    held(decide(eng, agent="reporting-bot", cap=capability), "delegation_required")
+
+
+def test_capabilities_outside_the_requirement_are_untouched():
+    policy = DelegationPolicy.from_dict(
+        config(required_agents=[], required_for=["crm."])
+    )
+    assert not policy.requires("anyone", "billing.read")
+    assert not policy.requires("anyone", "crmx.read")
+    assert policy.requires("anyone", "crm.read_contact")
+    # with no required_for in use, odd names are not swept up
+    plain = DelegationPolicy.from_dict(config(required_agents=[]))
+    assert not plain.requires("anyone", "сrm.read_contact")
+
+
+def test_a_chain_is_still_matched_exactly_not_by_folding():
+    """Folding decides that a chain is REQUIRED. What a chain grants is
+    compared exactly, so a variant is never covered by a chain for the
+    real name."""
+    eng = engine(required_agents=[], required_for=["payments."])
+    variant = "PAYMENTS.pay_invoice"
+    ev = evidence(cap=variant)
+    held(decide(eng, ev, cap=variant), "delegation_out_of_scope")
