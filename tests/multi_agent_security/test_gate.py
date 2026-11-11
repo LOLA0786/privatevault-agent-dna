@@ -536,3 +536,83 @@ def test_invalid_delegation_file_refuses_startup(tmp_path, monkeypatch):
     with pytest.raises(DelegationConfigError, match="share one public key"):
         with _client(tmp_path, monkeypatch, bad):
             pass
+
+
+# ---- review of #223/#224: what a sealed ALLOW carries to the mint -----------
+
+
+def test_an_allow_seals_when_its_delegated_authority_ends_and_who_it_rests_on():
+    from agent_dna.multi_agent_security.gate import sealed_delegation
+
+    links = chain()
+    result = decide(engine(), evidence(links))
+    sealed = sealed_delegation(result.reason)
+    assert sealed["chain"] == link_hash(links[-1])
+    assert sealed["links"] == [link_hash(link) for link in links]
+    assert sealed["parties"] == ["operator", "planner", "payer"]
+    assert sealed["expires_at"] == min(link["expires_at"] for link in links)
+    assert sealed_delegation("Behavior matches trusted profile.") is None
+
+
+@pytest.mark.parametrize(
+    "reason",
+    [
+        "ok; delegation=",
+        "ok; delegation={not json",
+        'ok; delegation={"chain":"x"}',
+        'ok; delegation={"chain":"' + "0" * 64 + '","depth":1,"expires_at":"soon",'
+        '"links":[],"parties":["a"]}',
+    ],
+)
+def test_an_unreadable_seal_is_an_error_never_treated_as_absent(reason):
+    from agent_dna.multi_agent_security.gate import sealed_delegation
+
+    with pytest.raises(ValueError, match="sealed delegation"):
+        sealed_delegation(reason)
+
+
+def test_only_the_final_seal_counts():
+    """Text earlier in a reason cannot stand in for the engine's seal."""
+    from agent_dna.multi_agent_security.gate import sealed_delegation
+
+    result = decide(engine(), evidence())
+    real = sealed_delegation(result.reason)
+    forged = '; delegation={"chain":"' + "f" * 64 + '","depth":1,"expires_at":9e12,'
+    forged += '"links":[],"parties":["x"]}'
+    assert sealed_delegation("note" + forged + result.reason) == real
+
+
+def test_the_adapter_and_serialization_are_covered_too():
+    base = {**BOUND, "adapter": "https", "serialization": "pv-json-parameters/0.1"}
+    assert decide(engine(), bound_evidence(base, base)).decision is Decision.ALLOW
+    held(
+        decide(engine(), bound_evidence(base, {**base, "adapter": "shell"})),
+        "different action",
+    )
+    held(
+        decide(engine(), bound_evidence(base, {**base, "serialization": "form"})),
+        "different action",
+    )
+
+
+@pytest.mark.parametrize("name", ["payer ", " payer", "pay\ter", "payer\u200b"])
+def test_identity_names_that_only_look_alike_refuse_to_load(name):
+    raw = config()
+    raw["agents"][name] = KEYS["thief"]["public_key"]
+    with pytest.raises(DelegationConfigError, match="whitespace or non-printable"):
+        DelegationPolicy.from_dict(raw)
+
+
+def test_arguments_and_bound_parameters_must_be_the_same_values(tmp_path, monkeypatch):
+    """1 == True in Python. A request stating amount 1 in ``arguments`` and
+    true in the parameters the permit binds used to pass the equality check,
+    so a proof signed for one covered the other."""
+    with _client(tmp_path, monkeypatch) as client:
+        body = _request()
+        body["arguments"] = {"amount": 1, "payee_id": "V-100"}
+        body["execution_action"]["parameters"] = {"amount": True, "payee_id": "V-100"}
+        refused = client.post("/v1/decide", json=body)
+        assert refused.status_code == 422
+        assert "must match arguments" in refused.text
+        body["execution_action"]["parameters"] = {"amount": 1.0, "payee_id": "V-100"}
+        assert client.post("/v1/decide", json=body).status_code == 422

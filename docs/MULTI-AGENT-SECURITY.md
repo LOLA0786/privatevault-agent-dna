@@ -69,7 +69,8 @@ The caller sends `evidence.delegation = {"chain": [...], "presentation": {...}}`
   chain, this deployment's `audience`, a lifetime of at most 120 seconds,
   and one exact action: the agent, capability and arguments, and the
   dispatch the runtime seals for the request (destination, operation,
-  transport, content type, resource, and the principal acted as). Change
+  transport, adapter, serialization, content type, resource, and the
+  principal acted as). Change
   any of them and the presentation is refused; build the value to sign
   with `delegated_action_id(agent, capability, arguments,
   sealed_dispatch(execution_action, dispatch_context))`. It is spent once
@@ -78,8 +79,13 @@ The caller sends `evidence.delegation = {"chain": [...], "presentation": {...}}`
   out-of-scope or replayed delegation is not a question for a person. As a
   hold, an interactive client such as the Claude Code hook would show it as
   a prompt its user could answer "allow".
-- **An allowed decision records the chain.** The sealed reason carries the
-  chain hash and depth.
+- **An allowed decision carries the chain to the mint.** The sealed reason
+  ends with the chain hash, every link hash, every identity in the chain
+  and when the delegated authority ends. `/v1/authorize` reads it back: it
+  refuses to mint after that time, caps a permit's expiry at it, and
+  refuses if any identity or link in the chain has since been revoked. The
+  values are in the signed record, so a restart or another replica applies
+  the same limits. Tests: `tests/multi_agent_security/test_mint.py`.
 
 `sign_presentation(...)` belongs in the agent's credential broker, never in
 the model. `GET /v1/runtime` reports the gate under `composition.delegation`.
@@ -225,9 +231,10 @@ but that checkpoint does not authenticate their origin or completeness.
   a link hash does not stop its signer issuing the same grant again, which
   is what `revoked_agents` is for. Short expiries remain the dependable
   control.
-- **Revocation does not recall what was already allowed.** A decision
-  allowed just before an identity is revoked stays usable for as long as
-  the permit minted from it lives. Nothing here voids outstanding permits.
+- **Revocation does not recall a permit already minted.** Once a revoked
+  identity is in the configuration, new decisions and new mints under its
+  chains are refused. A permit minted before that lives out its own
+  lifetime, which is capped at the chain's expiry.
 - **A presentation's freshness rests on clocks.** Its lifetime is at most
   120 seconds plus 30 seconds of skew; its single use rests on the ledger.
 - **The signing key is the holder.** A model that can reach the key can

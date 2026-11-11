@@ -576,7 +576,7 @@ def test_hook_and_guard_agree_on_credential_names():
         (["93.184.216.34"], "public"),
         (["198.18.0.1"], "public"),  # fake-IP proxy DNS
         (["198.18.0.1", "169.254.169.254"], "metadata"),
-        ([], "unresolved"),  # never public: where it points is unknown
+        ([], "private"),  # never public: where it points is unknown
     ],
 )
 def test_names_are_classed_by_what_they_resolve_to(monkeypatch, addresses, expected):
@@ -620,15 +620,39 @@ def test_a_slow_resolver_does_not_make_a_name_public(monkeypatch):
 
     monkeypatch.setattr(hook.socket, "getaddrinfo", stall)
     monkeypatch.setattr(hook, "DNS_TIMEOUT_S", 0.1)
-    assert hook.host_class("http://rebind.attacker.example/latest/") == "unresolved"
+    assert hook.classify_host("http://rebind.attacker.example/latest/") == (
+        "private",
+        False,
+    )
 
 
-def test_unresolved_names_are_not_fetched_without_a_person():
-    """The shipped policy puts 'unresolved' with loopback and private."""
-    policy = json.loads((PLUGIN / "config" / "policy.json").read_text())
-    internal = next(r for r in policy["policies"] if r["id"] == "net-fetch-internal")
-    assert internal["outcome"] == "require_approval"
-    assert "unresolved" in internal["condition"]["value"]
+def test_unresolved_names_need_a_person_under_policies_already_installed():
+    """The default must not depend on a policy file `pv up` never rewrites:
+    an unresolved name is classed "private", which every shipped policy,
+    old or new, already holds for a person."""
+    hook = _hook()
+    for policy_path in (
+        PLUGIN / "config" / "policy.json",
+        Path(hook.__file__).resolve().parents[4] / "agent_dna/quickstart/policy.json",
+    ):
+        policy = json.loads(policy_path.read_text())
+        internal = next(
+            r for r in policy["policies"] if r["id"] == "net-fetch-internal"
+        )
+        assert internal["outcome"] == "require_approval"
+        assert "private" in internal["condition"]["value"]
+
+
+def test_unresolved_names_are_marked_for_policies_that_care(monkeypatch):
+    hook = _hook()
+    monkeypatch.setattr(hook, "_resolve", lambda host: [])
+    args = hook.classify("net.fetch", {"url": "http://nowhere.example/x"}, "/tmp")
+    assert args["host_class"] == "private"
+    assert args["host_resolved"] is False
+    monkeypatch.setattr(hook, "_resolve", lambda host: ["93.184.216.34"])
+    args = hook.classify("net.fetch", {"url": "http://nowhere.example/x"}, "/tmp")
+    assert args["host_class"] == "public"
+    assert "host_resolved" not in args
 
 
 def test_internal_suffixes_stay_private_when_unresolved(monkeypatch):
@@ -677,3 +701,54 @@ def test_sandbox_denies_the_cloud_cli_token_stores():
 
     for place in ("~/.config/gcloud", "~/.config/gh", "~/.azure"):
         assert place in PROTECTED_PLACES
+
+
+# ---- review of #224: the token-store rules could be dodged by spelling ------
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "cat ~/.config/gh/hosts.yml",
+        "cat ~/.config//gh/hosts.yml",
+        "cat ~/.config/./gh/hosts.yml",
+        "cat ~/.config/x/../gh/hosts.yml",
+        "cat ~/.config/g?/hosts.yml",
+        "cat ~/.config/g[h]/hosts.yml",
+        "cat ~/.conf*/gh/hosts.yml",
+        "cat ~/.config/gc*/application_default_credentials.json",
+        "cat ~/.config/gcloud//access_tokens.db",
+        "cat ~/.config/./gcloud/credentials.db",
+        "grep -r oauth ~/.config",
+        "grep -r oauth ~/.config/",
+        "tar czf /tmp/x.tgz $HOME/.config",
+        "cat ~/.azure//msal_token_cache.json",
+        "cat ~/.ssh//id_rsa",
+    ],
+)
+def test_token_stores_are_caught_however_the_path_is_spelled(command):
+    """A double slash, a "/./", a "..", a glob for the directory name and a
+    recursive read of ~/.config each read the GitHub or gcloud token with
+    no prompt. Single-name rules (.ssh, .aws) already survived these; the
+    two-component rules did not until the path is folded first."""
+    from agent_dna.shell_guard import analyze_shell_arguments
+
+    assert analyze_shell_arguments({"command": command})["touches_sensitive"], command
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "ls src/gh/",
+        "cat docs/g?.md",
+        "ls g*",
+        "cat .config",  # a kernel .config, not the home directory's
+        "cat ~/.config/nvim/init.lua",
+        "ls ~/.config/nvim//",
+        "git status",
+    ],
+)
+def test_ordinary_commands_are_not_swept_up(command):
+    from agent_dna.shell_guard import analyze_shell_arguments
+
+    assert not analyze_shell_arguments({"command": command}).get("touches_sensitive")

@@ -121,7 +121,7 @@ from agent_dna.lineage import (
     lineage_manifest,
     lineage_mode,
 )
-from agent_dna.multi_agent_security.gate import sealed_dispatch
+from agent_dna.multi_agent_security.gate import sealed_delegation, sealed_dispatch
 from agent_dna.observability.logger import get_logger
 from agent_dna.observability.metrics import MetricsExporter
 from agent_dna.observability.prometheus_bridge import (
@@ -881,6 +881,13 @@ def _validate_decide_wire_body(
             )
 
 
+def _strict_json(value: Any) -> str:
+    try:
+        return _pv_json.dumps(value, sort_keys=True, separators=(",", ":"))
+    except (TypeError, ValueError):
+        return f"<unserializable {id(value)}>"  # never equal to anything
+
+
 def _validate_decide_binding(
     req: DecideRequest,
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
@@ -935,7 +942,13 @@ def _validate_decide_binding(
             detail="execution_action.subject_key_id must match agent_id",
         )
     # Parameters / arguments must agree so arguments_digest matches EA action.
-    if dict(execution_action["parameters"]) != dict(req.arguments or {}):
+    # Compared as canonical JSON, not with ==: Python holds 1 == True and
+    # 1 == 1.0, so a request could state one value in ``arguments`` (which
+    # policy and any signed proof cover) and another in the parameters the
+    # permit binds.
+    if _strict_json(execution_action["parameters"]) != _strict_json(
+        req.arguments or {}
+    ):
         raise HTTPException(
             status_code=422,
             detail="execution_action.parameters must match arguments",
@@ -1861,7 +1874,7 @@ def _authority_deadline_for(
     store = state.get("store")
     stored = getattr(store, "approval_not_after", None)
     try:
-        return authority_deadline(
+        deadline = authority_deadline(
             record,
             decision_window_seconds=window.decision_window_seconds,
             approval_not_after=stored if stored is not None else (lambda _d: None),
@@ -1869,6 +1882,41 @@ def _authority_deadline_for(
         )
     except AuthorityUnknownError as exc:
         _authorize_refusal(403, AUTHORIZE_AUTHORITY_UNKNOWN, str(exc))
+    return _cap_by_delegation(record, deadline)
+
+
+def _cap_by_delegation(
+    record: dict[str, Any], deadline: AuthorityDeadline
+) -> AuthorityDeadline:
+    """A decision made under a delegation chain never outlives the chain,
+    and does not survive the revocation of anyone in it.
+
+    The decision seals the chain's expiry, links and parties. Before this,
+    an ALLOW obtained just before its chain expired still minted a permit
+    good for a full permit lifetime afterwards.
+    """
+    try:
+        sealed = sealed_delegation(record.get("reason"))
+    except ValueError as exc:
+        _authorize_refusal(403, AUTHORIZE_AUTHORITY_UNKNOWN, str(exc))
+    if sealed is None:
+        return deadline
+    core = getattr(state.get("engine"), "engine", state.get("engine"))
+    gate = getattr(core, "delegation", None)
+    revoked = gate.revocation_of(sealed) if gate is not None else None
+    if revoked is not None:
+        _authorize_refusal(
+            403,
+            AUTHORIZE_GRANT_REVOKED,
+            f"the delegation behind this decision was revoked ({revoked})",
+        )
+    chain_end = _datetime.fromtimestamp(float(sealed["expires_at"]), UTC)
+    if chain_end >= deadline.not_after:
+        return deadline
+    return AuthorityDeadline(
+        not_after=chain_end,
+        basis=f"delegation chain {sealed['chain'][:16]} expiry",
+    )
 
 
 def _require_declared_operation(

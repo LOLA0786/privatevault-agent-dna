@@ -5,6 +5,30 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Reviews of #223 and #224
+- **High: an expired delegation no longer mints.** A sealed ALLOW could be
+  taken to `/v1/authorize` after its delegation chain had expired and a
+  permit was issued. An allowed decision now seals the chain's expiry, links
+  and identities; minting refuses after the expiry, caps the permit at it,
+  and refuses if anyone in the chain has since been revoked.
+  `tests/multi_agent_security/test_mint.py`.
+- **Token-store rules survive path spelling.** `~/.config//gh`, `/./`,
+  `..`, globs such as `g?` and `g[h]`, and a recursive read of `~/.config`
+  each read the GitHub or gcloud token with no prompt. Paths are folded
+  before the two-component rules are applied, globs under `.config` are
+  judged against the store names, and the whole `~/.config` directory counts
+  as sensitive. `tests/test_redteam_claude_code.py`.
+- **Unresolved host names are classed `private` by the hook itself.** The
+  earlier fix added an `unresolved` class that only a new `policy.json`
+  held, and `pv up` never overwrites that file, so existing installs were
+  unaffected. Every shipped policy already requires a person for `private`.
+  `host_resolved: false` is sent alongside.
+- **The proof covers the dispatch adapter and serialization**, and
+  `execution_action.parameters` must equal `arguments` as JSON values: `1`
+  no longer matches `true` or `1.0`.
+- Identity names with surrounding whitespace or non-printable characters
+  refuse to load.
+
 ### Review of #223: delegation gate and two older gaps
 - **A presentation now covers where the action runs.** It was signed over
   the agent, capability and arguments only, so with a valid proof the
@@ -28,8 +52,8 @@ and a named test that runs in CI.
 - **gcloud, GitHub CLI and Azure CLI token files are credentials** for the
   hook, the shell guard and the sandbox settings.
   `tests/test_redteam_claude_code.py`.
-- Not fixed, documented: a decision allowed before an identity is revoked
-  stays usable for its permit's lifetime.
+- At that point, not fixed: a decision allowed before an identity is revoked
+  could still mint. Fixed in the entry above.
 
 ### Multi-agent security: delegation on the decision path, and the findings left open
 Scope and limits: `docs/MULTI-AGENT-SECURITY.md`.

@@ -39,6 +39,7 @@ import hashlib
 import json
 import math
 import os
+import posixpath
 import re
 import shlex
 import stat
@@ -210,7 +211,7 @@ _KEYWORDS = frozenset(
 )
 _ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
 _PY = re.compile(r"python[0-9.]*\Z")
-_SENSITIVE = re.compile(
+_SENSITIVE_PATTERN = re.compile(
     r"(^|/)(\.env(\.[^/]*)?|\.netrc|\.npmrc|\.pypirc|\.git-credentials|"
     r"id_(rsa|dsa|ecdsa|ed25519)[^/]*|\.?credentials(\.[^/]*)?|[^/]*\.(pem|key|p12|pfx))$"
     r"|(^|/)\.(ssh|aws|gnupg|kube|docker|azure)(/|$)"
@@ -218,12 +219,40 @@ _SENSITIVE = re.compile(
     # token and credential databases), the GitHub CLI (hosts.yml holds the
     # OAuth token) and the Azure CLI (MSAL token cache).
     r"|(^|/)\.config/(gcloud|gh)(/|$)"
+    # The whole ~/.config directory: a recursive read of it (grep -r, tar,
+    # cp -r) takes the gcloud and gh token stores with it.
+    r"|^(~|\$HOME|\$\{HOME\}|/home/[^/]+|/Users/[^/]+|/root)/\.config$"
     r"|(^|/)(application_default_credentials\.json|access_tokens\.db|"
     r"credentials\.db|msal_token_cache[^/]*|accessTokens\.json)$"
     r"|^/proc/[^/]+/environ$"
     r"|secret",
     re.IGNORECASE,
 )
+
+
+def _lexical(path: str) -> str:
+    """A path with repeated slashes, "." and ".." segments folded, as text.
+
+    "~/.config//gh/hosts.yml" and "~/.config/./gh/hosts.yml" are the same
+    file as "~/.config/gh/hosts.yml". Single-name rules (".ssh", ".aws")
+    match any of the spellings; a rule naming two components in a row does
+    not unless the path is folded first.
+    """
+    folded = posixpath.normpath(re.sub(r"/{2,}", "/", path))
+    return folded if folded != "." else path
+
+
+class _SensitivePaths:
+    """``_SENSITIVE_PATTERN`` applied to a path as written and as folded."""
+
+    def search(self, text: str) -> re.Match[str] | None:
+        found = _SENSITIVE_PATTERN.search(text)
+        if found is not None or "/" not in text:
+            return found
+        return _SENSITIVE_PATTERN.search(_lexical(text))
+
+
+_SENSITIVE = _SensitivePaths()
 
 
 class _UnparseableError(ValueError):
@@ -389,7 +418,6 @@ _SENSITIVE_NAMES = (
     ".kube",
     ".docker",
     ".azure",
-    "gcloud",
     "application_default_credentials.json",
     "environ",
 )
@@ -1094,7 +1122,10 @@ def _glob_hits_secret(variant: str, wd: str) -> bool:
 def _name_could_match(variant: str) -> bool:
     """Could a path component of this glob match a credential-like name?
     As in the shell, a pattern not starting with "." skips dotfiles."""
-    for comp in variant.split("/"):
+    comps = _lexical(variant).split("/")
+    for index, comp in enumerate(comps):
+        if index and _config_child_could_match(comps[index - 1], comp):
+            return True
         if not _GLOB_CHARS.search(comp):
             continue
         for name in _SENSITIVE_NAMES:
@@ -1103,6 +1134,21 @@ def _name_could_match(variant: str) -> bool:
             if fnmatch.fnmatchcase(name.lower(), comp.lower()):
                 return True
     return False
+
+
+# Token stores that are sensitive only under ~/.config: the names alone
+# ("gh", "gcloud") are too ordinary to flag anywhere else.
+_CONFIG_STORES = ("gh", "gcloud")
+
+
+def _config_child_could_match(parent: str, child: str) -> bool:
+    """Could ``parent/child`` be ``.config/gh`` or ``.config/gcloud``, when
+    at least one of the two is a glob? ("~/.config/g?", "~/.conf*/gh")"""
+    if not (_GLOB_CHARS.search(parent) or _GLOB_CHARS.search(child)):
+        return False  # two literal names: the path rule decides
+    if not fnmatch.fnmatchcase(".config", parent.lower()):
+        return False
+    return any(fnmatch.fnmatchcase(name, child.lower()) for name in _CONFIG_STORES)
 
 
 def _pattern_sensitive(pattern: str) -> bool:

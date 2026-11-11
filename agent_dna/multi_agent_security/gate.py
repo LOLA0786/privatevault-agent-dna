@@ -132,7 +132,7 @@ def sealed_dispatch(
     builds ``evidence["bound"]`` with this, and a presentation is signed
     over the same values, so the two cannot drift apart.
     """
-    return {
+    sealed = {
         "destination": dispatch_context["destination"],
         "operation": dispatch_context["operation"],
         "transport": dispatch_context["transport"],
@@ -141,6 +141,12 @@ def sealed_dispatch(
         "subject_principal": execution_action["subject_principal"],
         "action": execution_action["action"],
     }
+    # Which adapter sends the bytes and how they are serialized decide what
+    # reaches the wire as much as the destination does.
+    for extra in ("adapter", "serialization"):
+        if extra in dispatch_context:
+            sealed[extra] = dispatch_context[extra]
+    return sealed
 
 
 def delegated_action_id(
@@ -303,6 +309,65 @@ class GateVerdict:
     reason: str = ""
     chain_hash: str | None = None
     depth: int = 0
+    seal: str = ""  # appended to an ALLOW's sealed reason; see seal_delegation
+
+
+SEAL_MARK = "; delegation="
+
+
+def seal_delegation(
+    *, chain_hash: str, depth: int, expires_at: float, links: Any, parties: Any
+) -> str:
+    """What an ALLOW made under a chain must carry into its signed record.
+
+    ``/v1/authorize`` mints a permit from the sealed decision, possibly much
+    later. Without this, a decision allowed one second before its chain
+    expired still minted a permit that lived a full permit lifetime, and a
+    chain whose signer was revoked after the decision still minted. The
+    record now says when the delegated authority ends and who it rests on;
+    minting refuses after the first and on revocation of any of the second.
+    """
+    return SEAL_MARK + json.dumps(
+        {
+            "chain": chain_hash,
+            "depth": depth,
+            "expires_at": expires_at,
+            "links": list(links),
+            "parties": list(parties),
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+
+
+def sealed_delegation(reason: Any) -> dict[str, Any] | None:
+    """The delegation a sealed decision ran under, or None if it ran under none.
+
+    The seal is the LAST thing the engine appends, so only a final, complete
+    and well-formed seal counts. Raises ValueError when a seal is present
+    but unreadable: a caller must then refuse, never treat it as absent.
+    """
+    if not isinstance(reason, str):
+        return None
+    at = reason.rfind(SEAL_MARK)
+    if at < 0:
+        return None
+    try:
+        sealed = json.loads(reason[at + len(SEAL_MARK) :])
+    except ValueError as exc:
+        raise ValueError("sealed delegation is not valid JSON") from exc
+    if (
+        not isinstance(sealed, dict)
+        or set(sealed) != {"chain", "depth", "expires_at", "links", "parties"}
+        or not _is_hex(sealed["chain"], 64)
+        or not _number(sealed["expires_at"])
+        or not isinstance(sealed["links"], list)
+        or not all(_is_hex(h, 64) for h in sealed["links"])
+        or not isinstance(sealed["parties"], list)
+        or not all(isinstance(p, str) and p for p in sealed["parties"])
+    ):
+        raise ValueError("sealed delegation is malformed")
+    return sealed
 
 
 _SKIPPED = GateVerdict(checked=False, refused=False)
@@ -417,6 +482,7 @@ class DelegationGate:
             return self._refuse(
                 f"delegation_holder_unproven: {problem}", chain_hash, depth
             )
+        assert scoped.expires_at is not None
         return GateVerdict(
             True,
             False,
@@ -424,7 +490,25 @@ class DelegationGate:
             "proven",
             chain_hash,
             depth,
+            seal=seal_delegation(
+                chain_hash=chain_hash,
+                depth=depth,
+                expires_at=scoped.expires_at,
+                links=scoped.links,
+                parties=scoped.parties,
+            ),
         )
+
+    def revocation_of(self, sealed: Mapping[str, Any]) -> str | None:
+        """Why a sealed delegation no longer counts under today's pins."""
+        anchors = self.policy.anchors
+        for party in sealed["parties"]:
+            if party in anchors.revoked_agents:
+                return f"{party!r} is revoked"
+        for digest in sealed["links"]:
+            if digest in anchors.revoked:
+                return f"link {digest[:16]} is revoked"
+        return None
 
     def _presentation_problem(  # noqa: C901 - ordered refusal checklist
         self,

@@ -694,8 +694,9 @@ class DecisionEngine:
             and not delegation.refused
             and result.decision is Decision.ALLOW
         ):
-            # Sealed into the signed record: which chain this ran under.
-            result.reason += f"; {delegation.reason}"
+            # Sealed into the signed record: which chain this ran under, when
+            # its authority ends and who it rests on. Minting reads it back.
+            result.reason += f"; {delegation.reason}{delegation.seal}"
         if (
             not authorized
             and auth_reason is not None
