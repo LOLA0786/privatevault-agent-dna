@@ -2471,6 +2471,11 @@
   ],
   [
    "api.server",
+   "agent_dna.multi_agent_security.gate",
+   "top"
+  ],
+  [
+   "api.server",
    "agent_dna.observability.logger",
    "top"
   ],
@@ -3621,7 +3626,7 @@
   "agent_dna.multi_agent_security": 1,
   "agent_dna.multi_agent_security.counterparty": 1,
   "agent_dna.multi_agent_security.delegation": 2,
-  "agent_dna.multi_agent_security.gate": 2,
+  "agent_dna.multi_agent_security.gate": 3,
   "agent_dna.multi_agent_security.independence": 2,
   "agent_dna.multi_agent_security.nonce_ledger": 4,
   "agent_dna.multi_agent_security.possession": 2,
@@ -3844,7 +3849,7 @@
   "agent_dna.validation.drift": 1,
   "agent_dna.validation.report": 2,
   "agent_dna.wire_serialization_v01": 1,
-  "api.server": 31,
+  "api.server": 32,
   "examples.amlsim.run_amlsim_sample": 6,
   "examples.authority_blast_radius_demo": 1,
   "examples.authority_derivation_demo": 1,

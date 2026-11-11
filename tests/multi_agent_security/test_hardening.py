@@ -129,20 +129,80 @@ def test_a_replica_with_a_fast_clock_does_not_free_a_spent_vote(tmp_path, make):
 # ---- a ledger that cannot be used ------------------------------------------
 
 
-@pytest.mark.skipif(
+not_root = pytest.mark.skipif(
     hasattr(os, "geteuid") and os.geteuid() == 0, reason="root ignores file modes"
 )
-def test_read_only_ledger_refuses_to_start(tmp_path):
+
+
+def _make_read_only(tmp_path, how):
     path = tmp_path / "votes.db"
-    SqliteNonceLedger(path).close()
-    for item in tmp_path.iterdir():
-        item.chmod(stat.S_IRUSR)
-    tmp_path.chmod(stat.S_IRUSR | stat.S_IXUSR)
+    first = SqliteNonceLedger(path)
+    first.consume([("a", "n0", time.time() + 60)], time.time())
+    if how == "file while another process has it open":
+        path.chmod(stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH)
+        return path, first
+    first.close()
+    if how in ("file", "file and sidecars", "everything"):
+        for item in tmp_path.iterdir():
+            if how != "file" or item == path:
+                item.chmod(stat.S_IRUSR)
+    if how in ("directory", "everything"):
+        tmp_path.chmod(stat.S_IRUSR | stat.S_IXUSR)
+    return path, None
+
+
+@not_root
+@pytest.mark.parametrize(
+    "how",
+    [
+        "file",
+        "file and sidecars",
+        "file while another process has it open",
+        "directory",
+        "everything",
+    ],
+)
+def test_read_only_ledger_refuses_to_start(tmp_path, how):
+    """Review of #223: with only the database FILE read-only the server
+    started and reported healthy. Taking the write lock succeeds on such a
+    file in WAL mode; only a real write fails, so the probe now writes."""
+    path, holder = _make_read_only(tmp_path, how)
     try:
         with pytest.raises(LedgerUnavailable, match="not usable"):
             SqliteNonceLedger(path)
     finally:
         tmp_path.chmod(stat.S_IRWXU)
+        for item in tmp_path.iterdir():
+            item.chmod(stat.S_IRUSR | stat.S_IWUSR)
+        if holder is not None:
+            holder.close()
+
+
+@not_root
+def test_ledger_made_read_only_after_startup_reports_unhealthy(tmp_path):
+    """health() must perform a write too, or /ready stays green while every
+    quorum and every delegated decision is refused."""
+    path = tmp_path / "votes.db"
+    running = SqliteNonceLedger(path)
+    assert running.health() is None
+    running.close()
+    path.chmod(stat.S_IRUSR)
+    try:
+        reopened = sqlite3.connect(path, isolation_level=None)
+        running._db = reopened  # the process's handle, now on a read-only file
+        assert running.health() is not None
+        assert "readonly" in running.health().lower()
+    finally:
+        path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+        running.close()
+
+
+def test_write_probe_leaves_nothing_behind(tmp_path):
+    ledger = SqliteNonceLedger(tmp_path / "votes.db")
+    for _ in range(3):
+        assert ledger.health() is None
+    rows = ledger._db.execute("SELECT COUNT(*) FROM used_votes").fetchone()[0]
+    assert rows == 0
 
 
 def test_corrupt_ledger_refuses_to_start(tmp_path):
@@ -212,6 +272,46 @@ def test_ready_reports_an_unwritable_quorum_ledger(tmp_path, monkeypatch):
         assert client.get("/ready").status_code == 200
         core = getattr(server.state["engine"], "engine", server.state["engine"])
         core.consensus._ledger._db.close()
+        not_ready = client.get("/ready")
+        assert not_ready.status_code == 503
+        assert not_ready.json()["reason"] == "quorum_ledger_unavailable"
+
+
+def test_ready_reports_an_unwritable_delegation_ledger(tmp_path, monkeypatch):
+    """The gate keeps its own ledger handle; /ready must probe it as well."""
+    import importlib
+    import json
+
+    from fastapi.testclient import TestClient
+
+    from agent_dna.signer import generate_keypair
+
+    server_keys = generate_keypair()
+    keys = {n: generate_voter_keypair() for n in ("operator", "payer")}
+    (tmp_path / "delegation.json").write_text(
+        json.dumps(
+            {
+                "audience": "pv-test",
+                "roots": {"operator": keys["operator"]["public_key"]},
+                "agents": {"payer": keys["payer"]["public_key"]},
+            }
+        )
+    )
+    monkeypatch.setenv("PV_DB_PATH", str(tmp_path / "pv.db"))
+    monkeypatch.delenv("PV_API_KEYS_FILE", raising=False)
+    monkeypatch.delenv("PV_CONSENSUS_FILE", raising=False)
+    monkeypatch.setenv("PV_ALLOW_NO_AUTH", "1")
+    monkeypatch.setenv("PV_RECEIPT_SIGNING_KEY", server_keys["signing_key"])
+    monkeypatch.setenv("PV_TRUSTED_PUBLIC_KEYS", server_keys["public_key"])
+    monkeypatch.setenv("PV_DELEGATION_FILE", str(tmp_path / "delegation.json"))
+    monkeypatch.setenv("PV_CONSENSUS_NONCE_DB", str(tmp_path / "votes.db"))
+    import api.server as server
+
+    importlib.reload(server)
+    with TestClient(server.app) as client:
+        assert client.get("/ready").status_code == 200
+        core = getattr(server.state["engine"], "engine", server.state["engine"])
+        core.delegation._ledger._db.close()
         not_ready = client.get("/ready")
         assert not_ready.status_code == 503
         assert not_ready.json()["reason"] == "quorum_ledger_unavailable"

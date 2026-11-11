@@ -654,8 +654,8 @@ class DecisionEngine:
             merged_evidence.update(evidence)
 
         # Delegation (multi-agent security layer). Part of the authorization
-        # level: it can only take authorization away. A refusal is a hold
-        # that no approval lifts ("delegation" travels in also_fired).
+        # level: it can only take authorization away. A refusal is a BLOCK
+        # (applied below, after the ladder has run).
         delegation = None
         if self.delegation is not None:
             delegated_amount: float | None = None
@@ -688,15 +688,14 @@ class DecisionEngine:
         )
         if auth_reason is not None and result.triggered_by == "authorization":
             result.reason = auth_reason
-        if delegation is not None and delegation.checked:
-            if delegation.refused:
-                if "delegation" not in result.also_fired:
-                    result.also_fired.append("delegation")
-                if delegation.reason not in result.reason:
-                    result.reason += f"; also held by delegation: {delegation.reason}"
-            elif result.decision is Decision.ALLOW:
-                # Sealed into the signed record: which chain this ran under.
-                result.reason += f"; {delegation.reason}"
+        if (
+            delegation is not None
+            and delegation.checked
+            and not delegation.refused
+            and result.decision is Decision.ALLOW
+        ):
+            # Sealed into the signed record: which chain this ran under.
+            result.reason += f"; {delegation.reason}"
         if (
             not authorized
             and auth_reason is not None
@@ -716,4 +715,22 @@ class DecisionEngine:
                 result.triggered_by = "authorization"
             result.decision = Decision.BLOCK
             result.severity = Severity.CRITICAL
+        if delegation is not None and delegation.refused:
+            # A missing, forged, out-of-scope or replayed delegation is a
+            # hard refusal, like an invalid amount. As a hold it could not
+            # be approved through the approval bridge either, but an
+            # interactive client would still have shown it as a question
+            # its user could answer "allow".
+            others = [
+                trigger
+                for trigger in (result.triggered_by, *result.also_fired)
+                if trigger not in ("authorization", "delegation")
+            ]
+            result.decision = Decision.BLOCK
+            result.severity = Severity.CRITICAL
+            result.triggered_by = "authorization"
+            result.also_fired = ["delegation", *others]
+            result.reason = delegation.reason + (
+                "; also held by " + ", ".join(others) if others else ""
+            )
         return result

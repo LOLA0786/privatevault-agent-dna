@@ -32,7 +32,9 @@ Holder binding. A chain is a document; anyone who copies it holds the same
 bytes. So the caller also sends a PRESENTATION signed with the final
 delegate's own key, over this chain, this exact action (agent, capability
 and arguments, hashed by the service), this deployment's ``audience`` and a
-lifetime of at most ``MAX_PRESENTATION_TTL`` seconds. Each presentation is
+lifetime of at most ``MAX_PRESENTATION_TTL`` seconds. "This exact action"
+includes where it runs: the sealed destination, operation, resource and the
+principal acted as (``sealed_dispatch``). Each presentation is
 spent once in the shared single-use ledger. A copied chain without the key
 is refused; a captured presentation is good for one action, the one it was
 signed for, on one deployment, and has already been used.
@@ -43,8 +45,9 @@ service that talks to the agent directly. ``/v1/decide`` is one call that
 may land on any replica, so the proof here is self-contained and its
 single use is recorded in the ledger every replica shares.
 
-A refusal is a hold that no approval can lift: the result names
-``delegation`` among the levels that fired.
+A refusal is a BLOCK. A hold would be shown by an interactive client (the
+Claude Code hook, for one) as a question the user can answer "allow", and a
+forged or missing chain is not a question.
 
 Limits:
     * A presentation's freshness rests on clocks (TTL plus 30 s skew); its
@@ -74,7 +77,7 @@ from .delegation import (
     covers,
     within_scope,
 )
-from .nonce_ledger import MemoryNonceLedger, NonceLedger
+from .nonce_ledger import LedgerUnavailable, MemoryNonceLedger, NonceLedger
 
 PRESENTATION_SPEC = "pv-delegation-presentation/1"
 MAX_PRESENTATION_TTL = 120.0
@@ -108,15 +111,64 @@ class DelegationConfigError(ValueError):
     """The pinned delegation configuration is unusable. Startup must refuse."""
 
 
-def delegated_action_id(
-    agent_id: str, capability: str, arguments: Mapping[str, Any] | None
-) -> str:
-    """What a presentation is signed for: one exact action.
+BOUND_FIELDS = (
+    "destination",
+    "operation",
+    "transport",
+    "wire_content_type",
+    "resource",
+    "subject_principal",
+    "action",
+)
 
-    Change the payee or the amount and the presentation no longer verifies.
+
+def sealed_dispatch(
+    execution_action: Mapping[str, Any], dispatch_context: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Where and how an action will run, as the runtime seals it.
+
+    The destination, METHOD+path, transport and content type the bytes go
+    to; the resource they act on; the principal they act as. ``/v1/decide``
+    builds ``evidence["bound"]`` with this, and a presentation is signed
+    over the same values, so the two cannot drift apart.
+    """
+    return {
+        "destination": dispatch_context["destination"],
+        "operation": dispatch_context["operation"],
+        "transport": dispatch_context["transport"],
+        "wire_content_type": dispatch_context["wire_content_type"],
+        "resource": execution_action["resource"],
+        "subject_principal": execution_action["subject_principal"],
+        "action": execution_action["action"],
+    }
+
+
+def delegated_action_id(
+    agent_id: str,
+    capability: str,
+    arguments: Mapping[str, Any] | None,
+    bound: Mapping[str, Any] | None = None,
+) -> str:
+    """What a presentation is signed for: one exact action, where it runs.
+
+    ``bound`` is ``sealed_dispatch(...)`` of the request: destination,
+    operation, resource and the principal acted as. It is part of the hash,
+    so a presentation signed for a refund to one account on one host is not
+    valid for the same arguments against another resource, as another
+    principal, or sent somewhere else. Before 2026-11-11 only the agent,
+    capability and arguments were covered, and each of those three could be
+    changed under a valid presentation.
+
+    A request with no sealed dispatch hashes ``bound`` as null: such a
+    presentation is not valid for any request that has one.
     """
     canonical = json.dumps(
-        {"agent_id": agent_id, "arguments": arguments or {}, "capability": capability},
+        {
+            "agent_id": agent_id,
+            "arguments": arguments or {},
+            "bound": dict(bound) if bound is not None else None,
+            "capability": capability,
+        },
         sort_keys=True,
         separators=(",", ":"),
         ensure_ascii=True,
@@ -275,6 +327,11 @@ class DelegationGate:
         self._ledger = ledger
         self._ledger_shared = True
 
+    def health(self) -> str | None:
+        """None when a presentation could be recorded now, else why not."""
+        probe = getattr(self._ledger, "health", None)
+        return probe() if callable(probe) else None
+
     def describe(self) -> dict[str, str]:
         policy = self.policy
         required = ", ".join(policy.required_for) or "none"
@@ -337,14 +394,25 @@ class DelegationGate:
         chain_hash, depth = scoped.chain_hash, scoped.depth
         assert chain_hash is not None
 
-        problem = self._presentation_problem(
-            supplied["presentation"],
-            agent_id=agent_id,
-            capability=capability,
-            arguments=arguments,
-            chain_hash=chain_hash,
-            now=now,
-        )
+        # Server-derived, reserved key: callers cannot set evidence["bound"].
+        bound = (evidence or {}).get("bound")
+        if bound is not None and not isinstance(bound, Mapping):
+            return self._refuse("delegation_invalid: sealed dispatch is malformed")
+        try:
+            problem = self._presentation_problem(
+                supplied["presentation"],
+                agent_id=agent_id,
+                capability=capability,
+                arguments=arguments,
+                chain_hash=chain_hash,
+                now=now,
+                bound=bound,
+            )
+        except LedgerUnavailable as exc:
+            # A presentation that cannot be recorded as spent must not pass.
+            return self._refuse(
+                f"delegation_ledger_unavailable: {exc}", chain_hash, depth
+            )
         if problem is not None:
             return self._refuse(
                 f"delegation_holder_unproven: {problem}", chain_hash, depth
@@ -367,6 +435,7 @@ class DelegationGate:
         arguments: Mapping[str, Any] | None,
         chain_hash: str,
         now: float,
+        bound: Mapping[str, Any] | None = None,
     ) -> str | None:
         from nacl.encoding import HexEncoder
         from nacl.exceptions import BadSignatureError
@@ -384,11 +453,14 @@ class DelegationGate:
         if presentation["chain_hash"] != chain_hash:
             return "signed for a different chain"
         try:
-            expected = delegated_action_id(agent_id, capability, arguments)
+            expected = delegated_action_id(agent_id, capability, arguments, bound)
         except (TypeError, ValueError, RecursionError):
             return "action arguments are not canonical JSON"
         if presentation["action_id"] != expected:
-            return "signed for a different action"
+            return (
+                "signed for a different action (agent, capability, arguments, "
+                "resource, principal, destination and operation are all covered)"
+            )
         nonce, signature = presentation["nonce"], presentation["signature"]
         if not _is_hex(nonce, 64) or not _is_hex(signature, 128):
             return "malformed nonce or signature"

@@ -213,7 +213,13 @@ _PY = re.compile(r"python[0-9.]*\Z")
 _SENSITIVE = re.compile(
     r"(^|/)(\.env(\.[^/]*)?|\.netrc|\.npmrc|\.pypirc|\.git-credentials|"
     r"id_(rsa|dsa|ecdsa|ed25519)[^/]*|\.?credentials(\.[^/]*)?|[^/]*\.(pem|key|p12|pfx))$"
-    r"|(^|/)\.(ssh|aws|gnupg|kube|docker)(/|$)"
+    r"|(^|/)\.(ssh|aws|gnupg|kube|docker|azure)(/|$)"
+    # CLI token stores: gcloud (application default credentials, access
+    # token and credential databases), the GitHub CLI (hosts.yml holds the
+    # OAuth token) and the Azure CLI (MSAL token cache).
+    r"|(^|/)\.config/(gcloud|gh)(/|$)"
+    r"|(^|/)(application_default_credentials\.json|access_tokens\.db|"
+    r"credentials\.db|msal_token_cache[^/]*|accessTokens\.json)$"
     r"|^/proc/[^/]+/environ$"
     r"|secret",
     re.IGNORECASE,
@@ -382,6 +388,9 @@ _SENSITIVE_NAMES = (
     ".gnupg",
     ".kube",
     ".docker",
+    ".azure",
+    "gcloud",
+    "application_default_credentials.json",
     "environ",
 )
 _GLOB_CHARS = re.compile(r"[*?\[]")

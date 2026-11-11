@@ -13,7 +13,7 @@ starts Claude Code with it (``claude --settings <file>``). The settings:
   available (``failIfUnavailable``), and give the model no way to ask for an
   unsandboxed command (``allowUnsandboxedCommands: false``);
 - deny reading PrivateVault's state folder and the usual credential places
-  (``.env`` files anywhere in the project, ``~/.ssh``, ``~/.aws``,
+  (``.env`` files anywhere in the project, ``~/.ssh``, ``~/.aws``, the gcloud, GitHub CLI and Azure CLI token stores,
   ``~/.gnupg``, ``~/.kube``, ``~/.docker``, ``~/.netrc``,
   ``~/.git-credentials``), and deny writing the state folder.
 
@@ -49,6 +49,9 @@ PROTECTED_PLACES = (
     "~/.gnupg",
     "~/.kube",
     "~/.docker",
+    "~/.config/gcloud",
+    "~/.config/gh",
+    "~/.azure",
     "~/.netrc",
     "~/.git-credentials",
 )

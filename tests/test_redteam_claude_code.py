@@ -576,7 +576,7 @@ def test_hook_and_guard_agree_on_credential_names():
         (["93.184.216.34"], "public"),
         (["198.18.0.1"], "public"),  # fake-IP proxy DNS
         (["198.18.0.1", "169.254.169.254"], "metadata"),
-        ([], "public"),
+        ([], "unresolved"),  # never public: where it points is unknown
     ],
 )
 def test_names_are_classed_by_what_they_resolve_to(monkeypatch, addresses, expected):
@@ -602,3 +602,78 @@ def test_resolution_gives_up_quietly(monkeypatch):
 
 def test_a_literal_benchmark_address_stays_private():
     assert _hook().host_class("http://198.18.0.5/") == "private"
+
+
+# ---- 2026-11-11 review: two gaps left open from earlier rounds --------------
+
+
+def test_a_slow_resolver_does_not_make_a_name_public(monkeypatch):
+    """A resolver that stalls past the timeout used to yield 'public', and
+    the real fetch then went wherever the name pointed a moment later."""
+    hook = _hook()
+
+    def stall(*_a, **_k):
+        import time
+
+        time.sleep(2)
+        return [(None, None, None, None, ("169.254.169.254", 0))]
+
+    monkeypatch.setattr(hook.socket, "getaddrinfo", stall)
+    monkeypatch.setattr(hook, "DNS_TIMEOUT_S", 0.1)
+    assert hook.host_class("http://rebind.attacker.example/latest/") == "unresolved"
+
+
+def test_unresolved_names_are_not_fetched_without_a_person():
+    """The shipped policy puts 'unresolved' with loopback and private."""
+    policy = json.loads((PLUGIN / "config" / "policy.json").read_text())
+    internal = next(r for r in policy["policies"] if r["id"] == "net-fetch-internal")
+    assert internal["outcome"] == "require_approval"
+    assert "unresolved" in internal["condition"]["value"]
+
+
+def test_internal_suffixes_stay_private_when_unresolved(monkeypatch):
+    hook = _hook()
+    monkeypatch.setattr(hook, "_resolve", lambda host: [])
+    assert hook.host_class("http://db.corp.internal/") == "private"
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "~/.config/gcloud/application_default_credentials.json",
+        "~/.config/gcloud/access_tokens.db",
+        "~/.config/gcloud/credentials.db",
+        "~/.config/gcloud/legacy_credentials/me@example.com/adc.json",
+        "~/.config/gh/hosts.yml",
+        "~/.azure/msal_token_cache.json",
+        "~/.azure/accessTokens.json",
+        "~/.azure/azureProfile.json",
+        "/tmp/copied/application_default_credentials.json",
+    ],
+)
+def test_cloud_cli_token_files_are_credentials(path, tmp_path):
+    """gcloud, the GitHub CLI and the Azure CLI keep live tokens in files
+    that were readable: .ssh and .aws were covered, these were not."""
+    from agent_dna.shell_guard import _SENSITIVE
+
+    hook = _hook()
+    expanded = os.path.expanduser(path)
+    assert hook.SENSITIVE.search(expanded), path
+    assert _SENSITIVE.search(expanded), path
+    assert hook.zone_of(path, str(tmp_path)) == "credentials"
+
+
+def test_shell_reads_of_cloud_cli_tokens_are_flagged():
+    from agent_dna.shell_guard import _is_secret_path
+
+    assert _is_secret_path(os.path.expanduser("~/.config/gh/hosts.yml"))
+    assert _is_secret_path(os.path.expanduser("~/.azure/msal_token_cache.json"))
+    assert not _is_secret_path("src/gh/client.py")
+    assert not _is_secret_path("docs/gcloud-setup.md")
+
+
+def test_sandbox_denies_the_cloud_cli_token_stores():
+    from agent_dna.quickstart.sandbox import PROTECTED_PLACES
+
+    for place in ("~/.config/gcloud", "~/.config/gh", "~/.azure"):
+        assert place in PROTECTED_PLACES
