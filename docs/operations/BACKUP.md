@@ -64,7 +64,16 @@ every commit (`tests/test_backup.py`).
 only key to check against is the one written inside the manifest, and a
 forged backup carries its forger's key there, so the signature verifies and
 proves nothing. `--trust-embedded-key` exists for checking a copy for
-corruption; it does not establish where a backup came from.
+corruption; it does not establish where a backup came from, and its output
+says so: `"origin_verified": false` with a warning.
+
+An empty key is refused, not ignored. `--public-key "$BACKUP_KEY"` with the
+variable unset passes an empty string; that is an error, never a fall-back
+to the key inside the backup.
+
+The dump a manifest names must be a plain file name inside the backup
+folder. A manifest pointing at `../`, an absolute path, or a symlink that
+leads out of the folder is refused.
 
 ## Restoring an older backup rolls state back
 
@@ -81,8 +90,12 @@ After restoring a backup that is older than the database it replaces:
 1. Re-apply every revocation made since the backup. The tool cannot know
    what they were.
 2. Start the server with the `PV_MINT_NOT_BEFORE` value the restore prints.
-   No decision sealed before that moment mints, so a decision that already
-   minted before the restore cannot mint a second permit.
+   No decision sealed at or before that moment mints, so a decision that
+   already minted before the restore cannot mint a second permit. The value
+   is rounded up to the next whole second. If the variable is set to
+   anything that is not a finite number (an empty string, `nan`), every
+   mint is refused until it is fixed: a broken cut-off must not read as no
+   cut-off.
 3. Treat approvals issued before the restore as possibly reusable until
    they expire, and keep approval lifetimes short for that reason.
 

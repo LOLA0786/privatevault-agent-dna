@@ -649,3 +649,43 @@ def test_verify_sees_a_database_edit_without_a_restart(mint_env):  # noqa: F811
     assert after["stored_records"]["hash_mismatches"] == 1
     assert after["chain_integrity_verified"] is False
     assert "completeness" in after["not_verified"]
+
+
+# ---- review of #228: the restore cut-off ---------------------------------------
+
+
+def test_a_decision_sealed_in_the_same_second_as_the_restore_does_not_mint(
+    mint_env,  # noqa: F811
+    monkeypatch,
+):
+    import math
+
+    record = _decide_allow(mint_env["client"], mint_env["key"])
+    # what the restore tool prints for a restore in that same second
+    monkeypatch.setenv("PV_MINT_NOT_BEFORE", str(math.ceil(record["timestamp"])))
+    refused = _mint(mint_env, _authorize_body(record))
+    assert refused.status_code == 403, refused.text
+    assert _reason(refused) == "AUTHORIZE_AUTHORITY_EXPIRED"
+    # exactly equal is refused too
+    monkeypatch.setenv("PV_MINT_NOT_BEFORE", repr(record["timestamp"]))
+    assert _mint(mint_env, _authorize_body(record)).status_code == 403
+
+
+@pytest.mark.parametrize("value", ["", " ", "nan", "NaN", "inf", "-inf", "-1", "soon"])
+def test_a_cut_off_that_is_set_but_not_a_number_mints_nothing(
+    mint_env,  # noqa: F811
+    monkeypatch,
+    value,
+):
+    """An empty string or "nan" used to switch the cut-off off silently."""
+    record = _decide_allow(mint_env["client"], mint_env["key"])
+    monkeypatch.setenv("PV_MINT_NOT_BEFORE", value)
+    refused = _mint(mint_env, _authorize_body(record))
+    assert refused.status_code == 403, (value, refused.text)
+    assert _reason(refused) == "AUTHORIZE_AUTHORITY_UNKNOWN"
+
+
+def test_an_unset_cut_off_changes_nothing(mint_env, monkeypatch):  # noqa: F811
+    record = _decide_allow(mint_env["client"], mint_env["key"])
+    monkeypatch.delenv("PV_MINT_NOT_BEFORE", raising=False)
+    assert _mint(mint_env, _authorize_body(record)).status_code == 200

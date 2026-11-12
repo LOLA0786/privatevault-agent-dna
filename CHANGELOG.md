@@ -5,6 +5,20 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Review of #228
+- **An empty `--public-key` no longer falls back to the embedded key.**
+  `--public-key ""`, or an unset shell variable, was treated as no key, so a
+  forged backup still verified and restored. An empty key is now an error.
+- **The restore cut-off is inclusive and rounded up**, so a decision sealed
+  in the same second as the restore does not mint.
+- **`PV_MINT_NOT_BEFORE` set to something that is not a finite number**
+  (empty, `nan`) refused nothing; it now refuses every mint.
+- **`--trust-embedded-key` reports `origin_verified: false`** with a warning,
+  on verify and on restore.
+- **The dump a manifest names must be inside the backup folder.** `../`,
+  absolute paths and symlinks leading out are refused.
+  `tests/test_backup.py`, `tests/multi_agent_security/test_mint.py`.
+
 ### Review of #227
 - **Backups need a pinned key.** `verify` and `restore` without
   `--public-key` checked the manifest against the key inside it, which a
