@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import shutil
 import sqlite3
@@ -202,7 +203,7 @@ def _sign_manifest(manifest: dict[str, Any], key_ref: str | None) -> dict[str, A
     return sign_document(manifest, signer, signature_field="signature")
 
 
-def verify_backup(
+def verify_backup(  # noqa: C901 - ordered refusal checklist
     directory: str | Path,
     public_key: str | None = None,
     *,
@@ -217,6 +218,15 @@ def verify_backup(
     unless ``trust_embedded_key`` says, explicitly, that the check is for
     damage in transit and not for origin.
     """
+    if public_key is not None and not public_key.strip():
+        # --public-key "" or --public-key "$UNSET". Treating that as "no key
+        # given" fell through to the key inside the manifest, which is the
+        # check a forged backup passes.
+        raise BackupError(
+            "--public-key was given but is empty (an unset variable?). "
+            "Refusing: an empty key must not fall back to the key written "
+            "inside the backup."
+        )
     if public_key is None and not trust_embedded_key:
         raise BackupError(
             "a public key is required: without --public-key the manifest is "
@@ -231,7 +241,7 @@ def verify_backup(
         raise BackupError(f"no readable {MANIFEST} in {directory}") from exc
     if manifest.get("spec") != BACKUP_SPEC:
         raise BackupError("not a PrivateVault ledger backup")
-    dump = directory / manifest["dump"]["file"]
+    dump = _dump_path(directory, manifest)
     if not dump.is_file() or _sha256_file(dump) != manifest["dump"]["sha256"]:
         raise BackupError(
             "dump does not match the manifest (changed, truncated or missing)"
@@ -239,9 +249,12 @@ def verify_backup(
     if "signature" in manifest:
         from agent_dna.authority_v01 import verify_document_signature
 
-        key = public_key or manifest.get("signer_public_key")
-        if public_key and manifest.get("signer_public_key") != public_key:
-            raise BackupError("manifest was signed by a different key")
+        if public_key is not None:
+            key = public_key
+            if manifest.get("signer_public_key") != public_key:
+                raise BackupError("manifest was signed by a different key")
+        else:  # trust_embedded_key: corruption check only, origin unknown
+            key = manifest.get("signer_public_key")
         try:
             ok = verify_document_signature(
                 manifest, signature_field="signature", public_key=key
@@ -250,9 +263,44 @@ def verify_backup(
             raise BackupError("manifest signature does not verify") from exc
         if not ok:
             raise BackupError("manifest signature does not verify")
-    elif public_key:
+    elif public_key is not None:
         raise BackupError("manifest is unsigned but a public key was required")
     return manifest
+
+
+def _dump_path(directory: Path, manifest: dict[str, Any]) -> Path:
+    """The dump file the manifest names, which must sit in the backup folder.
+
+    The name comes from the manifest. "../other.sql" or an absolute path
+    made verify and restore read a file from outside the backup; so did a
+    symlink placed in the folder. The name must be a bare file name and the
+    file it resolves to must be directly inside ``directory``.
+    """
+    try:
+        name = manifest["dump"]["file"]
+        digest = manifest["dump"]["sha256"]
+    except (KeyError, TypeError) as exc:
+        raise BackupError("manifest does not name a dump file") from exc
+    if (
+        not isinstance(name, str)
+        or not isinstance(digest, str)
+        or not name
+        or name in (".", "..")
+        or name != Path(name).name
+        or "/" in name
+        or "\\" in name
+        or "\x00" in name
+    ):
+        raise BackupError(
+            f"manifest names a dump outside the backup folder ({name!r}); "
+            "the dump must be a plain file name"
+        )
+    dump = directory / name
+    if dump.resolve().parent != directory.resolve():
+        raise BackupError(
+            f"dump {name!r} resolves outside the backup folder (a symlink?)"
+        )
+    return dump
 
 
 # ---- backup ----------------------------------------------------------------------
@@ -399,7 +447,7 @@ def restore(
     manifest = verify_backup(
         directory, public_key, trust_embedded_key=trust_embedded_key
     )
-    dump = directory / manifest["dump"]["file"]
+    dump = _dump_path(directory, manifest)
     kind = manifest["source"]["kind"]
     if kind == "postgresql":
         if not database_url:
@@ -438,10 +486,15 @@ def restore(
     broken = sorted(agent for agent, ok in chains.items() if not ok)
     if broken:
         problems.append(f"decision chains do not verify: {broken}")
-    restored_at = int(time.time())
+    # Rounded UP: a decision sealed in the same second as the restore is
+    # before it as far as the lost state is concerned.
+    restored_at = math.ceil(time.time())
     report = {
         "restored": True,
         "backup_created_at": manifest.get("created_at"),
+        # False with --trust-embedded-key: the dump matches its manifest,
+        # but nothing shows who made the backup.
+        "origin_verified": public_key is not None,
         "rollback_warning": (
             "State is as of backup_created_at. Revocations, consumed "
             "approvals and minted-permit records made after it are gone: "
@@ -525,7 +578,15 @@ def main(argv: list[str] | None = None) -> int:
                 "ok": True,
                 "created_at": manifest["created_at"],
                 "signed": "signature" in manifest,
+                # False with --trust-embedded-key: the files match their
+                # manifest, but nothing shows who made the backup.
+                "origin_verified": args.public_key is not None,
             }
+            if not summary["origin_verified"]:
+                summary["warning"] = (
+                    "origin NOT verified: checked against the key inside the "
+                    "backup, which a forged backup also passes"
+                )
         else:
             summary = {"ok": True, **restore(
                 args.directory, database_url=args.database_url,

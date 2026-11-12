@@ -368,3 +368,130 @@ def test_restore_reports_what_a_backup_cannot_restore(tmp_path, backup_key):
     assert (
         f"PV_MINT_NOT_BEFORE={report['mint_not_before']}" in report["rollback_warning"]
     )
+
+
+# ---- review of #228 -----------------------------------------------------------
+
+
+def _forged(tmp_path):
+    source = tmp_path / "pv.db"
+    _record_some(DecisionRecorder(store=SQLiteDecisionStore(source)), "agent-a", 2)
+    forger_key = tmp_path / "forger.key"
+    forger_key.write_bytes(bytes(SigningKey.generate()))
+    backup_sqlite(source, tmp_path / "forged", signing_key=str(forger_key))
+    return tmp_path / "forged"
+
+
+@pytest.mark.parametrize("empty", ["", " ", "\t"])
+def test_an_empty_public_key_does_not_fall_back_to_the_embedded_one(tmp_path, empty):
+    """--public-key "" or --public-key "$UNSET" was treated as no key at
+    all, so a forged backup verified and restored against its own key."""
+    forged = _forged(tmp_path)
+    with pytest.raises(BackupError, match="is empty"):
+        verify_backup(forged, empty)
+    with pytest.raises(BackupError, match="is empty"):
+        verify_backup(forged, empty, trust_embedded_key=True)
+    with pytest.raises(BackupError, match="is empty"):
+        restore(forged, sqlite_path=tmp_path / "r.db", public_key=empty)
+    assert not (tmp_path / "r.db").exists()
+    assert main(["verify", str(forged), "--public-key", empty]) == 1
+    assert (
+        main(
+            [
+                "restore",
+                str(forged),
+                "--sqlite",
+                str(tmp_path / "r.db"),
+                "--public-key",
+                empty,
+            ]
+        )
+        == 1
+    )
+    assert not (tmp_path / "r.db").exists()
+
+
+def test_trusting_the_embedded_key_says_origin_was_not_checked(tmp_path, capsys):
+    forged = _forged(tmp_path)
+    assert main(["verify", str(forged), "--trust-embedded-key"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["origin_verified"] is False
+    assert "origin NOT verified" in out["warning"]
+    report = restore(forged, sqlite_path=tmp_path / "r.db", trust_embedded_key=True)
+    assert report["origin_verified"] is False
+
+
+def test_a_pinned_key_reports_origin_verified(tmp_path, backup_key, capsys):
+    key, public = backup_key
+    source = tmp_path / "pv.db"
+    _record_some(DecisionRecorder(store=SQLiteDecisionStore(source)), "agent-a", 1)
+    backup_sqlite(source, tmp_path / "bk", signing_key=key)
+    assert main(["verify", str(tmp_path / "bk"), "--public-key", public]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["origin_verified"] is True and "warning" not in out
+    report = restore(tmp_path / "bk", sqlite_path=tmp_path / "r.db", public_key=public)
+    assert report["origin_verified"] is True
+
+
+def _point_manifest_at(backup_dir, name):
+    manifest_path = backup_dir / "manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest.pop("signature", None)
+    manifest.pop("signer_public_key", None)
+    manifest["dump"]["file"] = name
+    manifest_path.write_text(json.dumps(manifest))
+
+
+@pytest.mark.parametrize("kind", ["parent", "absolute", "nested", "dot", "symlink"])
+def test_restore_does_not_read_outside_the_backup_folder(tmp_path, kind):
+    """The dump's name comes from the manifest. "../x", an absolute path or
+    a symlink made verify and restore read a file from somewhere else."""
+    source = tmp_path / "pv.db"
+    _record_some(DecisionRecorder(store=SQLiteDecisionStore(source)), "agent-a", 1)
+    bk = tmp_path / "bk"
+    manifest = backup_sqlite(source, bk)
+    real = bk / manifest["dump"]["file"]
+    outside = tmp_path / "outside.db"
+    outside.write_bytes(real.read_bytes())  # same bytes, so the hash matches
+    if kind == "symlink":
+        real.unlink()
+        real.symlink_to(outside)
+        name = manifest["dump"]["file"]
+    else:
+        name = {
+            "parent": "../outside.db",
+            "absolute": str(outside),
+            "nested": "sub/../../outside.db",
+            "dot": "..",
+        }[kind]
+    _point_manifest_at(bk, name)
+    with pytest.raises(BackupError, match="outside the backup folder"):
+        verify_backup(bk, trust_embedded_key=True)
+    with pytest.raises(BackupError, match="outside the backup folder"):
+        restore(bk, sqlite_path=tmp_path / "r.db", trust_embedded_key=True)
+    assert not (tmp_path / "r.db").exists()
+
+
+def test_a_manifest_without_a_dump_entry_is_an_error_not_a_crash(tmp_path):
+    source = tmp_path / "pv.db"
+    _record_some(DecisionRecorder(store=SQLiteDecisionStore(source)), "agent-a", 1)
+    bk = tmp_path / "bk"
+    backup_sqlite(source, bk)
+    manifest_path = bk / "manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    del manifest["dump"]
+    manifest_path.write_text(json.dumps(manifest))
+    with pytest.raises(BackupError, match="does not name a dump"):
+        verify_backup(bk, trust_embedded_key=True)
+
+
+def test_the_restore_cut_off_is_rounded_up(tmp_path, backup_key, monkeypatch):
+    import agent_dna.backup as backup_module
+
+    key, public = backup_key
+    source = tmp_path / "pv.db"
+    _record_some(DecisionRecorder(store=SQLiteDecisionStore(source)), "agent-a", 1)
+    backup_sqlite(source, tmp_path / "bk", signing_key=key)
+    monkeypatch.setattr(backup_module.time, "time", lambda: 1_700_000_000.25)
+    report = restore(tmp_path / "bk", sqlite_path=tmp_path / "r.db", public_key=public)
+    assert report["mint_not_before"] == 1_700_000_001

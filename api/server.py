@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import hashlib
 import json as _pv_json
+import math as _math
 import os
 import sqlite3
 import sys
@@ -1815,24 +1816,35 @@ def _require_after_restore_point(record: dict[str, Any]) -> None:
     value) refuses every decision sealed before that moment, so a decision
     that already minted before the restore cannot mint again after it.
     """
-    raw = os.environ.get("PV_MINT_NOT_BEFORE")
-    if not raw:
+    if "PV_MINT_NOT_BEFORE" not in os.environ:
         return
+    # Set means in force. An empty string, "nan" or anything else that is
+    # not a finite number used to switch the cut-off OFF silently (an unset
+    # variable in a start script, or a comparison against NaN, which is
+    # never true). It now refuses every mint until it is fixed.
+    raw = os.environ["PV_MINT_NOT_BEFORE"].strip()
     try:
         not_before = float(raw)
         sealed_at = float(record.get("timestamp"))  # type: ignore[arg-type]
     except (TypeError, ValueError):
+        not_before = sealed_at = float("nan")
+    if not (
+        _math.isfinite(not_before) and not_before >= 0 and _math.isfinite(sealed_at)
+    ):
         _authorize_refusal(
             403,
             AUTHORIZE_AUTHORITY_UNKNOWN,
-            "PV_MINT_NOT_BEFORE or the record's timestamp is unreadable; "
-            "nothing mints until it is fixed",
+            "PV_MINT_NOT_BEFORE is set but is not a finite number of epoch "
+            "seconds, or the record's timestamp is unreadable; nothing mints "
+            "until it is fixed",
         )
-    if sealed_at < not_before:
+    # <=, and the restore tool rounds its value up: a decision sealed in the
+    # same second as the restore does not mint.
+    if sealed_at <= not_before:
         _authorize_refusal(
             403,
             AUTHORIZE_AUTHORITY_EXPIRED,
-            "this decision was sealed before the restore point "
+            "this decision was sealed at or before the restore point "
             "(PV_MINT_NOT_BEFORE); decide again",
         )
 
