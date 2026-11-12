@@ -222,7 +222,12 @@ curl -s localhost:8000/v1/verify                # check the hash chain
   pointed at the home directory, or at a directory that contains it (`/`,
   `/home`, `/Users`, `~/..`), are caught, and so are the Read, Grep and
   Glob tools pointed there.
-  Not caught, as far as is known: a path built at run time (a variable, a
+  A recursive reader given no path at all is caught when the session's
+  working directory is a home directory or contains one, and a glob is
+  judged in the directory the command runs in.
+  Not caught, as far as is known: a recursive read that follows a symlink
+  inside the project to a credential store (`grep -R`, `find -L`), a path
+  built at run time (a variable, a
   command substitution, an interpreter one-liner that walks the tree), a
   program outside the list above reading the home directory, a directory
   above home reached through a symlink the hook cannot see from the command

@@ -5,6 +5,29 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Review of #227
+- **Backups need a pinned key.** `verify` and `restore` without
+  `--public-key` checked the manifest against the key inside it, which a
+  forged backup passes. They now refuse; `--trust-embedded-key` is the
+  explicit way to check for corruption only.
+- **Restore says what it cannot restore**, and prints a
+  `PV_MINT_NOT_BEFORE` value. With it set, no decision sealed before the
+  restore mints.
+- **`/v1/verify` re-reads the store.** An in-place edit that kept the old
+  hash was reported intact until a restart. The response also states what
+  it does not verify.
+- **A revoked agent is refused with or without a chain.**
+- **Three more reads of credential stores are caught:** climbing out of one
+  home directory into another (`~/../user`), a recursive reader given no
+  path while run from a home directory or `/`, and `.s*`/`.a*` globs typed
+  in a home directory. Not caught: a recursive read following a symlink
+  inside the project.
+- **Open, documented, not fixed:** the single-use, consumed-approval and
+  revocation tables are not protected from someone who can write to the
+  database, with or without signing. `docs/MULTI-AGENT-SECURITY.md` records
+  the reviewer's seven conditions for payment use, and no longer suggests
+  that signing makes database write access safe.
+
 ### Review of #226
 - **Minting re-checks the stored decision.** It trusted the record as read
   from the database: an edited seal expiry, a grafted seal and a stored
@@ -19,7 +42,8 @@ and a named test that runs in CI.
   always need a chain while `required_for` is in use.
 - **A decision with no chain follows the delegation file at mint**, and is
   refused while the file does not load.
-- **Reading from above the home directory is caught**: recursive readers
+- **More reads from above the home directory are caught** (not all: see the
+  entry above for what a later review still got through): recursive readers
   pointed at `/`, `/home`, `/Users` or `~/..`, globs that can expand to
   `.config`, and the Read, Grep and Glob tools pointed at or above home.
   `tests/test_redteam_claude_code.py`.

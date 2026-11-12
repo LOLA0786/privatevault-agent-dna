@@ -906,3 +906,61 @@ def test_a_session_opened_in_the_home_directory_asks_before_searching_it(
     hook = _hook()
     monkeypatch.setenv("HOME", str(tmp_path))
     assert hook.zone_of(".", str(tmp_path)) == "credentials"
+
+
+# ---- review of #227: four reads that still printed the secrets --------------
+
+
+@pytest.mark.parametrize(
+    "command, cwd",
+    [
+        ("grep -r oauth ~/../user", None),  # out of one home, into another
+        ("grep -r oauth ~/../../home/user/.config", None),
+        ("grep -r oauth", "/home/dev"),  # no path: reads where it runs
+        ("grep -r oauth", "/"),
+        ("rg oauth", "/Users/someone"),
+    ],
+)
+def test_climbing_out_of_home_and_bare_recursive_reads_are_caught(command, cwd):
+    from agent_dna.shell_guard import analyze_shell_arguments
+
+    arguments = {"command": command}
+    if cwd is not None:
+        arguments["cwd"] = cwd
+    assert analyze_shell_arguments(arguments)["touches_sensitive"], command
+
+
+@pytest.mark.parametrize(
+    "command, cwd",
+    [
+        ("grep -r oauth", "/home/dev/code/app"),
+        ("ls", "/home/dev"),
+        ("git status", "/home/dev"),
+        ("cat notes.txt", "/home/dev/code/app"),
+    ],
+)
+def test_ordinary_commands_in_or_under_home_are_not_a_finding(command, cwd):
+    from agent_dna.shell_guard import analyze_shell_arguments
+
+    assert not analyze_shell_arguments({"command": command, "cwd": cwd}).get(
+        "touches_sensitive"
+    )
+
+
+@pytest.mark.parametrize(
+    "command",
+    ["cat .s*/id_rsa", "grep -r key .s*", "cat .a*/credentials", "grep -r key .a*"],
+)
+def test_globs_are_judged_where_the_command_runs(command, tmp_path, monkeypatch):
+    """With the runtime's own working directory set to the project, ".s*"
+    typed in the HOME directory was expanded against the project's files,
+    found nothing, and reached ~/.ssh and ~/.aws with no prompt."""
+    from agent_dna import shell_guard
+
+    project = tmp_path / "project"
+    project.mkdir()
+    monkeypatch.setenv(shell_guard.WORKDIR_ENV, str(project))
+    flagged = shell_guard.analyze_shell_arguments(
+        {"command": command, "cwd": "/home/dev"}
+    )
+    assert flagged["touches_sensitive"], command

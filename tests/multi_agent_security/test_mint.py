@@ -608,3 +608,44 @@ def test_an_unsealed_allow_does_not_mint_while_the_file_is_broken(mint_env, tmp_
     assert "configuration is unusable" in refused.json()["detail"]["detail"]
     _plain_config(tmp_path)
     assert _mint(mint_env, _authorize_body(record)).status_code == 200
+
+
+# ---- review of #227 ---------------------------------------------------------
+
+
+def test_nothing_sealed_before_a_restore_point_mints(mint_env, monkeypatch):  # noqa: F811
+    """N-2: a restored database may have lost the rows that made a permit
+    single-use. With PV_MINT_NOT_BEFORE set to the restore time, a decision
+    sealed before it cannot mint again."""
+    record = _decide_allow(mint_env["client"], mint_env["key"])
+    monkeypatch.setenv("PV_MINT_NOT_BEFORE", str(record["timestamp"] + 60))
+    refused = _mint(mint_env, _authorize_body(record))
+    assert refused.status_code == 403, refused.text
+    assert _reason(refused) == "AUTHORIZE_AUTHORITY_EXPIRED"
+    assert "restore point" in refused.json()["detail"]["detail"]
+    # a decision made after the restore point mints as usual
+    monkeypatch.setenv("PV_MINT_NOT_BEFORE", str(record["timestamp"] - 60))
+    assert _mint(mint_env, _authorize_body(record)).status_code == 200
+
+
+def test_an_unreadable_restore_point_mints_nothing(mint_env, monkeypatch):  # noqa: F811
+    record = _decide_allow(mint_env["client"], mint_env["key"])
+    monkeypatch.setenv("PV_MINT_NOT_BEFORE", "yesterday")
+    refused = _mint(mint_env, _authorize_body(record))
+    assert refused.status_code == 403
+    assert _reason(refused) == "AUTHORIZE_AUTHORITY_UNKNOWN"
+
+
+def test_verify_sees_a_database_edit_without_a_restart(mint_env):  # noqa: F811
+    """N-4: /v1/verify ran over records loaded at startup, so an edit that
+    kept the stored hash was reported intact until the server restarted."""
+    record = _decide_allow(mint_env["client"], mint_env["key"])
+    headers = {"X-API-Key": mint_env["key"]}
+    before = mint_env["client"].get("/v1/verify", headers=headers).json()
+    assert before["chain_integrity_verified"] is True
+    assert before["stored_records"]["hash_mismatches"] == 0
+    _rewrite(mint_env, record, lambda b: b.update(reason="rewritten in place"))
+    after = mint_env["client"].get("/v1/verify", headers=headers).json()
+    assert after["stored_records"]["hash_mismatches"] == 1
+    assert after["chain_integrity_verified"] is False
+    assert "completeness" in after["not_verified"]

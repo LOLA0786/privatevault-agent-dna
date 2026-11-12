@@ -559,6 +559,13 @@ class DelegationGate:
                 f"delegation_config_invalid: {self._config_problem}; nothing is "
                 "allowed under delegation until the file loads"
             )
+        if agent_id in self.policy.anchors.revoked_agents:
+            # With or without a chain: a revoked identity used to be
+            # refused only when it presented one.
+            return self._refuse(
+                f"delegation_revoked: {agent_id!r} is revoked in the "
+                "delegation configuration"
+            )
         supplied = (evidence or {}).get("delegation")
         if supplied is None:
             if self.policy.requires(agent_id, capability):
@@ -643,6 +650,8 @@ class DelegationGate:
                 "the delegation configuration is unusable "
                 f"({self._config_problem}); nothing mints until it loads"
             )
+        if agent_id in self.policy.anchors.revoked_agents:
+            return f"{agent_id!r} is revoked in the delegation configuration"
         if self.policy.requires(agent_id, capability):
             return (
                 "this decision requires a delegation chain and its sealed "
