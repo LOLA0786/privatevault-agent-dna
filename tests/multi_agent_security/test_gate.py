@@ -708,3 +708,16 @@ def test_a_chain_is_still_matched_exactly_not_by_folding():
     variant = "PAYMENTS.pay_invoice"
     ev = evidence(cap=variant)
     held(decide(eng, ev, cap=variant), "delegation_out_of_scope")
+
+
+# ---- review of #227 (L-G): a revoked agent with no chain still got an allow --
+
+
+def test_a_revoked_agent_gets_nothing_with_or_without_a_chain():
+    eng = engine(required_agents=[], revoked_agents=["planner"])
+    # no chain presented, and nothing requires one for this capability
+    held(decide(eng, agent="planner", cap="crm.read"), "delegation_revoked")
+    # other agents are untouched
+    assert decide(eng, agent="reporting-bot", cap="crm.read").decision is (
+        Decision.ALLOW
+    )

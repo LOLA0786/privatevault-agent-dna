@@ -2,7 +2,7 @@
 
     python -m agent_dna.backup backup  --database-url URL | --sqlite PATH  --out DIR
                                        [--signing-key FILE|awskms:..|gcpkms:..]
-    python -m agent_dna.backup verify  DIR [--public-key BASE64]
+    python -m agent_dna.backup verify  DIR --public-key BASE64
     python -m agent_dna.backup restore DIR --database-url URL | --sqlite PATH
                                        [--public-key BASE64]
 
@@ -34,6 +34,7 @@ import shutil
 import sqlite3
 import subprocess
 import sys
+import time
 from collections.abc import Iterable, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
@@ -202,9 +203,27 @@ def _sign_manifest(manifest: dict[str, Any], key_ref: str | None) -> dict[str, A
 
 
 def verify_backup(
-    directory: str | Path, public_key: str | None = None
+    directory: str | Path,
+    public_key: str | None = None,
+    *,
+    trust_embedded_key: bool = False,
 ) -> dict[str, Any]:
-    """Check the dump against the manifest, and the manifest's signature."""
+    """Check the dump against the manifest, and the manifest's signature.
+
+    ``public_key`` is the key the manifest must be signed by, supplied by
+    the caller. Without it the only key available is the one written inside
+    the manifest, and a forged backup carries its forger's key there: the
+    signature "verifies" and proves nothing. So a pinned key is required
+    unless ``trust_embedded_key`` says, explicitly, that the check is for
+    damage in transit and not for origin.
+    """
+    if public_key is None and not trust_embedded_key:
+        raise BackupError(
+            "a public key is required: without --public-key the manifest is "
+            "checked against the key written inside it, which a forged "
+            "backup also passes. Pass --public-key, or --trust-embedded-key "
+            "to check for corruption only."
+        )
     directory = Path(directory)
     try:
         manifest = json.loads((directory / MANIFEST).read_text())
@@ -365,10 +384,21 @@ def restore(
     database_url: str | None = None,
     sqlite_path: str | Path | None = None,
     public_key: str | None = None,
+    trust_embedded_key: bool = False,
 ) -> dict[str, Any]:
-    """Restore into an empty target and prove it equals the backup."""
+    """Restore into an empty target and prove it equals the backup.
+
+    A restore proves the target equals the backup. It cannot prove the
+    backup is the LATEST state: restoring a genuine older backup silently
+    drops every revocation, consumed approval and minted-permit record made
+    after it. The report says so, with the time the backup was taken, and
+    gives the ``PV_MINT_NOT_BEFORE`` setting that stops decisions sealed
+    before the restore from minting again.
+    """
     directory = Path(directory)
-    manifest = verify_backup(directory, public_key)
+    manifest = verify_backup(
+        directory, public_key, trust_embedded_key=trust_embedded_key
+    )
     dump = directory / manifest["dump"]["file"]
     kind = manifest["source"]["kind"]
     if kind == "postgresql":
@@ -408,8 +438,18 @@ def restore(
     broken = sorted(agent for agent, ok in chains.items() if not ok)
     if broken:
         problems.append(f"decision chains do not verify: {broken}")
+    restored_at = int(time.time())
     report = {
         "restored": True,
+        "backup_created_at": manifest.get("created_at"),
+        "rollback_warning": (
+            "State is as of backup_created_at. Revocations, consumed "
+            "approvals and minted-permit records made after it are gone: "
+            "re-apply every revocation, and start the server with "
+            f"PV_MINT_NOT_BEFORE={restored_at} so no decision sealed before "
+            "this restore can mint."
+        ),
+        "mint_not_before": restored_at,
         "verified": not problems,
         "tables": len(actual["tables"]),
         "rows": sum(t["rows"] for t in actual["tables"].values()),
@@ -441,12 +481,25 @@ def main(argv: list[str] | None = None) -> int:
     v.add_argument(
         "--public-key", help="base64 Ed25519 key the manifest must be signed by"
     )
+    v.add_argument(
+        "--trust-embedded-key",
+        action="store_true",
+        help="check against the key inside the manifest: detects corruption, "
+        "NOT forgery",
+    )
     r = sub.add_parser("restore", help="restore into an empty target and prove it")
     r.add_argument("directory")
     dst = r.add_mutually_exclusive_group(required=True)
     dst.add_argument("--database-url")
     dst.add_argument("--sqlite")
-    r.add_argument("--public-key")
+    r.add_argument(
+        "--public-key", help="base64 Ed25519 key the manifest must be signed by"
+    )
+    r.add_argument(
+        "--trust-embedded-key",
+        action="store_true",
+        help="restore without pinning the signer: accepts a forged backup",
+    )
     args = parser.parse_args(argv)
     try:
         if args.command == "backup":
@@ -463,7 +516,11 @@ def main(argv: list[str] | None = None) -> int:
                 "signed": "signature" in out,
             }
         elif args.command == "verify":
-            manifest = verify_backup(args.directory, args.public_key)
+            manifest = verify_backup(
+                args.directory,
+                args.public_key,
+                trust_embedded_key=args.trust_embedded_key,
+            )
             summary = {
                 "ok": True,
                 "created_at": manifest["created_at"],
@@ -473,6 +530,7 @@ def main(argv: list[str] | None = None) -> int:
             summary = {"ok": True, **restore(
                 args.directory, database_url=args.database_url,
                 sqlite_path=args.sqlite, public_key=args.public_key,
+                trust_embedded_key=args.trust_embedded_key,
             )}  # fmt: skip
     except BackupError as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, indent=2))

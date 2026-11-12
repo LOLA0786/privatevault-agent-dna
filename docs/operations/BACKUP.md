@@ -58,6 +58,37 @@ Run this as a drill on a schedule, not only in an emergency: a backup that
 has never been restored is a hope. CI restores a live-written backup on
 every commit (`tests/test_backup.py`).
 
+## Always pass `--public-key`
+
+`verify` and `restore` refuse to run without `--public-key`. Without it the
+only key to check against is the one written inside the manifest, and a
+forged backup carries its forger's key there, so the signature verifies and
+proves nothing. `--trust-embedded-key` exists for checking a copy for
+corruption; it does not establish where a backup came from.
+
+## Restoring an older backup rolls state back
+
+A restore proves the restored database equals the backup. It cannot prove
+the backup is the latest one. Everything written after the backup was taken
+is gone, including:
+
+- grant and delegation revocations recorded in the database;
+- the records that make a permit single-use;
+- the records that mark an approval as consumed.
+
+After restoring a backup that is older than the database it replaces:
+
+1. Re-apply every revocation made since the backup. The tool cannot know
+   what they were.
+2. Start the server with the `PV_MINT_NOT_BEFORE` value the restore prints.
+   No decision sealed before that moment mints, so a decision that already
+   minted before the restore cannot mint a second permit.
+3. Treat approvals issued before the restore as possibly reusable until
+   they expire, and keep approval lifetimes short for that reason.
+
+`/v1/verify` reports a correctly restored older backup as intact, because
+its chains are. It says nothing about whether newer state existed.
+
 ## What this is not
 
 - Point-in-time recovery. Use the database platform for that (WAL archiving,

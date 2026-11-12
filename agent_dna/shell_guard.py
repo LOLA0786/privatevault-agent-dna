@@ -230,6 +230,23 @@ _SENSITIVE_PATTERN = re.compile(
 )
 
 
+_HOME_PREFIX = re.compile(r"^(~[^/]*|\$HOME|\$\{HOME\})(?=/|$)")
+
+
+def _fold_home(path: str) -> str:
+    """Fold a path that starts at a home directory, keeping it anchored.
+
+    normpath treats "~" as an ordinary name, so "~/../user" folds to "user"
+    and loses the fact that it climbed out of one home directory into
+    another. Folding from a stand-in home keeps the result absolute:
+    "~/../user" is "/home/user", "~/.." is "/home".
+    """
+    match = _HOME_PREFIX.match(path)
+    if match is None or ".." not in path:
+        return path
+    return posixpath.normpath("/home/~" + path[match.end() :])
+
+
 def _lexical(path: str) -> str:
     """A path with repeated slashes, "." and ".." segments folded, as text.
 
@@ -277,6 +294,12 @@ class _SensitivePaths:
             if found is not None:
                 return found
         candidates = [folded]
+        climbed = _fold_home(text)
+        if climbed != text:
+            candidates.append(climbed)
+            found = _SENSITIVE_PATTERN.search(climbed)
+            if found is not None:
+                return found
         cwd = _caller_cwd()
         if cwd and folded and not folded.startswith(("/", "~", "$", "-")):
             anchored = _lexical(posixpath.join(cwd, folded))
@@ -1235,7 +1258,22 @@ def _pattern_sensitive(pattern: str) -> bool:
             return True
         if not _GLOB_CHARS.search(variant):
             continue
-        local = wd is not None and not os.path.isabs(variant) and "~" not in variant
+        # Expand against the real files only when the command runs where
+        # this process can see them. If the caller reports another working
+        # directory, a relative glob names files THERE (".s*" typed in a
+        # home directory is ~/.ssh), so it is judged by name instead.
+        caller = _caller_cwd()
+        elsewhere = (
+            caller is not None
+            and wd is not None
+            and os.path.realpath(caller) != os.path.realpath(wd)
+        )
+        local = (
+            wd is not None
+            and not elsewhere
+            and not os.path.isabs(variant)
+            and "~" not in variant
+        )
         if (
             _glob_hits_secret(variant, wd)
             if local and wd
@@ -1717,8 +1755,17 @@ def analyze_shell_arguments(arguments: Mapping[str, Any] | None) -> dict[str, An
         sensitive_reads = [
             p for p in reads if _SENSITIVE.search(p) or _note_fs_probe(p)
         ]
-        if pins.get("home_root") and any(e in _HOME_SWEEPERS for e in acc.executables):
-            # a recursive reader pointed at the whole home directory
+        swept = pins.get("home_root")
+        caller = pins.get("cwd")
+        if not swept and isinstance(caller, str) and caller.startswith("/"):
+            # A recursive reader given no path reads the directory it runs
+            # in: a bare "grep -r oauth" in a home directory, or in "/".
+            swept = _home_or_above(
+                _lexical(caller) if caller != "/" else "/", os.path.expanduser("~")
+            )
+        if swept and any(e in _HOME_SWEEPERS for e in acc.executables):
+            # a recursive reader pointed at, or run from, a home directory
+            # or a directory that contains one
             sensitive_reads.append("~")
     finally:
         _PINS.reset(reset)

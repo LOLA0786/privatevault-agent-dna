@@ -96,6 +96,8 @@ The caller sends `evidence.delegation = {"chain": [...], "presentation": {...}}`
   The expiry is in the signed record, so any replica applies it. The
   revocation checks use the configuration of the server doing the mint:
   see the limits below. Tests: `tests/multi_agent_security/test_mint.py`.
+- **A revoked identity gets nothing.** An agent in `revoked_agents` is
+  refused on every decision, with or without a chain, and does not mint.
 - **The configuration file is followed.** A change to `PV_DELEGATION_FILE`
   is picked up on the next decision or mint with no restart. If the changed
   file does not load, every decision the gate is asked about is refused and
@@ -263,21 +265,63 @@ Tests: `tests/multi_agent_security/test_mint.py`.
 
 ## Conditions for relying on this for payments
 
-These come from an outside red-team review of the mint path, not from the
-authors:
+These are an outside red-team reviewer's conditions after attacking the mint
+path, recorded as given. `/v1/authorize` can be relied on for payments if
+all of them hold:
 
-1. Run the secure profile with `PV_OPERATIONS_FILE` pinned, and make chains
-   mandatory with `required_agents`, not only `required_for`.
-2. Keep decision signing on (the secure profile does). Until it is, only
-   the server process should be able to write to the decision database.
-3. Copy every revocation to every replica's delegation file, and keep chain
-   lifetimes short.
-4. Treat the home-directory rules in the Claude Code hook as a prompt, not
-   a boundary; the sandbox is the boundary and has not been tested.
+1. Run the secure profile with signing on and `PV_OPERATIONS_FILE` pinned.
+2. Use `required_agents` for payment agents.
+3. Only the server can write to the database, **even with signing on**.
+4. The payment receiver keeps its own record of used permits.
+5. Every revocation is copied to every replica, and chain and approval
+   lifetimes stay short.
+6. Backups are always verified and restored with `--public-key`.
+7. After any restore, re-apply revocations and treat the single-use records
+   as reset (start the server with the `PV_MINT_NOT_BEFORE` value the
+   restore prints).
+
+### Why condition 3 holds even with signing on
+
+Signing protects decision records: an edited record no longer mints. It does
+not protect the tables that make a permit single-use, record an approval as
+consumed, or record a grant as revoked. Someone who can write to the
+database can delete those rows. The reviewer showed that one human approval
+then yields two payment permits, that a decision which already minted mints
+again, and that a revoked grant mints again. **This is open.** Closing it
+means keeping that state somewhere a database writer cannot reach, or
+signing and anchoring it outside the database; neither is built. Condition 4
+(the receiver's own record of used permits) is the working defence.
+
+### Restoring an older backup
+
+A restore proves the target equals the backup, not that the backup is the
+latest state. Restoring a genuine, correctly signed older backup drops every
+revocation, consumed approval and minted-permit record made after it, and
+`/v1/verify` then reports the chain intact, because it is. The restore tool
+now says this and prints a `PV_MINT_NOT_BEFORE` value; with it set, no
+decision sealed before the restore mints. An approval issued before the
+restore can still be used once more until it expires, and a lost revocation
+stays lost until it is re-applied by hand.
+
+### Also open
+
+- With signing off, someone with database access can plant a whole fake
+  allow record that passes `/v1/verify` and mints. They cannot forge the
+  permit's own signature.
+- `/v1/verify` re-reads stored records on every call and recomputes their
+  hashes, so an in-place edit is seen without a restart. It does not see
+  records removed from the end (that needs a checkpoint), and with signing
+  off it does not see a record rewritten with its hash recomputed. Its
+  response now states both under `not_verified`.
+- `required_for` folds case, width and whitespace. Names that differ in
+  plain letters or punctuation, such as `crm_read_contact` or
+  `crm..read_contact`, are different names: they are outside the rule and
+  mint after one approval. Only `required_agents` and `PV_OPERATIONS_FILE`
+  close that.
 
 Not verified by that review or by the authors: real multi-host replicas,
-the sandbox itself, and the `pv backup`/`restore` and `pv approve`/`pv wrap`
-flows under attack.
+PostgreSQL under attack, the Rust build, the sandbox itself, and the
+`pv approve`/`pv wrap` flow.
 
 ## What this layer does not do
 

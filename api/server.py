@@ -1430,11 +1430,46 @@ def _verify_runtime_signatures() -> dict[str, object]:
 @app.get("/v1/verify", dependencies=[Depends(require_audit_or_full_key)])
 def verify():
     chains = _graph().verify_all()
+    stored = _verify_stored_records()
     return {
         "chains": chains,
-        "chain_integrity_verified": all(chains.values()),
+        "chain_integrity_verified": all(chains.values())
+        and stored["hash_mismatches"] == 0,
+        # Re-read from the decision store on every call. The chain check
+        # above runs over records loaded at startup, so an edit made to the
+        # database afterwards that kept the stored hash was reported intact
+        # until the next restart.
+        "stored_records": stored,
         "signatures": _verify_runtime_signatures(),
+        "not_verified": (
+            "completeness (records removed from the end are not visible "
+            "here: use a checkpoint)"
+            + (
+                ""
+                if state.get("signer") is not None
+                else "; origin (signing is off, so a record rewritten with its "
+                "hash recomputed passes)"
+            )
+        ),
     }
+
+
+def _verify_stored_records() -> dict[str, int]:
+    seen = mismatches = 0
+    for record in state["store"].iter_decisions():
+        seen += 1
+        body = {k: v for k, v in record.items() if k != "record_hash"}
+        try:
+            canonical = _pv_json.dumps(
+                body, sort_keys=True, separators=(",", ":"), allow_nan=False
+            )
+            ok = hashlib.sha256(canonical.encode()).hexdigest() == record.get(
+                "record_hash"
+            )
+        except (TypeError, ValueError):
+            ok = False
+        mismatches += not ok
+    return {"records_seen": seen, "hash_mismatches": mismatches}
 
 
 def _temporary_export(exporter, filename: str) -> FileResponse:
@@ -1771,6 +1806,37 @@ def _resolve_presenter(req: AuthorizeRequest) -> str | None:
     return requested
 
 
+def _require_after_restore_point(record: dict[str, Any]) -> None:
+    """After a restore, nothing sealed before it mints.
+
+    A restored database is as old as its backup: the rows that made a
+    permit single-use, or recorded an approval as consumed, may be missing.
+    ``PV_MINT_NOT_BEFORE`` (epoch seconds; the restore tool prints the
+    value) refuses every decision sealed before that moment, so a decision
+    that already minted before the restore cannot mint again after it.
+    """
+    raw = os.environ.get("PV_MINT_NOT_BEFORE")
+    if not raw:
+        return
+    try:
+        not_before = float(raw)
+        sealed_at = float(record.get("timestamp"))  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        _authorize_refusal(
+            403,
+            AUTHORIZE_AUTHORITY_UNKNOWN,
+            "PV_MINT_NOT_BEFORE or the record's timestamp is unreadable; "
+            "nothing mints until it is fixed",
+        )
+    if sealed_at < not_before:
+        _authorize_refusal(
+            403,
+            AUTHORIZE_AUTHORITY_EXPIRED,
+            "this decision was sealed before the restore point "
+            "(PV_MINT_NOT_BEFORE); decide again",
+        )
+
+
 def _require_untampered(record: dict[str, Any], store: Any) -> None:
     """The record a permit is minted from must be the record that was signed.
 
@@ -1851,6 +1917,7 @@ def _require_sealed_allow_for_authorize(req: AuthorizeRequest) -> dict[str, Any]
             "no sealed decision matches the supplied reference",
         )
     _require_untampered(record, store)
+    _require_after_restore_point(record)
 
     bind_reason = bind_authorize_to_sealed_allow(
         record,

@@ -124,13 +124,19 @@ def test_cli_round_trip(tmp_path, backup_key, capsys):
         == 0
     )
     assert main(["verify", str(tmp_path / "bk"), "--public-key", public]) == 0
-    assert (
-        main(["restore", str(tmp_path / "bk"), "--sqlite", str(tmp_path / "r.db")]) == 0
-    )
-    assert '"verified": true' in capsys.readouterr().out
-    assert (
-        main(["restore", str(tmp_path / "bk"), "--sqlite", str(tmp_path / "r.db")]) == 1
-    )
+    restore_args = [
+        "restore",
+        str(tmp_path / "bk"),
+        "--sqlite",
+        str(tmp_path / "r.db"),
+        "--public-key",
+        public,
+    ]
+    assert main(restore_args) == 0
+    out = capsys.readouterr().out
+    assert '"verified": true' in out
+    assert "PV_MINT_NOT_BEFORE=" in out  # the restore says what it cannot restore
+    assert main(restore_args) == 1
 
 
 def test_tampered_dump_and_manifest_are_refused(tmp_path, backup_key):
@@ -142,14 +148,14 @@ def test_tampered_dump_and_manifest_are_refused(tmp_path, backup_key):
     original = dump.read_bytes()
     dump.write_bytes(original[:-1] + bytes([original[-1] ^ 1]))
     with pytest.raises(BackupError, match="does not match the manifest"):
-        verify_backup(tmp_path / "bk")
+        verify_backup(tmp_path / "bk", trust_embedded_key=True)
     dump.write_bytes(original)
     manifest_path = tmp_path / "bk" / "manifest.json"
     manifest = json.loads(manifest_path.read_text())
     manifest["created_at"] = "2020-01-01T00:00:00Z"
     manifest_path.write_text(json.dumps(manifest))
     with pytest.raises(BackupError, match="signature"):
-        verify_backup(tmp_path / "bk")
+        verify_backup(tmp_path / "bk", trust_embedded_key=True)
     with pytest.raises(BackupError, match="different key"):
         verify_backup(tmp_path / "bk", encode_public_key(SigningKey.generate()))
 
@@ -158,7 +164,7 @@ def test_unsigned_backup_cannot_satisfy_a_required_key(tmp_path):
     source = tmp_path / "pv.db"
     _record_some(DecisionRecorder(store=SQLiteDecisionStore(source)), "agent-a", 1)
     backup_sqlite(source, tmp_path / "bk")
-    assert "signature" not in verify_backup(tmp_path / "bk")
+    assert "signature" not in verify_backup(tmp_path / "bk", trust_embedded_key=True)
     with pytest.raises(BackupError, match="unsigned"):
         verify_backup(tmp_path / "bk", encode_public_key(SigningKey.generate()))
 
@@ -300,7 +306,7 @@ def test_backup_under_live_writes(dsn, target, tmp_path):
         store.close()
     in_backup = manifest["fingerprint"]["tables"]["records"]["rows"]
     assert 3 < in_backup < 3 + len(written)  # a mid-stream snapshot
-    report = restore(tmp_path / "bk", database_url=target)
+    report = restore(tmp_path / "bk", database_url=target, trust_embedded_key=True)
     assert report["verified"] and report["chains_verified"] == 2
 
 
@@ -310,4 +316,55 @@ def test_restore_refuses_a_non_empty_target(dsn, tmp_path):
     _populate(dsn)
     backup_postgres(dsn, tmp_path / "bk")
     with pytest.raises(BackupError, match="not empty"):
-        restore(tmp_path / "bk", database_url=dsn)
+        restore(tmp_path / "bk", database_url=dsn, trust_embedded_key=True)
+
+
+# ---- review of #227 (N-3): a backup is checked against a key YOU supply ------
+
+
+def test_a_forged_backup_does_not_pass_without_a_pinned_key(tmp_path, backup_key):
+    """Verify and restore used to fall back to the key written inside the
+    manifest. A forger signs with their own key and writes it there, so the
+    signature verified and proved nothing."""
+    _, genuine_public = backup_key
+    source = tmp_path / "pv.db"
+    _record_some(DecisionRecorder(store=SQLiteDecisionStore(source)), "agent-a", 2)
+    forger_key = tmp_path / "forger.key"
+    forger_key.write_bytes(bytes(SigningKey.generate()))
+    backup_sqlite(source, tmp_path / "forged", signing_key=str(forger_key))
+
+    with pytest.raises(BackupError, match="a public key is required"):
+        verify_backup(tmp_path / "forged")
+    with pytest.raises(BackupError, match="a public key is required"):
+        restore(tmp_path / "forged", sqlite_path=tmp_path / "r.db")
+    assert not (tmp_path / "r.db").exists()
+    with pytest.raises(BackupError, match="different key"):
+        verify_backup(tmp_path / "forged", genuine_public)
+    assert main(["verify", str(tmp_path / "forged")]) == 1
+    assert (
+        main(["restore", str(tmp_path / "forged"), "--sqlite", str(tmp_path / "r.db")])
+        == 1
+    )
+
+
+def test_trusting_the_embedded_key_is_an_explicit_choice(tmp_path):
+    source = tmp_path / "pv.db"
+    _record_some(DecisionRecorder(store=SQLiteDecisionStore(source)), "agent-a", 1)
+    backup_sqlite(source, tmp_path / "bk")
+    assert main(["verify", str(tmp_path / "bk"), "--trust-embedded-key"]) == 0
+
+
+def test_restore_reports_what_a_backup_cannot_restore(tmp_path, backup_key):
+    """N-2: restoring a genuine older backup drops every revocation and
+    single-use record made after it. The restore cannot know what those
+    were; it says so, and gives the cut-off to start the server with."""
+    key, public = backup_key
+    source = tmp_path / "pv.db"
+    _record_some(DecisionRecorder(store=SQLiteDecisionStore(source)), "agent-a", 2)
+    backup_sqlite(source, tmp_path / "bk", signing_key=key)
+    report = restore(tmp_path / "bk", sqlite_path=tmp_path / "r.db", public_key=public)
+    assert report["backup_created_at"]
+    assert "re-apply every revocation" in report["rollback_warning"]
+    assert (
+        f"PV_MINT_NOT_BEFORE={report['mint_not_before']}" in report["rollback_warning"]
+    )
