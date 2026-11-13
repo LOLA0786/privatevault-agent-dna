@@ -964,3 +964,28 @@ def test_globs_are_judged_where_the_command_runs(command, tmp_path, monkeypatch)
         {"command": command, "cwd": "/home/dev"}
     )
     assert flagged["touches_sensitive"], command
+
+
+# ---- review of #228/#229 (N-8): a bare search from inside a credential store --
+
+
+@pytest.mark.parametrize(
+    "cwd",
+    ["/home/dev/.config", "/home/dev/.config/gh", "/home/dev/.ssh", "/Users/x/.aws"],
+)
+def test_a_bare_recursive_read_inside_a_credential_store_is_caught(cwd):
+    """With the session already inside ~/.config, "grep -r oauth" (no path)
+    printed the token; adding "." made it ask."""
+    from agent_dna.shell_guard import analyze_shell_arguments
+
+    for command in ("grep -r oauth", "rg token", "find -type f"):
+        flagged = analyze_shell_arguments({"command": command, "cwd": cwd})
+        assert flagged["touches_sensitive"], (command, cwd)
+
+
+def test_a_bare_search_in_an_ordinary_config_directory_is_not_a_finding():
+    from agent_dna.shell_guard import analyze_shell_arguments
+
+    for cwd in ("/home/dev/.config/nvim", "/home/dev/code/app/.config"):
+        result = analyze_shell_arguments({"command": "grep -r oauth", "cwd": cwd})
+        assert not result.get("touches_sensitive"), cwd

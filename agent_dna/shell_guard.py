@@ -1760,8 +1760,12 @@ def analyze_shell_arguments(arguments: Mapping[str, Any] | None) -> dict[str, An
         if not swept and isinstance(caller, str) and caller.startswith("/"):
             # A recursive reader given no path reads the directory it runs
             # in: a bare "grep -r oauth" in a home directory, or in "/".
-            swept = _home_or_above(
-                _lexical(caller) if caller != "/" else "/", os.path.expanduser("~")
+            here = _lexical(caller) if caller != "/" else "/"
+            # ...or the directory it runs in is itself a credential store: a
+            # bare "grep -r oauth" run from inside ~/.config, ~/.config/gh,
+            # ~/.ssh or ~/.aws reads the secrets with no path to judge.
+            swept = _home_or_above(here, os.path.expanduser("~")) or bool(
+                _SENSITIVE_PATTERN.search(here)
             )
         if swept and any(e in _HOME_SWEEPERS for e in acc.executables):
             # a recursive reader pointed at, or run from, a home directory

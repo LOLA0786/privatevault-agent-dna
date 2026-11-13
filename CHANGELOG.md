@@ -5,6 +5,17 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Review of #228/#229
+- **A bare recursive read from inside a credential store is caught** (N-8):
+  `grep -r oauth` with no path, run while the session is in `~/.config`,
+  `~/.config/gh`, `~/.ssh` or `~/.aws`. `tests/test_redteam_claude_code.py`.
+- **ADR 0039 (proposed): single use for payments is enforced where the money
+  moves.** For N-1 (database writers deleting single-use rows): no change
+  inside the database can stop that, so the receiver kit's own ledger, with
+  a business transaction key per payment operation, is proposed as the
+  control of record. It records what that covers today, the alternatives
+  and their cost, and what stays open. No enforcement code changed for N-1.
+
 ### Review of #228
 - **An empty `--public-key` no longer falls back to the embedded key.**
   `--public-key ""`, or an unset shell variable, was treated as no key, so a
