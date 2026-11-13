@@ -959,8 +959,18 @@ def _token_reveals_secret(token: str) -> bool:
 
 
 def _note_fs_sensitive(token: str, acc: _Acc) -> bool:
+    # The glued value of a short option ("env -C/tmp/link") is resolved like
+    # a spaced one: by where it really points, not only by its text. Review
+    # of #232 (N-11): a symlink into ~/.config named that way was allowed.
+    glued = _GLUED_SHORT_OPTION.match(token)
     for part in dict.fromkeys(
-        (token, token.split("=", 1)[-1], token.lstrip("@"), token.split("@", 1)[-1])
+        (
+            token,
+            token.split("=", 1)[-1],
+            token.lstrip("@"),
+            token.split("@", 1)[-1],
+            glued.group(1) if glued else "",
+        )
     ):
         real = _resolve(part)
         if real is not None and _is_secret_path(real):
@@ -1304,6 +1314,187 @@ def _pattern_sensitive(pattern: str) -> bool:
 
 _GLUED_SHORT_OPTION = re.compile(r"^-[A-Za-z]+([/~$.].*)$")
 
+# Short options that change the directory a program works in, by program.
+# Their value can be glued on and relative ("env -Ccfglink"), which the
+# path-shaped pattern above does not see.
+_DIRECTORY_SHORT_OPTIONS: dict[str, str] = {
+    "env": "C",
+    "sudo": "D",
+    "make": "C",
+    "gmake": "C",
+    "tar": "C",
+    "bsdtar": "C",
+    "git": "C",
+}
+
+
+def _note_glued_directory(name: str, argv: list[str], acc: _Acc) -> None:
+    """Judge the glued value of a directory option, relative or not.
+
+    In a cluster ("-xzCdir") the rest of the token after the option letter
+    is its value, as getopt reads it. A wrong guess only adds a check.
+    """
+    letters = _DIRECTORY_SHORT_OPTIONS.get(name)
+    if not letters:
+        return
+    for tok in argv[1:]:
+        if tok == "--":
+            break
+        if not tok.startswith("-") or tok.startswith("--") or len(tok) < 3:
+            continue
+        body = tok[1:]
+        at = next((i for i, ch in enumerate(body) if ch in letters), None)
+        if at is not None and at + 1 < len(body):
+            _note_sensitive(body[at + 1 :], acc)
+
+
+# Programs that follow symbolic links while they walk a tree: with these
+# options, or (zip, scp) by default when recursing. A link inside the
+# project to ~/.config is then read like any other directory. Review of
+# #227 onwards: "grep -R oauth ." and "find -L ." printed the token.
+_FOLLOW_OPTIONS: dict[str, tuple[frozenset[str], frozenset[str]]] = {
+    # program: (long options or whole tokens, short option letters)
+    "grep": (frozenset({"--dereference-recursive"}), frozenset("RS")),
+    "egrep": (frozenset({"--dereference-recursive"}), frozenset("RS")),
+    "fgrep": (frozenset({"--dereference-recursive"}), frozenset("RS")),
+    "rg": (frozenset({"--follow"}), frozenset("L")),
+    "ag": (frozenset({"--follow"}), frozenset("f")),
+    "fd": (frozenset({"--follow"}), frozenset("L")),
+    "fdfind": (frozenset({"--follow"}), frozenset("L")),
+    "find": (frozenset({"-L", "-follow"}), frozenset()),
+    "cp": (frozenset({"--dereference"}), frozenset("L")),
+    "rsync": (
+        frozenset({"--copy-links", "--copy-unsafe-links", "--copy-dirlinks"}),
+        frozenset("Lk"),
+    ),
+    # GNU tar -h, bsdtar (macOS) -L
+    "tar": (frozenset({"--dereference"}), frozenset("hL")),
+    "bsdtar": (frozenset(), frozenset("L")),
+}
+# Follow links by default when recursing, unless told to store them.
+_FOLLOW_WHEN_RECURSIVE: dict[str, tuple[frozenset[str], frozenset[str], str]] = {
+    # program: (recursion letters, options that store links instead, and the
+    # short letter for that)
+    "zip": (frozenset("rR"), frozenset({"--symlinks"}), "y"),
+    "scp": (frozenset("r"), frozenset(), ""),
+}
+MAX_FOLLOW_WALK_ENTRIES = 50_000
+
+
+def _short_letters(argv: list[str]) -> set[str]:
+    letters: set[str] = set()
+    for tok in argv[1:]:
+        if tok == "--":
+            break
+        if tok.startswith("-") and not tok.startswith("--") and len(tok) > 1:
+            letters.update(tok[1:])
+    return letters
+
+
+def _follows_links(name: str, argv: list[str]) -> bool:
+    tokens = set(argv[1:])
+    letters = _short_letters(argv)
+    if name in _FOLLOW_OPTIONS:
+        whole, follow = _FOLLOW_OPTIONS[name]
+        return bool(tokens & whole) or (name != "find" and bool(letters & follow))
+    if name in _FOLLOW_WHEN_RECURSIVE:
+        recursive, storing, storing_letter = _FOLLOW_WHEN_RECURSIVE[name]
+        stores = bool(tokens & storing) or (
+            bool(storing_letter) and storing_letter in letters
+        )
+        return bool(letters & recursive) and not stores
+    return False
+
+
+def _note_followed_links(name: str, argv: list[str], acc: _Acc) -> None:
+    """A link-following recursive reader: walk what it would walk.
+
+    The walk starts at every argument that is an existing directory, or at
+    the working directory when there is none, and follows links as the
+    program would. A link whose real target is a credential store, a
+    secret file, or a home directory (or above) is a finding. A tree too
+    large to walk within MAX_FOLLOW_WALK_ENTRIES is a finding too: the
+    answer is unknown, and unknown is not safe. Needs the files to be on
+    this machine, as with ``pv up``; elsewhere nothing is walked.
+    """
+    if not _follows_links(name, argv):
+        return
+    budget = [MAX_FOLLOW_WALK_ENTRIES]
+    for start in dict.fromkeys(_follow_starts(argv)):
+        found = _walk_followed_links(start, budget)
+        if found is not None:
+            if found not in acc.sensitive_args:
+                acc.sensitive_args.append(found)
+            return
+
+
+def _follow_starts(argv: list[str]) -> list[str]:
+    """Where the walk starts: the directories the command names, read from
+    the directory it runs in (the caller's, when it is on this machine,
+    else the configured one); that directory itself when it names none."""
+    base = _caller_cwd()
+    if base is None or not os.path.isdir(base):
+        base = _workdir()
+    if base is None:
+        return []
+    starts = []
+    for tok in argv[1:]:
+        if tok.startswith("-"):
+            continue
+        path = os.path.expanduser(tok)
+        if not os.path.isabs(path):
+            path = os.path.join(base, path)
+        try:
+            if os.path.isdir(path):
+                starts.append(os.path.realpath(path))
+        except (OSError, ValueError):
+            continue
+    return starts or [os.path.realpath(base)]
+
+
+def _judge_entry(entry: os.DirEntry[str], home: str, stack: list[str]) -> str | None:
+    """The entry's path if following it reaches a credential place; queue
+    the directories a link-following walk would enter."""
+    if entry.is_symlink():
+        target = os.path.realpath(entry.path)
+        if _home_or_above(target, home) or _is_secret_path(target):
+            return entry.path
+        if os.path.isdir(target):
+            stack.append(entry.path)
+    elif entry.is_dir(follow_symlinks=False):
+        stack.append(entry.path)
+    return None
+
+
+def _walk_followed_links(start: str, budget: list[int]) -> str | None:
+    home = os.path.expanduser("~")
+    seen: set[str] = set()
+    stack = [start]
+    while stack:
+        directory = stack.pop()
+        try:
+            real_dir = os.path.realpath(directory)
+            if real_dir in seen:
+                continue
+            seen.add(real_dir)
+            entries = list(os.scandir(directory))
+        except (OSError, ValueError):
+            continue
+        budget[0] -= len(entries)
+        if budget[0] < 0:
+            return (
+                f"{start}: link-following walk exceeded "
+                f"{MAX_FOLLOW_WALK_ENTRIES} entries"
+            )
+        for entry in entries:
+            try:
+                found = _judge_entry(entry, home, stack)
+            except (OSError, ValueError):
+                continue
+            if found is not None:
+                return found
+    return None
+
 
 def _note_sensitive(token: str, acc: _Acc) -> None:
     token = _expand_vars(token, acc)
@@ -1456,6 +1647,8 @@ def _analyze_argv(argv: list[str], acc: _Acc, depth: int) -> None:  # noqa: C901
         _note_sensitive(tok, acc)
     name = _canon(_expand_vars(argv[0], acc))
     acc.note_exe(name)
+    _note_glued_directory(name, argv, acc)
+    _note_followed_links(name, argv, acc)
 
     if name == "uv":
         _uv(argv, acc, depth)

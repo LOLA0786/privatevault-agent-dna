@@ -38,7 +38,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 3045+ automated tests, run in CI on every commit
+- 3080+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
@@ -1041,6 +1041,16 @@ different invoice number); reconciliation is an operator's statement about
 the system of record, recorded in the receiver ledger but not signed into
 the receipt chain; and a hash chain does not prove that no external effect
 happened outside it.
+
+Since ADR 0039 the receiver also claims the decision and the approval each
+permit was minted from, and refuses a second, different permit for either
+(`RECEIVER_DUPLICATE_DECISION`, `RECEIVER_DUPLICATE_APPROVAL`), with or
+without a business key (`tests/receiver/test_receiver_sources.py`,
+`tests/multi_agent_security/test_double_mint_at_the_receiver.py`). **We do
+not claim** that the agent side cannot mint that second permit: someone who
+can write its database still can. The receiver refuses it only if it is the
+one, upgraded receiver for that operation and its own ledger has not been
+restored from an older backup.
 
 ## Open findings from the external review (19 October 2026)
 

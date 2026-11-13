@@ -95,6 +95,7 @@ Owned by the system of record, not by PrivateVault.
 |---|---|---|---|
 | `receiver_consume` | `agent_dna/receiver/ledger.py::ReceiverLedger.record` | `agent_dna/receiver/ledger.py::ReceiverLedger.is_consumed` | A permit is admitted at most once at the receiver |
 | `receiver_receipts` | `agent_dna/receiver/ledger.py::ReceiverLedger.record` | `network/receiver_kit/export_receipts.py`, `tools/verify_receiver_receipts.py` | Signed, hash-chained receipt of every evaluated request |
+| `receiver_sources` | `agent_dna/receiver/ledger.py::ReceiverLedger.record` | `ReceiverLedger.record` (duplicate check), `ReceiverLedger.source_holder` | The decision and the approval each admitted permit was minted from, claimed once and never released: a second, different permit for either is refused (ADR 0039) |
 | `receiver_transactions` | `agent_dna/receiver/ledger.py::ReceiverLedger.record`, `record_outcome`, `resolve_transaction` | `ReceiverLedger.record` (duplicate check), `tools/receiver_transactions.py` | One claim per declared business transaction key and its state (ADR 0030) |
 | `receiver_transaction_events` | the same three methods | `tools/receiver_transactions.py history` | Append-only history of every claim, upstream answer and reconciliation |
 

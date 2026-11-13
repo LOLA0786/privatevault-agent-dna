@@ -84,8 +84,14 @@ def mint(
     transport: str = "https",
     ea_id: str | None = None,
     presenter: str | None = None,
+    decision_receipt_digest: str | None = None,
+    approval_artifact_digest: str | None | object = ...,
 ) -> dict[str, Any]:
-    """``presenter``: bind a presenter identity digest (spec 0.2)."""
+    """``presenter``: bind a presenter identity digest (spec 0.2).
+
+    Each permit comes from its own decision and approval unless the caller
+    says otherwise, as permits minted by a real runtime do (ADR 0016, 0020).
+    Pass ``approval_artifact_digest=None`` for a permit with no approval."""
     params = dict(PARAMETERS if parameters is None else parameters)
     body = wire_for(params) if wire is None else wire
     action = {
@@ -119,9 +125,14 @@ def mint(
         "not_before": not_before,
         "expires_at": expires_at,
         "nonce": uuid.uuid4().hex,
-        "decision_receipt_digest": Z,
+        "decision_receipt_digest": decision_receipt_digest
+        or sha256_digest({"decision": uuid.uuid4().hex}),
         "authority_receipt_digest": ONE,
-        "approval_artifact_digest": Z,
+        "approval_artifact_digest": (
+            sha256_digest({"approval": uuid.uuid4().hex})
+            if approval_artifact_digest is ...
+            else approval_artifact_digest
+        ),
         "action": action,
         "action_digest": sha256_digest(action),
         "expected_wire_bytes_digest": sha256_bytes_digest(body),

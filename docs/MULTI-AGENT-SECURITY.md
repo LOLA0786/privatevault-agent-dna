@@ -291,13 +291,15 @@ again, and that a revoked grant mints again. **This is open.** Closing it
 means keeping that state somewhere a database writer cannot reach, or
 signing and anchoring it outside the database; neither is built. Condition 4
 (the receiver's own record of used permits) is the working defence: the
-receiver kit, with a business transaction key declared for the payment
-operation (ADR 0030), refuses a second permit for the same transaction with
-409 whatever the agent side minted. That holds only when the permit carries
-a declared business key, one upgraded receiver with one ledger handles the
-operation, and that ledger has not been restored from an older backup.
-Outside those, both permits execute. ADR 0039 (proposed) records this and
-does not remove condition 3.
+receiver kit refuses a second permit for a decision or an approval it has
+already admitted (ADR 0039), and a second permit for a declared business
+transaction (ADR 0030), whatever the agent side minted. The end-to-end test
+deletes the agent-side rows, gets a second signed permit from the real
+server, and has the receiver refuse it. That holds only when one upgraded
+receiver with one ledger handles the operation, and that ledger has not
+been restored from an older backup. Condition 3 stays: the agent side still
+mints the second permit, and a deleted `grant_revocations` row still lets a
+revoked grant mint and execute.
 
 ### Restoring an older backup
 
