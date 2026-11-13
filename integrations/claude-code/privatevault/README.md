@@ -223,8 +223,12 @@ curl -s localhost:8000/v1/verify                # check the hash chain
   `/home`, `/Users`, `~/..`), are caught, and so are the Read, Grep and
   Glob tools pointed there.
   A recursive reader given no path at all is caught when the session's
-  working directory is a home directory or contains one, and a glob is
-  judged in the directory the command runs in.
+  working directory is a home directory, contains one, or is itself a
+  credential store (`~/.config`, `~/.config/gh`, `~/.ssh`, `~/.aws`); the
+  working directory is judged by its real path, so a symlink to a store
+  counts as the store. A glob is judged in the directory the command runs
+  in, and a working-directory option is judged with or without a space
+  (`env -C /path`, `env -C/path`, `sudo -D/path`).
   Not caught, as far as is known: a recursive read that follows a symlink
   inside the project to a credential store (`grep -R`, `find -L`), a path
   built at run time (a variable, a

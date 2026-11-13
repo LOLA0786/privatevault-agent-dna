@@ -5,6 +5,20 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Review of #230/#231
+- **A glued working-directory option is judged** (N-9): `env -C/path` and
+  `sudo -D/path` were allowed where `env -C /path` asked.
+- **A symlinked working directory is judged by its real path**: with the
+  session in a symlink to `~/.config`, `grep -r oauth` (with or without
+  `.`) printed the token. The hook now sends the real path, and the runtime
+  also checks the real path where it exists.
+  `tests/test_redteam_claude_code.py`.
+- **ADR 0039 corrected**: the revocation table is `grant_revocations`, not
+  `suspensions`; it no longer says conditions 3 and 4 merge, and lists the
+  cases where both permits still execute (no business key, two receiver
+  ledgers, a restored receiver ledger, a receiver not upgraded).
+- Plugin README describes the no-path recursive read rule as it now is.
+
 ### Review of #228/#229
 - **A bare recursive read from inside a credential store is caught** (N-8):
   `grep -r oauth` with no path, run while the session is in `~/.config`,

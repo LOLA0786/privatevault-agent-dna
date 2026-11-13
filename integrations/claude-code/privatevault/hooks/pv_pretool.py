@@ -366,8 +366,10 @@ def classify(capability: str, arguments: dict, cwd: str) -> dict:
     elif capability == "shell.exec" and isinstance(out.get("command"), str):
         out["touches"] = touches(out["command"])
         # where the command runs, so the runtime can resolve relative paths:
-        # ".config" typed in the home directory is ~/.config
-        out["cwd"] = os.path.abspath(cwd)
+        # ".config" typed in the home directory is ~/.config. The REAL path:
+        # a working directory that is a symlink to ~/.config must be judged
+        # as ~/.config (review of #230). The file tools already were.
+        out["cwd"] = os.path.realpath(cwd)
     return out
 
 

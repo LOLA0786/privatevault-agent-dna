@@ -212,7 +212,7 @@ def _answer_for(real, request_id, command="ls", *, cwd):
                 "command": command,
                 "touches": [],
                 # the hook reports where the command runs (review of #225)
-                "cwd": os.path.abspath(cwd),
+                "cwd": os.path.realpath(cwd),
                 "input_sha256": digest,
             },
         }

@@ -810,7 +810,7 @@ def test_the_hook_tells_the_runtime_where_a_command_runs(tmp_path):
     args = hook.classify(
         "shell.exec", {"command": "grep -r oauth .config"}, str(tmp_path)
     )
-    assert args["cwd"] == str(tmp_path)
+    assert args["cwd"] == os.path.realpath(tmp_path)
 
 
 @pytest.mark.parametrize(
@@ -989,3 +989,72 @@ def test_a_bare_search_in_an_ordinary_config_directory_is_not_a_finding():
     for cwd in ("/home/dev/.config/nvim", "/home/dev/code/app/.config"):
         result = analyze_shell_arguments({"command": "grep -r oauth", "cwd": cwd})
         assert not result.get("touches_sensitive"), cwd
+
+
+# ---- review of #230 ------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "env -C/home/dev/.config grep -r oauth",
+        "nice env -C/home/dev/.config grep -r oauth",
+        "timeout 5 env -C/home/dev/.config grep -r oauth",
+        "command env -C/home/dev/.config grep -r oauth",
+        "sudo -D/home/dev/.config grep -r oauth",
+        "env -C~/.config grep -r oauth",
+        "env -C/home grep -r oauth",  # glued, and above home
+    ],
+)
+def test_a_glued_working_directory_option_is_judged(command):
+    """N-9: "env -C /path" was caught, "env -C/path" was not."""
+    from agent_dna.shell_guard import analyze_shell_arguments
+
+    assert analyze_shell_arguments({"command": command})["touches_sensitive"], command
+
+
+def test_glued_options_that_name_no_sensitive_place_are_untouched():
+    from agent_dna.shell_guard import analyze_shell_arguments
+
+    for command in (
+        "env -C/srv/app make",
+        "tar -C/tmp -xf x.tar",
+        "ls -la",
+        "rm -rf build",
+    ):
+        assert not analyze_shell_arguments({"command": command}).get(
+            "touches_sensitive"
+        ), command
+
+
+def test_a_working_directory_that_is_a_symlink_to_a_store_is_judged_as_the_store(
+    tmp_path, monkeypatch
+):
+    """With the session in a symlink to ~/.config, "grep -r oauth" (and the
+    same with ".") printed the token; the file tools already resolved it."""
+    from agent_dna.shell_guard import analyze_shell_arguments
+
+    home = tmp_path / "home" / "dev"
+    (home / ".config" / "gh").mkdir(parents=True)
+    link = tmp_path / "cfglink"
+    link.symlink_to(home / ".config")
+    monkeypatch.setenv("HOME", str(home))
+    for command in ("grep -r oauth", "grep -r oauth ."):
+        result = analyze_shell_arguments({"command": command, "cwd": str(link)})
+        assert result["touches_sensitive"], command
+    # the hook sends the real path in the first place
+    hook = _hook()
+    sent = hook.classify("shell.exec", {"command": "grep -r oauth"}, str(link))
+    assert sent["cwd"] == os.path.realpath(home / ".config")
+
+
+def test_a_symlink_to_an_ordinary_directory_stays_ordinary(tmp_path, monkeypatch):
+    from agent_dna.shell_guard import analyze_shell_arguments
+
+    home = tmp_path / "home" / "dev"
+    (home / "code" / "app").mkdir(parents=True)
+    link = tmp_path / "applink"
+    link.symlink_to(home / "code" / "app")
+    monkeypatch.setenv("HOME", str(home))
+    result = analyze_shell_arguments({"command": "grep -r TODO .", "cwd": str(link)})
+    assert not result.get("touches_sensitive")

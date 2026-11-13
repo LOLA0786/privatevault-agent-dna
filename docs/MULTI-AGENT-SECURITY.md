@@ -293,9 +293,11 @@ signing and anchoring it outside the database; neither is built. Condition 4
 (the receiver's own record of used permits) is the working defence: the
 receiver kit, with a business transaction key declared for the payment
 operation (ADR 0030), refuses a second permit for the same transaction with
-409 whatever the agent side minted. ADR 0039 (proposed) makes that the
-control of record for payments and lists what it does not cover, notably
-operations without a business key and revocations stored in the database.
+409 whatever the agent side minted. That holds only when the permit carries
+a declared business key, one upgraded receiver with one ledger handles the
+operation, and that ledger has not been restored from an older backup.
+Outside those, both permits execute. ADR 0039 (proposed) records this and
+does not remove condition 3.
 
 ### Restoring an older backup
 
