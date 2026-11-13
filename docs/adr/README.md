@@ -103,5 +103,5 @@ bypass and accept-edits modes) instead of letting it run unseen.
 0038 makes the decision-key pin required and binds each decision to the
 whole tool input, so an allow for one file content covers no other.
 0039 (proposed) accepts that no change inside a database stops someone who
-can write it from deleting single-use rows, and puts "at most once" for
-payments in the receiver's own ledger instead.
+can write it from deleting single-use rows, and states when the receiver's
+own ledger stops a second payment and when it does not.

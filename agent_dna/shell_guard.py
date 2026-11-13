@@ -272,6 +272,24 @@ _HOME_SWEEPERS = frozenset(
 )
 
 
+def _as_written_and_real(path: str) -> list[str]:
+    """``path``, and its real path where it exists on this machine.
+
+    Both are judged, never only the resolved one: on a server that is not
+    the machine the command runs on, the same path text could resolve to
+    something unrelated, and dropping the text form would lose a finding.
+    """
+    places = [path]
+    try:
+        if os.path.lexists(path):
+            real = os.path.realpath(path)
+            if real != path:
+                places.append(real)
+    except (OSError, ValueError):
+        pass
+    return places
+
+
 def _caller_cwd() -> str | None:
     """The directory the caller says the command runs in, for this analysis."""
     pins = _PINS.get()
@@ -303,10 +321,11 @@ class _SensitivePaths:
         cwd = _caller_cwd()
         if cwd and folded and not folded.startswith(("/", "~", "$", "-")):
             anchored = _lexical(posixpath.join(cwd, folded))
-            candidates.append(anchored)
-            found = _SENSITIVE_PATTERN.search(anchored)
-            if found is not None:
-                return found
+            for place in _as_written_and_real(anchored):
+                candidates.append(place)
+                found = _SENSITIVE_PATTERN.search(place)
+                if found is not None:
+                    return found
         home = os.path.expanduser("~")
         for candidate in candidates:
             if candidate == posixpath.join(home, ".config"):
@@ -1283,6 +1302,9 @@ def _pattern_sensitive(pattern: str) -> bool:
     return False
 
 
+_GLUED_SHORT_OPTION = re.compile(r"^-[A-Za-z]+([/~$.].*)$")
+
+
 def _note_sensitive(token: str, acc: _Acc) -> None:
     token = _expand_vars(token, acc)
     if _token_reveals_secret(token) or content_reveals_secret(
@@ -1300,9 +1322,13 @@ def _note_sensitive(token: str, acc: _Acc) -> None:
     if "://" in token:
         return  # a URL, not a local file
     # name@file (curl --data-urlencode) and @file forms, external retest N16;
-    # rev:path (git show HEAD:.env), red team 2026-10-23 F9
+    # rev:path (git show HEAD:.env), red team 2026-10-23 F9; a short option
+    # with its value glued on ("env -C/home/u/.config", "sudo -D~"), review
+    # of #230 N-9: the spaced form was caught, the glued form was not.
+    glued = _GLUED_SHORT_OPTION.match(token)
     for part in (
         token,
+        glued.group(1) if glued else "",
         token.split("=", 1)[-1],
         token.lstrip("@"),
         token.split("@", 1)[-1],
@@ -1763,9 +1789,16 @@ def analyze_shell_arguments(arguments: Mapping[str, Any] | None) -> dict[str, An
             here = _lexical(caller) if caller != "/" else "/"
             # ...or the directory it runs in is itself a credential store: a
             # bare "grep -r oauth" run from inside ~/.config, ~/.config/gh,
-            # ~/.ssh or ~/.aws reads the secrets with no path to judge.
-            swept = _home_or_above(here, os.path.expanduser("~")) or bool(
-                _SENSITIVE_PATTERN.search(here)
+            # ~/.ssh or ~/.aws reads the secrets with no path to judge. The
+            # directory is judged as written and, where it exists here, as
+            # its real path: a working directory that is a symlink to
+            # ~/.config read the secrets (review of #230).
+            home = os.path.expanduser("~")
+            swept = any(
+                _home_or_above(place, home)
+                or _SENSITIVE_PATTERN.search(place)
+                or place == posixpath.join(home, ".config")
+                for place in _as_written_and_real(here)
             )
         if swept and any(e in _HOME_SWEEPERS for e in acc.executables):
             # a recursive reader pointed at, or run from, a home directory
