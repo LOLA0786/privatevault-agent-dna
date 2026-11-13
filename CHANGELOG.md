@@ -5,6 +5,31 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### ADR 0039 built: a decision and an approval execute at most once
+- **The receiver claims the decision and the approval each permit was
+  minted from**, in its own ledger (`receiver_sources`), and refuses a
+  second, different permit for either with 409
+  `RECEIVER_DUPLICATE_DECISION` or `RECEIVER_DUPLICATE_APPROVAL`, with or
+  without a business key. Both digests were already signed fields of every
+  permit; no permit format changed (the proposal said otherwise, wrongly).
+  `tests/receiver/test_receiver_sources.py`.
+- **N-1 reproduced end to end:** the agent-side rows are deleted, the real
+  server mints a second signed permit, and the receiver refuses it.
+  `tests/multi_agent_security/test_double_mint_at_the_receiver.py`. The
+  second mint itself still happens; condition 3 stays.
+- Receiver test permits now each carry their own decision and approval, as
+  a real runtime's do.
+
+### Review of #232 and the open leftovers
+- **A glued option is judged by where it really points** (N-11):
+  `env -C/tmp/proj/link` resolves the link like the spaced form; relative
+  glued values (`env -Clink`, `tar -xzClink`) are judged per program.
+- **A link-following recursive read walks the tree first**: `grep -R`,
+  `find -L`, `rg --follow`, `cp -L`, `rsync -L`, `tar -h`, `zip -r`,
+  `scp -r`. A link to a credential store, secret file or home directory
+  asks; so does a tree over 50,000 entries.
+  `tests/test_redteam_claude_code.py`.
+
 ### Review of #230/#231
 - **A glued working-directory option is judged** (N-9): `env -C/path` and
   `sudo -D/path` were allowed where `env -C /path` asked.

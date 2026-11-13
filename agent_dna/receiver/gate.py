@@ -67,7 +67,12 @@ from agent_dna.presenter_identity import (
     PresenterIdentityError,
     presenter_identity_digest,
 )
-from agent_dna.receiver.ledger import CLAIM_DUPLICATE_TRANSACTION, ReceiverLedger
+from agent_dna.receiver.ledger import (
+    CLAIM_DUPLICATE_APPROVAL,
+    CLAIM_DUPLICATE_DECISION,
+    CLAIM_DUPLICATE_TRANSACTION,
+    ReceiverLedger,
+)
 from agent_dna.receiver.permit_header import PERMIT_HEADER_LOWER, decode_permit_header
 from agent_dna.receiver.receipts import (
     OUTCOME_ADMITTED,
@@ -117,6 +122,23 @@ RECEIVER_PRESENTER_MISMATCH = "RECEIVER_PRESENTER_MISMATCH"
 # ADR 0030: business transaction keys.
 RECEIVER_TRANSACTION_KEY_INVALID = "RECEIVER_TRANSACTION_KEY_INVALID"
 RECEIVER_DUPLICATE_TRANSACTION = "RECEIVER_DUPLICATE_TRANSACTION"
+# ADR 0039: another permit was already admitted for this decision, or for
+# this approval. The agent side should never mint one; if it did (its
+# database was altered or restored), it does not execute here.
+RECEIVER_DUPLICATE_DECISION = "RECEIVER_DUPLICATE_DECISION"
+RECEIVER_DUPLICATE_APPROVAL = "RECEIVER_DUPLICATE_APPROVAL"
+_DUPLICATE_SOURCE = {
+    CLAIM_DUPLICATE_DECISION: (
+        RECEIVER_DUPLICATE_DECISION,
+        "another permit for the same decision was already admitted by this "
+        "receiver; a decision executes at most once",
+    ),
+    CLAIM_DUPLICATE_APPROVAL: (
+        RECEIVER_DUPLICATE_APPROVAL,
+        "another permit made under the same approval was already admitted "
+        "by this receiver; an approval is used at most once",
+    ),
+}
 
 _ENUMERATED_METHODS = frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"})
 _READ_ONLY_METHODS = frozenset({"GET", "HEAD"})
@@ -197,6 +219,19 @@ class _RefusalError(Exception):
         self.detail = detail
         self.http_status = http_status
         self.ea = ea
+
+
+def _sources(ea: Mapping[str, Any]) -> tuple[tuple[str, str], ...]:
+    """The decision, and the approval if any, a permit was minted from.
+
+    Both are signed fields of the permit (spec execution-v01), so a
+    presenter cannot strip or change them without breaking the signature.
+    """
+    sources = [("decision", str(ea["decision_receipt_digest"]))]
+    approval = ea.get("approval_artifact_digest")
+    if approval is not None:
+        sources.append(("approval", str(approval)))
+    return tuple(sources)
 
 
 @dataclass
@@ -725,11 +760,12 @@ class ReceiverGate:
             claimed: bool | str | None, sequence: int, previous: str
         ) -> dict[str, Any]:
             admitted = claimed is True
-            refusal = (
-                RECEIVER_DUPLICATE_TRANSACTION
-                if claimed == CLAIM_DUPLICATE_TRANSACTION
-                else RECEIVER_PERMIT_CONSUMED
-            )
+            if claimed == CLAIM_DUPLICATE_TRANSACTION:
+                refusal = RECEIVER_DUPLICATE_TRANSACTION
+            elif isinstance(claimed, str) and claimed in _DUPLICATE_SOURCE:
+                refusal = _DUPLICATE_SOURCE[claimed][0]
+            else:
+                refusal = RECEIVER_PERMIT_CONSUMED
             return sign_receiver_receipt(
                 self._unsigned(
                     sequence=sequence,
@@ -754,6 +790,7 @@ class ReceiverGate:
                 ),
                 make_receipt=make,
                 transaction=transaction,
+                sources=_sources(ea),
             )
         except Exception as exc:
             return ReceiverDecision(
@@ -775,6 +812,9 @@ class ReceiverGate:
                 ea,
                 transaction,
             )
+        if isinstance(claimed, str) and claimed in _DUPLICATE_SOURCE:
+            code, detail = _DUPLICATE_SOURCE[claimed]
+            return ReceiverDecision(False, code, detail, 409, receipt, ea)
         if claimed is not True:
             return ReceiverDecision(
                 False,

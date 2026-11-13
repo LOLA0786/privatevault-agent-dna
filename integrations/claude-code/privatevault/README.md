@@ -229,9 +229,13 @@ curl -s localhost:8000/v1/verify                # check the hash chain
   counts as the store. A glob is judged in the directory the command runs
   in, and a working-directory option is judged with or without a space
   (`env -C /path`, `env -C/path`, `sudo -D/path`).
-  Not caught, as far as is known: a recursive read that follows a symlink
-  inside the project to a credential store (`grep -R`, `find -L`), a path
-  built at run time (a variable, a
+  A recursive read that follows links (`grep -R`, `find -L`, `rg --follow`,
+  `cp -L`, `rsync -L`, `tar -h`, and `zip -r` and `scp -r`, which follow
+  by default) has its tree walked first: a link anywhere in it to a
+  credential store, a secret file or a home directory asks, and so does a
+  tree too large to walk (50,000 entries). The walk needs the files on the
+  same machine as the runtime, as with `pv up`.
+  Not caught, as far as is known: a path built at run time (a variable, a
   command substitution, an interpreter one-liner that walks the tree), a
   program outside the list above reading the home directory, a directory
   above home reached through a symlink the hook cannot see from the command

@@ -16,6 +16,16 @@ concurrent workers and separate processes sharing the file cannot fork the
 chain. Multi-host deployments need a store with the same exclusive-claim
 guarantee; this module does not claim one.
 
+The same transaction also claims the decision and the approval the permit
+was minted from (ADR 0039): ``(organisation_id, "decision",
+decision_receipt_digest)`` and, when the permit carries one,
+``(organisation_id, "approval", approval_artifact_digest)``. The agent side
+mints at most one permit per decision (ADR 0016) and lets an approval be
+used once (ADR 0020); this enforces both again here, in a ledger the agent
+side cannot write. A second, different permit for a decision or approval
+already admitted is refused without being consumed. These claims are never
+released.
+
 With business transaction keys (ADR 0030) the same transaction also claims
 ``(organisation_id, operation, transaction_key)``: a key held by an earlier
 permit, in any state but NOT_EXECUTED, refuses the request without
@@ -27,7 +37,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import closing
 from pathlib import Path
 from typing import Any
@@ -74,6 +84,17 @@ _SCHEMA = (
     )
     """,
     """
+    CREATE TABLE IF NOT EXISTS receiver_sources (
+        organisation_id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        digest TEXT NOT NULL,
+        execution_authorization_id TEXT NOT NULL,
+        claimed_at TEXT NOT NULL,
+        receipt_sequence INTEGER NOT NULL,
+        PRIMARY KEY (organisation_id, kind, digest)
+    )
+    """,
+    """
     CREATE INDEX IF NOT EXISTS idx_receiver_transactions_permit
         ON receiver_transactions (organisation_id, execution_authorization_id)
     """,
@@ -98,12 +119,19 @@ _SCHEMA = (
 CLAIM_ADMITTED = True
 CLAIM_PERMIT_CONSUMED = False
 CLAIM_DUPLICATE_TRANSACTION = "duplicate_transaction"
+CLAIM_DUPLICATE_DECISION = "duplicate_decision"
+CLAIM_DUPLICATE_APPROVAL = "duplicate_approval"
+_SOURCE_CLAIMS = {
+    "decision": CLAIM_DUPLICATE_DECISION,
+    "approval": CLAIM_DUPLICATE_APPROVAL,
+}
 
 # make_receipt(claimed, sequence, previous_digest) -> signed receipt.
 # ``claimed`` is None when no claim was requested; True when the permit (and
 # its transaction key, if any) was claimed; False when the permit was
 # already consumed; CLAIM_DUPLICATE_TRANSACTION when another permit holds
-# the transaction key.
+# the transaction key; CLAIM_DUPLICATE_DECISION or CLAIM_DUPLICATE_APPROVAL
+# when another permit was already admitted for the same decision or approval.
 ClaimResult = bool | str | None
 ReceiptFactory = Callable[[ClaimResult, int, str], Mapping[str, Any]]
 
@@ -128,21 +156,27 @@ class ReceiverLedger:
         conn.execute(f"PRAGMA busy_timeout={int(self.timeout_s * 1000)}")
         return conn
 
-    def record(
+    def record(  # noqa: C901 - one atomic claim, ordered refusals
         self,
         *,
         claim: tuple[str, str, str] | None,
         make_receipt: ReceiptFactory,
         transaction: tuple[str, str] | None = None,
+        sources: Sequence[tuple[str, str]] = (),
     ) -> tuple[ClaimResult, dict[str, Any]]:
         """Atomically (claim?) and append one receipt.
 
         ``claim`` is ``(organisation_id, execution_authorization_id, consumed_at)``.
         ``transaction`` is ``(operation, transaction_key)``, claimed for the
         same organisation before the permit; a key already held refuses
-        without consuming the permit. Returns ``(claimed, receipt)``. Any
-        exception rolls back everything.
+        without consuming the permit. ``sources`` are ``(kind, digest)``
+        pairs, kind "decision" or "approval": one held by a DIFFERENT permit
+        refuses without consuming this one. Returns ``(claimed, receipt)``.
+        Any exception rolls back everything.
         """
+        for kind, digest in sources:
+            if kind not in _SOURCE_CLAIMS or not isinstance(digest, str) or not digest:
+                raise ValueError(f"invalid source claim {kind!r}")
 
         with closing(self._connect()) as conn:
             conn.execute("BEGIN IMMEDIATE")
@@ -166,6 +200,12 @@ class ReceiverLedger:
                         ).fetchone()
                     if held is not None and held[0] != NOT_EXECUTED:
                         claimed = CLAIM_DUPLICATE_TRANSACTION
+                    elif (
+                        source := self._source_held(
+                            conn, organisation_id, ea_id, sources
+                        )
+                    ) is not None:
+                        claimed = source
                     else:
                         try:
                             conn.execute(
@@ -177,6 +217,23 @@ class ReceiverLedger:
                             claimed = True
                         except sqlite3.IntegrityError:
                             claimed = False
+                    if claimed is True:
+                        conn.executemany(
+                            "INSERT INTO receiver_sources (organisation_id, kind, "
+                            "digest, execution_authorization_id, claimed_at, "
+                            "receipt_sequence) VALUES (?, ?, ?, ?, ?, ?)",
+                            [
+                                (
+                                    organisation_id,
+                                    kind,
+                                    digest,
+                                    ea_id,
+                                    consumed_at,
+                                    sequence,
+                                )
+                                for kind, digest in sources
+                            ],
+                        )
                     if claimed is True and transaction is not None:
                         conn.execute(
                             "INSERT INTO receiver_transactions (organisation_id, "
@@ -259,6 +316,34 @@ class ReceiverLedger:
                 note,
             ),
         )
+
+    @staticmethod
+    def _source_held(
+        conn: sqlite3.Connection,
+        organisation_id: str,
+        ea_id: str,
+        sources: Sequence[tuple[str, str]],
+    ) -> str | None:
+        """The claim result if another permit already holds a source."""
+        for kind, digest in sources:
+            row = conn.execute(
+                "SELECT execution_authorization_id FROM receiver_sources WHERE "
+                "organisation_id = ? AND kind = ? AND digest = ?",
+                (organisation_id, kind, digest),
+            ).fetchone()
+            if row is not None and str(row[0]) != ea_id:
+                return _SOURCE_CLAIMS[kind]
+        return None
+
+    def source_holder(self, organisation_id: str, kind: str, digest: str) -> str | None:
+        """The permit admitted for this decision or approval, if any."""
+        with closing(self._connect()) as conn:
+            row = conn.execute(
+                "SELECT execution_authorization_id FROM receiver_sources WHERE "
+                "organisation_id = ? AND kind = ? AND digest = ?",
+                (organisation_id, kind, digest),
+            ).fetchone()
+        return None if row is None else str(row[0])
 
     def record_outcome(
         self,
