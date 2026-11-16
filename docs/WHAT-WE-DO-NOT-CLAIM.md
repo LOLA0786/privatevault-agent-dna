@@ -1042,6 +1042,18 @@ the system of record, recorded in the receiver ledger but not signed into
 the receipt chain; and a hash chain does not prove that no external effect
 happened outside it.
 
+Since ADR 0040 the receiver kit does not start without a declared key unless
+`PV_RECEIVER_ALLOW_NO_TRANSACTION_KEY=1` is set
+(`tests/network/test_receiver_hardened.py::test_transaction_key_is_required`),
+and the live refund demo declares `refund_id`: two decisions taken for one
+refund before either is paid are still two sealed ALLOWs and two permits, and
+the gate pays once
+(`tests/demos/test_live_checkout.py::test_two_decisions_for_one_refund_pay_once`).
+**We do not claim** that every protected operation has a key (the kit checks
+for at least one), that the server refuses the second decision (it does not
+reserve at decide time), or that the key cannot be chosen by a compromised
+agent-side tool: in the refund demo the tool computes `refund_id`.
+
 Since ADR 0039 the receiver also claims the decision and the approval each
 permit was minted from, and refuses a second, different permit for either
 (`RECEIVER_DUPLICATE_DECISION`, `RECEIVER_DUPLICATE_APPROVAL`), with or

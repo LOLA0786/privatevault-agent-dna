@@ -486,6 +486,9 @@ def test_kit_transaction_keys(tmp_path, raw, ok):
         SigningKey.generate(),
         SigningKey.generate(),
         PV_RECEIVER_TRANSACTION_KEYS=raw,
+        # ADR 0040: no key is an explicit relaxation; a key and the
+        # relaxation together are a contradiction.
+        PV_RECEIVER_ALLOW_NO_TRANSACTION_KEY="" if raw else "1",
         PV_RECEIVER_IDEMPOTENCY_HEADER="Idempotency-Key",
     )
     if not ok:
