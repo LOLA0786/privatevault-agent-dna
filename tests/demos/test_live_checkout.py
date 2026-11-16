@@ -33,6 +33,9 @@ Claims -> tests:
     -> test_ledger_facts_are_not_model_supplied
   - Each service prints one-line structured events
     -> test_services_print_one_line_events
+  - Two decisions taken for one refund before either is paid are two
+    permits, and the gate pays the refund once (ADR 0040)
+    -> test_two_decisions_for_one_refund_pay_once
   - The real model works the queue through the same path (opt-in)
     -> test_live_agent_with_real_model
 """
@@ -286,7 +289,10 @@ def test_queue_outcomes(full_run, world):
     assert r14.pv_decision is None and r14.paid == 0
     r15 = _row(full_run, 15)
     assert r15.replays == 1 and r15.permit_id == _row(full_run, 1).permit_id
-    assert r15.gate_status == 409 and r15.gate_reason == "RECEIVER_PERMIT_CONSUMED"
+    # The gate names refund_id as the transaction key (ADR 0040), so the
+    # replayed refund is refused as a transaction it already admitted.
+    assert r15.gate_status == 409
+    assert r15.gate_reason == "RECEIVER_DUPLICATE_TRANSACTION"
     assert r15.prevented_by == "replay" and r15.prevented_amount == 1200
     paid = world.refunds()
     assert [p["amount"] for p in paid] == [1200, 850, 2400, 3000, 1999, 25000, 60000]
@@ -368,7 +374,7 @@ def test_saved_run_replays_identically(full_run, capsys):
     )
     assert proc.returncode == 0, proc.stdout + proc.stderr
     assert "replaying saved run" in proc.stdout
-    assert "REFUSED 409 PERMIT_CONSUMED" in proc.stdout
+    assert "REFUSED 409 DUPLICATE_TRANSACTION" in proc.stdout
     assert f"prevented ₹{full_run['summary']['prevented']:,}".replace(
         ",", ""
     ) in proc.stdout.replace(",", "")
@@ -468,7 +474,7 @@ def test_services_print_one_line_events(full_run, world):
     gate = world.log_text("gate")
     assert gate.count("ADMITTED   ADMITTED") == 7
     assert "RECEIVER_WIRE_MISMATCH" in gate and "amount=30000" in gate
-    assert "RECEIVER_PERMIT_CONSUMED" in gate
+    assert "RECEIVER_DUPLICATE_TRANSACTION" in gate
     payments = world.log_text("payments_api")
     assert payments.count("REFUND     PAID") == 7
 
@@ -522,3 +528,55 @@ def test_live_agent_with_real_model(tmp_path_factory):
         assert summary["with_privatevault"] == sum(p["amount"] for p in paid)
     finally:
         _stop_world(world)
+
+
+def test_two_decisions_for_one_refund_pay_once(tmp_path):
+    """Adversarial regression (ADR 0040). The duplicate-refund rule reads what
+    the payments API has paid, so two decides taken before either refund is
+    paid both see no prior refund: two sealed ALLOWs, two distinct permits,
+    byte-identical bodies. Without a transaction key the gate admitted both
+    and the refund was paid twice. With refund_id declared it is paid once."""
+    from agents.core.gate import wire_for
+    from demos.live_checkout.agent import RefundPath
+    from demos.live_checkout.approvals import ApprovalInbox
+
+    w = _start_world(tmp_path / "run")
+    try:
+        gate_env = cfg.parse_env_file(w.run_dir / "services.env")
+        assert json.loads(gate_env["PV_RECEIVER_TRANSACTION_KEYS"]) == {
+            cfg.OPERATION: "refund_id"
+        }
+        path = RefundPath(
+            run_dir=w.run_dir,
+            privatevault_url=w.url("privatevault"),
+            gate_url=w.url("gate"),
+            api_key=(w.run_dir / "api-key.txt").read_text().strip(),
+            inbox=ApprovalInbox(w.run_dir / "approvals"),
+            approval_timeout_s=5,
+            ledger=RefundLedger(QUEUE, payments_url=w.url("gate")),
+        )
+        arguments = path.tool.arguments_for(
+            {
+                "order_id": "ORD-70288",
+                "amount": 1999,
+                "payee": "meera.k@paytm",
+                "reason": "returned unopened",
+            }
+        )
+        first = path.pv.decide(path.tool, arguments)
+        second = path.pv.decide(path.tool, arguments)
+        assert first.allowed and second.allowed
+        assert first.record["decision_id"] != second.record["decision_id"]
+        permits = [path.pv.mint(o, path.tool, arguments) for o in (first, second)]
+        assert permits[0].permit_id != permits[1].permit_id
+
+        wire = wire_for(arguments)
+        results = [path.present(p.header, wire) for p in permits]
+        assert results[0][0] == 201
+        assert results[1][0] == 409
+        assert results[1][1]["reason_code"] == "RECEIVER_DUPLICATE_TRANSACTION"
+
+        paid = [r for r in w.refunds() if r["order_id"] == "ORD-70288"]
+        assert [r["amount"] for r in paid] == [1999]
+    finally:
+        _stop_world(w)

@@ -5,6 +5,25 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### ADR 0040: a receiver names its business key, or says it has none
+- **The receiver kit refuses to start without `PV_RECEIVER_TRANSACTION_KEYS`**
+  unless `PV_RECEIVER_ALLOW_NO_TRANSACTION_KEY=1`; a key plus the flag is a
+  contradiction, and an empty mapping is not a key. The start-up summary names
+  the relaxation. `tests/network/test_receiver_hardened.py::test_transaction_key_is_required`,
+  `::test_transaction_key_settings_are_checked`. **Breaking for kit
+  deployments that set no key:** declare one or set the flag.
+- **Found by audit at `03cd1f6`:** the live refund demo paid one refund twice
+  when two decisions were taken before the first was paid. The demo gate now
+  declares `refund_id` and pays once; the second permit gets 409
+  `RECEIVER_DUPLICATE_TRANSACTION`.
+  `tests/demos/test_live_checkout.py::test_two_decisions_for_one_refund_pay_once`.
+- With the key declared, the demo's replay row is refused as
+  `RECEIVER_DUPLICATE_TRANSACTION` instead of `RECEIVER_PERMIT_CONSUMED`
+  (both 409, nothing paid); the table's gate column is six characters wider.
+- The treasury demo and the kit's compose file set the flag explicitly;
+  behaviour unchanged. Not done here: decide-time reservation, and deriving
+  the key from the system of record.
+
 ### ADR 0039 built: a decision and an approval execute at most once
 - **The receiver claims the decision and the approval each permit was
   minted from**, in its own ledger (`receiver_sources`), and refuses a
