@@ -163,6 +163,9 @@ def _env_lines(root: str, *, upstream: str, capabilities: list[str]) -> str:
         # explicit (ADR 0027; a real receiver serves mTLS and pulls the list).
         "PV_RECEIVER_ALLOW_PLAINTEXT": "1",
         "PV_RECEIVER_ALLOW_NO_REVOCATION": "1",
+        # ADR 0040: this demo declares no business key; a real receiver names
+        # one per write operation (PV_RECEIVER_TRANSACTION_KEYS).
+        "PV_RECEIVER_ALLOW_NO_TRANSACTION_KEY": "1",
     }
     return "".join(f"{k}={v}\n" for k, v in lines.items())
 

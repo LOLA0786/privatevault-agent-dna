@@ -14,6 +14,12 @@ Claims -> tests:
   - No PV_REVOCATION_URL and no PV_RECEIVER_ALLOW_NO_REVOCATION=1: the gate
     does not start; http needs its own flag; the API key file is required
     -> test_revocation_source_is_required, test_revocation_settings_are_checked[*]
+  - No PV_RECEIVER_TRANSACTION_KEYS and no
+    PV_RECEIVER_ALLOW_NO_TRANSACTION_KEY=1: the gate does not start; a key
+    plus the relaxation is a contradiction; an empty mapping is not a key
+    (ADR 0040)
+    -> test_transaction_key_is_required,
+       test_transaction_key_settings_are_checked[*]
   - build_gate attaches the list: before a signed list is installed every
     permit is refused (503) and nothing reaches the upstream
     -> test_gate_refuses_everything_until_a_list_is_installed
@@ -249,6 +255,62 @@ def test_revocation_source_is_required(tmp_path):
     assert "refuses all permits while stale" in text
     assert API_KEY not in text
     assert "run one receiver host" in text
+
+
+REFUND_KEY = '{"POST /v1/refunds": "refund_id"}'
+
+
+def test_transaction_key_is_required(tmp_path):
+    """ADR 0040. Permits are single-use, but two decisions for one refund are
+    two permits; a gate with no business key admits both. Starting without
+    one must be a deliberate, visible choice."""
+    env = _hardened(
+        tmp_path,
+        **_tls_files(tmp_path),
+        **_revocation(tmp_path),
+        PV_RECEIVER_ALLOW_NO_TRANSACTION_KEY="",
+    )
+    with pytest.raises(
+        config.ConfigError, match="PV_RECEIVER_TRANSACTION_KEYS is required"
+    ):
+        config.settings_from_env(env)
+    off = config.settings_from_env({**env, "PV_RECEIVER_ALLOW_NO_TRANSACTION_KEY": "1"})
+    assert off.allow_no_transaction_key and off.transaction_keys == ()
+    gate = config.build_gate(off)
+    assert dict(gate.transaction_keys) == {}
+    assert "is admitted and paid again" in config.describe(off, gate)
+    on = config.settings_from_env({**env, "PV_RECEIVER_TRANSACTION_KEYS": REFUND_KEY})
+    assert not on.allow_no_transaction_key
+    gate = config.build_gate(on)
+    assert dict(gate.transaction_keys) == {"POST /v1/refunds": "refund_id"}
+    assert "POST /v1/refunds -> refund_id" in config.describe(on, gate)
+
+
+@pytest.mark.parametrize(
+    "over, match",
+    [
+        (
+            {
+                "PV_RECEIVER_TRANSACTION_KEYS": REFUND_KEY,
+                "PV_RECEIVER_ALLOW_NO_TRANSACTION_KEY": "1",
+            },
+            "contradicts PV_RECEIVER_TRANSACTION_KEYS",
+        ),
+        ({"PV_RECEIVER_TRANSACTION_KEYS": "{}"}, "must map"),
+        ({"PV_RECEIVER_TRANSACTION_KEYS": "   "}, "is required"),
+        ({"PV_RECEIVER_ALLOW_NO_TRANSACTION_KEY": "0"}, "is required"),
+    ],
+    ids=["contradiction", "empty-mapping", "blank", "flag-off"],
+)
+def test_transaction_key_settings_are_checked(tmp_path, over, match):
+    env = _hardened(
+        tmp_path,
+        **_tls_files(tmp_path),
+        **_revocation(tmp_path),
+        **{"PV_RECEIVER_ALLOW_NO_TRANSACTION_KEY": "", **over},
+    )
+    with pytest.raises(config.ConfigError, match=match):
+        config.settings_from_env(env)
 
 
 @pytest.mark.parametrize(

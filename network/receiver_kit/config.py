@@ -18,14 +18,18 @@ Hardened by default (external review, 19 October 2026): the gate serves only
 mutual TLS, requires every permit to name its presenter, and refuses permits
 unless a fresh signed revocation list is installed. Each relaxation is an
 explicit flag for a local demo: ``PV_RECEIVER_ALLOW_PLAINTEXT=1``,
-``PV_RECEIVER_REQUIRE_PRESENTER=0``, ``PV_RECEIVER_ALLOW_NO_REVOCATION=1``.
+``PV_RECEIVER_REQUIRE_PRESENTER=0``, ``PV_RECEIVER_ALLOW_NO_REVOCATION=1``,
+``PV_RECEIVER_ALLOW_NO_TRANSACTION_KEY=1``.
 The ledger is SQLite: run one receiver host.
 
 Business transaction keys (ADR 0030): ``PV_RECEIVER_TRANSACTION_KEYS`` is a
 JSON object from ``"METHOD PATH"`` to the dotted body field that identifies
 the transaction, for example ``{"POST /api/v1/transfers": "invoice_id"}``.
 Each key is admitted once; reconcile open claims with
-``tools/receiver_transactions.py``. ``PV_RECEIVER_IDEMPOTENCY_HEADER`` (for
+``tools/receiver_transactions.py``. A key is required (ADR 0040): without one
+a second decision for the same business transaction mints a second permit and
+the gate admits both. ``PV_RECEIVER_ALLOW_NO_TRANSACTION_KEY=1`` starts the
+gate with none, for a local demo or an upstream that deduplicates itself. ``PV_RECEIVER_IDEMPOTENCY_HEADER`` (for
 example ``Idempotency-Key``) also sends the transaction's opaque reference
 upstream.
 """
@@ -282,6 +286,8 @@ class GateSettings:
     # ADR 0030
     transaction_keys: tuple[tuple[str, str], ...] = ()
     idempotency_header: str | None = None
+    # ADR 0040: True only with PV_RECEIVER_ALLOW_NO_TRANSACTION_KEY=1.
+    allow_no_transaction_key: bool = False
 
     @property
     def mtls(self) -> bool:
@@ -435,15 +441,39 @@ def _revocation_settings(env: Mapping[str, str]) -> dict[str, Any]:
 
 
 def _transaction_keys(env: Mapping[str, str]) -> tuple[tuple[str, str], ...]:
+    """The business key per write operation (ADR 0030). Required unless
+    PV_RECEIVER_ALLOW_NO_TRANSACTION_KEY=1 (ADR 0040): permits are single-use,
+    but two decisions for one refund are two permits, and without a key the
+    gate admits both."""
     raw = env.get("PV_RECEIVER_TRANSACTION_KEYS", "").strip()
+    allow_none = _flag(env, "PV_RECEIVER_ALLOW_NO_TRANSACTION_KEY")
+    if raw and allow_none:
+        raise ConfigError(
+            "PV_RECEIVER_ALLOW_NO_TRANSACTION_KEY=1 contradicts "
+            "PV_RECEIVER_TRANSACTION_KEYS; set one"
+        )
     if not raw:
+        if not allow_none:
+            raise ConfigError(
+                "PV_RECEIVER_TRANSACTION_KEYS is required: a JSON object from each "
+                "write operation to the body field naming the transaction, e.g. "
+                '{"POST /v1/refunds": "refund_id"}. Without it a second decision '
+                "for the same transaction is admitted and paid again. Set "
+                "PV_RECEIVER_ALLOW_NO_TRANSACTION_KEY=1 only for a local demo or "
+                "an upstream that deduplicates itself"
+            )
         return ()
     try:
         value = json.loads(raw)
     except ValueError as exc:
         raise ConfigError(f"PV_RECEIVER_TRANSACTION_KEYS is not JSON: {exc}") from None
-    if not isinstance(value, dict) or not all(
-        isinstance(k, str) and isinstance(v, str) and k and v for k, v in value.items()
+    if (
+        not isinstance(value, dict)
+        or not value
+        or not all(
+            isinstance(k, str) and isinstance(v, str) and k and v
+            for k, v in value.items()
+        )
     ):
         raise ConfigError(
             'PV_RECEIVER_TRANSACTION_KEYS must map "METHOD PATH" to a body field, '
@@ -489,6 +519,7 @@ def settings_from_env(env: Mapping[str, str] | None = None) -> GateSettings:
         transaction_keys=_transaction_keys(source),
         idempotency_header=source.get("PV_RECEIVER_IDEMPOTENCY_HEADER", "").strip()
         or None,
+        allow_no_transaction_key=_flag(source, "PV_RECEIVER_ALLOW_NO_TRANSACTION_KEY"),
         **_tls_settings(source),
         **_revocation_settings(source),
     )
@@ -574,7 +605,8 @@ def describe(settings: GateSettings, gate: ReceiverGate) -> str:
                 else ""
             )
             if settings.transaction_keys
-            else "(none: a new permit for the same invoice is admitted)"
+            else "off: LOCAL DEMO ONLY (a new permit for the same transaction "
+            "is admitted and paid again)"
         ),
         "  ledger scope         this host only (SQLite): run one receiver host",
     ]

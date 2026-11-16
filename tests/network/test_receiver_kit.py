@@ -80,6 +80,7 @@ def _env(
         # the demo relaxations; hardened-default tests clear them
         "PV_RECEIVER_ALLOW_PLAINTEXT": "1",
         "PV_RECEIVER_ALLOW_NO_REVOCATION": "1",
+        "PV_RECEIVER_ALLOW_NO_TRANSACTION_KEY": "1",
     }
     env.update(over)
     return env
