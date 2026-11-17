@@ -5,6 +5,17 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Prompt ablation harness for the live refund demo
+- **`uv run python -m demos.live_checkout.ablation`** runs the demo's prompt
+  stack against its refund requests with one component removed, or one
+  probe sentence added, per variant (15 variants) and counts the refunds the
+  model proposes that the policy forbids, judged from the order record. It
+  needs `ANTHROPIC_API_KEY` and `--extra live`; `--max-usd` stops the run, a
+  model without a known price needs `--price`, and every trial records the
+  model that answered. `tests/demos/test_live_checkout_ablation.py` runs it
+  with a fake model.
+- Not run in CI and not yet run against a live model.
+
 ### A sent, unconfirmed request is reported as outcome unknown
 - Found while testing a lost response: when the request was delivered, the
   gate admitted it and the upstream paid, but the answer never came back
