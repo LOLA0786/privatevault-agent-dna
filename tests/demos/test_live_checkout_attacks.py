@@ -14,13 +14,20 @@ Claims -> tests:
     -> test_corpus_passes
   - The command exits 0 and prints one line per scenario
     -> test_command_line
+  - A request the sidecar delivered and the receiver refused is not recorded
+    as paid: the sidecar's EXECUTED outcome means delivered, not admitted
+    -> test_receiver_refusal_reads_the_receivers_answer[*],
+       test_delivered_and_refused_is_not_recorded_as_paid
 """
 
 from __future__ import annotations
 
 import pytest
 
+from agents.core.gate import wire_for
+from agents.core.transport import receiver_refusal
 from demos.live_checkout import attacks
+from demos.live_checkout.agent import Row
 
 
 @pytest.fixture(scope="module")
@@ -56,3 +63,90 @@ def test_command_line(tmp_path, capsys):
     assert out.count("[PASS]") == 10 and "[FAIL]" not in out
     assert "[NOT PREVENTED] upstream_reached_without_the_gate" in out
     assert (tmp_path / "run" / "attacks.json").exists()
+
+
+class _Transport:
+    def __init__(self, status):
+        self.last_response_status = status
+
+
+@pytest.mark.parametrize(
+    "status, body, expected",
+    [
+        (201, b'{"payout_ref": "P1"}', None),
+        (399, b"", None),
+        (None, b'{"reason_code": "X"}', None),
+        (
+            409,
+            b'{"admitted": false, "reason_code": "RECEIVER_PERMIT_CONSUMED"}',
+            (409, "RECEIVER_PERMIT_CONSUMED"),
+        ),
+        (403, b"not json", (403, None)),
+        (500, None, (500, None)),
+        (400, b'["reason_code"]', (400, None)),
+        (400, b'{"reason_code": 7}', (400, None)),
+    ],
+    ids=[
+        "created",
+        "below-400",
+        "no-status",
+        "refused",
+        "not-json",
+        "no-body",
+        "not-an-object",
+        "non-string-reason",
+    ],
+)
+def test_receiver_refusal_reads_the_receivers_answer(status, body, expected):
+    assert receiver_refusal(_Transport(status), body) == expected
+    assert receiver_refusal(object(), body) is None
+
+
+def test_delivered_and_refused_is_not_recorded_as_paid(tmp_path, monkeypatch):
+    """Found by the attack corpus. The permit is presented to the gate by
+    someone else between mint and dispatch. The sidecar then delivers the
+    honest bytes, the gate answers 409, and the sidecar's outcome is still
+    EXECUTED. The demo recorded that row as paid and told the model so."""
+    w = attacks.start_world(tmp_path / "run")
+    try:
+        path = w.p
+        mint = path.pv.mint
+
+        def mint_then_lose_the_race(outcome, tool, arguments):
+            permit = mint(outcome, tool, arguments)
+            assert w.present(permit, wire_for(arguments))[0] == 201
+            return permit
+
+        monkeypatch.setattr(path.pv, "mint", mint_then_lose_the_race)
+        row = Row(
+            id=1,
+            kind="normal",
+            order_id="ORD-70288",
+            customer_id="C-1005",
+            requested_amount=1999,
+            requested_payee="meera.k@paytm",
+            customer_text="refund please",
+        )
+        said = path.issue(
+            row,
+            {
+                "order_id": "ORD-70288",
+                "amount": 1999,
+                "payee": "meera.k@paytm",
+                "reason": "returned",
+            },
+            compromised=False,
+            bypass_sidecar=False,
+        )
+        assert row.sidecar_outcome == "EXECUTED"  # delivered
+        assert row.gate_status == 409  # and refused
+        assert row.gate_reason in {
+            "RECEIVER_DUPLICATE_TRANSACTION",
+            "RECEIVER_PERMIT_CONSUMED",
+        }
+        assert not row.paid and row.payout_ref is None
+        assert "NOT paid" in said and "Refund paid" not in said
+        # Paid once, by the presentation that won.
+        assert w.paid("ORD-70288") == [1999]
+    finally:
+        attacks.stop_world(w)

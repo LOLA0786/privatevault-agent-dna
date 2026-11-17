@@ -22,6 +22,7 @@ from agents.core.gate import DecisionOutcome, PermitBundle, PrivateVaultGate, wi
 from agents.core.model import Final, Model, ToolCall
 from agents.core.receipts import ReceiptLog
 from agents.core.tools import ClearanceRequiredError, RiskClass, ToolRegistry
+from agents.core.transport import receiver_refusal
 
 
 @dataclass
@@ -41,6 +42,9 @@ class StepResult:
     dispatch_reason: str | None = None
     receiver_receipt_digest: str | None = None
     receiver_sequence: int | None = None
+    # The receiver's HTTP status for a delivered request. EXECUTED with a
+    # status of 400 or more did nothing; ``error`` says why.
+    receiver_status: int | None = None
     result: Any = None
     error: str | None = None
 
@@ -170,7 +174,18 @@ class AgentRunner:
                 result.receiver_receipt_digest = headers.get("x-pv-receiver-receipt")
                 seq = headers.get("x-pv-receiver-sequence")
                 result.receiver_sequence = int(seq) if seq else None
-                result.result = dispatched.transport_response
+                refusal = receiver_refusal(transport, dispatched.transport_response)
+                if refusal is not None:
+                    # Delivered and refused: not a result, an error.
+                    result.receiver_status = refusal[0]
+                    result.error = (
+                        f"the receiver refused the request: {refusal[0]} {refusal[1]}"
+                    )
+                else:
+                    result.receiver_status = getattr(
+                        transport, "last_response_status", None
+                    )
+                    result.result = dispatched.transport_response
             return
         assert outcome.record is not None
         clearance = self.registry.clearance_for(
