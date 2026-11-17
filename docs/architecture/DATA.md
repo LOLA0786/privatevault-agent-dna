@@ -81,6 +81,12 @@ On PostgreSQL the breaker and lineage reuse their SQLite code through
 | `lineage_events` | `agent_dna/lineage.py::LineageLedger.record` | `/v1/lineage`, `/v1/flows`, `tools/verify_lineage.py` | Signed, server-derived lineage of each decision |
 | `lineage_dual_control` | `agent_dna/lineage.py::LineageLedger.claim_approval` | lineage resolution | An initiate is approved at most once |
 
+## Decide-time reservation (opt-in)
+
+| Table | Written by | Read by | Purpose |
+|---|---|---|---|
+| `decide_reservations` | `agent_dna/decide_reservation.py::DecideReservations.claim` (when `PV_DECIDE_TRANSACTION_KEYS` is set) | `/v1/decide` (`api/server.py::_reserve_transaction`) | At most one live ALLOW per declared business transaction (ADR 0041) |
+
 ## Policy replay (opt-in)
 
 | Table | Written by | Read by | Purpose |

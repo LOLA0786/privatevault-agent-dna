@@ -867,7 +867,7 @@ COLS = [
     ("Claude", 34),
     ("PrivateVault", 26),
     ("approval", 8),
-    ("gate", 27),
+    ("gate", 33),  # fits "REFUSED 409 DUPLICATE_TRANSACTION"
     ("paid", 9),
     ("seq", 3),
 ]

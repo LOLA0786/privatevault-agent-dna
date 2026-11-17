@@ -38,7 +38,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 3080+ automated tests, run in CI on every commit
+- 3139+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
@@ -1041,6 +1041,28 @@ different invoice number); reconciliation is an operator's statement about
 the system of record, recorded in the receiver ledger but not signed into
 the receipt chain; and a hash chain does not prove that no external effect
 happened outside it.
+
+Since ADR 0040 the receiver kit does not start without a declared key unless
+`PV_RECEIVER_ALLOW_NO_TRANSACTION_KEY=1` is set
+(`tests/network/test_receiver_hardened.py::test_transaction_key_is_required`),
+and the live refund demo declares `refund_id`: two decisions taken for one
+refund before either is paid are still two sealed ALLOWs and two permits, and
+the gate pays once
+(`tests/demos/test_live_checkout.py::test_two_decisions_for_one_refund_pay_once`).
+**We do not claim** that every protected operation has a key (the kit checks
+for at least one), that the server refuses the second decision (it does not
+reserve at decide time), or that the key cannot be chosen by a compromised
+agent-side tool: in the refund demo the tool computes `refund_id`.
+
+Since ADR 0041 a server with `PV_DECIDE_TRANSACTION_KEYS` set seals at most
+one live ALLOW per declared transaction: a second decide is a BLOCK until the
+first decision can no longer mint (`tests/test_decide_reservation.py`). **We
+do not claim** that this holds for operations with no declared key, that the
+hold is released when a permit is consumed or refused (it is time-based, so
+an honest retry waits out the decision window), that a decide after the hold
+lapses is refused (it is judged on its own), or that the key cannot be chosen
+by the caller. The statement above that the server does not reserve at decide
+time applies when the setting is absent.
 
 Since ADR 0039 the receiver also claims the decision and the approval each
 permit was minted from, and refuses a second, different permit for either

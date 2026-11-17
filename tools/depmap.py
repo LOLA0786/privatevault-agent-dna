@@ -87,6 +87,7 @@ LAYERS: list[tuple[str, str, tuple[str, ...]]] = [
             "agent_dna.grant_spend",
             "agent_dna.grant_revocation",
             "agent_dna.lineage",
+            "agent_dna.decide_reservation",
             "agent_dna.profile_store",
             "agent_dna.store.*",
             "agent_dna.receiver.ledger",
