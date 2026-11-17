@@ -5,6 +5,21 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Money-path attack corpus for the live refund demo
+- **`uv run python -m demos.live_checkout.attacks`** attacks the path the
+  money takes on the demo's own services: changed amount, replay, concurrent
+  presentation, repeated mint, approval reuse, and a refund decided twice
+  with and without the server's reservation. It checks the destination
+  ledger after each attack and reconciles it with the signed receipts.
+  `tests/demos/test_live_checkout_attacks.py`.
+- It reports a direct post to the mock upstream as NOT PREVENTED (found by
+  reconciliation, not stopped).
+- Found, not fixed: the sidecar's `EXECUTED` outcome is returned when the
+  receiver refused the request with 409; the demo's table would count that
+  row as paid. No money moves. Documented in WHAT-WE-DO-NOT-CLAIM.md.
+- Not done: property-based fuzzing (no `hypothesis` in the locked
+  dependencies) and anything against a real payment provider.
+
 ### ADR 0041: the server reserves a business transaction at decide
 - **`PV_DECIDE_TRANSACTION_KEYS`** maps a sealed write operation to a field
   of the sealed action parameters. The first mintable ALLOW reserves that

@@ -1064,6 +1064,17 @@ lapses is refused (it is judged on its own), or that the key cannot be chosen
 by the caller. The statement above that the server does not reserve at decide
 time applies when the setting is absent.
 
+`demos/live_checkout/attacks.py` runs these attacks against the demo's own
+services (`tests/demos/test_live_checkout_attacks.py`). **We do not claim**
+that it covers a real payment provider, or that the gate protects an upstream
+reachable without it: the corpus posts a refund straight to the mock payments
+API and it is paid; the corpus reports that as not prevented, and the payment
+is found only because it has no admitted receipt. **We do not claim** that
+the sidecar's `EXECUTED` outcome means the receiver admitted the request: it
+means the bytes were delivered. When the receiver answers 409 the outcome is
+still `EXECUTED`, and the live refund demo's table would count that row as
+paid. The corpus prints this as a note; it is not fixed.
+
 Since ADR 0039 the receiver also claims the decision and the approval each
 permit was minted from, and refuses a second, different permit for either
 (`RECEIVER_DUPLICATE_DECISION`, `RECEIVER_DUPLICATE_APPROVAL`), with or
