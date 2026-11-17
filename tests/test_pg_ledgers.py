@@ -293,3 +293,64 @@ def test_runtime_puts_every_ledger_in_postgres(dsn, tmp_path, monkeypatch):
         assert not list(tmp_path.iterdir())  # no SQLite files at all
     finally:
         rt.store.close()
+
+
+# ---- decide-time transaction reservation (ADR 0041) -------------------------
+
+
+def _reservation_key(value: str = "RF-1"):
+    from agent_dna import decide_reservation as dr
+
+    key = dr.transaction_key_for(
+        {"POST /v1/refunds": "refund_id"},
+        {"parameters": {"refund_id": value}},
+        {"operation": "POST /v1/refunds"},
+    )
+    assert isinstance(key, dr.TransactionKey)
+    return key
+
+
+def test_reservation_has_one_holder_across_instances(pools):
+    """Two replicas, twenty concurrent claims for one refund: one is granted,
+    every other sees the same holder, and a lapsed hold is taken over once."""
+    from agent_dna.decide_reservation import DecideReservations
+
+    ledgers = [
+        DecideReservations(PgCompatConnection(p, "decide_reservations")) for p in pools
+    ]
+    key = _reservation_key()
+    barrier = threading.Barrier(20)
+    claims: list = []
+    lock = threading.Lock()
+
+    def claim(i: int) -> None:
+        barrier.wait()
+        got = ledgers[i % 2].claim(key, holder=f"h{i}", now=1000.0, hold_seconds=300)
+        with lock:
+            claims.append(got)
+
+    threads = [threading.Thread(target=claim, args=(i,)) for i in range(20)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    granted = [c for c in claims if c.granted]
+    assert len(granted) == 1
+    assert {c.holder for c in claims} == {granted[0].holder}
+
+    ledgers[0].attach(key, holder=granted[0].holder, decision_id="dec-1")
+    seen = ledgers[1].claim(key, holder="late", now=1299.0, hold_seconds=300)
+    assert not seen.granted and seen.decision_id == "dec-1"
+    assert (
+        ledgers[1]
+        .claim(_reservation_key("RF-2"), holder="x", now=1000.0, hold_seconds=300)
+        .granted
+    )
+
+    takeovers = [
+        ledgers[i % 2].claim(key, holder=f"t{i}", now=1300.0, hold_seconds=300).granted
+        for i in range(4)
+    ]
+    assert takeovers == [True, False, False, False]
+    ledgers[0].release(key, holder="t0")
+    assert ledgers[1].claim(key, holder="after", now=1300.0, hold_seconds=300).granted

@@ -33,8 +33,11 @@ Claims -> tests:
     -> test_ledger_facts_are_not_model_supplied
   - Each service prints one-line structured events
     -> test_services_print_one_line_events
-  - Two decisions taken for one refund before either is paid are two
-    permits, and the gate pays the refund once (ADR 0040)
+  - A second decide for a refund that already holds a live ALLOW is
+    blocked by the server (ADR 0041); the refund is paid once
+    -> test_second_decide_for_one_refund_is_blocked
+  - With the server's reservation removed, two decisions for one refund are
+    two permits, and the gate still pays the refund once (ADR 0040)
     -> test_two_decisions_for_one_refund_pay_once
   - The real model works the queue through the same path (opt-in)
     -> test_live_agent_with_real_model
@@ -114,9 +117,19 @@ class World:
         return self.logs[service].read_text(encoding="utf-8", errors="replace")
 
 
-def _start_world(run_dir: Path) -> World:
+def _start_world(run_dir: Path, *, without: tuple[str, ...] = ()) -> World:
     ports = {k: _free_port() for k in ("privatevault", "gate", "payments")}
     bootstrap(run_dir, force=True, ports=ports)
+    if without:
+        # Run with one layer of the shipped configuration removed, to show
+        # what the layer beneath it does on its own.
+        env_file = run_dir / "services.env"
+        kept = [
+            line
+            for line in env_file.read_text().splitlines()
+            if line.split("=", 1)[0] not in without
+        ]
+        env_file.write_text("\n".join(kept) + "\n")
     env = {k: v for k, v in os.environ.items() if not k.startswith("PV_")}
     env["PV_LIVE_RUN_DIR"] = str(run_dir)
     env["PV_LIVE_COLOR"] = "0"
@@ -535,14 +548,18 @@ def test_two_decisions_for_one_refund_pay_once(tmp_path):
     the payments API has paid, so two decides taken before either refund is
     paid both see no prior refund: two sealed ALLOWs, two distinct permits,
     byte-identical bodies. Without a transaction key the gate admitted both
-    and the refund was paid twice. With refund_id declared it is paid once."""
+    and the refund was paid twice. With refund_id declared it is paid once,
+    even when the server does not reserve at decide."""
     from agents.core.gate import wire_for
     from demos.live_checkout.agent import RefundPath
     from demos.live_checkout.approvals import ApprovalInbox
 
-    w = _start_world(tmp_path / "run")
+    # The server's own reservation (ADR 0041) is removed here so that two
+    # ALLOWs exist and the receiver is the only thing left to stop them.
+    w = _start_world(tmp_path / "run", without=("PV_DECIDE_TRANSACTION_KEYS",))
     try:
         gate_env = cfg.parse_env_file(w.run_dir / "services.env")
+        assert "PV_DECIDE_TRANSACTION_KEYS" not in gate_env
         assert json.loads(gate_env["PV_RECEIVER_TRANSACTION_KEYS"]) == {
             cfg.OPERATION: "refund_id"
         }
@@ -576,6 +593,61 @@ def test_two_decisions_for_one_refund_pay_once(tmp_path):
         assert results[1][0] == 409
         assert results[1][1]["reason_code"] == "RECEIVER_DUPLICATE_TRANSACTION"
 
+        paid = [r for r in w.refunds() if r["order_id"] == "ORD-70288"]
+        assert [r["amount"] for r in paid] == [1999]
+    finally:
+        _stop_world(w)
+
+
+def test_second_decide_for_one_refund_is_blocked(tmp_path):
+    """Adversarial regression (ADR 0041), on the configuration as shipped.
+    The first mintable ALLOW reserves the refund. A second decide for the
+    same refund, taken before the first is paid, is sealed as a BLOCK that
+    names the decision holding it, cannot mint, and the refund is paid once.
+    A different refund is not affected."""
+    from agents.core.gate import GateError
+    from demos.live_checkout.agent import RefundPath
+    from demos.live_checkout.approvals import ApprovalInbox
+
+    w = _start_world(tmp_path / "run")
+    try:
+        env = cfg.parse_env_file(w.run_dir / "services.env")
+        assert json.loads(env["PV_DECIDE_TRANSACTION_KEYS"]) == {
+            cfg.OPERATION: "refund_id"
+        }
+        path = RefundPath(
+            run_dir=w.run_dir,
+            privatevault_url=w.url("privatevault"),
+            gate_url=w.url("gate"),
+            api_key=(w.run_dir / "api-key.txt").read_text().strip(),
+            inbox=ApprovalInbox(w.run_dir / "approvals"),
+            approval_timeout_s=5,
+            ledger=RefundLedger(QUEUE, payments_url=w.url("gate")),
+        )
+
+        def arguments(order_id: str, amount: int, payee: str) -> dict[str, Any]:
+            return path.tool.arguments_for(
+                {"order_id": order_id, "amount": amount, "payee": payee, "reason": "x"}
+            )
+
+        refund = arguments("ORD-70288", 1999, "meera.k@paytm")
+        first = path.pv.decide(path.tool, refund)
+        second = path.pv.decide(path.tool, refund)
+        assert first.allowed
+        assert second.decision == "block" and second.status == 403
+        assert second.triggered_by == "transaction_reservation"
+        assert "TRANSACTION_RESERVED" in second.reason
+        assert first.record["decision_id"] in second.reason
+        with pytest.raises(GateError):
+            path.pv.mint(second, path.tool, refund)
+
+        other = path.pv.decide(path.tool, arguments("ORD-70259", 2400, "rahul.m@ybl"))
+        assert other.allowed
+
+        result = path.pv.dispatch(
+            path.pv.mint(first, path.tool, refund), path.tool, refund
+        )
+        assert result.outcome == "EXECUTED"
         paid = [r for r in w.refunds() if r["order_id"] == "ORD-70288"]
         assert [r["amount"] for r in paid] == [1999]
     finally:

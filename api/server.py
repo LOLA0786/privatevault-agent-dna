@@ -93,6 +93,19 @@ from agent_dna.control_posture import (
     attach_control_posture,
     authorization_mode_of,
 )
+from agent_dna.decide_reservation import (
+    CLOCK_MARGIN_SECONDS as RESERVATION_CLOCK_MARGIN_SECONDS,
+)
+from agent_dna.decide_reservation import (
+    TRANSACTION_RESERVED,
+    DecideReservations,
+    ReservationFinding,
+    TransactionKey,
+    escalate_with_reservation,
+    reservation_keys_from_env,
+    reservation_manifest,
+    transaction_key_for,
+)
 from agent_dna.decision import Decision, DecisionResult
 from agent_dna.decision_graph import DecisionGraph
 from agent_dna.execution_v01 import EXECUTION_AUTHORIZATION_SPEC as _PV_EA_SPEC
@@ -147,6 +160,7 @@ from agent_dna.permit_evidence import (
     policy_bundle_digest,
     sealed_evidence,
 )
+from agent_dna.pg_compat import PgCompatConnection
 from agent_dna.presenter_identity import (
     PresenterBundle,
     PresenterIdentityError,
@@ -588,6 +602,27 @@ async def lifespan(app: FastAPI):
     runtime.composition["lineage"] = lineage_manifest(
         state["lineage_mode"], state["lineage"] is not None
     )
+    # ADR 0041: one live ALLOW per business transaction. Malformed
+    # configuration, or keys with nowhere durable to hold them, refuses to
+    # start rather than silently reserving nothing.
+    state["reservation_keys"] = reservation_keys_from_env(os.environ)
+    state["reservations"] = None
+    if state["reservation_keys"]:
+        pg_lineage = runtime.lineage_db
+        reservation_db = (
+            PgCompatConnection(pg_lineage.pool, "decide_reservations")
+            if isinstance(pg_lineage, PgCompatConnection)
+            else getattr(runtime.store, "path", None)
+        )
+        if reservation_db is None:
+            raise RuntimeError(
+                "PV_DECIDE_TRANSACTION_KEYS is set but the decision store has "
+                "no durable location for reservations"
+            )
+        state["reservations"] = DecideReservations(reservation_db)
+    runtime.composition["transaction_reservation"] = reservation_manifest(
+        state["reservation_keys"], state["reservations"] is not None
+    )
     state["monitors"] = {}
     state["started_at"] = _datetime.now(UTC).isoformat()
     try:
@@ -604,6 +639,8 @@ async def lifespan(app: FastAPI):
     set_ready(False)
     if state.get("lineage") is not None:
         state["lineage"].close()
+    if state.get("reservations") is not None:
+        state["reservations"].close()
     state["store"].close()
     state.clear()
 
@@ -1066,6 +1103,88 @@ def _attach_envelope(content: dict[str, Any], record_hash: str) -> None:
         content["envelope"] = envelope
 
 
+def _reserve_transaction(
+    result: DecisionResult,
+    execution_action: dict[str, Any] | None,
+    dispatch_context: dict[str, Any] | None,
+    holder: str,
+) -> tuple[DecisionResult, TransactionKey | None]:
+    """Reserve the transaction a mintable ALLOW names (ADR 0041). Returns
+    the verdict (BLOCK when another live ALLOW holds it, or the declared key
+    is missing) and the key this decide now holds, if any."""
+    reservations: DecideReservations | None = state.get("reservations")
+    if (
+        reservations is None
+        or result.decision is not Decision.ALLOW
+        or execution_action is None
+        or dispatch_context is None
+    ):
+        return result, None
+    found = transaction_key_for(
+        state.get("reservation_keys") or {}, execution_action, dispatch_context
+    )
+    if found is None:
+        return result, None
+    if isinstance(found, ReservationFinding):
+        return escalate_with_reservation(result, found), None
+    window = state.get("authorization_window")
+    decision_window = (
+        window.decision_window_seconds
+        if isinstance(window, AuthorizationWindow)
+        else DECISION_MINT_WINDOW_SECONDS_DEFAULT
+    )
+    claim = reservations.claim(
+        found,
+        holder=holder,
+        now=_time.time(),
+        hold_seconds=decision_window + RESERVATION_CLOCK_MARGIN_SECONDS,
+    )
+    if claim.granted:
+        return result, found
+    until = _datetime.fromtimestamp(claim.expires_at, UTC).replace(microsecond=0)
+    finding = ReservationFinding(
+        TRANSACTION_RESERVED,
+        f"{found.operation} {found.field} is reserved by decision "
+        f"{claim.decision_id or '(being sealed)'} until {_pv_rfc3339(until)}; "
+        "mint from that decision, or decide again after it lapses",
+    )
+    return escalate_with_reservation(result, finding), None
+
+
+def _seal_decision(
+    action: AgentAction,
+    result: DecisionResult,
+    execution_action: dict[str, Any] | None,
+    dispatch_context: dict[str, Any] | None,
+    reserved_key: TransactionKey | None,
+    holder: str,
+) -> Any:
+    """Write the decision record. A reservation (ADR 0041) is kept only by a
+    sealed ALLOW: it is released when a later control blocked the decide or
+    the record could not be written, and otherwise named after the record."""
+    reservations: DecideReservations | None = state.get("reservations")
+    held = reserved_key if reservations is not None else None
+    if held is not None and result.decision is not Decision.ALLOW:
+        reservations.release(held, holder=holder)  # type: ignore[union-attr]
+        held = None
+    try:
+        record = state["recorder"].record(
+            action,
+            result,
+            execution_action=execution_action,
+            dispatch_context=dispatch_context,
+        )
+    except BaseException:
+        if held is not None:
+            reservations.release(held, holder=holder)  # type: ignore[union-attr]
+        raise
+    if held is not None:
+        reservations.attach(  # type: ignore[union-attr]
+            held, holder=holder, decision_id=record.decision_id
+        )
+    return record
+
+
 @app.post("/v1/decide")
 def decide(req: DecideRequest, principal: FullPrincipal):
     _enforce_identity(principal, req.agent_id)
@@ -1122,6 +1241,14 @@ def decide(req: DecideRequest, principal: FullPrincipal):
     )
     observe_decide_latency(_time.perf_counter() - started)
 
+    # ADR 0041: reserve the business transaction before anything else is
+    # claimed for this ALLOW. Released below if the verdict does not stay
+    # ALLOW or the record is not sealed.
+    reservation_holder = f"hold-{_uuid.uuid4().hex}"
+    result, reserved_key = _reserve_transaction(
+        result, execution_action, dispatch_context, reservation_holder
+    )
+
     # ADR 0021: server-derived lineage. Escalate-only; enforce blocks on
     # any finding, shadow reports without changing the verdict.
     ledger: LineageLedger | None = state.get("lineage")
@@ -1172,11 +1299,13 @@ def decide(req: DecideRequest, principal: FullPrincipal):
         },
     )
 
-    record = state["recorder"].record(
+    record = _seal_decision(
         action,
         result,
-        execution_action=execution_action,
-        dispatch_context=dispatch_context,
+        execution_action,
+        dispatch_context,
+        reserved_key,
+        reservation_holder,
     )
 
     content: dict[str, Any] = {

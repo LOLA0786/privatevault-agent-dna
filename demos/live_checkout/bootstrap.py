@@ -138,6 +138,10 @@ def _env_lines(root: str, *, upstream: str, tools: list[str]) -> str:
         # file parser strips one matching pair.
         "PV_RECEIVER_TRANSACTION_KEYS": "'"
         + json.dumps({cfg.OPERATION: "refund_id"})
+        + "'",  # ADR 0041: the server reserves the same key at decide, so a second
+        # ALLOW for one refund is blocked while the first can still mint.
+        "PV_DECIDE_TRANSACTION_KEYS": "'"
+        + json.dumps({cfg.OPERATION: "refund_id"})
         + "'",
     }
     return "".join(f"{k}={v}\n" for k, v in lines.items())

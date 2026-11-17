@@ -48,6 +48,7 @@ explicit statement that no such test exists.
 | [0038](0038-the-pin-is-required-and-the-whole-input-is-bound.md) | The pin is required, and a decision binds the whole input | accepted | `tests/test_signed_decisions.py::test_a_decision_covers_only_its_content` |
 | [0039](0039-single-use-is-enforced-where-the-money-moves.md) | A decision and an approval execute at most once, enforced by the receiver's own ledger | accepted | `tests/receiver/test_receiver_sources.py::test_second_permit_for_the_same_decision_is_refused_and_not_consumed` |
 | [0040](0040-a-receiver-names-its-business-key.md) | The receiver kit does not start without a business transaction key unless explicitly relaxed; the refund demo declares one | accepted | `tests/network/test_receiver_hardened.py::test_transaction_key_is_required` |
+| [0041](0041-the-server-reserves-a-transaction-at-decide.md) | With a declared key, the server seals at most one live ALLOW per business transaction | accepted | `tests/test_decide_reservation.py::test_second_allow_for_one_transaction_is_blocked` |
 
 0001–0014 are the enforcement-spine decisions. 0015 is the earlier
 loop-discovery placement record, renumbered so the spine could own

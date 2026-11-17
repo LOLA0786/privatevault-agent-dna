@@ -13,12 +13,12 @@ experimental) see [MAP.md](MAP.md).
 flowchart BT
   L1["L1 Contracts and primitives<br/>22 modules"]
   L2["L2 Evidence: records, permits, signatures<br/>15 modules"]
-  L3["L3 Ledgers: SQLite and PostgreSQL<br/>13 modules"]
+  L3["L3 Ledgers: SQLite and PostgreSQL<br/>14 modules"]
   L4["L4 Decision engine: the precedence ladder and what it consults<br/>80 modules"]
   L5["L5 Enforcement runtime: monitor, breaker, recorder, gates, sidecar<br/>33 modules"]
   L6["L6 Composition and entry points<br/>22 modules"]
   L2 -->|23| L1
-  L3 -->|10| L1
+  L3 -->|11| L1
   L3 -->|10| L2
   L4 -->|50| L1
   L4 -->|2| L2
@@ -29,11 +29,11 @@ flowchart BT
   L5 -->|11| L4
   L6 -->|28| L1
   L6 -->|10| L2
-  L6 -->|16| L3
+  L6 -->|18| L3
   L6 -->|52| L4
   L6 -->|29| L5
   L2 -.->|1 upward| L4
-  L3 -.->|4 upward| L4
+  L3 -.->|5 upward| L4
   L3 -.->|1 upward| L5
   L4 -.->|1 upward| L5
   L5 -.->|1 upward| L6
@@ -64,7 +64,7 @@ flowchart BT
 | `agent_dna.scan.ingest` | Normalize heterogeneous agent logs into AgentAction | `agent_dna.trace` | 2: `agent_dna.scan`, `agent_dna.scan.replay` |
 | `agent_dna.scan.inventory` | What the agents in a log can actually do | `agent_dna.trace` | none |
 | `agent_dna.scan.replay` | Replay a customer's own log through the engine, enforcing nothing | `agent_dna.decision`, `agent_dna.dynamics`, `agent_dna.manifold`, `agent_dna.open_authorizer`, `agent_dna.scan.ingest`, `agent_dna.scorer`, `agent_dna.trace` | 1: `agent_dna.scan` |
-| `api.server` | PrivateVault Agent DNA — Decision Security API | `agent_dna.action_v01`, `agent_dna.apikeys`, `agent_dna.approval_bridge`, `agent_dna.authority_deadline`, `agent_dna.authority_v01`, `agent_dna.authorize_binding`, `agent_dna.checkpoint`, `agent_dna.composition`, `agent_dna.connector.cross_agent`, `agent_dna.control_posture`, `agent_dna.decision`, `agent_dna.decision_graph`, `agent_dna.dispatch_context_v01`, `agent_dna.execution_v01`, `agent_dna.key_custody`, `agent_dna.ledger_reads`, `agent_dna.lineage`, `agent_dna.multi_agent_security.gate`, `agent_dna.observability.logger`, `agent_dna.observability.metrics`, `agent_dna.observability.prometheus_bridge`, `agent_dna.operation_registry`, `agent_dna.permit_evidence`, `agent_dna.presenter_identity`, `agent_dna.rate_limit`, `agent_dna.request_bounds`, `agent_dna.revocation_list`, `agent_dna.runtime`, `agent_dna.security.loop_discovery`, `agent_dna.signer`, `agent_dna.trace`, `agent_dna.wire_serialization_v01` | none |
+| `api.server` | PrivateVault Agent DNA — Decision Security API | `agent_dna.action_v01`, `agent_dna.apikeys`, `agent_dna.approval_bridge`, `agent_dna.authority_deadline`, `agent_dna.authority_v01`, `agent_dna.authorize_binding`, `agent_dna.checkpoint`, `agent_dna.composition`, `agent_dna.connector.cross_agent`, `agent_dna.control_posture`, `agent_dna.decide_reservation`, `agent_dna.decision`, `agent_dna.decision_graph`, `agent_dna.dispatch_context_v01`, `agent_dna.execution_v01`, `agent_dna.key_custody`, `agent_dna.ledger_reads`, `agent_dna.lineage`, `agent_dna.multi_agent_security.gate`, `agent_dna.observability.logger`, `agent_dna.observability.metrics`, `agent_dna.observability.prometheus_bridge`, `agent_dna.operation_registry`, `agent_dna.permit_evidence`, `agent_dna.pg_compat`, `agent_dna.presenter_identity`, `agent_dna.rate_limit`, `agent_dna.request_bounds`, `agent_dna.revocation_list`, `agent_dna.runtime`, `agent_dna.security.loop_discovery`, `agent_dna.signer`, `agent_dna.trace`, `agent_dna.wire_serialization_v01` | none |
 
 ## L5: Enforcement runtime: monitor, breaker, recorder, gates, sidecar
 
@@ -127,7 +127,7 @@ flowchart BT
 | `agent_dna.consensus.signing` | HMAC-SHA256 vote signing | nothing in the core | 3: `agent_dna.consensus.byzantine`, `agent_dna.consensus.checker`, `agent_dna.consensus.secure_quorum` |
 | `agent_dna.consensus.weighted_quorum` | Weighted quorum voting | nothing in the core | 1: `agent_dna.consensus` |
 | `agent_dna.control_posture` | Operator-controlled enforcement posture recorded into decision evidence | `agent_dna.decision`, `agent_dna.evidence` | 5: `agent_dna.connector.cross_agent`, `agent_dna.connector.middleware`, `agent_dna.decision`, `agent_dna.permit_evidence`, `api.server` |
-| `agent_dna.decision` | Unified Runtime Decision Engine | `agent_dna.advisory`, `agent_dna.amount`, `agent_dna.approval_bridge`, `agent_dna.control_posture`, `agent_dna.evidence`, `agent_dna.trace` | 15: `agent_dna`, `agent_dna.adapters_framework.base`, `agent_dna.circuit_breaker`, `agent_dna.composition`, `agent_dna.connector.cross_agent`, ... |
+| `agent_dna.decision` | Unified Runtime Decision Engine | `agent_dna.advisory`, `agent_dna.amount`, `agent_dna.approval_bridge`, `agent_dna.control_posture`, `agent_dna.evidence`, `agent_dna.trace` | 16: `agent_dna`, `agent_dna.adapters_framework.base`, `agent_dna.circuit_breaker`, `agent_dna.composition`, `agent_dna.connector.cross_agent`, ... |
 | `agent_dna.diff` | Behavioral Profile Diff Engine | `agent_dna.authorization`, `agent_dna.fingerprint`, `agent_dna.similarity` | 1: `agent_dna` |
 | `agent_dna.dynamics` | Behavior Dynamics Model (BDM) | `agent_dna.trace` | 5: `agent_dna`, `agent_dna.composition`, `agent_dna.fingerprint`, `agent_dna.scan.replay`, `agent_dna.scorer` |
 | `agent_dna.eav` | Vendored from UAAL's Enterprise Action Verification (EAV) engine | `agent_dna.eav.invariant_engine` | 1: `agent_dna.uaal_layer` |
@@ -193,12 +193,13 @@ flowchart BT
 
 | Module | What it is | Depends on (core) | Used by |
 |---|---|---|---|
+| `agent_dna.decide_reservation` | Decide-time reservation of a business transaction (ADR 0041) | `agent_dna.advisory`, `agent_dna.decision`, `agent_dna.pg_compat` | 1: `api.server` |
 | `agent_dna.decision_store` | DecisionStore — append-only JSONL persistence for DecisionRecords | `agent_dna.decision_graph`, `agent_dna.decision_record`, `agent_dna.execution_record` | none |
 | `agent_dna.grant_revocation` | Durable grant revocation with a defined enforcement boundary | nothing in the core | 3: `agent_dna.cli`, `agent_dna.composition`, `agent_dna.pg_store` |
 | `agent_dna.grant_spend` | Durable grant spend (security review 2026-10, "before live payments") | `agent_dna.amount` | 4: `agent_dna.circuit_breaker`, `agent_dna.composition`, `agent_dna.grants`, `agent_dna.pg_store` |
 | `agent_dna.ledger_reads` | Routine reads answered from the store, one page at a time (ADR 0029) | `agent_dna.decision_record` | 4: `agent_dna.pg_store`, `agent_dna.shell_pin`, `agent_dna.sqlite_store`, `api.server` |
 | `agent_dna.lineage` | Server-derived lineage for multi-agent flows (ADR 0021, lineage PR 2) | `agent_dna.advisory`, `agent_dna.decision`, `agent_dna.identity`, `agent_dna.multi_agent.dual_control`, `agent_dna.pg_compat` | 1: `api.server` |
-| `agent_dna.pg_compat` | Run a SQLite-written ledger on PostgreSQL with SQLite's write semantics | nothing in the core | 4: `agent_dna.circuit_breaker`, `agent_dna.composition`, `agent_dna.lineage`, `agent_dna.policy_replay` |
+| `agent_dna.pg_compat` | Run a SQLite-written ledger on PostgreSQL with SQLite's write semantics | nothing in the core | 6: `agent_dna.circuit_breaker`, `agent_dna.composition`, `agent_dna.decide_reservation`, `agent_dna.lineage`, `agent_dna.policy_replay`, ... |
 | `agent_dna.pg_shared_state` | Per-agent baselines and cross-agent windows shared through PostgreSQL | `agent_dna.multi_agent` | 1: `agent_dna.composition` |
 | `agent_dna.pg_store` | PostgresDecisionStore -- the decision ledger on PostgreSQL | `agent_dna.amount`, `agent_dna.authority_v01`, `agent_dna.authorize_binding`, `agent_dna.decision_graph`, `agent_dna.decision_record`, `agent_dna.execution_record`, `agent_dna.grant_revocation`, `agent_dna.grant_spend`, `agent_dna.ledger_reads`, `agent_dna.sqlite_store` | 3: `agent_dna.backup`, `agent_dna.cli`, `agent_dna.composition` |
 | `agent_dna.policy_replay` | Retrospective policy replay (Part B) — "what would this rule have done | `agent_dna.pg_compat` | 3: `agent_dna.cli`, `agent_dna.composition`, `agent_dna.policy_gate` |
@@ -232,7 +233,7 @@ flowchart BT
 | Module | What it is | Depends on (core) | Used by |
 |---|---|---|---|
 | `agent_dna.action_v01` | The canonical execution action, and its digest | `agent_dna.authority_v01` | 6: `agent_dna.authorize_binding`, `agent_dna.connector.middleware`, `agent_dna.decision_record`, `agent_dna.execution_v01`, `agent_dna.quickstart.approvals`, ... |
-| `agent_dna.advisory` | The advisory / enforcement boundary | nothing in the core | 8: `agent_dna`, `agent_dna.connector.cross_agent`, `agent_dna.decision`, `agent_dna.lineage`, `agent_dna.operation_registry`, ... |
+| `agent_dna.advisory` | The advisory / enforcement boundary | nothing in the core | 9: `agent_dna`, `agent_dna.connector.cross_agent`, `agent_dna.decide_reservation`, `agent_dna.decision`, `agent_dna.lineage`, ... |
 | `agent_dna.amount` | Canonical monetary amount coercion | nothing in the core | 7: `agent_dna.circuit_breaker`, `agent_dna.decision`, `agent_dna.eav.invariant_engine`, `agent_dna.grant_spend`, `agent_dna.grants`, ... |
 | `agent_dna.authority_v01` | Authority Provenance v0.1-experimental | `agent_dna.key_custody` | 29: `agent_dna.action_v01`, `agent_dna.approval_bridge`, `agent_dna.approval_v01`, `agent_dna.authorize_binding`, `agent_dna.backup`, ... |
 | `agent_dna.connector.models` | Canonical connector contract. Every adapter (MCP, OpenAI SDK, | nothing in the core | 5: `agent_dna.connector`, `agent_dna.connector.adapters.mcp`, `agent_dna.connector.middleware`, `agent_dna.gateway.https_egress`, `agent_dna.gateway.mediator` |
@@ -261,6 +262,7 @@ function (no import-time cycle); top-level ones are candidates to move.
 
 | From | To | Kind |
 |---|---|---|
+| `agent_dna.decide_reservation` (L3) | `agent_dna.decision` (L4) | import time |
 | `agent_dna.decision` (L4) | `agent_dna.approval_bridge` (L5) | lazy |
 | `agent_dna.decision_record` (L2) | `agent_dna.decision` (L4) | import time |
 | `agent_dna.gateway.runtime` (L5) | `agent_dna.composition` (L6) | import time |

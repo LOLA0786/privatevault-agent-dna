@@ -6,7 +6,7 @@ Nodes are directories; numbers are module counts. Solid arrow: imported at impor
 
 ```mermaid
 flowchart LR
-  n0["agent_dna (core modules)<br/>81 modules"]
+  n0["agent_dna (core modules)<br/>82 modules"]
   n1["agent_dna/adapters_framework<br/>2 modules"]
   n2["agent_dna/adapters_policy<br/>5 modules"]
   n3["agent_dna/audit_connector<br/>5 modules"]
@@ -62,7 +62,7 @@ flowchart LR
   n15 -->|13| n0
   n16 -->|8| n0
   n17 -->|2| n0
-  n20 -->|26| n0
+  n20 -->|28| n0
   n20 -->|1| n4
   n20 -->|1| n11
   n20 -->|3| n12
@@ -92,7 +92,7 @@ flowchart LR
 
 | Directory | Modules | Lines |
 |---|---:|---:|
-| `agent_dna (core modules)` | 81 |
+| `agent_dna (core modules)` | 82 |
 | `experimental` | 62 |
 | `tools` | 38 |
 | `examples` | 30 |
@@ -122,10 +122,10 @@ flowchart LR
 | Module | Imported by | Imports |
 |---|---:|---:|
 | `agent_dna.authority_v01` | 46 | 1 |
-| `agent_dna.decision` | 28 | 6 |
+| `agent_dna.decision` | 29 | 6 |
 | `agent_dna.trace` | 28 | 0 |
 | `agent_dna` | 21 | 21 |
-| `agent_dna.advisory` | 14 | 0 |
+| `agent_dna.advisory` | 15 | 0 |
 | `agent_dna.execution_v01` | 14 | 5 |
 | `agent_dna.multi_agent.interaction_graph` | 14 | 1 |
 | `agent_dna.multi_agent.base` | 13 | 1 |
