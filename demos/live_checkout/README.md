@@ -191,3 +191,26 @@ PV_LIVE_AGENT_TESTS=1 ANTHROPIC_API_KEY=... uv run pytest -q tests/demos/test_li
 | `verify.sh` | The other party's verification |
 | `persona.yaml` | Identity, grant, and the six rules |
 | `runs/` | Saved runs (`<timestamp>.jsonl`) |
+
+
+## Attack corpus
+
+```bash
+uv run python -m demos.live_checkout.attacks
+```
+
+Starts the same three services on free ports and attacks the path the money
+takes: a changed amount, a replayed permit, one permit presented eight times
+at once, one decision minted twelve times, one approval used four times, and
+one refund decided twice (stopped at the server, ADR 0041, and again with
+that removed so the gate's transaction key is alone, ADR 0040). It reads the
+destination ledger after each attack, reconciles it with the gate's signed
+receipts, and exits non-zero if money moved that should not have.
+
+It also posts a refund straight to the mock payments API, around the gate,
+and reports it as NOT PREVENTED: the mock has no authentication, and nothing
+in PrivateVault is on that road. The payment has no admitted receipt, which
+is how reconciliation finds it. A real deployment must make the gate the only
+client the upstream accepts.
+
+Add a function to `SCENARIOS` in `attacks.py` to try your own.
