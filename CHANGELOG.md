@@ -5,6 +5,24 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### A sent, unconfirmed request is reported as outcome unknown
+- Found while testing a lost response: when the request was delivered, the
+  gate admitted it and the upstream paid, but the answer never came back
+  (a timeout), the sidecar correctly returned `INDETERMINATE`. The live
+  refund demo then recorded the row as **prevented ("tampered")**, counted
+  the amount in "PrivateVault prevented", and told the model **"Nothing was
+  paid"**. The money had moved. The treasury demo did the same; the agent
+  runner returned no error.
+- Both demos now record the row as outcome unknown: not paid, not
+  prevented, excluded from the prevented headline, shown as
+  `UNKNOWN: reconcile` with a warning line in the banner. The model is told
+  the refund may have been paid and must not be issued again. The runner
+  sets `error`. Saved runs from before this change still load.
+- `demos/live_checkout/attacks.py::response_lost_after_payment`,
+  `tests/demos/test_live_checkout_attacks.py::test_unknown_outcome_is_not_counted_as_prevented`.
+- Not done: resolving an unknown outcome. Nothing yet reads the receiver's
+  receipts to settle it; that is the reconciliation step.
+
 ### A delivered, refused request is not recorded as done
 - Found by the attack corpus: the sidecar's outcome is `EXECUTED` whenever
   the bytes are delivered, including when the receiver gate answers 409. The

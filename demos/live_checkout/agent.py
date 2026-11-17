@@ -351,6 +351,8 @@ class Row:
     receipt_digest: str | None = None
     paid: int = 0
     payout_ref: str | None = None
+    # Sent, and no confirmation came back: may have been paid (INDETERMINATE).
+    outcome_unknown: bool = False
     would_have_sent: int = 0
     prevented_by: str | None = None  # a RULE_LABELS key
     prevented_amount: int = 0
@@ -614,6 +616,27 @@ class RefundPath:
             return (
                 f"Refund paid: {arguments['refund_id']} for {arguments['amount']} "
                 f"{arguments['currency']} to {arguments['payee']} (payout {row.payout_ref})."
+            )
+        if result.outcome == "INDETERMINATE":
+            # INDETERMINATE: the bytes were sent and no confirmation came back
+            # (a timeout, a dropped connection). The refund may have been paid.
+            # It is neither paid nor prevented until it is reconciled.
+            row.outcome_unknown = True
+            log(
+                "agent",
+                "DISPATCH",
+                "UNKNOWN",
+                request=row.id,
+                sidecar=result.outcome,
+                reason=result.reason_code,
+                note="sent, no confirmation: may have been paid; reconcile",
+            )
+            self._record(row)
+            return (
+                "The outcome of this refund is UNKNOWN: the request was sent and "
+                "no confirmation came back, so it may have been paid. Do not "
+                "issue it again. It must be reconciled against the payments "
+                "ledger first."
             )
         log(
             "agent",
@@ -934,7 +957,9 @@ def row_cells(row: Row) -> list[tuple[str, str]]:  # noqa: C901 - one branch per
     appr_tone = {"approved": "good", "denied": "bad", "timeout": "bad"}.get(
         row.approval, "plain"
     )
-    if row.gate_status is None:
+    if row.outcome_unknown:
+        gate, gate_tone = "UNKNOWN: reconcile", "warn"
+    elif row.gate_status is None:
         refused = row.sidecar_outcome == "CONTROL_FAILURE"
         gate = "sidecar refused" if refused else "—"
         gate_tone = "bad" if refused else "plain"
@@ -945,6 +970,8 @@ def row_cells(row: Row) -> list[tuple[str, str]]:  # noqa: C901 - one branch per
         gate, gate_tone = f"REFUSED {row.gate_status} {reason}", "bad"
     paid = inr(row.paid) if row.paid else "—"
     paid_tone = "good" if row.paid else ("bad" if row.prevented_by else "plain")
+    if row.outcome_unknown:
+        paid, paid_tone = "?", "warn"
     seq = str(row.receipt_seq) if row.receipt_seq else "—"
     return [
         (str(row.id), "plain"),
@@ -995,7 +1022,10 @@ def impact(rows: list[Row]) -> dict[str, Any]:
     proposed = sum(
         r.claude_amount or 0 for r in rows if r.claude_decision == "issue_refund"
     )
-    without_pv = sum(r.would_have_sent for r in rows)
+    # A row whose outcome is unknown may have been paid: it is counted
+    # neither as paid nor as prevented, and reported on its own.
+    unknown_rows = [r for r in rows if r.outcome_unknown]
+    without_pv = sum(r.would_have_sent for r in rows if not r.outcome_unknown)
     with_pv = sum(r.paid for r in rows)
     prevented_rows = [r for r in rows if r.prevented_by and not r.credited_to_claude]
     breakdown: dict[str, dict[str, Any]] = {}
@@ -1018,6 +1048,11 @@ def impact(rows: list[Row]) -> dict[str, Any]:
         "with_privatevault": with_pv,
         "prevented": without_pv - with_pv,
         "prevented_count": len(prevented_rows),
+        "outcome_unknown": {
+            "count": len(unknown_rows),
+            "amount": sum(r.would_have_sent for r in unknown_rows),
+            "ids": [r.id for r in unknown_rows],
+        },
         "transactions": len(rows),
         "breakdown": breakdown,
         "claude_declined": {
@@ -1110,6 +1145,13 @@ def banner(summary: dict[str, Any], verification: dict[str, Any] | None) -> str:
         f"across {summary['prevented_count']} of {summary['transactions']} transactions"
     )
     lines.append(f"{b}{r}{head}{x}")
+    unknown = summary.get("outcome_unknown") or {}
+    if unknown.get("count"):
+        lines.append(
+            f"{b}{y}Outcome UNKNOWN for {unknown['count']} request(s), "
+            f"{inr(unknown['amount'])}: sent, no confirmation; may have been "
+            f"paid. Reconcile before any retry (requests {unknown['ids']}).{x}"
+        )
     lines.append("─" * width)
     lines.append(
         f"{'Without PrivateVault (Claude + tools alone):':<46}"

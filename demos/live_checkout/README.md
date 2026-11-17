@@ -213,4 +213,8 @@ in PrivateVault is on that road. The payment has no admitted receipt, which
 is how reconciliation finds it. A real deployment must make the gate the only
 client the upstream accepts.
 
+It also drops the answer to a request that was paid (a read timeout after
+the upstream has paid) and checks the row is reported as outcome unknown, not
+as paid or prevented, and that the model is told not to retry.
+
 Add a function to `SCENARIOS` in `attacks.py` to try your own.

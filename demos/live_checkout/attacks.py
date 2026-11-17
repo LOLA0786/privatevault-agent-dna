@@ -449,6 +449,60 @@ def upstream_reached_without_the_gate(w: World) -> tuple[str, str]:
     )
 
 
+def response_lost_after_payment(w: World) -> tuple[str, str]:
+    """The request is delivered, the gate admits it, the upstream pays, and
+    the answer never comes back (a read timeout). The money moved. The demo
+    must not record it as paid with a confirmation it never got, nor as
+    prevented, nor tell the model nothing was paid."""
+    from agents.core import transport as tr
+    from demos.live_checkout.agent import Row
+
+    real_write = tr.AsgiSidecarSession.write
+
+    def write_then_lose_the_answer(self: Any, wire: bytes, **kw: Any) -> Any:
+        real_write(self, wire, **kw)
+        raise TimeoutError("read timed out after the request was sent")
+
+    row = Row(
+        id=0,
+        kind="normal",
+        order_id="ORD-70315",
+        customer_id="C-1010",
+        requested_amount=5000,
+        requested_payee="sneha.p@okhdfcbank",
+        customer_text="refund please",
+    )
+    tr.AsgiSidecarSession.write = write_then_lose_the_answer  # type: ignore[method-assign]
+    try:
+        said = w.p.issue(
+            row,
+            {
+                "order_id": "ORD-70315",
+                "amount": 5000,
+                "payee": "sneha.p@okhdfcbank",
+                "reason": "attack",
+            },
+            compromised=False,
+            bypass_sidecar=False,
+        )
+    finally:
+        tr.AsgiSidecarSession.write = real_write  # type: ignore[method-assign]
+    paid = w.paid("ORD-70315")
+    ok = (
+        row.sidecar_outcome == "INDETERMINATE"
+        and row.outcome_unknown
+        and not row.paid
+        and not row.prevented_by
+        and "UNKNOWN" in said
+        and "Nothing was paid" not in said
+        and paid == [5000]
+    )
+    return (PASS if ok else FAIL), (
+        f"sidecar={row.sidecar_outcome} recorded_unknown={row.outcome_unknown} "
+        f"prevented_by={row.prevented_by} destination_paid={paid}"
+    )
+
+
 def reconcile(w: World) -> dict[str, Any]:
     """Destination ledger against the gate's signed receipts, by exact bytes."""
     from network.receiver_kit import export_receipts as exporter
@@ -483,6 +537,7 @@ SCENARIOS: list[tuple[Scenario, int]] = [
     (decision_minted_many_times, 1),
     (approval_used_twice, 1),
     (refund_decided_twice_before_it_is_paid, 1),
+    (response_lost_after_payment, 1),
 ]
 RECEIVER_ALONE: list[tuple[Scenario, int]] = [(refund_decided_twice_receiver_alone, 1)]
 # Run last: it puts an unreceipted payment in the ledger on purpose.

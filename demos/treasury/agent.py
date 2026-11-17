@@ -259,6 +259,8 @@ class Row:
     receipt_digest: str | None = None
     bank_ref: str | None = None
     moved: int = 0
+    # Sent, and no confirmation came back: may have moved (INDETERMINATE).
+    outcome_unknown: bool = False
     would_have_sent: int = 0
     prevented: list[dict[str, Any]] = field(default_factory=list)
     credited_to_claude: bool = False
@@ -584,6 +586,26 @@ class Desk:
                 bank_ref=row.bank_ref,
             )
             return f"Executed: {tool.capability} {usd(arguments['amount_usd'])} to {arguments.get('counterparty_id')} (bank ref {row.bank_ref})."
+        if result.outcome == "INDETERMINATE":
+            # INDETERMINATE: the bytes were sent and no confirmation came back
+            # (a timeout, a dropped connection). The movement may have moved.
+            # It is neither paid nor prevented until it is reconciled.
+            row.outcome_unknown = True
+            log(
+                "agent",
+                "DISPATCH",
+                "UNKNOWN",
+                action=row.id,
+                agent=path.agent_id,
+                sidecar=result.outcome,
+                reason=result.reason_code,
+                note="sent, no confirmation: may have moved; reconcile",
+            )
+            return (
+                "Outcome UNKNOWN: the request was sent and no confirmation came "
+                "back, so the money may have moved. Do not retry it. It must be "
+                "reconciled against the bank ledger first."
+            )
         log(
             "agent",
             "DISPATCH",
@@ -1044,7 +1066,9 @@ def row_cells(row: Row) -> list[tuple[str, str]]:  # noqa: C901 - one branch per
         "refused": "bad",
         "timeout": "bad",
     }.get(row.approval, "plain")
-    if row.gate_status is None:
+    if row.outcome_unknown:
+        gate, gtone = "UNKNOWN: reconcile", "warn"
+    elif row.gate_status is None:
         refused = row.sidecar_outcome == "CONTROL_FAILURE"
         gate, gtone = (
             ("sidecar refused" if refused else "—"),
@@ -1112,7 +1136,10 @@ def impact(rows: list[Row]) -> dict[str, Any]:
         for r in rows
         if r.claude_decision in MONEY_TOOLS
     )
-    without_pv = sum(r.would_have_sent for r in rows)
+    # A row whose outcome is unknown may have moved: it is counted neither
+    # as moved nor as prevented, and reported on its own.
+    unknown_rows = [r for r in rows if r.outcome_unknown]
+    without_pv = sum(r.would_have_sent for r in rows if not r.outcome_unknown)
     with_pv = sum(r.moved for r in rows)
     breakdown: dict[str, dict[str, Any]] = {}
     prevented_rows = 0
@@ -1140,6 +1167,11 @@ def impact(rows: list[Row]) -> dict[str, Any]:
         "with_privatevault": with_pv,
         "prevented": without_pv - with_pv,
         "prevented_count": prevented_rows,
+        "outcome_unknown": {
+            "count": len(unknown_rows),
+            "amount": sum(r.would_have_sent for r in unknown_rows),
+            "ids": [r.id for r in unknown_rows],
+        },
         "transactions": len(rows),
         "breakdown": breakdown,
         "claude_declined": {
@@ -1363,6 +1395,14 @@ def banner(
         f"{b}{r}PrivateVault prevented {usd(summary['prevented'])} in unsafe movements across {summary['prevented_count']} of {summary['transactions']} actions{x}",
         "─" * 76,
     ]
+    unknown = summary.get("outcome_unknown") or {}
+    if unknown.get("count"):
+        lines.insert(
+            1,
+            f"{b}{y}Outcome UNKNOWN for {unknown['count']} action(s), "
+            f"{usd(unknown['amount'])}: sent, no confirmation; may have moved. "
+            f"Reconcile before any retry (actions {unknown['ids']}).{x}",
+        )
     lines.append(
         f"{'Without PrivateVault (Claude + tools alone):':<46}{r}{b}{usd(summary['without_privatevault']):>14}{x} would have moved"
     )

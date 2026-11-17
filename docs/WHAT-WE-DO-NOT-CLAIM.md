@@ -1080,6 +1080,14 @@ the dispatcher's outcome, its witness and its closure record are unchanged
 and still say `EXECUTED` for a delivered, refused request. Any other caller
 of the sidecar must make the same check.
 
+A request the sidecar sent and that was not confirmed (a timeout, a dropped
+connection) is `INDETERMINATE`: it may have executed. The demos and the agent
+runner report it as outcome unknown and tell the model not to retry
+(`demos/live_checkout/attacks.py::response_lost_after_payment`). **We do not
+claim** to resolve it: nothing in the demos yet reads the receiver's receipts
+or the upstream's ledger to settle whether it ran. Until it is reconciled, an
+operator does not know, and neither does the record.
+
 Since ADR 0039 the receiver also claims the decision and the approval each
 permit was minted from, and refuses a second, different permit for either
 (`RECEIVER_DUPLICATE_DECISION`, `RECEIVER_DUPLICATE_APPROVAL`), with or

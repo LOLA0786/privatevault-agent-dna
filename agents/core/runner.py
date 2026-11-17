@@ -170,6 +170,13 @@ class AgentRunner:
             result.dispatch_reason = dispatched.reason_code
             transport = getattr(self.gate.dispatcher, "transport", None)
             headers = getattr(transport, "last_response_headers", {}) or {}
+            if dispatched.outcome == "INDETERMINATE":
+                # Sent; no confirmation. The effect may have happened.
+                result.error = (
+                    "outcome unknown: the request was sent and not confirmed "
+                    f"({dispatched.reason_code}); it may have executed. Do not "
+                    "retry; reconcile first."
+                )
             if dispatched.outcome == "EXECUTED":
                 result.receiver_receipt_digest = headers.get("x-pv-receiver-receipt")
                 seq = headers.get("x-pv-receiver-sequence")
