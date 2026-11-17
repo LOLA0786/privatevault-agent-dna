@@ -49,7 +49,7 @@ from agent_dna.sqlite_store import SQLiteDecisionStore  # noqa: E402
 from agents.core.gate import PermitBundle, PrivateVaultGate, wire_for  # noqa: E402
 from agents.core.receipts import ReceiptLog  # noqa: E402
 from agents.core.tools import Tool  # noqa: E402
-from agents.core.transport import AsgiSidecarTransport  # noqa: E402
+from agents.core.transport import AsgiSidecarTransport, receiver_refusal  # noqa: E402
 from demos.live_checkout import config as cfg  # noqa: E402
 from demos.live_checkout.approvals import ApprovalInbox  # noqa: E402
 from demos.live_checkout.events import (  # noqa: E402
@@ -560,8 +560,35 @@ class RefundPath:
         row.sidecar_outcome = result.outcome
         row.sidecar_reason = result.reason_code
         headers = self.transport.last_response_headers or {}
+        refusal = (
+            receiver_refusal(self.transport, result.transport_response)
+            if result.outcome == "EXECUTED"
+            else None
+        )
+        if refusal is not None:
+            # Delivered, and the gate refused it. EXECUTED is not "paid".
+            row.gate_status, row.gate_reason = refusal
+            row.receipt_digest = headers.get("x-pv-receiver-receipt")
+            seq = headers.get("x-pv-receiver-sequence")
+            row.receipt_seq = int(seq) if seq else None
+            log(
+                "agent",
+                "DISPATCH",
+                "REFUSED",
+                request=row.id,
+                http=row.gate_status,
+                reason=row.gate_reason,
+                gate_seq=row.receipt_seq,
+                note="delivered; the receiver refused it",
+            )
+            self._record(row)
+            return (
+                f"The refund was NOT paid: the payments gateway refused it "
+                f"({row.gate_status} {row.gate_reason}). Nothing was paid. "
+                "Do not retry it."
+            )
         if result.outcome == "EXECUTED":
-            row.gate_status = 201
+            row.gate_status = self.transport.last_response_status or 201
             row.receipt_digest = headers.get("x-pv-receiver-receipt")
             seq = headers.get("x-pv-receiver-sequence")
             row.receipt_seq = int(seq) if seq else None

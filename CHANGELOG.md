@@ -5,6 +5,20 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### A delivered, refused request is not recorded as done
+- Found by the attack corpus: the sidecar's outcome is `EXECUTED` whenever
+  the bytes are delivered, including when the receiver gate answers 409. The
+  live refund demo recorded such a row as paid and told the model "Refund
+  paid"; the treasury demo and `agents/core/runner.py` made the same
+  assumption. No money moved.
+- `agents/core/transport.py` records the receiver's status and
+  `receiver_refusal()` reads it. The two demos record the row as refused with
+  the receiver's status and reason; the runner sets `error` and
+  `receiver_status` and returns no result.
+  `tests/demos/test_live_checkout_attacks.py::test_delivered_and_refused_is_not_recorded_as_paid`,
+  `::test_receiver_refusal_reads_the_receivers_answer`.
+- Not changed: the dispatcher's outcome, witness and closure record.
+
 ### Money-path attack corpus for the live refund demo
 - **`uv run python -m demos.live_checkout.attacks`** attacks the path the
   money takes on the demo's own services: changed amount, replay, concurrent

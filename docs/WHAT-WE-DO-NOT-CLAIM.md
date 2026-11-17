@@ -1072,8 +1072,13 @@ API and it is paid; the corpus reports that as not prevented, and the payment
 is found only because it has no admitted receipt. **We do not claim** that
 the sidecar's `EXECUTED` outcome means the receiver admitted the request: it
 means the bytes were delivered. When the receiver answers 409 the outcome is
-still `EXECUTED`, and the live refund demo's table would count that row as
-paid. The corpus prints this as a note; it is not fixed.
+still `EXECUTED`. The live refund demo, the treasury demo and the agent
+runner now read the receiver's status before recording an effect
+(`agents/core/transport.py::receiver_refusal`,
+`tests/demos/test_live_checkout_attacks.py::test_delivered_and_refused_is_not_recorded_as_paid`);
+the dispatcher's outcome, its witness and its closure record are unchanged
+and still say `EXECUTED` for a delivered, refused request. Any other caller
+of the sidecar must make the same check.
 
 Since ADR 0039 the receiver also claims the decision and the approval each
 permit was minted from, and refuses a second, different permit for either

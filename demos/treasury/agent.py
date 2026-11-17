@@ -55,7 +55,7 @@ from agent_dna.execution_v01 import sha256_bytes_digest  # noqa: E402
 from agent_dna.sqlite_store import SQLiteDecisionStore  # noqa: E402
 from agents.core.gate import PermitBundle, PrivateVaultGate, wire_for  # noqa: E402
 from agents.core.tools import Tool  # noqa: E402
-from agents.core.transport import AsgiSidecarTransport  # noqa: E402
+from agents.core.transport import AsgiSidecarTransport, receiver_refusal  # noqa: E402
 from demos.live_checkout.agent import (  # noqa: E402
     AnthropicLLM,
     RunWriter,
@@ -529,8 +529,33 @@ class Desk:
         row.sidecar_outcome = result.outcome
         row.sidecar_reason = result.reason_code
         headers = path.transport.last_response_headers or {}
+        refusal = (
+            receiver_refusal(path.transport, result.transport_response)
+            if result.outcome == "EXECUTED"
+            else None
+        )
+        if refusal is not None:
+            # Delivered, and the gate refused it. EXECUTED is not "moved".
+            row.gate_status, row.gate_reason = refusal
+            row.receipt_digest = headers.get("x-pv-receiver-receipt")
+            seq = headers.get("x-pv-receiver-sequence")
+            row.receipt_seq = int(seq) if seq else None
+            log(
+                "agent",
+                "DISPATCH",
+                "REFUSED",
+                action=row.id,
+                agent=path.agent_id,
+                http=row.gate_status,
+                reason=row.gate_reason,
+                note="delivered; the receiver refused it",
+            )
+            return (
+                f"NOT executed: the bank gateway refused it ({row.gate_status} "
+                f"{row.gate_reason}). Nothing moved. Do not retry it."
+            )
         if result.outcome == "EXECUTED":
-            row.gate_status = 201
+            row.gate_status = path.transport.last_response_status or 201
             row.receipt_digest = headers.get("x-pv-receiver-receipt")
             seq = headers.get("x-pv-receiver-sequence")
             row.receipt_seq = int(seq) if seq else None

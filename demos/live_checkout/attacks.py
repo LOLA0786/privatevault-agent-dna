@@ -297,8 +297,9 @@ def permit_replayed(w: World) -> tuple[str, str]:
         OBSERVATIONS.append(
             "the sidecar reports outcome EXECUTED when the receiver refused the "
             f"request ({answer.get('reason_code')}): EXECUTED means the bytes were "
-            "delivered, not that the receiver admitted them. No money moved. A "
-            "caller must read the receiver's status before recording a payment."
+            "delivered, not that the receiver admitted them. No money moved. "
+            "Callers check agents.core.transport.receiver_refusal() before "
+            "recording a payment."
         )
     codes = Counter(s for s, _ in serial + burst)
     paid = w.paid("ORD-70259")
