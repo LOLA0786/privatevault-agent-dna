@@ -11,9 +11,13 @@ Claims -> tests:
     is removed, and the baseline shows none
     -> test_ablation_finds_the_line_that_matters
   - The spend cap stops the run before the next trial; a model with no
-    known price is refused; another model answering is flagged
+    known price is refused; another model answering is listed per trial
     -> test_spend_cap_stops_the_run, test_unknown_price_is_refused,
        test_fallback_model_is_flagged
+  - --no-fallback sends no fallback parameters, so only the requested model
+    answers; a refusal is recorded and listed, not judged as a decision
+    -> test_no_fallback_sends_no_fallback_parameters,
+       test_refusal_is_listed_not_judged
 """
 
 from __future__ import annotations
@@ -212,7 +216,10 @@ def test_unknown_price_is_refused():
 def test_fallback_model_is_flagged(tmp_path):
     plan = _plan(tmp_path, {"baseline"}, cases=(1,))
     ab.execute(plan, lambda: FakeLLM(served="claude-other-9"), log=lambda _: None)
-    assert "server-side fallback): claude-other-9" in ab.report(plan)
+    text = ab.report(plan)
+    assert "server-side fallback): 1 (claude-other-9)" in text
+    assert "`baseline` #1 trial 1: turns answered by ['claude-other-9'" in text
+    assert "1/1 (1 other model)" in text
 
 
 def test_dry_run_spends_nothing(capsys):
@@ -225,3 +232,82 @@ def test_dry_run_spends_nothing(capsys):
     )
     out = capsys.readouterr().out
     assert "15 variants x 8 requests x 2 trials = 240 trials" in out
+
+
+def test_no_fallback_sends_no_fallback_parameters(monkeypatch):
+    import sys
+    import types
+
+    from demos.live_checkout.agent import AnthropicLLM
+
+    sent: list[dict] = []
+
+    class Stream:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def __iter__(self):
+            return iter(())
+
+        def get_final_message(self):
+            usage = SimpleNamespace(
+                input_tokens=1,
+                output_tokens=1,
+                cache_creation_input_tokens=0,
+                cache_read_input_tokens=0,
+            )
+            return SimpleNamespace(
+                content=[],
+                stop_reason="end_turn",
+                usage=usage,
+                model="claude-fable-5-2",
+            )
+
+    class Messages:
+        def stream(self, **kwargs):
+            sent.append(kwargs)
+            return Stream()
+
+    class Client:
+        def __init__(self, **_):
+            self.beta = SimpleNamespace(messages=Messages())
+
+    monkeypatch.setitem(
+        sys.modules, "anthropic", types.SimpleNamespace(Anthropic=Client)
+    )
+    for fallback in (True, False):
+        AnthropicLLM("claude-fable-5-2", fallback=fallback).turn(
+            "s", [], [], on_text=lambda _: None, on_thinking=lambda _: None
+        )
+    on, off = sent
+    assert on["fallbacks"] == "default" and on["betas"] == [
+        "server-side-fallback-2026-07-01"
+    ]
+    assert "fallbacks" not in off and "betas" not in off
+    assert off["model"] == "claude-fable-5-2"
+
+
+class RefusingLLM(FakeLLM):
+    def turn(self, system, messages, tools, *, on_text, on_thinking):
+        if isinstance(messages[-1]["content"], list):
+            self.totals["input_tokens"] += 10
+            return SimpleNamespace(content=[], stop_reason="refusal", model=self.served)
+        return super().turn(
+            system, messages, tools, on_text=on_text, on_thinking=on_thinking
+        )
+
+
+def test_refusal_is_listed_not_judged(tmp_path, capsys):
+    plan = _plan(tmp_path, {"baseline"}, cases=(1, 14))
+    plan.fallback = False
+    ab.execute(plan, RefusingLLM, log=lambda _: None)
+    assert [t.decision for t in plan.trials_done] == ["model-refused", "model-refused"]
+    assert [t.verdict for t in plan.trials_done] == ["NO-DECISION", "NO-DECISION"]
+    text = ab.report(plan)
+    assert "Server-side fallback: off" in text
+    assert "0/1 (1 refused)" in text  # control: not refunded, and why
+    assert "Trials the model refused to answer: 2" in text
+    assert "`baseline` #14 trial 1" in text

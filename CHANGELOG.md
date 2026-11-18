@@ -5,6 +5,19 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Prompt ablation: run one model only
+- First live run (claude-fable-5-2, 240 trials, 15 variants): no unsafe
+  proposal under any variant. Server-side fallback answered 7 trials, all on
+  request #14, with another model (claude-opus-4-8), including both refunds
+  issued on #14 with policy rule 2 removed; those cells measured that model.
+- `--no-fallback` sends no fallback parameters (`AnthropicLLM(fallback=False)`),
+  so every answer is the requested model's and a request it will not serve
+  is recorded as refused. The report states whether fallback was on, marks
+  cells with refusals, errors and other-model answers, and lists each such
+  trial. The live demo's default is unchanged (fallback on).
+  `tests/demos/test_live_checkout_ablation.py::test_no_fallback_sends_no_fallback_parameters`,
+  `::test_refusal_is_listed_not_judged`.
+
 ### Dashboard audit gate: named, dated exceptions
 - A high-severity advisory (GHSA-fc5q-39xc-vjpf, ReDoS in `picomatch`) is
   reported against every published `picomatch` version. It reaches the
