@@ -80,6 +80,35 @@ def git_state() -> dict:
     }
 
 
+FAILURE_DETAIL_LIMIT = 40_000  # characters of pytest's failure section in the log
+
+
+def failure_details(out: str, limit: int = FAILURE_DETAIL_LIMIT) -> str:
+    """Pytest's ``FAILURES`` and ``ERRORS`` sections (tracebacks), for the CI
+    log. The sealed report keeps only one line per failure; without this a
+    red run, including an intermittent one, cannot be diagnosed afterwards."""
+    start = None
+    for marker in ("= FAILURES =", "= ERRORS ="):
+        i = out.find(marker)
+        if i != -1 and (start is None or i < start):
+            start = i
+    if start is None:
+        return ""
+    start = out.rfind("\n", 0, start) + 1
+    # -rA adds PASSES (captured output of passing tests) and pytest may add a
+    # warnings summary; the failure section ends at whichever comes first.
+    ends = [
+        out.find(marker, start)
+        for marker in ("= PASSES =", "warnings summary", "short test summary info")
+    ]
+    found = [e for e in ends if e != -1]
+    end = out.rfind("\n", 0, min(found)) + 1 if found else -1
+    section = out[start : end if end != -1 else None].rstrip()
+    if len(section) > limit:
+        section = "[... earlier failure detail cut ...]\n" + section[-limit:]
+    return section
+
+
 def run_pytest() -> dict:
     """Full suite. -rA report lines give one PASSED/FAILED line per
     nodeid, which we parse rather than trusting a summary count."""
@@ -91,6 +120,11 @@ def run_pytest() -> dict:
         capture_output=True,
     )
     out = proc.stdout
+    if proc.returncode != 0:
+        details = failure_details(out)
+        if details:
+            # To the log only: the sealed report's format does not change.
+            print(details, file=sys.stderr, flush=True)
     passed = re.findall(r"^PASSED\s+(\S+)", out, re.M)
     failed = re.findall(r"^FAILED\s+(\S+)", out, re.M)
     # "FAILED <nodeid> - <first line of the error>", printed so a red CI run

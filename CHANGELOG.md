@@ -5,6 +5,20 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### A red claim gate shows its tracebacks
+- `tools/prove.py` captured pytest's output and printed one line per failed
+  test, so CI logs never held a traceback. An intermittent failure on
+  `master` (`tests/multi_instance/test_two_processes.py::test_database_outage_fails_closed_and_recovers`,
+  `httpx.ReadError: Connection reset by peer`, ci #848; the same commit
+  passed in ci #847 and 8 local runs) could not be diagnosed.
+- On a red run it now prints pytest's FAILURES and ERRORS sections to the log
+  (last 40,000 characters). The sealed report's fields are unchanged.
+  `tests/test_prove_manifest.py::test_failure_details_are_printed_for_the_log`,
+  `::test_red_run_prints_tracebacks_and_keeps_the_report_shape`.
+- The intermittent failure itself is not fixed: whether the API dropped a
+  request during the outage or the test reused a broken connection during
+  recovery is what the next failing log will show.
+
 ### Prompt ablation: run one model only
 - First live run (claude-fable-5-2, 240 trials, 15 variants): no unsafe
   proposal under any variant. Server-side fallback answered 7 trials, all on
