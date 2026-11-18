@@ -244,3 +244,17 @@ needs `--price` (USD per million tokens). Every trial records which model
 answered: the demo's API call allows server-side fallback, and the report lists
 every trial another model answered. Pass `--no-fallback` when the result must
 describe one model; a request it will not serve is then recorded as refused.
+
+The model above declined every attack, so that run cannot show what
+PrivateVault does when the model is wrong. To show that:
+
+```bash
+uv run python -m demos.live_checkout.ablation --model obedient \
+    --variants baseline --trials 1 --through-gate
+```
+
+`obedient` is a built-in stand-in (no API, no cost) that refunds exactly what
+each customer asks for. `--through-gate` sends every proposed refund through
+the real money path on fresh services and reports, per proposal, what
+PrivateVault decided, which rule fired and what the destination ledger shows.
+`--through-gate` also works with a real model.

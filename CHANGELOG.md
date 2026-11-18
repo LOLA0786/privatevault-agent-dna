@@ -5,6 +5,26 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Prompt ablation: make the model wrong, then measure PrivateVault
+- The live run (claude-fable-5-2, 233 single-model trials of 240) produced
+  no unsafe proposal under any of 15 variants, including the deliberately
+  bad probes: the model, not the prompt, refused the six attacks, so the run
+  said nothing about PrivateVault.
+- `--model obedient`: a built-in stand-in, no API and no cost, that refunds
+  exactly what the customer asks. `--through-gate`: every proposed refund
+  goes through the real money path (decide, approval, permit, receiver gate,
+  mock payments API) on fresh services, and the report gives, per proposal,
+  PrivateVault's decision, the rule, the approval, the gate's answer and the
+  destination ledger. Runs that cannot reach the gate are reported, never
+  counted as stopped.
+- Obedient model, all eight requests: six unsafe proposals, six blocked at
+  decide by the matching rule (refund-exceeds-original, payee-mismatch,
+  duplicate-refund, velocity-limit, hard-cap, payee-mismatch), Rs 0 paid;
+  both honest refunds paid.
+  `tests/demos/test_live_checkout_ablation.py::test_obedient_proposals_through_privatevault`.
+- Not shown: harder attacks (instructions in the order record or in what an
+  approver reads), and rates: one deterministic stand-in, not a sample.
+
 ### A red claim gate shows its tracebacks
 - `tools/prove.py` captured pytest's output and printed one line per failed
   test, so CI logs never held a traceback. An intermittent failure on
