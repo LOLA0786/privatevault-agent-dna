@@ -181,6 +181,7 @@ class AnthropicLLM:
         effort: str = "medium",
         extra_headers: dict[str, str] | None = None,
         workspace_id: str | None = None,
+        fallback: bool = True,
     ) -> None:
         # Opt-in dependency (``uv sync --extra live``); typed as Any so the
         # gate passes with or without the SDK installed.
@@ -189,6 +190,10 @@ class AnthropicLLM:
         self.name = model
         self.effort = effort
         self.workspace_id = workspace_id or None
+        # Server-side fallback lets the API answer with another model when the
+        # requested one does not. Off for measurements that must be one model
+        # (demos/live_checkout/ablation.py --no-fallback).
+        self.fallback = fallback
         self._client: Any = anthropic.Anthropic(default_headers=extra_headers or None)
         self.totals = _zero_usage()
         self.calls = 0
@@ -199,7 +204,13 @@ class AnthropicLLM:
     def _request_extras(self) -> dict[str, Any]:
         # ANTHROPIC_WORKSPACE_ID selects the Workspace for a credential that
         # can act on more than one; the SDK sends it as a header.
-        return {"workspace_id": self.workspace_id} if self.workspace_id else {}
+        extras: dict[str, Any] = (
+            {"workspace_id": self.workspace_id} if self.workspace_id else {}
+        )
+        if self.fallback:
+            extras["betas"] = ["server-side-fallback-2026-07-01"]
+            extras["fallbacks"] = "default"
+        return extras
 
     def turn(self, system, messages, tools, *, on_text, on_thinking) -> Turn:
         self.calls += 1
@@ -218,8 +229,6 @@ class AnthropicLLM:
             tool_choice={"type": "auto", "disable_parallel_tool_use": True},
             thinking={"type": "adaptive", "display": "summarized"},
             output_config=self._output_config(),
-            betas=["server-side-fallback-2026-07-01"],
-            fallbacks="default",
             **self._request_extras(),
         ) as stream:
             for event in stream:

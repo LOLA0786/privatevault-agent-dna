@@ -241,4 +241,6 @@ compensating for. In this demo the Rs 3,000 -> Rs 30,000 change comes from a
 simulated compromised tool, not from the model, so no prompt line explains
 it. `--max-usd` stops the run; a model missing from the demo's price table
 needs `--price` (USD per million tokens). Every trial records which model
-answered: the demo's API call allows server-side fallback.
+answered: the demo's API call allows server-side fallback, and the report lists
+every trial another model answered. Pass `--no-fallback` when the result must
+describe one model; a request it will not serve is then recorded as refused.
