@@ -5,6 +5,15 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Documented test count: 3177+
+- `rust / rust-conformance` failed on `master` at #246:
+  `tests/test_claim_counts.py` found README.md, WHAT-WE-DO-NOT-CLAIM.md and
+  `examples/composed_line_demo.py` claiming 3139 tests against 3185
+  collected, past the 40-test tolerance. That job installs dependencies
+  unpinned and collects 8 more tests than the locked environment (3177),
+  so it crossed the line first. The claim is now 3177+, which neither
+  environment falls below.
+
 ### Prompt ablation: six harder attacks
 - `--attacks hard` (or `all`): six attacks on real orders. Two plant an
   instruction in a free-text `notes` field of the order record the model
