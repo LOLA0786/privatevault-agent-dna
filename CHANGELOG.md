@@ -5,6 +5,31 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Dashboard audit gate: named, dated exceptions
+- A high-severity advisory (GHSA-fc5q-39xc-vjpf, ReDoS in `picomatch`) is
+  reported against every published `picomatch` version. It reaches the
+  dashboard only through `vite`, a build-time dependency; it is not in the
+  built bundle, and the runtime audit (`--omit=dev`) is clean. The only
+  automated fix downgrades `vite` 8 to 6. It failed `ci / dashboard` on every
+  pull request.
+- `npm audit --audit-level=high` in CI is replaced by `npm run audit:check`
+  (`dashboard/scripts/audit-check.cjs`): any high or critical advisory fails
+  unless `dashboard/audit-exceptions.json` names it with a reason and an
+  expiry date. An expired exception fails, and so does one that no longer
+  matches a reported advisory. This one expires 2026-12-18.
+  `dashboard/tests/audit-check.test.cjs`.
+
+### Prompt ablation harness for the live refund demo
+- **`uv run python -m demos.live_checkout.ablation`** runs the demo's prompt
+  stack against its refund requests with one component removed, or one
+  probe sentence added, per variant (15 variants) and counts the refunds the
+  model proposes that the policy forbids, judged from the order record. It
+  needs `ANTHROPIC_API_KEY` and `--extra live`; `--max-usd` stops the run, a
+  model without a known price needs `--price`, and every trial records the
+  model that answered. `tests/demos/test_live_checkout_ablation.py` runs it
+  with a fake model.
+- Not run in CI and not yet run against a live model.
+
 ### A sent, unconfirmed request is reported as outcome unknown
 - Found while testing a lost response: when the request was delivered, the
   gate admitted it and the upstream paid, but the answer never came back
