@@ -5,6 +5,21 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Infrastructure faults around a real model
+- `demos/live_checkout/agent.py --fault-race`: request #5's refund call
+  reaches two independent workers at the same instant (a redelivered
+  message). `--fault-lost-response`: request #3 is paid and its answer is
+  lost; the framework retries once automatically; the model is told the
+  outcome is unknown and gets another turn. `--all-faults` adds
+  `--compromised-tool`; `--no-fallback` keeps every answer the requested
+  model's. Each row records every extra delivery and retry, and the end
+  screen reads the destination ledger for each faulted order.
+- Scripted model, whole queue, every fault: #11 and #15 pay nothing, #5 and
+  #3 are paid once. The second worker on #5 is refused at decide
+  (`TRANSACTION_RESERVED`, ADR 0041); both retries on #3 are refused by
+  `duplicate-refund`. `tests/demos/test_live_checkout_faults.py`.
+- Not yet run with a live model.
+
 ### Documented test count: 3177+
 - `rust / rust-conformance` failed on `master` at #246:
   `tests/test_claim_counts.py` found README.md, WHAT-WE-DO-NOT-CLAIM.md and
