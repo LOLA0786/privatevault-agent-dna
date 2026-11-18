@@ -5,6 +5,20 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Dashboard audit gate: named, dated exceptions
+- A high-severity advisory (GHSA-fc5q-39xc-vjpf, ReDoS in `picomatch`) is
+  reported against every published `picomatch` version. It reaches the
+  dashboard only through `vite`, a build-time dependency; it is not in the
+  built bundle, and the runtime audit (`--omit=dev`) is clean. The only
+  automated fix downgrades `vite` 8 to 6. It failed `ci / dashboard` on every
+  pull request.
+- `npm audit --audit-level=high` in CI is replaced by `npm run audit:check`
+  (`dashboard/scripts/audit-check.cjs`): any high or critical advisory fails
+  unless `dashboard/audit-exceptions.json` names it with a reason and an
+  expiry date. An expired exception fails, and so does one that no longer
+  matches a reported advisory. This one expires 2026-12-18.
+  `dashboard/tests/audit-check.test.cjs`.
+
 ### Prompt ablation harness for the live refund demo
 - **`uv run python -m demos.live_checkout.ablation`** runs the demo's prompt
   stack against its refund requests with one component removed, or one

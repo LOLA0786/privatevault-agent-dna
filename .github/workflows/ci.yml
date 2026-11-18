@@ -161,7 +161,9 @@ jobs:
           cache-dependency-path: dashboard/package-lock.json
       - run: npm ci
       - run: npm run test:deps
-      - run: npm audit --audit-level=high
+      # npm audit --audit-level=high, with named, dated exceptions
+      # (dashboard/audit-exceptions.json)
+      - run: npm run audit:check
       - run: npm run lint
       - run: npm run build
 
