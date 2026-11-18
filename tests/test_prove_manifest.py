@@ -85,3 +85,76 @@ def test_grouped_skips_count_each_case(monkeypatch):
     assert result["passed"] == 1
     assert result["skipped"] == 6
     assert result["ok"] is True
+
+
+def test_failure_details_are_printed_for_the_log():
+    """A red claim gate shows pytest's tracebacks in the CI log, not only the
+    one-line FAILED summary; the sealed report is unchanged."""
+    failure_details = prove.failure_details
+    out = (
+        "....F.\n"
+        "=================================== FAILURES ===================================\n"
+        "_________________________________ test_outage _________________________________\n"
+        '  File "tests/multi_instance/test_two_processes.py", line 194, in test_outage\n'
+        "E   httpx.ReadError: [Errno 104] Connection reset by peer\n"
+        "=========================== short test summary info ============================\n"
+        "FAILED tests/multi_instance/test_two_processes.py::test_outage - httpx.ReadError\n"
+        "1 failed, 5 passed in 1.00s\n"
+    )
+    details = failure_details(out)
+    assert details.startswith("=") and "FAILURES" in details.splitlines()[0]
+    assert "line 194" in details and "Connection reset" in details
+    assert "short test summary" not in details and "1 failed" not in details
+    assert failure_details("6 passed in 1.00s\n") == ""
+    errors = "=== ERRORS ===\n_ ERROR at setup _\nE   boom\n=== short test summary info ===\n"
+    assert "boom" in failure_details(errors)
+    # -rA: the PASSES section (passing tests' captured output) is not failure detail
+    with_passes = (
+        "=== FAILURES ===\n_ test_a _\nE   real problem\n"
+        "=== PASSES ===\n_ test_b _\nnoise from a passing test\n"
+        "=== short test summary info ===\n"
+    )
+    detail = failure_details(with_passes)
+    assert "real problem" in detail and "noise" not in detail and "PASSES" not in detail
+    long = "=== FAILURES ===\n" + "x" * 500 + "TAIL"
+    cut = failure_details(long, limit=100)
+    assert cut.startswith("[... earlier") and cut.endswith("TAIL") and len(cut) < 200
+
+
+def test_red_run_prints_tracebacks_and_keeps_the_report_shape(monkeypatch, capsys):
+    fake = (
+        "=== FAILURES ===\n_ test_x _\nE   httpx.ReadError: reset\n"
+        "=== short test summary info ===\n"
+        "FAILED tests/t.py::test_x - httpx.ReadError: reset\n"
+        "PASSED tests/t.py::test_y\n1 failed, 1 passed in 0.1s\n"
+    )
+
+    def run(*args, **kwargs):
+        return subprocess.CompletedProcess(args, 1, stdout=fake, stderr="")
+
+    monkeypatch.setattr(prove.subprocess, "run", run)
+    result = prove.run_pytest()
+    err = capsys.readouterr().err
+    assert "httpx.ReadError: reset" in err and "_ test_x _" in err
+    assert result["failed_tests"] == ["tests/t.py::test_x"] and not result["ok"]
+    assert set(result) == {
+        "passed",
+        "failed",
+        "skipped",
+        "summary_line",
+        "duration_s",
+        "failed_tests",
+        "failed_lines",
+        "passed_tests",
+        "ok",
+    }
+
+    monkeypatch.setattr(
+        prove.subprocess,
+        "run",
+        lambda *a, **k: subprocess.CompletedProcess(
+            a, 0, stdout="PASSED t::y\n1 passed\n", stderr=""
+        ),
+    )
+    prove.run_pytest()
+    assert capsys.readouterr().err == ""
