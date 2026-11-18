@@ -28,16 +28,19 @@ What is enforced on the live decision path and what is a library only is
 stated in docs/MULTI-AGENT-SECURITY.md. Nothing here uses a model.
 """
 
+from .budget_ledger import Charge, DelegationBudgets, Exhausted
 from .counterparty import (
     CheckpointRejected,
     CounterpartyLedger,
     verify_acknowledgement,
 )
 from .delegation import (
+    SPEC_V2,
     DelegationDecision,
     DelegationError,
     TrustAnchors,
     authorize,
+    chain_budgets,
     issue_link,
     link_hash,
     verify_chain,
@@ -61,6 +64,11 @@ from .nonce_ledger import (
 from .possession import DelegationChallenges, sign_possession
 
 __all__ = [
+    "SPEC_V2",
+    "Charge",
+    "DelegationBudgets",
+    "Exhausted",
+    "chain_budgets",
     "within_scope",
     "sign_presentation",
     "normalize_label",

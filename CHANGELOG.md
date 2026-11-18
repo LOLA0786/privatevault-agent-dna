@@ -5,6 +5,23 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### ADR 0042: delegation budgets, argument constraints and depth limits
+- **`pv-delegation/2` links** may carry `budget` (cumulative), `constraints`
+  (allowed argument values) and `max_depth` (further hops). Each narrows like
+  `max_amount`; v1 links are unchanged. `issue_link(..., budget=,
+  constraints=, max_depth=)`.
+- **Budgets are charged atomically on `/v1/decide`:** every budgeted link of
+  a verified chain, all or nothing, in the decision store; released if the
+  decision is not sealed. Found by probing: Rs 27,000 allowed from a Rs 10,000
+  pool when A and two siblings spent at once; now two of three Rs 4,500
+  spends pass. `tests/multi_agent_security/test_delegation_v2.py`,
+  `tests/test_pg_ledgers.py::test_delegation_budget_holds_across_instances`.
+- **Constraints:** a refund for merchant M-999 under a link limited to M-101
+  is refused (`delegation_constraint_violated`). **Depth:** a hop past
+  `max_depth` is refused.
+- Not done: time-reset budgets, range or pattern constraints, a spend ledger
+  on the library's `authorize` path.
+
 ### Infrastructure faults around a real model
 - `demos/live_checkout/agent.py --fault-race`: request #5's refund call
   reaches two independent workers at the same instant (a redelivered

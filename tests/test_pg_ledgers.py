@@ -354,3 +354,66 @@ def test_reservation_has_one_holder_across_instances(pools):
     assert takeovers == [True, False, False, False]
     ledgers[0].release(key, holder="t0")
     assert ledgers[1].claim(key, holder="after", now=1300.0, hold_seconds=300).granted
+
+
+# ---- delegation budgets (ADR 0042) -----------------------------------------
+
+
+def test_delegation_budget_holds_across_instances(pools):
+    """Two replicas, twelve concurrent charges from a parent and two siblings:
+    the parent's budget is never exceeded."""
+    from agent_dna.consensus.signing import generate_voter_keypair
+    from agent_dna.multi_agent_security import (
+        DelegationBudgets,
+        Exhausted,
+        chain_budgets,
+        issue_link,
+    )
+
+    keys = {n: generate_voter_keypair() for n in ("op", "A")}
+    root = issue_link(
+        keys["op"]["signing_key"],
+        delegator="op",
+        delegate="A",
+        capabilities=["payments."],
+        may_delegate=True,
+        budget=10000.0,
+    )
+    b1 = issue_link(
+        keys["A"]["signing_key"],
+        delegator="A",
+        delegate="B1",
+        capabilities=["payments."],
+        parent=root,
+        budget=5000.0,
+    )
+    b2 = issue_link(
+        keys["A"]["signing_key"],
+        delegator="A",
+        delegate="B2",
+        capabilities=["payments."],
+        parent=root,
+        budget=5000.0,
+    )
+    ledgers = [
+        DelegationBudgets(PgCompatConnection(p, "delegation_budgets")) for p in pools
+    ]
+    chains = [[root]] * 4 + [[root, b1]] * 4 + [[root, b2]] * 4
+    barrier = threading.Barrier(len(chains))
+    granted: list[bool] = []
+    lock = threading.Lock()
+
+    def charge(i: int) -> None:
+        barrier.wait()
+        ok = not isinstance(
+            ledgers[i % 2].charge(chain_budgets(chains[i]), 2000.0), Exhausted
+        )
+        with lock:
+            granted.append(ok)
+
+    threads = [threading.Thread(target=charge, args=(i,)) for i in range(len(chains))]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert granted.count(True) == 5

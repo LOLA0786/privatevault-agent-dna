@@ -55,6 +55,14 @@ from typing import Any
 from .possession import DelegationChallenges
 
 SPEC = "pv-delegation/1"
+# Version 2 adds three limits a v1 link cannot express (ADR 0042): a
+# cumulative ``budget`` for everything spent under the link, ``constraints``
+# on argument values, and ``max_depth`` for further delegation. Each narrows
+# like ``max_amount``: null is "no limit", and a child may not drop or raise a
+# limit its parent set. v1 links are unchanged and still verify.
+SPEC_V2 = "pv-delegation/2"
+MAX_CONSTRAINT_KEYS = 32
+MAX_CONSTRAINT_VALUES = 64
 MAX_DEPTH = 8
 MAX_TTL = 24 * 3600.0
 CLOCK_SKEW_SECONDS = 30.0
@@ -74,6 +82,8 @@ _FIELDS = frozenset(
         "signature",
     }
 )
+_FIELDS_V2 = _FIELDS | frozenset({"budget", "constraints", "max_depth"})
+_FIELDS_BY_SPEC = {SPEC: _FIELDS, SPEC_V2: _FIELDS_V2}
 
 
 class DelegationError(ValueError):
@@ -197,8 +207,14 @@ def issue_link(
     parent: Mapping[str, Any] | None = None,
     clamp_to_parent: bool = True,
     now: float | None = None,
+    budget: float | None = None,
+    constraints: Mapping[str, Sequence[str | int]] | None = None,
+    max_depth: int | None = None,
 ) -> dict[str, Any]:
     """Sign one link. ``parent`` is the link this one narrows, if any.
+
+    ``budget``, ``constraints`` or ``max_depth`` make it a pv-delegation/2
+    link; without them it is a pv-delegation/1 link, byte for byte as before.
 
     The expiry is clamped to the parent's, since a link issued a moment
     after its parent with the same ``ttl`` would otherwise outlive it.
@@ -224,6 +240,11 @@ def issue_link(
         "parent": link_hash(parent) if parent is not None else None,
         "nonce": uuid.uuid4().hex,
     }
+    if budget is not None or constraints is not None or max_depth is not None:
+        link["spec"] = SPEC_V2
+        link["budget"] = budget
+        link["constraints"] = {k: list(v) for k, v in (constraints or {}).items()}
+        link["max_depth"] = max_depth
     key = SigningKey(signing_key_hex.encode(), encoder=HexEncoder)
     link["signature"] = key.sign(link_hash(link).encode()).signature.hex()
     return link
@@ -233,10 +254,12 @@ def _check_shape(link: Any, index: int) -> None:  # noqa: C901 - checklist
     where = f"link {index}"
     if not isinstance(link, dict):
         raise DelegationError(f"{where}: not an object")
-    if set(link) != _FIELDS:
+    spec = link.get("spec")
+    expected = _FIELDS_BY_SPEC.get(spec) if isinstance(spec, str) else None
+    if expected is None:
+        raise DelegationError(f"{where}: spec is not {SPEC} or {SPEC_V2}")
+    if set(link) != expected:
         raise DelegationError(f"{where}: unexpected or missing fields")
-    if link["spec"] != SPEC:
-        raise DelegationError(f"{where}: spec is not {SPEC}")
     for name in ("delegator", "delegate", "nonce"):
         if not isinstance(link[name], str) or not link[name]:
             raise DelegationError(f"{where}: {name} must be a non-empty string")
@@ -263,6 +286,57 @@ def _check_shape(link: Any, index: int) -> None:  # noqa: C901 - checklist
         raise DelegationError(f"{where}: parent must be null or a link hash")
     if not _is_hex(link["signature"], 128):
         raise DelegationError(f"{where}: signature must be 128 lowercase hex")
+    if spec == SPEC_V2:
+        _check_v2_shape(link, where)
+
+
+def _constraint_value(value: Any) -> bool:
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, int):
+        return True
+    return isinstance(value, str) and bool(value) and "*" not in value
+
+
+def _check_v2_shape(link: Mapping[str, Any], where: str) -> None:
+    budget = link["budget"]
+    if budget is not None and (not _number(budget) or budget < 0):
+        raise DelegationError(f"{where}: budget must be null or >= 0")
+    depth = link["max_depth"]
+    if depth is not None and (
+        isinstance(depth, bool)
+        or not isinstance(depth, int)
+        or not 0 <= depth <= MAX_DEPTH
+    ):
+        raise DelegationError(f"{where}: max_depth must be null or 0..{MAX_DEPTH}")
+    constraints = link["constraints"]
+    if not isinstance(constraints, dict) or len(constraints) > MAX_CONSTRAINT_KEYS:
+        raise DelegationError(
+            f"{where}: constraints must be an object of at most "
+            f"{MAX_CONSTRAINT_KEYS} argument names"
+        )
+    for name, allowed in constraints.items():
+        if not isinstance(name, str) or not name:
+            raise DelegationError(
+                f"{where}: constraint names must be non-empty strings"
+            )
+        if (
+            not isinstance(allowed, list)
+            or not allowed
+            or len(allowed) > MAX_CONSTRAINT_VALUES
+            or not all(_constraint_value(v) for v in allowed)
+        ):
+            raise DelegationError(
+                f"{where}: constraint {name!r} must list 1..{MAX_CONSTRAINT_VALUES} "
+                "strings or integers, with no wildcard"
+            )
+
+
+def _limits(link: Mapping[str, Any]) -> tuple[Any, dict[str, list[Any]], Any]:
+    """(budget, constraints, max_depth); a v1 link has none of them."""
+    if link.get("spec") == SPEC_V2:
+        return link["budget"], dict(link["constraints"]), link["max_depth"]
+    return None, {}, None
 
 
 def _check_signature(link: Mapping[str, Any], public_key: str, index: int) -> None:
@@ -300,10 +374,42 @@ def _check_narrows(child: Mapping[str, Any], parent: Mapping[str, Any], i: int) 
         raise DelegationError(
             f"{where}: max_amount {amount} widens the parent's {held_amount}"
         )
+    _check_narrows_v2(child, parent, where)
     if child["expires_at"] > parent["expires_at"]:
         raise DelegationError(f"{where}: outlives the link it was derived from")
     if child["issued_at"] < parent["issued_at"]:
         raise DelegationError(f"{where}: issued before the link it derives from")
+
+
+def _check_narrows_v2(
+    child: Mapping[str, Any], parent: Mapping[str, Any], where: str
+) -> None:
+    """pv-delegation/2 limits narrow like max_amount (ADR 0042)."""
+    parent_budget, parent_constraints, parent_depth = _limits(parent)
+    child_budget, child_constraints, child_depth = _limits(child)
+    if parent_depth is not None:
+        if parent_depth < 1:
+            raise DelegationError(
+                f"{where}: {parent['delegate']!r} may not delegate further "
+                "(max_depth reached)"
+            )
+        if child_depth is None or child_depth > parent_depth - 1:
+            raise DelegationError(
+                f"{where}: max_depth {child_depth} widens the parent's remaining "
+                f"{parent_depth - 1}"
+            )
+    if parent_budget is not None and (
+        child_budget is None or child_budget > parent_budget
+    ):
+        raise DelegationError(
+            f"{where}: budget {child_budget} widens the parent's {parent_budget}"
+        )
+    for name, allowed in parent_constraints.items():
+        narrowed = child_constraints.get(name)
+        if narrowed is None or not set(narrowed) <= set(allowed):
+            raise DelegationError(
+                f"{where}: constraint {name!r} {narrowed} widens the parent's {allowed}"
+            )
 
 
 def verify_chain(  # noqa: C901 - ordered refusal checklist
@@ -380,6 +486,7 @@ def within_scope(  # noqa: C901 - ordered refusal checklist
     capability: str,
     amount: float | None = None,
     now: float | None = None,
+    arguments: Mapping[str, Any] | None = None,
 ) -> DelegationDecision:
     """Is this action inside what ``chain`` hands to ``agent_id``?
 
@@ -435,6 +542,21 @@ def within_scope(  # noqa: C901 - ordered refusal checklist
                 digest,
                 depth,
             )
+    # pv-delegation/2 constraints: every link's, though narrowing means the
+    # last link's already imply its ancestors'. A missing argument refuses.
+    args = arguments if isinstance(arguments, Mapping) else {}
+    for index, link in enumerate(chain):
+        _budget, constraints, _depth = _limits(link)
+        for name, allowed in constraints.items():
+            value = args.get(name)
+            if not _constraint_value(value) or value not in allowed:
+                return DelegationDecision(
+                    False,
+                    f"delegation_constraint_violated: {name}={value!r} is not in "
+                    f"{allowed} (link {index})",
+                    digest,
+                    depth,
+                )
     parties: list[str] = [chain[0]["delegator"]]
     parties.extend(link["delegate"] for link in chain)
     return DelegationDecision(
@@ -451,6 +573,17 @@ def within_scope(  # noqa: C901 - ordered refusal checklist
             if (key := anchors.roots.get(party) or anchors.agents.get(party))
         ),
     )
+
+
+def chain_budgets(chain: Sequence[Mapping[str, Any]]) -> list[tuple[str, float]]:
+    """(link hash, budget) for every link of a VERIFIED chain that carries a
+    pv-delegation/2 budget. Spending under the chain is charged to each."""
+    out: list[tuple[str, float]] = []
+    for link in chain:
+        budget, _constraints, _depth = _limits(link)
+        if budget is not None:
+            out.append((link_hash(link), float(budget)))
+    return out
 
 
 def authorize(

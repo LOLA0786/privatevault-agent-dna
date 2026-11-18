@@ -39,6 +39,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.background import BackgroundTask
 
+from agent_dna.advisory import Severity
+from agent_dna.amount import InvalidAmountError, coerce_amount
 from agent_dna.apikeys import ApiKeyRegistry
 from agent_dna.approval_bridge import (
     APPROVAL_NOT_CONFIGURED,
@@ -136,6 +138,13 @@ from agent_dna.lineage import (
     lineage_manifest,
     lineage_mode,
 )
+from agent_dna.multi_agent_security.budget_ledger import (
+    Charge,
+    DelegationBudgets,
+    Exhausted,
+)
+from agent_dna.multi_agent_security.delegation import chain_budgets
+from agent_dna.multi_agent_security.delegation import link_hash as delegation_link_hash
 from agent_dna.multi_agent_security.gate import sealed_delegation, sealed_dispatch
 from agent_dna.observability.logger import get_logger
 from agent_dna.observability.metrics import MetricsExporter
@@ -608,12 +617,7 @@ async def lifespan(app: FastAPI):
     state["reservation_keys"] = reservation_keys_from_env(os.environ)
     state["reservations"] = None
     if state["reservation_keys"]:
-        pg_lineage = runtime.lineage_db
-        reservation_db = (
-            PgCompatConnection(pg_lineage.pool, "decide_reservations")
-            if isinstance(pg_lineage, PgCompatConnection)
-            else getattr(runtime.store, "path", None)
-        )
+        reservation_db = _durable_location(runtime, "decide_reservations")
         if reservation_db is None:
             raise RuntimeError(
                 "PV_DECIDE_TRANSACTION_KEYS is set but the decision store has "
@@ -623,6 +627,9 @@ async def lifespan(app: FastAPI):
     runtime.composition["transaction_reservation"] = reservation_manifest(
         state["reservation_keys"], state["reservations"] is not None
     )
+    # ADR 0042: cumulative pv-delegation/2 budgets, charged once per sealed
+    # ALLOW under a verified chain. Only when delegation is attached.
+    state["delegation_budgets"] = _delegation_budgets_for(runtime)
     state["monitors"] = {}
     state["started_at"] = _datetime.now(UTC).isoformat()
     try:
@@ -641,6 +648,8 @@ async def lifespan(app: FastAPI):
         state["lineage"].close()
     if state.get("reservations") is not None:
         state["reservations"].close()
+    if state.get("delegation_budgets") is not None:
+        state["delegation_budgets"].close()
     state["store"].close()
     state.clear()
 
@@ -1103,6 +1112,86 @@ def _attach_envelope(content: dict[str, Any], record_hash: str) -> None:
         content["envelope"] = envelope
 
 
+def _durable_location(runtime: Any, label: str) -> Any:
+    """Where a decide-time ledger lives: the shared PostgreSQL database when
+    there is one, else the decision store's SQLite file."""
+    pg_lineage = runtime.lineage_db
+    if isinstance(pg_lineage, PgCompatConnection):
+        return PgCompatConnection(pg_lineage.pool, label)
+    return getattr(runtime.store, "path", None)
+
+
+def _delegation_budgets_for(runtime: Any) -> DelegationBudgets | None:
+    if getattr(runtime.engine, "delegation", None) is None:
+        return None
+    location = _durable_location(runtime, "delegation_budgets")
+    if location is None:
+        raise RuntimeError(
+            "PV_DELEGATION_FILE is set but the decision store has no durable "
+            "location for delegation budgets"
+        )
+    return DelegationBudgets(location)
+
+
+def _delegation_budget_block(result: DecisionResult, reason: str) -> DecisionResult:
+    return DecisionResult(
+        decision=Decision.BLOCK,
+        triggered_by="delegation_budget",
+        reason=reason,
+        capability=result.capability,
+        agent_id=result.agent_id,
+        drift_score=result.drift_score,
+        severity=Severity.CRITICAL,
+        advisory_reasons=list(result.advisory_reasons),
+        evidence=result.evidence,
+        grant_id=result.grant_id,
+    )
+
+
+def _charge_delegation_budget(
+    result: DecisionResult, req: DecideRequest
+) -> tuple[DecisionResult, Charge | None]:
+    """ADR 0042: an ALLOW made under a verified chain is charged to every
+    budgeted link of that chain, all or nothing. The engine sets
+    ``delegation_seal`` only when it verified the chain in this request."""
+    ledger: DelegationBudgets | None = state.get("delegation_budgets")
+    if (
+        ledger is None
+        or result.decision is not Decision.ALLOW
+        or not getattr(result, "delegation_seal", None)
+    ):
+        return result, None
+    chain = ((req.evidence or {}).get("delegation") or {}).get("chain")
+    if not isinstance(chain, list):
+        return result, None
+    budgets = chain_budgets(chain)
+    if not budgets:
+        return result, None
+    try:
+        amount = float(coerce_amount((req.arguments or {}).get("amount")))
+    except (InvalidAmountError, TypeError, ValueError):
+        amount = -1.0
+    if not amount >= 0:
+        return (
+            _delegation_budget_block(
+                result,
+                "delegation_budget_amount_required: the chain carries a budget "
+                "and the action states no valid amount",
+            ),
+            None,
+        )
+    outcome = ledger.charge(budgets, amount)
+    if isinstance(outcome, Exhausted):
+        positions = {delegation_link_hash(link): i for i, link in enumerate(chain)}
+        return (
+            _delegation_budget_block(
+                result, outcome.reason(positions.get(outcome.link_hash))
+            ),
+            None,
+        )
+    return result, outcome
+
+
 def _reserve_transaction(
     result: DecisionResult,
     execution_action: dict[str, Any] | None,
@@ -1158,15 +1247,25 @@ def _seal_decision(
     dispatch_context: dict[str, Any] | None,
     reserved_key: TransactionKey | None,
     holder: str,
+    charge: Charge | None = None,
 ) -> Any:
-    """Write the decision record. A reservation (ADR 0041) is kept only by a
-    sealed ALLOW: it is released when a later control blocked the decide or
-    the record could not be written, and otherwise named after the record."""
+    """Write the decision record. A reservation (ADR 0041) and a delegation
+    budget charge (ADR 0042) are kept only by a sealed ALLOW: they are
+    released when a later control blocked the decide or the record could not
+    be written; a reservation is otherwise named after the record."""
     reservations: DecideReservations | None = state.get("reservations")
+    budgets: DelegationBudgets | None = state.get("delegation_budgets")
     held = reserved_key if reservations is not None else None
     if held is not None and result.decision is not Decision.ALLOW:
         reservations.release(held, holder=holder)  # type: ignore[union-attr]
         held = None
+    if (
+        charge is not None
+        and budgets is not None
+        and result.decision is not Decision.ALLOW
+    ):
+        budgets.release(charge)
+        charge = None
     try:
         record = state["recorder"].record(
             action,
@@ -1177,6 +1276,8 @@ def _seal_decision(
     except BaseException:
         if held is not None:
             reservations.release(held, holder=holder)  # type: ignore[union-attr]
+        if charge is not None and budgets is not None:
+            budgets.release(charge)
         raise
     if held is not None:
         reservations.attach(  # type: ignore[union-attr]
@@ -1248,6 +1349,8 @@ def decide(req: DecideRequest, principal: FullPrincipal):
     result, reserved_key = _reserve_transaction(
         result, execution_action, dispatch_context, reservation_holder
     )
+    # ADR 0042: charge the chain's budgets; released below like the reservation.
+    result, budget_charge = _charge_delegation_budget(result, req)
 
     # ADR 0021: server-derived lineage. Escalate-only; enforce blocks on
     # any finding, shadow reports without changing the verdict.
@@ -1306,6 +1409,7 @@ def decide(req: DecideRequest, principal: FullPrincipal):
         dispatch_context,
         reserved_key,
         reservation_holder,
+        budget_charge,
     )
 
     content: dict[str, Any] = {
