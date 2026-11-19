@@ -106,6 +106,26 @@ class RefundLedger:
             return []
         return [d for d in data if isinstance(d, dict)]
 
+    def customer_amount_today(self, customer_id: str) -> int:
+        """Rupees refunded to the customer today: earlier refunds in the
+        fixture plus what this run's payments API has paid."""
+        day = self.queue.day
+        total = 0
+        for record in self.queue.orders.values():
+            if record.get("customer_id") != customer_id:
+                continue
+            total += sum(
+                int(r.get("amount", 0))
+                for r in record.get("refunds", [])
+                if str(r.get("paid_at", "")).startswith(day)
+            )
+        total += sum(
+            int(r.get("amount", 0))
+            for r in self.paid_this_run()
+            if r.get("customer_id") == customer_id
+        )
+        return total
+
     def order(self, order_id: str) -> dict[str, Any] | None:
         record = self.queue.orders.get(order_id)
         return None if record is None else dict(record)
@@ -191,6 +211,13 @@ class RefundLedger:
             "customer_refunds_today": self.customer_refunds_today(
                 str(record["customer_id"])
             ),
+            # The policy holds for approval when today's total would pass the
+            # daily limit; the server's counter (ADR 0043) is the backstop
+            # when this figure is stale.
+            "customer_amount_today_after": self.customer_amount_today(
+                str(record["customer_id"])
+            )
+            + amount,
         }
 
 

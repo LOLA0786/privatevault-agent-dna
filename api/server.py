@@ -95,6 +95,15 @@ from agent_dna.control_posture import (
     attach_control_posture,
     authorization_mode_of,
 )
+from agent_dna.decide_limits import (
+    TRIGGERED_BY_LIMIT,
+    DecideLimits,
+    limits_from_env,
+    limits_manifest,
+    subject_for,
+)
+from agent_dna.decide_limits import Claim as LimitClaim
+from agent_dna.decide_limits import Refusal as LimitRefusal
 from agent_dna.decide_reservation import (
     CLOCK_MARGIN_SECONDS as RESERVATION_CLOCK_MARGIN_SECONDS,
 )
@@ -630,6 +639,12 @@ async def lifespan(app: FastAPI):
     # ADR 0042: cumulative pv-delegation/2 budgets, charged once per sealed
     # ALLOW under a verified chain. Only when delegation is attached.
     state["delegation_budgets"] = _delegation_budgets_for(runtime)
+    # ADR 0043: per-key daily count and amount, claimed atomically at decide.
+    state["decide_limit_config"] = limits_from_env(os.environ)
+    state["decide_limits"] = _decide_limits_for(runtime, state["decide_limit_config"])
+    runtime.composition["decide_limits"] = limits_manifest(
+        state["decide_limit_config"], state["decide_limits"] is not None
+    )
     state["monitors"] = {}
     state["started_at"] = _datetime.now(UTC).isoformat()
     try:
@@ -646,10 +661,9 @@ async def lifespan(app: FastAPI):
     set_ready(False)
     if state.get("lineage") is not None:
         state["lineage"].close()
-    if state.get("reservations") is not None:
-        state["reservations"].close()
-    if state.get("delegation_budgets") is not None:
-        state["delegation_budgets"].close()
+    for decide_ledger in ("reservations", "delegation_budgets", "decide_limits"):
+        if state.get(decide_ledger) is not None:
+            state[decide_ledger].close()
     state["store"].close()
     state.clear()
 
@@ -1133,6 +1147,55 @@ def _delegation_budgets_for(runtime: Any) -> DelegationBudgets | None:
     return DelegationBudgets(location)
 
 
+def _decide_limits_for(runtime: Any, config: dict[str, Any]) -> DecideLimits | None:
+    if not config:
+        return None
+    location = _durable_location(runtime, "decide_limits")
+    if location is None:
+        raise RuntimeError(
+            "PV_DECIDE_LIMITS is set but the decision store has no durable "
+            "location for the counters"
+        )
+    return DecideLimits(location)
+
+
+def _claim_decide_limit(
+    result: DecisionResult,
+    execution_action: dict[str, Any] | None,
+    dispatch_context: dict[str, Any] | None,
+) -> tuple[DecisionResult, LimitClaim | None]:
+    """ADR 0043: count a mintable ALLOW against its key's daily limits. An
+    ALLOW granted by a human approval is not held to the amount limit."""
+    ledger: DecideLimits | None = state.get("decide_limits")
+    if (
+        ledger is None
+        or result.decision is not Decision.ALLOW
+        or execution_action is None
+        or dispatch_context is None
+    ):
+        return result, None
+    limit = (state.get("decide_limit_config") or {}).get(
+        str(dispatch_context.get("operation", ""))
+    )
+    if limit is None:
+        return result, None
+    subject = subject_for(limit, execution_action, _datetime.now(UTC))
+    if isinstance(subject, str):
+        return _limit_block(result, f"DECIDE_LIMIT_INPUT_MISSING: {subject}"), None
+    outcome = ledger.claim(
+        subject, approved=result.triggered_by == TRIGGERED_BY_APPROVAL
+    )
+    if isinstance(outcome, LimitRefusal):
+        return _limit_block(result, f"{outcome.code}: {outcome.detail}"), None
+    return result, outcome
+
+
+def _limit_block(result: DecisionResult, reason: str) -> DecisionResult:
+    blocked = _delegation_budget_block(result, reason)
+    blocked.triggered_by = TRIGGERED_BY_LIMIT
+    return blocked
+
+
 def _delegation_budget_block(result: DecisionResult, reason: str) -> DecisionResult:
     return DecisionResult(
         decision=Decision.BLOCK,
@@ -1248,6 +1311,7 @@ def _seal_decision(
     reserved_key: TransactionKey | None,
     holder: str,
     charge: Charge | None = None,
+    limit_claim: LimitClaim | None = None,
 ) -> Any:
     """Write the decision record. A reservation (ADR 0041) and a delegation
     budget charge (ADR 0042) are kept only by a sealed ALLOW: they are
@@ -1266,6 +1330,14 @@ def _seal_decision(
     ):
         budgets.release(charge)
         charge = None
+    limits: DecideLimits | None = state.get("decide_limits")
+    if (
+        limit_claim is not None
+        and limits is not None
+        and result.decision is not Decision.ALLOW
+    ):
+        limits.release(limit_claim)
+        limit_claim = None
     try:
         record = state["recorder"].record(
             action,
@@ -1278,6 +1350,8 @@ def _seal_decision(
             reservations.release(held, holder=holder)  # type: ignore[union-attr]
         if charge is not None and budgets is not None:
             budgets.release(charge)
+        if limit_claim is not None and limits is not None:
+            limits.release(limit_claim)
         raise
     if held is not None:
         reservations.attach(  # type: ignore[union-attr]
@@ -1349,7 +1423,11 @@ def decide(req: DecideRequest, principal: FullPrincipal):
     result, reserved_key = _reserve_transaction(
         result, execution_action, dispatch_context, reservation_holder
     )
-    # ADR 0042: charge the chain's budgets; released below like the reservation.
+    # ADR 0043: daily per-key limits; ADR 0042: the chain's budgets. Both are
+    # released below, like the reservation, if the decide is not sealed ALLOW.
+    result, limit_claim = _claim_decide_limit(
+        result, execution_action, dispatch_context
+    )
     result, budget_charge = _charge_delegation_budget(result, req)
 
     # ADR 0021: server-derived lineage. Escalate-only; enforce blocks on
@@ -1410,6 +1488,7 @@ def decide(req: DecideRequest, principal: FullPrincipal):
         reserved_key,
         reservation_holder,
         budget_charge,
+        limit_claim,
     )
 
     content: dict[str, Any] = {

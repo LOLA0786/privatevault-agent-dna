@@ -86,6 +86,14 @@ policy:
       field: arguments.amount
       operator: ">"
       value: 200000
+  - id: daily-amount-limit
+    capability: payments.issue_refund
+    outcome: require_approval
+    reason: customer's refunds today would exceed 60,000 INR; needs a human approval
+    condition:
+      field: arguments.customer_amount_today_after
+      operator: ">"
+      value: 60000
   - id: above-approval-threshold
     capability: payments.issue_refund
     outcome: require_approval
@@ -104,4 +112,5 @@ limits:
   hard_cap: 200000
   approval_threshold: 20000
   max_refunds_per_customer_per_day: 3
+  max_refund_amount_per_customer_per_day: 60000
   budget: 1000000

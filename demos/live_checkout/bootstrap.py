@@ -143,8 +143,28 @@ def _env_lines(root: str, *, upstream: str, tools: list[str]) -> str:
         "PV_DECIDE_TRANSACTION_KEYS": "'"
         + json.dumps({cfg.OPERATION: "refund_id"})
         + "'",
+        # ADR 0043: per customer per day, counted on the server and claimed
+        # atomically, so concurrent refunds cannot all read the same count.
+        # The day is India's (UTC+5:30).
+        "PV_DECIDE_LIMITS": "'"
+        + json.dumps(
+            {
+                cfg.OPERATION: {
+                    "key": "customer_id",
+                    "max_count": 3,
+                    "max_amount": 60000,
+                    "utc_offset_minutes": 330,
+                }
+            }
+        )
+        + "'",
     }
     return "".join(f"{k}={v}\n" for k, v in lines.items())
+
+
+# Raise when services.env or the run layout changes in a way an existing run
+# directory would not have: bootstrap then regenerates it.
+BOOTSTRAP_VERSION = 2
 
 
 def bootstrap(
@@ -153,7 +173,18 @@ def bootstrap(
     ports = ports or cfg.PORTS
     marker = run_dir / "READY"
     if marker.exists() and not force:
-        return json.loads(marker.read_text(encoding="utf-8"))
+        existing = json.loads(marker.read_text(encoding="utf-8"))
+        if existing.get("bootstrap_version") == BOOTSTRAP_VERSION:
+            return existing
+        # Written by an older demo: its services.env lacks settings the
+        # current services require (a gate without a transaction key does not
+        # start). Regenerate rather than fail later with a startup error.
+        print(
+            f"run directory {run_dir} was made by an older demo "
+            f"(version {existing.get('bootstrap_version', 'unknown')}); "
+            "regenerating it",
+            file=sys.stderr,
+        )
     if run_dir.exists():
         shutil.rmtree(run_dir)
     run_dir.mkdir(parents=True)
@@ -230,6 +261,7 @@ def bootstrap(
         "policy_file": str(compiled.policy_file),
         "grants_file": str(compiled.grants_file),
         "ports": ports,
+        "bootstrap_version": BOOTSTRAP_VERSION,
     }
     marker.write_text(json.dumps(summary, indent=2))
     return summary

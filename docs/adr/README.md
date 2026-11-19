@@ -50,6 +50,7 @@ explicit statement that no such test exists.
 | [0040](0040-a-receiver-names-its-business-key.md) | The receiver kit does not start without a business transaction key unless explicitly relaxed; the refund demo declares one | accepted | `tests/network/test_receiver_hardened.py::test_transaction_key_is_required` |
 | [0041](0041-the-server-reserves-a-transaction-at-decide.md) | With a declared key, the server seals at most one live ALLOW per business transaction | accepted | `tests/test_decide_reservation.py::test_second_allow_for_one_transaction_is_blocked` |
 | [0042](0042-delegation-budgets-constraints-depth.md) | pv-delegation/2 links carry a cumulative budget, argument constraints and a depth limit; budgets are charged atomically on /v1/decide | accepted | `tests/multi_agent_security/test_delegation_v2.py::test_server_budget_is_cumulative` |
+| [0043](0043-daily-limits-are-counted-on-the-server.md) | Per-key daily count and amount limits are claimed atomically on the server at decide | accepted | `tests/test_decide_limits.py::test_server_count_limit_holds` |
 
 0001–0014 are the enforcement-spine decisions. 0015 is the earlier
 loop-discovery placement record, renumbered so the spine could own

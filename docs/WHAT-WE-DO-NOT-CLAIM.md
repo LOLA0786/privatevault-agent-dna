@@ -38,7 +38,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 3177+ automated tests, run in CI on every commit
+- 3223+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
@@ -1095,6 +1095,12 @@ that a budget measures money moved: it is charged when a decision is allowed
 and kept if the payment never happens. **We do not claim** budgets reset
 over time, that constraints express ranges or patterns, or that the
 library's challenge-based `authorize` path keeps a spend ledger.
+
+Since ADR 0043 a server with `PV_DECIDE_LIMITS` set counts allowed decisions
+per key per day and claims each atomically (`tests/test_decide_limits.py`).
+**We do not claim** that it sees refunds made outside PrivateVault, that it
+counts money moved rather than decisions allowed, or that a caller cannot
+escape the count by naming a different key.
 
 Since ADR 0039 the receiver also claims the decision and the approval each
 permit was minted from, and refuses a second, different permit for either

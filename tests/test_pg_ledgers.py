@@ -417,3 +417,37 @@ def test_delegation_budget_holds_across_instances(pools):
     for t in threads:
         t.join()
     assert granted.count(True) == 5
+
+
+# ---- decide-time daily limits (ADR 0043) ------------------------------------
+
+
+def test_decide_limits_hold_across_instances(pools):
+    """Two replicas, twelve concurrent refunds for one customer: three count."""
+    from datetime import UTC, datetime
+
+    from agent_dna.decide_limits import Claim, DecideLimits, Limit, subject_for
+
+    limit = Limit(
+        operation="POST /v1/refunds", key="customer_id", max_count=3, max_amount=60000.0
+    )
+    subject = subject_for(
+        limit, {"parameters": {"customer_id": "C-PG", "amount": 100}}, datetime.now(UTC)
+    )
+    ledgers = [DecideLimits(PgCompatConnection(p, "decide_limits")) for p in pools]
+    barrier = threading.Barrier(12)
+    granted: list[bool] = []
+    lock = threading.Lock()
+
+    def claim(i: int) -> None:
+        barrier.wait()
+        ok = isinstance(ledgers[i % 2].claim(subject, approved=False), Claim)  # type: ignore[arg-type]
+        with lock:
+            granted.append(ok)
+
+    threads = [threading.Thread(target=claim, args=(i,)) for i in range(12)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert granted.count(True) == 3

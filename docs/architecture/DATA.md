@@ -87,6 +87,12 @@ On PostgreSQL the breaker and lineage reuse their SQLite code through
 |---|---|---|---|
 | `decide_reservations` | `agent_dna/decide_reservation.py::DecideReservations.claim` (when `PV_DECIDE_TRANSACTION_KEYS` is set) | `/v1/decide` (`api/server.py::_reserve_transaction`) | At most one live ALLOW per declared business transaction (ADR 0041) |
 
+## Decide-time daily limits (opt-in)
+
+| Table | Written by | Read by | Purpose |
+|---|---|---|---|
+| `decide_limits` | `agent_dna/decide_limits.py::DecideLimits.claim` (when `PV_DECIDE_LIMITS` is set) | `/v1/decide` (`api/server.py::_claim_decide_limit`) | Per-key daily count and amount of allowed decisions (ADR 0043) |
+
 ## Delegation budgets (with `PV_DELEGATION_FILE`)
 
 | Table | Written by | Read by | Purpose |

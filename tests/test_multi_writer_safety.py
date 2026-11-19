@@ -196,3 +196,43 @@ def test_append_atomic_returns_false_on_prev_hash_collision(tmp_path):
         "second insert with a colliding (agent_id, prev_hash) should "
         "have been rejected by the unique constraint"
     )
+
+
+def test_one_recorder_many_threads_same_agent_single_writer(tmp_path):
+    """The server's own shape: ONE recorder in single-writer mode, requests
+    on a thread pool, all for one agent. Before the per-agent lock, threads
+    read the same in-memory chain head and the second insert broke the
+    (agent_id, prev_hash) unique index, an HTTP 500 at /v1/decide."""
+    db_path = tmp_path / "shared.db"
+    recorder = DecisionRecorder(
+        store=SQLiteDecisionStore(db_path), multi_writer_safe=False
+    )
+    engine = _engine()
+    n_threads = 20
+    barrier = threading.Barrier(n_threads)
+    errors = []
+
+    def writer(thread_id):
+        try:
+            action = AgentAction(
+                agent_id="busy-agent",
+                capability=f"action.t{thread_id}",
+                timestamp=time.time(),
+            )
+            result = engine.decide(action)
+            barrier.wait()
+            recorder.record(action, result)
+        except Exception as e:
+            errors.append((thread_id, e, traceback.format_exc()))
+
+    threads = [threading.Thread(target=writer, args=(i,)) for i in range(n_threads)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert not errors, f"writer threads raised: {errors}"
+    graph = SQLiteDecisionStore(db_path).load_graph()
+    records = graph.find_by_agent("busy-agent")
+    assert len(records) == n_threads
+    assert graph.verify_chain("busy-agent")
+    assert len({r.prev_hash for r in records}) == n_threads
