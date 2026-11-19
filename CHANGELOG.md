@@ -5,6 +5,14 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Dashboard audit exception removed
+- GHSA-fc5q-39xc-vjpf (`picomatch`) is no longer reported against the
+  installed `picomatch` 4.0.7: `npm audit` finds 0 vulnerabilities. The
+  audit check failed `ci / dashboard` because the exception no longer matched
+  anything, which is what it is for. The exception is removed; the file
+  stays, empty, for the next one. The well-formedness test accepts an empty
+  list.
+
 ### ADR 0042: delegation budgets, argument constraints and depth limits
 - **`pv-delegation/2` links** may carry `budget` (cumulative), `constraints`
   (allowed argument values) and `max_depth` (further hops). Each narrows like
