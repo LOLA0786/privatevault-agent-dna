@@ -840,6 +840,11 @@
    "top"
   ],
   [
+   "agent_dna.decide_limits",
+   "agent_dna.pg_compat",
+   "top"
+  ],
+  [
    "agent_dna.decide_reservation",
    "agent_dna.advisory",
    "top"
@@ -2471,6 +2476,11 @@
   ],
   [
    "api.server",
+   "agent_dna.decide_limits",
+   "top"
+  ],
+  [
+   "api.server",
    "agent_dna.decide_reservation",
    "top"
   ],
@@ -3618,6 +3628,7 @@
   "agent_dna.consensus.signing": 8,
   "agent_dna.consensus.weighted_quorum": 1,
   "agent_dna.control_posture": 5,
+  "agent_dna.decide_limits": 1,
   "agent_dna.decide_reservation": 1,
   "agent_dna.decision": 29,
   "agent_dna.decision_graph": 5,
@@ -3693,7 +3704,7 @@
   "agent_dna.open_authorizer": 3,
   "agent_dna.operation_registry": 2,
   "agent_dna.permit_evidence": 1,
-  "agent_dna.pg_compat": 7,
+  "agent_dna.pg_compat": 8,
   "agent_dna.pg_shared_state": 1,
   "agent_dna.pg_store": 3,
   "agent_dna.policy.checker": 6,
@@ -3803,6 +3814,7 @@
   "agent_dna.consensus.checker": 3,
   "agent_dna.consensus.secure_quorum": 1,
   "agent_dna.control_posture": 2,
+  "agent_dna.decide_limits": 1,
   "agent_dna.decide_reservation": 3,
   "agent_dna.decision": 6,
   "agent_dna.decision_graph": 2,
@@ -3908,7 +3920,7 @@
   "agent_dna.validation.drift": 1,
   "agent_dna.validation.report": 2,
   "agent_dna.wire_serialization_v01": 1,
-  "api.server": 38,
+  "api.server": 39,
   "examples.amlsim.run_amlsim_sample": 6,
   "examples.authority_blast_radius_demo": 1,
   "examples.authority_derivation_demo": 1,
@@ -4186,6 +4198,10 @@
   "agent_dna.control_posture": {
    "group": "agent_dna (core modules)",
    "path": "agent_dna/control_posture.py"
+  },
+  "agent_dna.decide_limits": {
+   "group": "agent_dna (core modules)",
+   "path": "agent_dna/decide_limits.py"
   },
   "agent_dna.decide_reservation": {
    "group": "agent_dna (core modules)",

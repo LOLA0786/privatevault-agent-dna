@@ -25,9 +25,8 @@ Claims -> tests:
     -> test_second_allow_for_one_transaction_is_blocked,
        test_other_transactions_and_operations_are_unaffected,
        test_missing_key_blocks
-  - Concurrent decides for one transaction seal at most one ALLOW, and a
-    decide whose record is not sealed leaves nothing held
-    -> test_concurrent_decides_allow_at_most_one
+  - Concurrent decides for one transaction seal exactly one ALLOW
+    -> test_concurrent_decides_allow_exactly_one
   - After the reservation lapses a new decide is judged on its own; the
     reservation survives a restart
     -> test_lapsed_reservation_allows_a_new_decide,
@@ -304,30 +303,20 @@ def test_missing_key_blocks(env):
     assert _decide(env, {"refund_id": "RF-1"}).status_code == 200
 
 
-def test_concurrent_decides_allow_at_most_one(env):
-    """Eight decides for one refund at once: at most one ALLOW is sealed.
-
-    On SQLite, concurrent decides for one agent can also fail to seal their
-    record (the per-agent hash chain's UNIQUE constraint; this predates
-    ADR 0041 and fails closed). A decide that fails that way must not leave
-    the transaction held, so afterwards exactly one ALLOW exists or can be
-    obtained, and never two."""
+def test_concurrent_decides_allow_exactly_one(env):
+    """Eight decides for one refund at once: exactly one ALLOW is sealed and
+    the other seven are refused by the reservation. (These used to be able to
+    fail with an HTTP 500 on SQLite: concurrent decides for one agent raced
+    for the chain head. The recorder now serializes them per agent.)"""
     barrier = threading.Barrier(8)
 
-    def go(_: int) -> int | str:
+    def go(_: int) -> int:
         barrier.wait()
-        try:
-            return _decide(env, {"refund_id": "RF-RACE", "amount": 1999}).status_code
-        except Exception as exc:  # record not sealed; the server raised
-            return type(exc).__name__
+        return _decide(env, {"refund_id": "RF-RACE", "amount": 1999}).status_code
 
     with ThreadPoolExecutor(8) as pool:
         codes = list(pool.map(go, range(8)))
-    assert codes.count(200) <= 1, codes
-    if codes.count(200) == 0:
-        # Nothing was left reserved by a decide whose record was not sealed.
-        assert _decide(env, {"refund_id": "RF-RACE", "amount": 1999}).status_code == 200
-    assert _decide(env, {"refund_id": "RF-RACE", "amount": 1999}).status_code == 403
+    assert codes.count(200) == 1 and codes.count(403) == 7, codes
 
 
 def test_lapsed_reservation_allows_a_new_decide(env):

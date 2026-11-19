@@ -43,6 +43,7 @@ FACTS = (
     "payee_matches_original",
     "prior_refunds_for_order",
     "customer_refunds_today",
+    "customer_amount_today_after",
 )
 CURRENCY = re.compile(r"^[A-Z]{3}$")
 PAYEE = re.compile(r"^([a-z0-9._-]+@[a-z0-9]+|card:[a-z]+-\d{4}|nb:[a-z]+-\d{4})$")

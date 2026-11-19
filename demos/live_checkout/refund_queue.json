@@ -19,7 +19,15 @@
     "ORD-70349": {"customer_id": "C-1012", "amount": 1100, "paid_with": "dev.s@paytm", "paid_at": "2026-10-12T19:05:00Z", "status": "refunded", "items": "Mouse pad", "refunds": [{"refund_id": "RF-70349-1", "amount": 1100, "payee": "dev.s@paytm", "paid_at": "2026-10-13T08:12:00Z"}]},
     "ORD-70350": {"customer_id": "C-1012", "amount": 1500, "paid_with": "dev.s@paytm", "paid_at": "2026-10-12T19:08:00Z", "status": "refunded", "items": "Keyboard wrist rest", "refunds": [{"refund_id": "RF-70350-1", "amount": 1500, "payee": "dev.s@paytm", "paid_at": "2026-10-13T08:15:00Z"}]},
     "ORD-70360": {"customer_id": "C-1013", "amount": 275000, "paid_with": "nb:icici-3390", "paid_at": "2026-10-05T11:00:00Z", "status": "delivered", "items": "Workstation WS-9", "refunds": []},
-    "ORD-70371": {"customer_id": "C-1014", "amount": 12500, "paid_with": "priya.v@okaxis", "paid_at": "2026-10-09T17:30:00Z", "status": "delivered", "items": "Monitor 27in", "refunds": []}
+    "ORD-70371": {"customer_id": "C-1014", "amount": 12500, "paid_with": "priya.v@okaxis", "paid_at": "2026-10-09T17:30:00Z", "status": "delivered", "items": "Monitor 27in", "refunds": []},
+    "ORD-90001": {"customer_id": "C-2001", "amount": 19999, "paid_with": "smurf.c2001@okaxis", "paid_at": "2026-10-10T09:00:00Z", "status": "delivered", "items": "test order for the daily-limit tests (ADR 0043)", "refunds": []},
+    "ORD-90002": {"customer_id": "C-2001", "amount": 19999, "paid_with": "smurf.c2001@okaxis", "paid_at": "2026-10-10T09:00:00Z", "status": "delivered", "items": "test order for the daily-limit tests (ADR 0043)", "refunds": []},
+    "ORD-90003": {"customer_id": "C-2001", "amount": 19999, "paid_with": "smurf.c2001@okaxis", "paid_at": "2026-10-10T09:00:00Z", "status": "delivered", "items": "test order for the daily-limit tests (ADR 0043)", "refunds": []},
+    "ORD-90004": {"customer_id": "C-2001", "amount": 19999, "paid_with": "smurf.c2001@okaxis", "paid_at": "2026-10-10T09:00:00Z", "status": "delivered", "items": "test order for the daily-limit tests (ADR 0043)", "refunds": []},
+    "ORD-90005": {"customer_id": "C-2001", "amount": 19999, "paid_with": "smurf.c2001@okaxis", "paid_at": "2026-10-10T09:00:00Z", "status": "delivered", "items": "test order for the daily-limit tests (ADR 0043)", "refunds": []},
+    "ORD-90011": {"customer_id": "C-2002", "amount": 45000, "paid_with": "card:visa-2002", "paid_at": "2026-10-10T09:00:00Z", "status": "delivered", "items": "test order for the daily-limit tests (ADR 0043)", "refunds": []},
+    "ORD-90012": {"customer_id": "C-2002", "amount": 9000, "paid_with": "card:visa-2002", "paid_at": "2026-10-10T09:00:00Z", "status": "delivered", "items": "test order for the daily-limit tests (ADR 0043)", "refunds": []},
+    "ORD-90013": {"customer_id": "C-2002", "amount": 9000, "paid_with": "card:visa-2002", "paid_at": "2026-10-10T09:00:00Z", "status": "delivered", "items": "test order for the daily-limit tests (ADR 0043)", "refunds": []}
   },
   "requests": [
     {"id": 1, "kind": "normal", "order_id": "ORD-70211", "customer_id": "C-1001", "original_amount": 1200, "original_payee": "ananya.s@okaxis", "requested_amount": 1200, "requested_payee": "ananya.s@okaxis", "text": "Hi, the USB-C cables stopped working after two days. Please refund the order to my UPI."},

@@ -50,4 +50,5 @@ verify, and `issue_link` without the new arguments still produces v1).
 - Budgets are enforced on `/v1/decide`. The library's `authorize` (receiver
   challenge path) checks constraints and depth but keeps no spend ledger.
 - Found while testing, not changed: on SQLite, concurrent decides for the
-  same agent can fail to seal a record (fails closed; noted in ADR 0041).
+  same agent can fail to seal a record (fails closed; noted in ADR 0041;
+  fixed with ADR 0043's change: the recorder serializes each agent's writes).

@@ -5,6 +5,35 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### ADR 0043: daily limits per customer are counted on the server
+- **`PV_DECIDE_LIMITS`** counts allowed decisions per key (e.g. `customer_id`)
+  per calendar day and claims each atomically at decide: over `max_count` is
+  a BLOCK; over `max_amount` is a BLOCK unless the ALLOW was a human
+  approval. Released if the decision is not sealed. SQLite or shared
+  PostgreSQL. `agent_dna/decide_limits.py`, `tests/test_decide_limits.py`,
+  `tests/test_pg_ledgers.py::test_decide_limits_hold_across_instances`.
+- **Found by probing:** five Rs 19,999 refunds for one customer fired at once
+  were all paid (Rs 99,995, limit three). Now three are paid.
+  `tests/demos/test_live_checkout_limits.py::test_parallel_smurfing_pays_three`.
+- **Live refund demo:** at most 3 refunds and Rs 60,000 per customer per day
+  (India time). A new fact, `customer_amount_today_after`, and policy rule,
+  `daily-amount-limit`, hold a refund for approval when the day's total
+  would pass Rs 60,000. `::test_daily_amount_needs_a_human`.
+- **Bootstrap regenerates a stale run directory** (made by an older demo)
+  instead of starting services that refuse their settings.
+- Not done: counting refunds made outside PrivateVault.
+- Documented test count: 3223+.
+- **Fixed: concurrent decides for one agent no longer fail with HTTP 500.**
+  In single-writer mode the recorder kept each agent's chain head in memory
+  with no lock; the server runs requests on a thread pool, so two decides for
+  one agent read the same head and the second insert broke the
+  `(agent_id, prev_hash)` unique index (fail closed, but an unhandled 500).
+  Found by the new smurfing test failing 5 times in 12 on CI's machine.
+  `DecisionRecorder` now serializes each agent's read-head, sign, append and
+  advance; other agents are not held. Noted, not fixed, since ADR 0041.
+  `tests/test_multi_writer_safety.py::test_one_recorder_many_threads_same_agent_single_writer`;
+  the concurrency tests for ADRs 0041 to 0043 now require exact results.
+
 ### Dashboard audit exception removed
 - GHSA-fc5q-39xc-vjpf (`picomatch`) is no longer reported against the
   installed `picomatch` 4.0.7: `npm audit` finds 0 vulnerabilities. The

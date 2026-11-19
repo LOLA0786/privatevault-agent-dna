@@ -320,14 +320,12 @@ def test_server_budget_is_cumulative(server):
 
 
 def test_server_sibling_race(server):
-    """A, B1 and B2 each spend Rs 4,500 at the same instant from A's Rs 10,000
-    pool: two fit, the third would make Rs 13,500. One request per agent:
-    concurrent decides for the SAME agent on SQLite can fail to seal a record
-    (fails closed; predates ADR 0042), which is not what this test is about."""
+    """A, B1 and B2 each spend Rs 4,500 twice at the same instant from A's
+    Rs 10,000 pool: two of the six fit."""
     root = link("operator", "A", may_delegate=True, budget=10000.0)
     b1 = link("A", "B1", parent=root, budget=5000.0)
     b2 = link("A", "B2", parent=root, budget=5000.0)
-    jobs = [("A", [root]), ("B1", [root, b1]), ("B2", [root, b2])]
+    jobs = [("A", [root])] * 2 + [("B1", [root, b1])] * 2 + [("B2", [root, b2])] * 2
     with server() as client:
         barrier = threading.Barrier(len(jobs))
 
@@ -339,8 +337,9 @@ def test_server_sibling_race(server):
             results = list(pool.map(go, jobs))
     verdicts = [v for v, _ in results]
     assert verdicts.count("allow") == 2, results
-    [refused] = [r for v, r in results if v == "block"]
-    assert "delegation_budget_exceeded: link 0" in refused  # A's pool, not a sibling's
+    assert all("delegation_budget_exceeded" in r for v, r in results if v == "block"), (
+        results
+    )
 
 
 def test_server_constraints(server):

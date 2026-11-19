@@ -59,5 +59,6 @@ sealed `execution_action.parameters`, the same shape as the receiver's
 - Audit-only decides (no `execution_action`) reserve nothing.
 - Found while testing, not changed here: on SQLite, concurrent decides for
   one agent in one process can fail to seal a record (the per-agent chain's
-  UNIQUE constraint). It fails closed and predates this ADR; a decide that
+  UNIQUE constraint). It fails closed and predates this ADR (fixed later:
+  the recorder serializes each agent's writes, see the changelog); a decide that
   fails that way releases its reservation.

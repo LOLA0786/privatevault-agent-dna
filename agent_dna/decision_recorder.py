@@ -13,6 +13,7 @@ not into it.
 from __future__ import annotations
 
 import random
+import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -67,6 +68,13 @@ class DecisionRecorder:
             None
         )
         self._chains: dict[str, _ChainState] = {}
+        # Single-writer mode keeps chain heads in memory, but the server runs
+        # requests on a thread pool: two decides for one agent read the same
+        # head, and the second insert broke the (agent_id, prev_hash) unique
+        # index, which surfaced as an HTTP 500. One lock per agent serializes
+        # read-head, sign, append, advance-head. Other agents are not held.
+        self._chain_locks: dict[str, threading.Lock] = {}
+        self._chain_locks_guard = threading.Lock()
         if multi_writer_safe and store is None:
             raise ValueError("multi_writer_safe=True requires a store")
         if multi_writer_safe and not hasattr(store, "get_chain_head"):
@@ -125,6 +133,32 @@ class DecisionRecorder:
                 execution_action=execution_action,
                 dispatch_context=dispatch_context,
             )
+        with self._chain_lock(action.agent_id):
+            return self._record_single_writer(
+                action,
+                result,
+                anchor_hash,
+                execution_action=execution_action,
+                dispatch_context=dispatch_context,
+            )
+
+    def _chain_lock(self, agent_id: str) -> threading.Lock:
+        with self._chain_locks_guard:
+            lock = self._chain_locks.get(agent_id)
+            if lock is None:
+                lock = self._chain_locks[agent_id] = threading.Lock()
+            return lock
+
+    def _record_single_writer(
+        self,
+        action: AgentAction,
+        result: DecisionResult,
+        anchor_hash: str | None,
+        *,
+        execution_action: dict[str, Any] | None,
+        dispatch_context: dict[str, Any] | None,
+    ) -> DecisionRecord:
+        """One process, in-memory chain heads; called under the agent's lock."""
         is_fresh_chain = action.agent_id not in self._chains
         chain = self._chains.setdefault(action.agent_id, _ChainState())
 

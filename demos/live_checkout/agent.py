@@ -108,6 +108,7 @@ RULE_LABELS = {
     "refund-exceeds-original": "refund > original order",
     "duplicate-refund": "duplicate refund",
     "velocity-limit": "velocity limit",
+    "daily-amount-limit": "daily amount limit",
     "hard-cap": "over hard cap",
     "tampered": "tampered after approval (gate)",
     "replay": "replay (gate)",

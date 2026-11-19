@@ -13,7 +13,7 @@ experimental) see [MAP.md](MAP.md).
 flowchart BT
   L1["L1 Contracts and primitives<br/>22 modules"]
   L2["L2 Evidence: records, permits, signatures<br/>15 modules"]
-  L3["L3 Ledgers: SQLite and PostgreSQL<br/>14 modules"]
+  L3["L3 Ledgers: SQLite and PostgreSQL<br/>15 modules"]
   L4["L4 Decision engine: the precedence ladder and what it consults<br/>81 modules"]
   L5["L5 Enforcement runtime: monitor, breaker, recorder, gates, sidecar<br/>33 modules"]
   L6["L6 Composition and entry points<br/>22 modules"]
@@ -29,7 +29,7 @@ flowchart BT
   L5 -->|11| L4
   L6 -->|30| L1
   L6 -->|10| L2
-  L6 -->|18| L3
+  L6 -->|19| L3
   L6 -->|54| L4
   L6 -->|29| L5
   L2 -.->|1 upward| L4
@@ -64,7 +64,7 @@ flowchart BT
 | `agent_dna.scan.ingest` | Normalize heterogeneous agent logs into AgentAction | `agent_dna.trace` | 2: `agent_dna.scan`, `agent_dna.scan.replay` |
 | `agent_dna.scan.inventory` | What the agents in a log can actually do | `agent_dna.trace` | none |
 | `agent_dna.scan.replay` | Replay a customer's own log through the engine, enforcing nothing | `agent_dna.decision`, `agent_dna.dynamics`, `agent_dna.manifold`, `agent_dna.open_authorizer`, `agent_dna.scan.ingest`, `agent_dna.scorer`, `agent_dna.trace` | 1: `agent_dna.scan` |
-| `api.server` | PrivateVault Agent DNA — Decision Security API | `agent_dna.action_v01`, `agent_dna.advisory`, `agent_dna.amount`, `agent_dna.apikeys`, `agent_dna.approval_bridge`, `agent_dna.authority_deadline`, `agent_dna.authority_v01`, `agent_dna.authorize_binding`, `agent_dna.checkpoint`, `agent_dna.composition`, `agent_dna.connector.cross_agent`, `agent_dna.control_posture`, `agent_dna.decide_reservation`, `agent_dna.decision`, `agent_dna.decision_graph`, `agent_dna.dispatch_context_v01`, `agent_dna.execution_v01`, `agent_dna.key_custody`, `agent_dna.ledger_reads`, `agent_dna.lineage`, `agent_dna.multi_agent_security.budget_ledger`, `agent_dna.multi_agent_security.delegation`, `agent_dna.multi_agent_security.gate`, `agent_dna.observability.logger`, `agent_dna.observability.metrics`, `agent_dna.observability.prometheus_bridge`, `agent_dna.operation_registry`, `agent_dna.permit_evidence`, `agent_dna.pg_compat`, `agent_dna.presenter_identity`, `agent_dna.rate_limit`, `agent_dna.request_bounds`, `agent_dna.revocation_list`, `agent_dna.runtime`, `agent_dna.security.loop_discovery`, `agent_dna.signer`, `agent_dna.trace`, `agent_dna.wire_serialization_v01` | none |
+| `api.server` | PrivateVault Agent DNA — Decision Security API | `agent_dna.action_v01`, `agent_dna.advisory`, `agent_dna.amount`, `agent_dna.apikeys`, `agent_dna.approval_bridge`, `agent_dna.authority_deadline`, `agent_dna.authority_v01`, `agent_dna.authorize_binding`, `agent_dna.checkpoint`, `agent_dna.composition`, `agent_dna.connector.cross_agent`, `agent_dna.control_posture`, `agent_dna.decide_limits`, `agent_dna.decide_reservation`, `agent_dna.decision`, `agent_dna.decision_graph`, `agent_dna.dispatch_context_v01`, `agent_dna.execution_v01`, `agent_dna.key_custody`, `agent_dna.ledger_reads`, `agent_dna.lineage`, `agent_dna.multi_agent_security.budget_ledger`, `agent_dna.multi_agent_security.delegation`, `agent_dna.multi_agent_security.gate`, `agent_dna.observability.logger`, `agent_dna.observability.metrics`, `agent_dna.observability.prometheus_bridge`, `agent_dna.operation_registry`, `agent_dna.permit_evidence`, `agent_dna.pg_compat`, `agent_dna.presenter_identity`, `agent_dna.rate_limit`, `agent_dna.request_bounds`, `agent_dna.revocation_list`, `agent_dna.runtime`, `agent_dna.security.loop_discovery`, `agent_dna.signer`, `agent_dna.trace`, `agent_dna.wire_serialization_v01` | none |
 
 ## L5: Enforcement runtime: monitor, breaker, recorder, gates, sidecar
 
@@ -194,13 +194,14 @@ flowchart BT
 
 | Module | What it is | Depends on (core) | Used by |
 |---|---|---|---|
+| `agent_dna.decide_limits` | Decide-time daily limits per business key (ADR 0043) | `agent_dna.pg_compat` | 1: `api.server` |
 | `agent_dna.decide_reservation` | Decide-time reservation of a business transaction (ADR 0041) | `agent_dna.advisory`, `agent_dna.decision`, `agent_dna.pg_compat` | 1: `api.server` |
 | `agent_dna.decision_store` | DecisionStore — append-only JSONL persistence for DecisionRecords | `agent_dna.decision_graph`, `agent_dna.decision_record`, `agent_dna.execution_record` | none |
 | `agent_dna.grant_revocation` | Durable grant revocation with a defined enforcement boundary | nothing in the core | 3: `agent_dna.cli`, `agent_dna.composition`, `agent_dna.pg_store` |
 | `agent_dna.grant_spend` | Durable grant spend (security review 2026-10, "before live payments") | `agent_dna.amount` | 4: `agent_dna.circuit_breaker`, `agent_dna.composition`, `agent_dna.grants`, `agent_dna.pg_store` |
 | `agent_dna.ledger_reads` | Routine reads answered from the store, one page at a time (ADR 0029) | `agent_dna.decision_record` | 4: `agent_dna.pg_store`, `agent_dna.shell_pin`, `agent_dna.sqlite_store`, `api.server` |
 | `agent_dna.lineage` | Server-derived lineage for multi-agent flows (ADR 0021, lineage PR 2) | `agent_dna.advisory`, `agent_dna.decision`, `agent_dna.identity`, `agent_dna.multi_agent.dual_control`, `agent_dna.pg_compat` | 1: `api.server` |
-| `agent_dna.pg_compat` | Run a SQLite-written ledger on PostgreSQL with SQLite's write semantics | nothing in the core | 7: `agent_dna.circuit_breaker`, `agent_dna.composition`, `agent_dna.decide_reservation`, `agent_dna.lineage`, `agent_dna.multi_agent_security.budget_ledger`, ... |
+| `agent_dna.pg_compat` | Run a SQLite-written ledger on PostgreSQL with SQLite's write semantics | nothing in the core | 8: `agent_dna.circuit_breaker`, `agent_dna.composition`, `agent_dna.decide_limits`, `agent_dna.decide_reservation`, `agent_dna.lineage`, ... |
 | `agent_dna.pg_shared_state` | Per-agent baselines and cross-agent windows shared through PostgreSQL | `agent_dna.multi_agent` | 1: `agent_dna.composition` |
 | `agent_dna.pg_store` | PostgresDecisionStore -- the decision ledger on PostgreSQL | `agent_dna.amount`, `agent_dna.authority_v01`, `agent_dna.authorize_binding`, `agent_dna.decision_graph`, `agent_dna.decision_record`, `agent_dna.execution_record`, `agent_dna.grant_revocation`, `agent_dna.grant_spend`, `agent_dna.ledger_reads`, `agent_dna.sqlite_store` | 3: `agent_dna.backup`, `agent_dna.cli`, `agent_dna.composition` |
 | `agent_dna.policy_replay` | Retrospective policy replay (Part B) — "what would this rule have done | `agent_dna.pg_compat` | 3: `agent_dna.cli`, `agent_dna.composition`, `agent_dna.policy_gate` |
