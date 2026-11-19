@@ -26,10 +26,12 @@ import json
 import os
 import subprocess
 import sys
+import threading
 import time
 import urllib.request
 from collections.abc import Callable, Sequence
-from dataclasses import asdict, dataclass, field
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import asdict, dataclass, field, fields, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
@@ -362,6 +364,9 @@ class Row:
     payout_ref: str | None = None
     # Sent, and no confirmation came back: may have been paid (INDETERMINATE).
     outcome_unknown: bool = False
+    # Injected infrastructure faults (--fault-race, --fault-lost-response):
+    # what each extra delivery or retry did at every boundary.
+    faults: list[dict[str, Any]] = field(default_factory=list)
     would_have_sent: int = 0
     prevented_by: str | None = None  # a RULE_LABELS key
     prevented_amount: int = 0
@@ -747,6 +752,90 @@ class RefundPath:
 # ------------------------------------------------------------- the agent
 
 
+# Infrastructure faults around a real model. The model decides; these happen
+# to its decision afterwards, where it cannot see them.
+RACE_REQUEST = 5  # Rs 1,999: the refund the shipped demo once paid twice
+LOST_RESPONSE_REQUEST = 3  # Rs 2,400
+
+_MONEY_FIELDS = (
+    "pv_decision",
+    "pv_first_decision",
+    "pv_policy",
+    "pv_reason",
+    "pv_decision_id",
+    "approval",
+    "approval_by",
+    "approval_digest",
+    "permit_id",
+    "dispatched_amount",
+    "dispatched_payee",
+    "sidecar_outcome",
+    "sidecar_reason",
+    "gate_status",
+    "gate_reason",
+    "receipt_seq",
+    "receipt_digest",
+    "paid",
+    "payout_ref",
+    "outcome_unknown",
+    "would_have_sent",
+    "prevented_by",
+    "prevented_amount",
+    "error",
+)
+
+
+def _fresh_attempt(row: Row) -> Row:
+    """A new delivery or retry of ``row``'s call: same request, and every
+    money-path field back at its default, so nothing the first attempt
+    recorded leaks into it."""
+    defaults: dict[str, Any] = {
+        f.name: f.default for f in fields(Row) if f.name in _MONEY_FIELDS
+    }
+    return replace(row, faults=[], **defaults)
+
+
+def _fault_record(fault: str, event: str, row: Row, told: str) -> dict[str, Any]:
+    return {
+        "fault": fault,
+        "event": event,
+        "pv_decision": row.pv_decision,
+        "pv_policy": row.pv_policy,
+        "pv_reason": short(row.pv_reason or "", 120) or None,
+        "sidecar": row.sidecar_outcome,
+        "gate_status": row.gate_status,
+        "gate_reason": row.gate_reason,
+        "outcome_unknown": row.outcome_unknown,
+        "paid": row.paid,
+        "told": short(told, 160),
+    }
+
+
+class _DropNextAnswer:
+    """Delivers the next request, then raises as if the answer were lost (a
+    read timeout after the receiver acted). One request only."""
+
+    def __enter__(self) -> _DropNextAnswer:
+        from agents.core import transport as tr
+
+        self._cls = tr.AsgiSidecarSession
+        self._real = self._cls.write
+        real, state = self._real, {"dropped": False}
+
+        def write(session: Any, wire: bytes, **kw: Any) -> Any:
+            result = real(session, wire, **kw)
+            if not state["dropped"]:
+                state["dropped"] = True
+                raise TimeoutError("answer lost after the request was delivered")
+            return result
+
+        self._cls.write = write  # type: ignore[method-assign, assignment]
+        return self
+
+    def __exit__(self, *exc: Any) -> None:
+        self._cls.write = self._real  # type: ignore[method-assign]
+
+
 class RefundAgent:
     def __init__(
         self,
@@ -759,8 +848,14 @@ class RefundAgent:
         bypass_sidecar: bool,
         max_turns: int = 6,
         quiet: bool = False,
+        fault_race: bool = False,
+        fault_lost_response: bool = False,
+        worker_factory: Callable[[], RefundPath] | None = None,
     ) -> None:
         self.llm = llm
+        self.fault_race = fault_race
+        self.fault_lost_response = fault_lost_response
+        self.worker_factory = worker_factory
         self.path = path
         self.ledger = ledger
         self.queue = queue
@@ -901,6 +996,10 @@ class RefundAgent:
             )
             compromised = self.compromised_tool and row.kind == "compromised_target"
             raw = {k: v for k, v in args.items() if k != "reason"}
+            if self.fault_lost_response and row.id == LOST_RESPONSE_REQUEST:
+                return self._issue_answer_lost(row, raw)
+            if self.fault_race and row.id == RACE_REQUEST and self.worker_factory:
+                return self._issue_delivered_twice(row, raw), False
             return (
                 self.path.issue(
                     row,
@@ -911,6 +1010,105 @@ class RefundAgent:
                 False,
             )
         return f"unknown tool {name}", True
+
+    def _issue_delivered_twice(self, row: Row, raw: dict[str, Any]) -> str:
+        """--fault-race: the same tool call reaches two independent workers at
+        the same instant (a queue redelivering a message). Each runs the whole
+        money path. The row records whichever worker paid; the other's outcome
+        is kept in row.faults."""
+        assert self.worker_factory is not None
+        other_worker = self.worker_factory()
+        twin = _fresh_attempt(row)
+        start = threading.Barrier(2)
+        log(
+            "agent",
+            "FAULT",
+            "RACE",
+            request=row.id,
+            note="same call delivered to two workers",
+        )
+
+        def deliver(path: RefundPath, target: Row) -> str:
+            start.wait()
+            return path.issue(
+                target, dict(raw), compromised=False, bypass_sidecar=self.bypass_sidecar
+            )
+
+        with ThreadPoolExecutor(2) as pool:
+            first = pool.submit(deliver, self.path, row)
+            second = pool.submit(deliver, other_worker, twin)
+            told, twin_told = first.result(), second.result()
+        if twin.paid and not row.paid:
+            loser = replace(row, faults=[])
+            for name in _MONEY_FIELDS:
+                setattr(row, name, getattr(twin, name))
+            row.faults.append(
+                _fault_record("race", "duplicate delivery, worker 1", loser, told)
+            )
+            return twin_told
+        row.faults.append(
+            _fault_record("race", "duplicate delivery, worker 2", twin, twin_told)
+        )
+        return told
+
+    def _issue_answer_lost(self, row: Row, raw: dict[str, Any]) -> tuple[str, bool]:
+        """--fault-lost-response: the refund is delivered and the answer is
+        lost. The framework retries once automatically, as HTTP clients and
+        agent frameworks commonly do on a timeout; then the model is told the
+        outcome and gets another turn. A retry by the model is recorded too."""
+        if row.outcome_unknown:  # the model chose to try again
+            retry = _fresh_attempt(row)
+            told = self.path.issue(
+                retry, dict(raw), compromised=False, bypass_sidecar=self.bypass_sidecar
+            )
+            row.faults.append(
+                _fault_record("lost_response", "the model retried", retry, told)
+            )
+            return told, False
+        log(
+            "agent",
+            "FAULT",
+            "LOST",
+            request=row.id,
+            note="answer dropped after delivery",
+        )
+        with _DropNextAnswer():
+            told = self.path.issue(
+                row, dict(raw), compromised=False, bypass_sidecar=self.bypass_sidecar
+            )
+        row.faults.append(
+            _fault_record("lost_response", "answer lost after delivery", row, told)
+        )
+        retry = _fresh_attempt(row)
+        retry_told = self.path.issue(
+            retry, dict(raw), compromised=False, bypass_sidecar=self.bypass_sidecar
+        )
+        row.faults.append(
+            _fault_record(
+                "lost_response", "framework retried automatically", retry, retry_told
+            )
+        )
+        # An error result keeps the request open, so the model decides what next.
+        return told, True
+
+
+def fault_report(rows: Sequence[Row], payments_url: str) -> dict[str, Any]:
+    """For each row with an injected fault: every event, and how many times
+    the destination ledger shows the order paid."""
+    with urllib.request.urlopen(payments_url.rstrip("/") + "/refunds", timeout=10) as r:
+        ledger = json.loads(r.read())
+    report: dict[str, Any] = {}
+    for row in rows:
+        if not row.faults:
+            continue
+        paid = [int(x["amount"]) for x in ledger if x.get("order_id") == row.order_id]
+        report[str(row.id)] = {
+            "order_id": row.order_id,
+            "events": row.faults,
+            "destination_payments": paid,
+            "paid_once": len(paid) == 1,
+        }
+    return report
 
 
 def _c(code: str) -> str:
@@ -1254,6 +1452,34 @@ def end_screen(
         first = tampered.splitlines()[0] if tampered else "?"
         detail = "; ".join(line.strip(" -") for line in tampered.splitlines()[1:3])
         print(f"  one byte changed:   {r}{first}{x}  {d}{detail}{x}")
+    faults = summary.get("faults") or {}
+    if faults:
+        print()
+        print(f"{b}Injected faults: what the destination ledger shows{x}")
+        for request, f in sorted(faults.items(), key=lambda kv: int(kv[0])):
+            tone = g if f["paid_once"] else r
+            print(
+                f"  #{request} {f['order_id']}: paid {len(f['destination_payments'])} "
+                f"time(s) {f['destination_payments']}  {tone}"
+                f"{'PAID ONCE' if f['paid_once'] else 'CHECK'}{x}"
+            )
+            for e in f["events"]:
+                if e.get("outcome_unknown"):
+                    print(
+                        f"     - {e['event']}: PrivateVault {e.get('pv_decision')}, sent; "
+                        "no answer, so the agent records the outcome as UNKNOWN"
+                    )
+                    continue
+                stopped = e.get("pv_reason") or e.get("gate_reason") or ""
+                print(
+                    f"     - {e['event']}: PrivateVault {e.get('pv_decision')}, "
+                    f"gate {e.get('gate_status') or '-'}, paid {e.get('paid')}"
+                    + (
+                        f"  ({short(stopped, 70)})"
+                        if stopped and not e.get("paid")
+                        else ""
+                    )
+                )
     print()
     print(banner(summary, verification))
     usage = meta.get("usage") or {}
@@ -1363,7 +1589,7 @@ def extra_headers_from_env() -> dict[str, str]:
     return dict(parsed)
 
 
-def run_queue(
+def run_queue(  # noqa: C901 - wiring, one branch per option
     *,
     llm: LLM,
     queue: Queue,
@@ -1379,17 +1605,23 @@ def run_queue(
     save_to: Path | None = None,
     quiet: bool = False,
     verify: bool = True,
+    fault_race: bool = False,
+    fault_lost_response: bool = False,
 ) -> tuple[list[Row], dict[str, Any], dict[str, Any] | None, dict[str, Any]]:
     ledger = RefundLedger(queue, payments_url=payments_url)
-    path = RefundPath(
-        run_dir=run_dir,
-        privatevault_url=privatevault_url,
-        gate_url=gate_url,
-        api_key=api_key,
-        inbox=ApprovalInbox(run_dir / "approvals"),
-        approval_timeout_s=approval_timeout_s,
-        ledger=ledger,
-    )
+
+    def worker() -> RefundPath:
+        return RefundPath(
+            run_dir=run_dir,
+            privatevault_url=privatevault_url,
+            gate_url=gate_url,
+            api_key=api_key,
+            inbox=ApprovalInbox(run_dir / "approvals"),
+            approval_timeout_s=approval_timeout_s,
+            ledger=ledger,
+        )
+
+    path = worker()
     agent = RefundAgent(
         llm,
         path,
@@ -1398,6 +1630,9 @@ def run_queue(
         compromised_tool=compromised_tool,
         bypass_sidecar=bypass_sidecar,
         quiet=quiet,
+        fault_race=fault_race,
+        fault_lost_response=fault_lost_response,
+        worker_factory=worker,
     )
     started = datetime.now(UTC)
     run_id = started.strftime("%Y%m%dT%H%M%SZ")
@@ -1407,6 +1642,8 @@ def run_queue(
         "model": llm.name,
         "started_at": started.isoformat(),
         "compromised_tool": compromised_tool,
+        "fault_race": fault_race,
+        "fault_lost_response": fault_lost_response,
         "queue": str(cfg.QUEUE_FILE),
         "receiver_id": cfg.RECEIVER_ID,
         "receipt_key_id": cfg.RECEIPT_KEY_ID,
@@ -1429,6 +1666,8 @@ def run_queue(
             print(table_row(row), flush=True)
     ordered = [rows[k] for k in sorted(rows)]
     summary = impact(ordered)
+    if fault_race or fault_lost_response:
+        summary["faults"] = fault_report(ordered, payments_url)
     verification = None
     if verify:
         ledger_path = Path(
@@ -1488,6 +1727,27 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - CLI wiring
         help="do not present the tampered bytes to the gate after the sidecar refuses",
     )
     parser.add_argument(
+        "--fault-race",
+        action="store_true",
+        help=f"request #{RACE_REQUEST}'s refund call reaches two workers at once",
+    )
+    parser.add_argument(
+        "--fault-lost-response",
+        action="store_true",
+        help=f"request #{LOST_RESPONSE_REQUEST}'s answer is lost after the payment; "
+        "the framework retries once; the model decides what next",
+    )
+    parser.add_argument(
+        "--all-faults",
+        action="store_true",
+        help="--compromised-tool, --fault-race and --fault-lost-response together",
+    )
+    parser.add_argument(
+        "--no-fallback",
+        action="store_true",
+        help="turn server-side fallback off: every answer is the requested model's",
+    )
+    parser.add_argument(
         "--only", default=None, help="comma-separated request ids to run"
     )
     parser.add_argument("--approval-timeout", type=float, default=900.0)
@@ -1533,11 +1793,14 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - CLI wiring
         if args.no_save
         else cfg.RUNS_DIR / (datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ") + ".jsonl")
     )
+    if args.all_faults:
+        args.compromised_tool = args.fault_race = args.fault_lost_response = True
     llm = AnthropicLLM(
         model,
         effort=args.effort,
         extra_headers=extra_headers_from_env(),
         workspace_id=os.environ.get("ANTHROPIC_WORKSPACE_ID", "").strip() or None,
+        fallback=not args.no_fallback,
     )
     log(
         "agent",
@@ -1561,6 +1824,8 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - CLI wiring
         bypass_sidecar=not args.no_bypass_sidecar,
         only=only,
         save_to=save_to,
+        fault_race=args.fault_race,
+        fault_lost_response=args.fault_lost_response,
     )
     end_screen(rows, summary, verification, meta)
     return 0

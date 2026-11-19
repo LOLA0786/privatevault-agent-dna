@@ -1088,6 +1088,14 @@ claim** to resolve it: nothing in the demos yet reads the receiver's receipts
 or the upstream's ledger to settle whether it ran. Until it is reconciled, an
 operator does not know, and neither does the record.
 
+Since ADR 0042 a `pv-delegation/2` link can carry a cumulative `budget`,
+argument `constraints` and a `max_depth`, enforced on `/v1/decide`
+(`tests/multi_agent_security/test_delegation_v2.py`). **We do not claim**
+that a budget measures money moved: it is charged when a decision is allowed
+and kept if the payment never happens. **We do not claim** budgets reset
+over time, that constraints express ranges or patterns, or that the
+library's challenge-based `authorize` path keeps a spend ledger.
+
 Since ADR 0039 the receiver also claims the decision and the approval each
 permit was minted from, and refuses a second, different permit for either
 (`RECEIVER_DUPLICATE_DECISION`, `RECEIVER_DUPLICATE_APPROVAL`), with or

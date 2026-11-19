@@ -1,11 +1,4 @@
 {
   "_note": "Advisories npm audit may report without failing CI. Each entry is one advisory, with why it is accepted and a date after which CI fails again until someone re-checks it. Remove an entry when a fixed version is installed; an entry that no longer matches anything also fails CI.",
-  "exceptions": [
-    {
-      "id": "GHSA-fc5q-39xc-vjpf",
-      "package": "picomatch",
-      "reason": "ReDoS through crafted extglob patterns. Reaches the dashboard only through vite (build tool, dev dependency); patterns come from the project's own build config, not from users; picomatch is not in the built bundle and the runtime audit (--omit=dev) is clean. Every published version is affected (latest 4.0.7) and the only automated fix downgrades vite 8 to 6.",
-      "expires": "2026-12-18"
-    }
-  ]
+  "exceptions": []
 }

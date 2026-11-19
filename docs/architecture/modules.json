@@ -1706,6 +1706,11 @@
   ],
   [
    "agent_dna.multi_agent_security",
+   "agent_dna.multi_agent_security.budget_ledger",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent_security",
    "agent_dna.multi_agent_security.counterparty",
    "top"
   ],
@@ -1732,6 +1737,11 @@
   [
    "agent_dna.multi_agent_security",
    "agent_dna.multi_agent_security.possession",
+   "top"
+  ],
+  [
+   "agent_dna.multi_agent_security.budget_ledger",
+   "agent_dna.pg_compat",
    "top"
   ],
   [
@@ -2406,6 +2416,16 @@
   ],
   [
    "api.server",
+   "agent_dna.advisory",
+   "top"
+  ],
+  [
+   "api.server",
+   "agent_dna.amount",
+   "top"
+  ],
+  [
+   "api.server",
    "agent_dna.apikeys",
    "top"
   ],
@@ -2487,6 +2507,16 @@
   [
    "api.server",
    "agent_dna.lineage",
+   "top"
+  ],
+  [
+   "api.server",
+   "agent_dna.multi_agent_security.budget_ledger",
+   "top"
+  ],
+  [
+   "api.server",
+   "agent_dna.multi_agent_security.delegation",
    "top"
   ],
   [
@@ -3553,9 +3583,9 @@
   "agent_dna.adapters_policy.local": 2,
   "agent_dna.adapters_policy.opa": 2,
   "agent_dna.adapters_policy.skill_adapter": 1,
-  "agent_dna.advisory": 15,
+  "agent_dna.advisory": 16,
   "agent_dna.allowlist": 1,
-  "agent_dna.amount": 7,
+  "agent_dna.amount": 8,
   "agent_dna.apikeys": 11,
   "agent_dna.approval_bridge": 5,
   "agent_dna.approval_policy": 2,
@@ -3650,8 +3680,9 @@
   "agent_dna.multi_agent.trust": 2,
   "agent_dna.multi_agent.world_state": 2,
   "agent_dna.multi_agent_security": 1,
+  "agent_dna.multi_agent_security.budget_ledger": 2,
   "agent_dna.multi_agent_security.counterparty": 1,
-  "agent_dna.multi_agent_security.delegation": 2,
+  "agent_dna.multi_agent_security.delegation": 3,
   "agent_dna.multi_agent_security.gate": 3,
   "agent_dna.multi_agent_security.independence": 2,
   "agent_dna.multi_agent_security.nonce_ledger": 4,
@@ -3662,7 +3693,7 @@
   "agent_dna.open_authorizer": 3,
   "agent_dna.operation_registry": 2,
   "agent_dna.permit_evidence": 1,
-  "agent_dna.pg_compat": 6,
+  "agent_dna.pg_compat": 7,
   "agent_dna.pg_shared_state": 1,
   "agent_dna.pg_store": 3,
   "agent_dna.policy.checker": 6,
@@ -3825,7 +3856,8 @@
   "agent_dna.multi_agent.topology": 2,
   "agent_dna.multi_agent.trust": 2,
   "agent_dna.multi_agent.world_state": 2,
-  "agent_dna.multi_agent_security": 6,
+  "agent_dna.multi_agent_security": 7,
+  "agent_dna.multi_agent_security.budget_ledger": 1,
   "agent_dna.multi_agent_security.counterparty": 1,
   "agent_dna.multi_agent_security.delegation": 1,
   "agent_dna.multi_agent_security.gate": 2,
@@ -3876,7 +3908,7 @@
   "agent_dna.validation.drift": 1,
   "agent_dna.validation.report": 2,
   "agent_dna.wire_serialization_v01": 1,
-  "api.server": 34,
+  "api.server": 38,
   "examples.amlsim.run_amlsim_sample": 6,
   "examples.authority_blast_radius_demo": 1,
   "examples.authority_derivation_demo": 1,
@@ -4422,6 +4454,10 @@
   "agent_dna.multi_agent_security": {
    "group": "agent_dna/multi_agent_security",
    "path": "agent_dna/multi_agent_security/__init__.py"
+  },
+  "agent_dna.multi_agent_security.budget_ledger": {
+   "group": "agent_dna/multi_agent_security",
+   "path": "agent_dna/multi_agent_security/budget_ledger.py"
   },
   "agent_dna.multi_agent_security.counterparty": {
    "group": "agent_dna/multi_agent_security",

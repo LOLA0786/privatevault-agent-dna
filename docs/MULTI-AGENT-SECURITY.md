@@ -29,6 +29,29 @@ only narrow it:
 - `expires_at` no later than the parent's;
 - no onward link unless the parent set `may_delegate`.
 
+### `pv-delegation/2`: budgets, constraints, depth (ADR 0042)
+
+A link signed with any of three further limits is a `pv-delegation/2` link;
+without them `issue_link` still produces `pv-delegation/1`, unchanged. Each
+narrows like `max_amount` (null is no limit; a child may not raise or drop a
+limit its parent set; a v1 child cannot sit under a limited v2 parent):
+
+- `budget`: the most that may be spent **in total** under the link, by its
+  delegate and everyone below it. On `/v1/decide`, an ALLOW under a verified
+  chain is charged to every budgeted link at once, all or nothing, in the
+  decision store (SQLite, or the shared PostgreSQL database); concurrent
+  siblings cannot exceed their parent's pool. A charge is released only if
+  its decision is not sealed. Refused: `delegation_budget_exceeded`.
+- `constraints`: allowed values per argument, e.g.
+  `{"merchant_id": ["M-101"], "currency": ["INR"]}`. A child keeps every key
+  with a subset of its values; an action whose argument is missing or not
+  listed is refused (`delegation_constraint_violated`). No wildcards.
+- `max_depth`: how many more links may follow. Each hop lowers it by at
+  least one; at 0 the delegate may not delegate further.
+
+Tests: `tests/multi_agent_security/test_delegation_v2.py`,
+`tests/test_pg_ledgers.py::test_delegation_budget_holds_across_instances`.
+
 The receiver uses operator-pinned `TrustAnchors` (root keys, agent keys,
 revoked link hashes), including a pinned key for the **final delegate**.
 `verify_chain` checks authority only; it does not authenticate a caller.
@@ -337,9 +360,14 @@ PostgreSQL under attack, the Rust build, the sandbox itself, and the
 - **Delegation never grants.** On `/v1/decide` it narrows what an agent's
   own grant allows. It is checked inside the authorization level; the
   precedence order is unchanged.
-- **`max_amount` is per action.** Cumulative spend stays with the grant
-  ledger. Limits on other arguments (a payee allow-list, for instance) are
-  not expressible in a chain yet.
+- **`max_amount` is per action; a v2 `budget` is cumulative.** A budget
+  counts authority used: it is charged when a decision is ALLOWED and kept
+  even if the permit is never minted or the payment never runs, so a failed
+  refund still uses budget. Budgets are not reset by time; issue a new link
+  for a new period. A v1 chain has no cumulative limit beyond the grant
+  ledger's.
+- **Constraints are equality allow-lists** on top-level arguments: no ranges,
+  patterns or nested fields.
 - **Revocation is per server, from its own file.** Each replica reads its
   own copy of `PV_DELEGATION_FILE`. A replica that has not been given the
   updated file does not know about a revocation, at decision or at mint.

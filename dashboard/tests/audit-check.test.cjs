@@ -45,7 +45,7 @@ test('an exception that no longer matches anything fails, so it gets removed', (
 
 test('the shipped exceptions file is well formed', () => {
   const { exceptions } = require('../audit-exceptions.json');
-  assert.ok(exceptions.length >= 1);
+  assert.ok(Array.isArray(exceptions)); // empty is the normal state
   for (const e of exceptions) {
     assert.match(e.id, /^GHSA-/);
     assert.match(e.expires, /^\d{4}-\d{2}-\d{2}$/);

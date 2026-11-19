@@ -53,7 +53,8 @@ Limits:
     * A presentation's freshness rests on clocks (TTL plus 30 s skew); its
       single use rests on the ledger. With the in-memory ledger that is per
       process.
-    * ``max_amount`` is per action; cumulative spend is the grant ledger's.
+    * ``max_amount`` is per action. A pv-delegation/2 ``budget`` is
+      cumulative and is charged by the server after an ALLOW (ADR 0042).
     * The signing key must live in a broker the model cannot read. A model
       that can sign presentations can present.
 """
@@ -525,7 +526,7 @@ class DelegationGate:
         return {
             "status": "attached",
             "detail": (
-                f"pv-delegation/1 on the decision path: {len(policy.anchors.roots)} "
+                f"pv-delegation/1 and /2 on the decision path: {len(policy.anchors.roots)} "
                 f"root(s), {len(policy.anchors.agents)} agent key(s), audience "
                 f"{policy.audience!r}; required for capabilities: {required}; "
                 f"required for agents: {agents}; holder-signed presentation, "
@@ -589,6 +590,7 @@ class DelegationGate:
             capability=capability,
             amount=amount,
             now=now,
+            arguments=arguments,
         )
         if not scoped.allowed:
             return self._refuse(scoped.reason, scoped.chain_hash, scoped.depth)

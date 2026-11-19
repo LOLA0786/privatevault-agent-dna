@@ -5,6 +5,46 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Dashboard audit exception removed
+- GHSA-fc5q-39xc-vjpf (`picomatch`) is no longer reported against the
+  installed `picomatch` 4.0.7: `npm audit` finds 0 vulnerabilities. The
+  audit check failed `ci / dashboard` because the exception no longer matched
+  anything, which is what it is for. The exception is removed; the file
+  stays, empty, for the next one. The well-formedness test accepts an empty
+  list.
+
+### ADR 0042: delegation budgets, argument constraints and depth limits
+- **`pv-delegation/2` links** may carry `budget` (cumulative), `constraints`
+  (allowed argument values) and `max_depth` (further hops). Each narrows like
+  `max_amount`; v1 links are unchanged. `issue_link(..., budget=,
+  constraints=, max_depth=)`.
+- **Budgets are charged atomically on `/v1/decide`:** every budgeted link of
+  a verified chain, all or nothing, in the decision store; released if the
+  decision is not sealed. Found by probing: Rs 27,000 allowed from a Rs 10,000
+  pool when A and two siblings spent at once; now two of three Rs 4,500
+  spends pass. `tests/multi_agent_security/test_delegation_v2.py`,
+  `tests/test_pg_ledgers.py::test_delegation_budget_holds_across_instances`.
+- **Constraints:** a refund for merchant M-999 under a link limited to M-101
+  is refused (`delegation_constraint_violated`). **Depth:** a hop past
+  `max_depth` is refused.
+- Not done: time-reset budgets, range or pattern constraints, a spend ledger
+  on the library's `authorize` path.
+
+### Infrastructure faults around a real model
+- `demos/live_checkout/agent.py --fault-race`: request #5's refund call
+  reaches two independent workers at the same instant (a redelivered
+  message). `--fault-lost-response`: request #3 is paid and its answer is
+  lost; the framework retries once automatically; the model is told the
+  outcome is unknown and gets another turn. `--all-faults` adds
+  `--compromised-tool`; `--no-fallback` keeps every answer the requested
+  model's. Each row records every extra delivery and retry, and the end
+  screen reads the destination ledger for each faulted order.
+- Scripted model, whole queue, every fault: #11 and #15 pay nothing, #5 and
+  #3 are paid once. The second worker on #5 is refused at decide
+  (`TRANSACTION_RESERVED`, ADR 0041); both retries on #3 are refused by
+  `duplicate-refund`. `tests/demos/test_live_checkout_faults.py`.
+- Not yet run with a live model.
+
 ### Documented test count: 3177+
 - `rust / rust-conformance` failed on `master` at #246:
   `tests/test_claim_counts.py` found README.md, WHAT-WE-DO-NOT-CLAIM.md and
