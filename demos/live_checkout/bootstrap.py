@@ -146,6 +146,9 @@ def _env_lines(root: str, *, upstream: str, tools: list[str]) -> str:
         # ADR 0043: per customer per day, counted on the server and claimed
         # atomically, so concurrent refunds cannot all read the same count.
         # The day is India's (UTC+5:30).
+        # ADR 0044: tolerate 5 s of clock difference between PrivateVault and
+        # the gate at each end of a permit's one-minute window.
+        "PV_RECEIVER_CLOCK_SKEW_SECONDS": "5",
         "PV_DECIDE_LIMITS": "'"
         + json.dumps(
             {
@@ -164,7 +167,7 @@ def _env_lines(root: str, *, upstream: str, tools: list[str]) -> str:
 
 # Raise when services.env or the run layout changes in a way an existing run
 # directory would not have: bootstrap then regenerates it.
-BOOTSTRAP_VERSION = 2
+BOOTSTRAP_VERSION = 3
 
 
 def bootstrap(

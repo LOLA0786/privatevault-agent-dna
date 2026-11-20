@@ -260,6 +260,31 @@ def test_revocation_source_is_required(tmp_path):
 REFUND_KEY = '{"POST /v1/refunds": "refund_id"}'
 
 
+def test_clock_skew_setting(tmp_path):
+    """ADR 0044: PV_RECEIVER_CLOCK_SKEW_SECONDS reaches the gate and the
+    start-up summary; 0 unless set; outside 0..30 the gate does not start."""
+    from datetime import timedelta
+
+    env = _hardened(
+        tmp_path,
+        **_tls_files(tmp_path),
+        **_revocation(tmp_path),
+        PV_RECEIVER_ALLOW_NO_TRANSACTION_KEY="1",
+    )
+    default = config.settings_from_env(env)
+    assert default.clock_skew_seconds == 0
+    gate = config.build_gate(default)
+    assert gate.clock_skew == timedelta(0)
+    assert "0s: a receiver clock behind" in config.describe(default, gate)
+    tolerant = config.settings_from_env({**env, "PV_RECEIVER_CLOCK_SKEW_SECONDS": "12"})
+    gate = config.build_gate(tolerant)
+    assert gate.clock_skew == timedelta(seconds=12)
+    assert "12s tolerated" in config.describe(tolerant, gate)
+    for bad in ("31", "-1", "1.5", "five"):
+        with pytest.raises(config.ConfigError, match="PV_RECEIVER_CLOCK_SKEW_SECONDS"):
+            config.settings_from_env({**env, "PV_RECEIVER_CLOCK_SKEW_SECONDS": bad})
+
+
 def test_transaction_key_is_required(tmp_path):
     """ADR 0040. Permits are single-use, but two decisions for one refund are
     two permits; a gate with no business key admits both. Starting without

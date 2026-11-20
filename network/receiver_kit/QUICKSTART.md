@@ -228,6 +228,7 @@ key, then drops root. The start-up summary shows `client TLS required`,
 | `PV_ALLOW_HTTP_REVOCATION` | `1` allows an http list URL, inside one host only. |
 | `PV_RECEIVER_ALLOW_NO_REVOCATION` | `1` runs without a list: a revoked permit is admitted until it expires. Local demo only. |
 | `PV_RECEIVER_ALLOW_NO_TRANSACTION_KEY` | `1` runs with no business key: a second decision for the same transaction mints a second permit and is admitted and paid again. Local demo, or an upstream that deduplicates itself. |
+| `PV_RECEIVER_CLOCK_SKEW_SECONDS` | Whole seconds, 0 to 30 (default 0), tolerated at each end of a permit's validity window (ADR 0044). With 0, a receiver clock even slightly behind the issuer's refuses freshly minted permits as not yet valid. Keep both clocks synced (NTP); a time refusal reports the offset. |
 
 ## What this does not show
 

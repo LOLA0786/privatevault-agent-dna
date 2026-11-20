@@ -5,6 +5,20 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### ADR 0044: configurable receiver clock tolerance
+- **`PV_RECEIVER_CLOCK_SKEW_SECONDS`** (0..30, default 0) sets the receiver
+  gate's tolerance at both ends of a permit's window; outside 0..30 the gate
+  does not start. Found by probing with the gate's clock shifted: 45 s behind,
+  every fresh permit was refused and refunds stopped.
+  `tests/network/test_receiver_hardened.py::test_clock_skew_setting`.
+- **Time refusals report the offset** by the receiver's clock and point at
+  clock sync, e.g. "it starts in 20.0s by this receiver's clock (tolerance
+  5s)". Receipts are unchanged.
+  `tests/receiver/test_receiver_gate.py::test_time_refusals_say_how_far_off`.
+- The live refund demo tolerates 5 s; bootstrap version 3 regenerates older
+  run directories. `tests/demos/test_live_checkout_bootstrap.py` (also pins
+  the stale-directory regeneration added with ADR 0043).
+
 ### ADR 0043: daily limits per customer are counted on the server
 - **`PV_DECIDE_LIMITS`** counts allowed decisions per key (e.g. `customer_id`)
   per calendar day and claims each atomically at decide: over `max_count` is

@@ -43,6 +43,7 @@ import os
 import stat
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
@@ -288,6 +289,9 @@ class GateSettings:
     idempotency_header: str | None = None
     # ADR 0040: True only with PV_RECEIVER_ALLOW_NO_TRANSACTION_KEY=1.
     allow_no_transaction_key: bool = False
+    # Tolerated clock difference with the permit issuer, applied to both
+    # ends of a permit's window (0..30 s; ADR 0044). 0 unless set.
+    clock_skew_seconds: int = 0
 
     @property
     def mtls(self) -> bool:
@@ -482,6 +486,18 @@ def _transaction_keys(env: Mapping[str, str]) -> tuple[tuple[str, str], ...]:
     return tuple(sorted(value.items()))
 
 
+def _clock_skew(env: Mapping[str, str]) -> int:
+    """PV_RECEIVER_CLOCK_SKEW_SECONDS: whole seconds, 0..30 (ADR 0044)."""
+    raw = env.get("PV_RECEIVER_CLOCK_SKEW_SECONDS", "").strip()
+    if not raw:
+        return 0
+    if not raw.isdigit() or not 0 <= int(raw) <= 30:
+        raise ConfigError(
+            "PV_RECEIVER_CLOCK_SKEW_SECONDS must be a whole number of seconds, 0..30"
+        )
+    return int(raw)
+
+
 def settings_from_env(env: Mapping[str, str] | None = None) -> GateSettings:
     source = os.environ if env is None else env
     bundle_file = source.get("PV_TRUST_BUNDLE_FILE", "").strip()
@@ -520,6 +536,7 @@ def settings_from_env(env: Mapping[str, str] | None = None) -> GateSettings:
         idempotency_header=source.get("PV_RECEIVER_IDEMPOTENCY_HEADER", "").strip()
         or None,
         allow_no_transaction_key=_flag(source, "PV_RECEIVER_ALLOW_NO_TRANSACTION_KEY"),
+        clock_skew_seconds=_clock_skew(source),
         **_tls_settings(source),
         **_revocation_settings(source),
     )
@@ -547,6 +564,7 @@ def build_gate(settings: GateSettings) -> ReceiverGate:
         max_body_bytes=settings.max_body_bytes,
         require_presenter=settings.require_presenter,
         transaction_keys=dict(settings.transaction_keys),
+        clock_skew=timedelta(seconds=settings.clock_skew_seconds),
         # Fail closed: with a list source configured, nothing is admitted
         # until a fresh signed list is installed (network/receiver_kit/
         # revocations.py keeps it fresh).
@@ -607,6 +625,13 @@ def describe(settings: GateSettings, gate: ReceiverGate) -> str:
             if settings.transaction_keys
             else "off: LOCAL DEMO ONLY (a new permit for the same transaction "
             "is admitted and paid again)"
+        ),
+        "  clock skew           "
+        + (
+            f"{settings.clock_skew_seconds}s tolerated at each end of a permit's window"
+            if settings.clock_skew_seconds
+            else "0s: a receiver clock behind the issuer's refuses fresh permits "
+            "(PV_RECEIVER_CLOCK_SKEW_SECONDS)"
         ),
         "  ledger scope         this host only (SQLite): run one receiver host",
     ]
