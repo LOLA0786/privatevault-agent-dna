@@ -5,6 +5,21 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### PostgreSQL unavailable is answered 503, not a dropped connection
+- During a database outage a decide waited for a pooled connection, then
+  `psycopg_pool.PoolTimeout` escaped unhandled to uvicorn's last-resort 500,
+  which closes the connection; under load that close raced the client's next
+  request and surfaced as "connection reset by peer" instead of an answer.
+  This was the intermittent failure of
+  `tests/multi_instance/test_two_processes.py::test_database_outage_fails_closed_and_recovers`
+  (ci #848, PR #251; line 179, during the outage). Reproduced 5 times in 10
+  under CPU load.
+- `psycopg.OperationalError` and `PoolTimeout` are now answered `503`
+  `STORE_UNAVAILABLE` with `Retry-After: 2`; nothing is decided. SQLite errors
+  are not mapped (they are more often bugs). Under the same load: 10 of 10
+  passed; with the handler removed, 3 of 5 failed.
+  `tests/test_decide_reservation.py::test_store_unavailable_is_a_clean_503`.
+
 ### ADR 0045: facts are checked against the system of record
 - **`PV_FACT_SOURCES`**: a decide that would ALLOW or hold for approval reads
   the order from the system of record (`refund-facts/1`) and is a BLOCK if a

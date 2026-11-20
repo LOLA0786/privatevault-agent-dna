@@ -682,6 +682,43 @@ app = FastAPI(
     version="0.4.0",
     lifespan=lifespan,
 )
+
+
+# PostgreSQL unreachable (an outage, a broken pool, a connection killed by the
+# server) is an expected condition, not a crash. Unhandled, it fell through to
+# uvicorn's last-resort 500, which closes the connection; under load that close
+# raced the client's next request on the same keep-alive connection and
+# surfaced as "connection reset by peer" instead of an answer
+# (tests/multi_instance/test_two_processes.py::test_database_outage_fails_closed_and_recovers).
+# Answer 503 instead: nothing was decided, try again. SQLite errors are not
+# mapped here; they are more often bugs and should stay loud.
+STORE_UNAVAILABLE = "STORE_UNAVAILABLE"
+try:  # PostgreSQL support is optional
+    import psycopg as _psycopg
+    from psycopg_pool import PoolTimeout as _PoolTimeout
+
+    _STORE_DOWN: tuple[type[Exception], ...] = (
+        _psycopg.OperationalError,
+        _PoolTimeout,
+    )
+except ImportError:  # pragma: no cover - installs without PostgreSQL
+    _STORE_DOWN = ()
+
+
+async def _store_unavailable(_request: Any, exc: Exception) -> JSONResponse:
+    _log.warning("store_unavailable %s: %s", type(exc).__name__, str(exc)[:200])
+    return JSONResponse(
+        status_code=503,
+        content={
+            "detail": "the decision store is unavailable; nothing was decided",
+            "reason_code": STORE_UNAVAILABLE,
+        },
+        headers={"Retry-After": "2"},
+    )
+
+
+for _store_error in _STORE_DOWN:
+    app.add_exception_handler(_store_error, _store_unavailable)
 # Outermost: oversize or over-nested bodies never reach routing, auth, or
 # the JSON parser. Limits are read from state once the lifespan validated them.
 app.add_middleware(RequestBoundsMiddleware, bounds=lambda: state.get("request_bounds"))

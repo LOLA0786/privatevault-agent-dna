@@ -403,3 +403,32 @@ def test_server_reserves_in_postgres(dsn, tmp_path, monkeypatch):
     with psycopg.connect(dsn) as conn:
         rows = conn.execute("SELECT decision_id FROM decide_reservations").fetchall()
     assert rows == [(first.json()["record"]["decision_id"],)]
+
+
+@pytest.mark.parametrize("error", ["pool_timeout", "operational"])
+def test_store_unavailable_is_a_clean_503(env, monkeypatch, error):
+    """PostgreSQL unreachable is answered 503 STORE_UNAVAILABLE with
+    Retry-After, not left to uvicorn's last-resort 500 (which closes the
+    connection and surfaced as "connection reset by peer" under load in
+    tests/multi_instance/test_two_processes.py). The connection stays usable."""
+    psycopg = pytest.importorskip("psycopg")
+    from psycopg_pool import PoolTimeout
+
+    import api.server as srv
+
+    exc = (
+        PoolTimeout("couldn't get a connection")
+        if error == "pool_timeout"
+        else psycopg.OperationalError("down")
+    )
+
+    def down(*a, **k):
+        raise exc
+
+    with monkeypatch.context() as patched:
+        patched.setattr(srv, "_decide_or_block_undeclared", down)
+        r = _decide(env, {"refund_id": "RF-1", "amount": 1})
+    assert r.status_code == 503, r.text
+    assert r.json()["reason_code"] == srv.STORE_UNAVAILABLE
+    assert r.headers["retry-after"] == "2"
+    assert env["client"].get("/health").status_code == 200  # same client, still fine
