@@ -582,12 +582,29 @@ class ReceiverGate:
     def _verify_time(self, ea: Mapping[str, Any], now: datetime) -> None:
         not_before = _parse_timestamp(ea["not_before"], "not_before")
         expires_at = _parse_timestamp(ea["expires_at"], "expires_at")
+        tolerance = self.clock_skew.total_seconds()
         if now + self.clock_skew < not_before:
+            early = (not_before - now).total_seconds()
             raise _RefusalError(
-                RECEIVER_PERMIT_NOT_YET_VALID, "permit not yet valid", ea=ea
+                RECEIVER_PERMIT_NOT_YET_VALID,
+                f"permit not yet valid: it starts in {early:.1f}s by this "
+                f"receiver's clock (tolerance {tolerance:g}s). A permit that "
+                "was just minted points to this receiver's clock running "
+                "behind the issuer's: check time sync (NTP) on both, or set "
+                "PV_RECEIVER_CLOCK_SKEW_SECONDS (at most 30)",
+                ea=ea,
             )
         if now - self.clock_skew >= expires_at:
-            raise _RefusalError(RECEIVER_PERMIT_EXPIRED, "permit expired", ea=ea)
+            late = (now - expires_at).total_seconds()
+            lifetime = (expires_at - not_before).total_seconds()
+            raise _RefusalError(
+                RECEIVER_PERMIT_EXPIRED,
+                f"permit expired {late:.1f}s ago by this receiver's clock "
+                f"(it was valid for {lifetime:g}s; tolerance {tolerance:g}s). "
+                "If it was presented promptly, this receiver's clock may be "
+                "ahead of the issuer's: check time sync (NTP)",
+                ea=ea,
+            )
 
     @staticmethod
     def _verify_body(ea: Mapping[str, Any], body: bytes) -> None:

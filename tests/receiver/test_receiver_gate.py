@@ -394,6 +394,48 @@ def test_bounded_skew_admits_near_boundary(tmp_path):
     assert _send(w, early).admitted
 
 
+def test_time_refusals_say_how_far_off(tmp_path):
+    """ADR 0044: a time refusal reports the offset by the receiver's clock and
+    points at clock sync, the usual cause when a permit was just minted."""
+    w = World(tmp_path)
+    early = _send(
+        w,
+        w.permit(not_before="2026-10-08T12:00:50Z", expires_at="2026-10-08T12:02:00Z"),
+    )
+    assert early.reason_code == g.RECEIVER_PERMIT_NOT_YET_VALID
+    assert "starts in 20.0s" in early.detail and "tolerance 0s" in early.detail
+    assert "behind the issuer's" in early.detail and "NTP" in early.detail
+    late = _send(w, w.permit(expires_at="2026-10-08T12:00:15Z"))
+    assert late.reason_code == g.RECEIVER_PERMIT_EXPIRED
+    assert "expired 15.0s ago" in late.detail and "ahead of the issuer's" in late.detail
+
+
+def test_tolerance_covers_drift_up_to_its_bound(tmp_path):
+    """A permit minted 20 s 'in the future' (receiver clock 20 s behind):
+    refused with no tolerance, admitted with 30 s; 40 s is beyond any
+    allowed tolerance and still refused."""
+    early20 = {
+        "not_before": "2026-10-08T12:00:50Z",
+        "expires_at": "2026-10-08T12:02:00Z",
+    }
+    early40 = {
+        "not_before": "2026-10-08T12:01:10Z",
+        "expires_at": "2026-10-08T12:02:00Z",
+    }
+    (tmp_path / "strict").mkdir()
+    strict = World(tmp_path / "strict")
+    assert (
+        _send(strict, strict.permit(**early20)).reason_code
+        == g.RECEIVER_PERMIT_NOT_YET_VALID
+    )
+    (tmp_path / "loose").mkdir()
+    loose = World(tmp_path / "loose", clock_skew=timedelta(seconds=30))
+    assert _send(loose, loose.permit(**early20)).admitted
+    refused = _send(loose, loose.permit(**early40))
+    assert refused.reason_code == g.RECEIVER_PERMIT_NOT_YET_VALID
+    assert "tolerance 30s" in refused.detail
+
+
 def test_skew_over_bound_refused_at_config(tmp_path):
     with pytest.raises(ValueError):
         World(tmp_path, clock_skew=timedelta(minutes=5))
