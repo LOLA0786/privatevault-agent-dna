@@ -73,10 +73,23 @@ PORT_KEY = {"privatevault": "privatevault", "gate": "gate", "bank_api": "bank"}
 QUEUE = load_queue()
 
 
-def _free_port() -> int:
-    with socket.socket() as sock:
-        sock.bind(("127.0.0.1", 0))
-        return int(sock.getsockname()[1])
+def _free_ports(names: tuple[str, ...]) -> dict[str, int]:
+    """One free loopback port per name, all held open until the last is
+    chosen. Picking them one at a time can hand back the same port twice
+    (about 1 in 3,000 triples); a faster service then takes a slower one's
+    port, e.g. the gate answering 403 on PrivateVault's /ready."""
+    held: list[socket.socket] = []
+    try:
+        for _ in names:
+            s = socket.socket()
+            s.bind(("127.0.0.1", 0))
+            held.append(s)
+        return {
+            name: int(s.getsockname()[1]) for name, s in zip(names, held, strict=True)
+        }
+    finally:
+        for s in held:
+            s.close()
 
 
 def _wait(url: str, timeout_s: float = 30.0) -> None:
@@ -111,7 +124,7 @@ class World:
 
 
 def _start(run_dir: Path) -> World:
-    ports = {k: _free_port() for k in ("privatevault", "gate", "bank")}
+    ports = _free_ports(("privatevault", "gate", "bank"))
     bootstrap(run_dir, force=True, ports=ports)
     env = {k: v for k, v in os.environ.items() if not k.startswith("PV_")}
     env["PV_TREASURY_RUN_DIR"] = str(run_dir)

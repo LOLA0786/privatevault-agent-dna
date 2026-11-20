@@ -5,6 +5,15 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Test services no longer collide on a port
+- The demo test harnesses picked each service's port one at a time, which can
+  hand back the same port twice (7 in 20,000 triples here). The faster
+  service then took the slower one's port: in CI the receiver gate answered
+  403 on PrivateVault's `/ready` and the attack corpus did not start (PR #251).
+  `demos/live_checkout/attacks.py`, `tests/demos/test_live_checkout.py`,
+  `tests/demos/test_treasury.py` and `tests/multi_instance/cluster.py` now hold
+  every port open until the last is chosen (0 in 20,000).
+
 ### PostgreSQL unavailable is answered 503, not a dropped connection
 - During a database outage a decide waited for a pooled connection, then
   `psycopg_pool.PoolTimeout` escaped unhandled to uvicorn's last-resort 500,
