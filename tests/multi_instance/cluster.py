@@ -65,10 +65,19 @@ def canon(payload: dict[str, Any]) -> bytes:
     ).encode("utf-8")
 
 
-def _free_port() -> int:
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return int(s.getsockname()[1])
+def _free_ports(n: int) -> list[int]:
+    """n distinct free loopback ports, all held open until the last is
+    chosen: one at a time can hand back the same port twice."""
+    held: list[socket.socket] = []
+    try:
+        for _ in range(n):
+            s = socket.socket()
+            s.bind(("127.0.0.1", 0))
+            held.append(s)
+        return [int(s.getsockname()[1]) for s in held]
+    finally:
+        for s in held:
+            s.close()
 
 
 @dataclass
@@ -176,8 +185,8 @@ class Cluster:
     def __enter__(self) -> Cluster:
         self._env = self._write_config()
         self.nodes = [
-            Instance(_free_port(), self.workdir / f"api-{i}.log")
-            for i in range(self.instances)
+            Instance(port, self.workdir / f"api-{i}.log")
+            for i, port in enumerate(_free_ports(self.instances))
         ]
         for i in range(self.instances):
             self.start(i)

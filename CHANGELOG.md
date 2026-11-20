@@ -5,6 +5,49 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Test services no longer collide on a port
+- The demo test harnesses picked each service's port one at a time, which can
+  hand back the same port twice (7 in 20,000 triples here). The faster
+  service then took the slower one's port: in CI the receiver gate answered
+  403 on PrivateVault's `/ready` and the attack corpus did not start (PR #251).
+  `demos/live_checkout/attacks.py`, `tests/demos/test_live_checkout.py`,
+  `tests/demos/test_treasury.py` and `tests/multi_instance/cluster.py` now hold
+  every port open until the last is chosen (0 in 20,000).
+
+### PostgreSQL unavailable is answered 503, not a dropped connection
+- During a database outage a decide waited for a pooled connection, then
+  `psycopg_pool.PoolTimeout` escaped unhandled to uvicorn's last-resort 500,
+  which closes the connection; under load that close raced the client's next
+  request and surfaced as "connection reset by peer" instead of an answer.
+  This was the intermittent failure of
+  `tests/multi_instance/test_two_processes.py::test_database_outage_fails_closed_and_recovers`
+  (ci #848, PR #251; line 179, during the outage). Reproduced 5 times in 10
+  under CPU load.
+- `psycopg.OperationalError` and `PoolTimeout` are now answered `503`
+  `STORE_UNAVAILABLE` with `Retry-After: 2`; nothing is decided. SQLite errors
+  are not mapped (they are more often bugs). Under the same load: 10 of 10
+  passed; with the handler removed, 3 of 5 failed.
+  `tests/test_decide_reservation.py::test_store_unavailable_is_a_clean_503`.
+
+### ADR 0045: facts are checked against the system of record
+- **`PV_FACT_SOURCES`**: a decide that would ALLOW or hold for approval reads
+  the order from the system of record (`refund-facts/1`) and is a BLOCK if a
+  stated fact differs, is missing or has another type (`FACTS_MISMATCH`), the
+  order is unknown, or the source cannot be read (`FACTS_UNAVAILABLE`). The
+  facts are verified, not rewritten. `agent_dna/fact_sources.py`,
+  `tests/test_fact_sources.py`.
+- **Approval drift closed:** a refund made in the payments system while a
+  Rs 25,000 approval waited is caught when the approval lands; nothing more is
+  paid (was Rs 30,000 on a Rs 25,000 order).
+  `tests/demos/test_live_checkout_facts.py::test_refund_during_approval_wait_is_caught`.
+- **A tool stating false facts is refused**, e.g. no prior refunds on an
+  order that has one, or another customer. `::test_false_facts_are_refused`.
+- **Live refund demo:** the mock payments API serves `refund-facts/1`; every
+  refund fact is checked. Bootstrap version 4 regenerates older run dirs.
+- Documented test count: 3256+.
+- Not done: a source that lies or lags is believed; a refund made elsewhere
+  between the check and the payment is not seen.
+
 ### ADR 0044: configurable receiver clock tolerance
 - **`PV_RECEIVER_CLOCK_SKEW_SECONDS`** (0..30, default 0) sets the receiver
   gate's tolerance at both ends of a permit's window; outside 0..30 the gate

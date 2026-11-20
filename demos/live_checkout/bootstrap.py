@@ -149,6 +149,19 @@ def _env_lines(root: str, *, upstream: str, tools: list[str]) -> str:
         # ADR 0044: tolerate 5 s of clock difference between PrivateVault and
         # the gate at each end of a permit's one-minute window.
         "PV_RECEIVER_CLOCK_SKEW_SECONDS": "5",
+        # ADR 0045: PrivateVault checks the refund facts against the payments
+        # API's own records (refund-facts/1) before allowing or asking a human.
+        "PV_FACT_SOURCES": "'"
+        + json.dumps(
+            {
+                cfg.OPERATION: {
+                    "kind": "refund-facts/1",
+                    "url": upstream,
+                    "timeout_seconds": 2,
+                }
+            }
+        )
+        + "'",
         "PV_DECIDE_LIMITS": "'"
         + json.dumps(
             {
@@ -167,7 +180,7 @@ def _env_lines(root: str, *, upstream: str, tools: list[str]) -> str:
 
 # Raise when services.env or the run layout changes in a way an existing run
 # directory would not have: bootstrap then regenerates it.
-BOOTSTRAP_VERSION = 3
+BOOTSTRAP_VERSION = 4
 
 
 def bootstrap(

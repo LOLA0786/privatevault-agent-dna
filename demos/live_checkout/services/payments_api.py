@@ -8,6 +8,10 @@
     -> 201 {"refund_id": ..., "status": "paid", "payout_ref": "pay_..."}
 
     GET /refunds   every refund paid so far (the order-history tool reads it)
+    GET /v1/orders/{order_id}/refund-facts
+                   refund-facts/1: the order, its refunds and the customer's
+                   refunds today, as the system of record. PrivateVault reads
+                   it to check the facts a refund was decided on (ADR 0045).
 
 It validates the shape, pays every well-formed request it receives, and
 answers 201. The decided facts PrivateVault read (``original_amount``,
@@ -34,6 +38,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))  # run as a script
 
 from demos.live_checkout import config as cfg  # noqa: E402
 from demos.live_checkout.events import log  # noqa: E402
+from demos.live_checkout.refunds import RefundLedger, load_queue  # noqa: E402
 
 REQUIRED = ("refund_id", "order_id", "customer_id", "amount", "currency", "payee")
 FACTS = (
@@ -91,6 +96,13 @@ class _Handler(BaseHTTPRequestHandler):
             self._json(200, {"ok": True})
         elif path == "/refunds":
             self._json(200, self.server.refunds())
+        elif path.startswith("/v1/orders/") and path.endswith("/refund-facts"):
+            order_id = path[len("/v1/orders/") : -len("/refund-facts")]
+            facts = self.server.refund_facts(order_id)
+            if facts is None:
+                self._json(404, {"error": f"no order {order_id}"})
+            else:
+                self._json(200, facts)
         else:
             self._json(404, {"error": "not found"})
 
@@ -144,6 +156,19 @@ class _Handler(BaseHTTPRequestHandler):
         )
 
 
+class _Records(RefundLedger):
+    """The order records, with "paid this run" read from this API's own
+    ledger: the same arithmetic as the agent's order_history tool, so honest
+    facts agree by construction."""
+
+    def __init__(self, server: PaymentsServer) -> None:
+        super().__init__(load_queue(), payments_url=None)
+        self._server = server
+
+    def paid_this_run(self) -> list[dict[str, Any]]:
+        return self._server.refunds()
+
+
 class PaymentsServer(ThreadingHTTPServer):
     daemon_threads = True
 
@@ -151,6 +176,26 @@ class PaymentsServer(ThreadingHTTPServer):
         super().__init__(address, _Handler)
         self._lock = threading.Lock()
         self._refunds: list[dict[str, Any]] = []
+        self._records = _Records(self)
+
+    def refund_facts(self, order_id: str) -> dict[str, Any] | None:
+        """refund-facts/1 for one order, from the order records and every
+        refund this API has paid, however it arrived."""
+        record = self._records.order(order_id)
+        if record is None:
+            return None
+        history = self._records.history(order_id)
+        customer = str(record["customer_id"])
+        return {
+            "spec": "refund-facts/1",
+            "order_id": order_id,
+            "customer_id": customer,
+            "amount": int(record["amount"]),
+            "paid_with": str(record["paid_with"]),
+            "refunds": [{"amount": int(r["amount"])} for r in history["refunds"]],
+            "customer_refunds_today": int(history["customer_refunds_today"]),
+            "customer_amount_today": self._records.customer_amount_today(customer),
+        }
 
     def record(self, body: dict[str, Any], raw: bytes) -> int:
         with self._lock:

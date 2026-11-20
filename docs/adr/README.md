@@ -52,6 +52,7 @@ explicit statement that no such test exists.
 | [0042](0042-delegation-budgets-constraints-depth.md) | pv-delegation/2 links carry a cumulative budget, argument constraints and a depth limit; budgets are charged atomically on /v1/decide | accepted | `tests/multi_agent_security/test_delegation_v2.py::test_server_budget_is_cumulative` |
 | [0043](0043-daily-limits-are-counted-on-the-server.md) | Per-key daily count and amount limits are claimed atomically on the server at decide | accepted | `tests/test_decide_limits.py::test_server_count_limit_holds` |
 | [0044](0044-receiver-clock-skew-is-configurable.md) | The receiver kit's clock tolerance is configurable (0 to 30 s) and time refusals report the offset | accepted | `tests/network/test_receiver_hardened.py::test_clock_skew_setting` |
+| [0045](0045-facts-are-checked-against-the-system-of-record.md) | Decision facts are checked against the system of record; stale, false or unreadable facts block | accepted | `tests/demos/test_live_checkout_facts.py::test_refund_during_approval_wait_is_caught` |
 
 0001–0014 are the enforcement-spine decisions. 0015 is the earlier
 loop-discovery placement record, renumbered so the spine could own

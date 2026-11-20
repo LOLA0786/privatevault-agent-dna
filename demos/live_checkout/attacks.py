@@ -129,10 +129,23 @@ class World:
         return r.status_code, payload if isinstance(payload, dict) else {}
 
 
-def _free_port() -> int:
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return int(s.getsockname()[1])
+def _free_ports(names: tuple[str, ...]) -> dict[str, int]:
+    """One free loopback port per name, all held open until the last is
+    chosen. Picking them one at a time can hand back the same port twice
+    (about 1 in 3,000 triples); a faster service then takes a slower one's
+    port, e.g. the gate answering 403 on PrivateVault's /ready."""
+    held: list[socket.socket] = []
+    try:
+        for _ in names:
+            s = socket.socket()
+            s.bind(("127.0.0.1", 0))
+            held.append(s)
+        return {
+            name: int(s.getsockname()[1]) for name, s in zip(names, held, strict=True)
+        }
+    finally:
+        for s in held:
+            s.close()
 
 
 def _wait(url: str, timeout_s: float = 60.0) -> None:
@@ -152,7 +165,7 @@ def _wait(url: str, timeout_s: float = 60.0) -> None:
 def start_world(run_dir: Path, *, without: tuple[str, ...] = ()) -> World:
     """Bootstrap and start the demo. ``without`` removes settings from the
     shipped ``services.env``, to show what the layer beneath does alone."""
-    ports = {k: _free_port() for k in ("privatevault", "gate", "payments")}
+    ports = _free_ports(("privatevault", "gate", "payments"))
     bootstrap(run_dir, force=True, ports=ports)
     if without:
         env_file = run_dir / "services.env"

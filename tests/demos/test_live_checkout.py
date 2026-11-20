@@ -79,10 +79,23 @@ HEALTH = {"privatevault": "/ready", "gate": "/_health", "payments_api": "/_healt
 PORT_KEY = {"privatevault": "privatevault", "gate": "gate", "payments_api": "payments"}
 
 
-def _free_port() -> int:
-    with socket.socket() as sock:
-        sock.bind(("127.0.0.1", 0))
-        return int(sock.getsockname()[1])
+def _free_ports(names: tuple[str, ...]) -> dict[str, int]:
+    """One free loopback port per name, all held open until the last is
+    chosen. Picking them one at a time can hand back the same port twice
+    (about 1 in 3,000 triples); a faster service then takes a slower one's
+    port, e.g. the gate answering 403 on PrivateVault's /ready."""
+    held: list[socket.socket] = []
+    try:
+        for _ in names:
+            s = socket.socket()
+            s.bind(("127.0.0.1", 0))
+            held.append(s)
+        return {
+            name: int(s.getsockname()[1]) for name, s in zip(names, held, strict=True)
+        }
+    finally:
+        for s in held:
+            s.close()
 
 
 def _wait(url: str, timeout_s: float = 30.0) -> None:
@@ -118,7 +131,7 @@ class World:
 
 
 def _start_world(run_dir: Path, *, without: tuple[str, ...] = ()) -> World:
-    ports = {k: _free_port() for k in ("privatevault", "gate", "payments")}
+    ports = _free_ports(("privatevault", "gate", "payments"))
     bootstrap(run_dir, force=True, ports=ports)
     if without:
         # Run with one layer of the shipped configuration removed, to show
