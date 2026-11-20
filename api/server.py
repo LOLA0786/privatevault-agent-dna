@@ -124,6 +124,12 @@ from agent_dna.execution_v01 import (
     EXECUTION_AUTHORIZATION_SPEC_V02 as _PV_EA_SPEC_V02,
 )
 from agent_dna.execution_v01 import sign_execution_authorization as _pv_sign_ea
+from agent_dna.fact_sources import (
+    TRIGGERED_BY_FACTS,
+    check_facts,
+    sources_from_env,
+    sources_manifest,
+)
 from agent_dna.key_custody import SignerError, is_kms_ref, signer_from_seed_file
 from agent_dna.ledger_reads import (
     CursorError,
@@ -639,6 +645,9 @@ async def lifespan(app: FastAPI):
     # ADR 0042: cumulative pv-delegation/2 budgets, charged once per sealed
     # ALLOW under a verified chain. Only when delegation is attached.
     state["delegation_budgets"] = _delegation_budgets_for(runtime)
+    # ADR 0045: facts checked against the system of record at decide.
+    state["fact_sources"] = sources_from_env(os.environ)
+    runtime.composition["fact_sources"] = sources_manifest(state["fact_sources"])
     # ADR 0043: per-key daily count and amount, claimed atomically at decide.
     state["decide_limit_config"] = limits_from_env(os.environ)
     state["decide_limits"] = _decide_limits_for(runtime, state["decide_limit_config"])
@@ -1190,6 +1199,28 @@ def _claim_decide_limit(
     return result, outcome
 
 
+def _verify_facts(
+    result: DecisionResult,
+    req: DecideRequest,
+    dispatch_context: dict[str, Any] | None,
+) -> DecisionResult:
+    """ADR 0045: a decide that would ALLOW or hold for approval is refused when
+    a declared fact differs from the system of record, or it cannot be read."""
+    if result.decision not in (Decision.ALLOW, Decision.REQUIRE_APPROVAL):
+        return result
+    source = (state.get("fact_sources") or {}).get(
+        str((dispatch_context or {}).get("operation", ""))
+    )
+    if source is None:
+        return result
+    finding = check_facts(source, req.arguments or {})
+    if finding is None:
+        return result
+    blocked = _delegation_budget_block(result, f"{finding.code}: {finding.detail}")
+    blocked.triggered_by = TRIGGERED_BY_FACTS
+    return blocked
+
+
 def _limit_block(result: DecisionResult, reason: str) -> DecisionResult:
     blocked = _delegation_budget_block(result, reason)
     blocked.triggered_by = TRIGGERED_BY_LIMIT
@@ -1420,6 +1451,8 @@ def decide(req: DecideRequest, principal: FullPrincipal):
     # claimed for this ALLOW. Released below if the verdict does not stay
     # ALLOW or the record is not sealed.
     reservation_holder = f"hold-{_uuid.uuid4().hex}"
+    # ADR 0045: facts first, so nothing is reserved or counted on stale ones.
+    result = _verify_facts(result, req, dispatch_context)
     result, reserved_key = _reserve_transaction(
         result, execution_action, dispatch_context, reservation_holder
     )

@@ -5,6 +5,25 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### ADR 0045: facts are checked against the system of record
+- **`PV_FACT_SOURCES`**: a decide that would ALLOW or hold for approval reads
+  the order from the system of record (`refund-facts/1`) and is a BLOCK if a
+  stated fact differs, is missing or has another type (`FACTS_MISMATCH`), the
+  order is unknown, or the source cannot be read (`FACTS_UNAVAILABLE`). The
+  facts are verified, not rewritten. `agent_dna/fact_sources.py`,
+  `tests/test_fact_sources.py`.
+- **Approval drift closed:** a refund made in the payments system while a
+  Rs 25,000 approval waited is caught when the approval lands; nothing more is
+  paid (was Rs 30,000 on a Rs 25,000 order).
+  `tests/demos/test_live_checkout_facts.py::test_refund_during_approval_wait_is_caught`.
+- **A tool stating false facts is refused**, e.g. no prior refunds on an
+  order that has one, or another customer. `::test_false_facts_are_refused`.
+- **Live refund demo:** the mock payments API serves `refund-facts/1`; every
+  refund fact is checked. Bootstrap version 4 regenerates older run dirs.
+- Documented test count: 3256+.
+- Not done: a source that lies or lags is believed; a refund made elsewhere
+  between the check and the payment is not seen.
+
 ### ADR 0044: configurable receiver clock tolerance
 - **`PV_RECEIVER_CLOCK_SKEW_SECONDS`** (0..30, default 0) sets the receiver
   gate's tolerance at both ends of a permit's window; outside 0..30 the gate

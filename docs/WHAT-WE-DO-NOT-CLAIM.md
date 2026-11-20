@@ -38,7 +38,7 @@ What exists today, verifiable directly:
   inside each envelope was accepted without an external trust anchor.
   v0.3.0 added explicitly pinned keys across the runtime, API, manifests and
   independent verifier.
-- 3223+ automated tests, run in CI on every commit
+- 3256+ automated tests, run in CI on every commit
   ([workflow](https://github.com/LOLA0786/privatevault-agent-dna/actions)).
 - Hashed API-key authentication (SHA-256; keys are never stored, only
   their hashes).
@@ -1101,6 +1101,13 @@ per key per day and claims each atomically (`tests/test_decide_limits.py`).
 **We do not claim** that it sees refunds made outside PrivateVault, that it
 counts money moved rather than decisions allowed, or that a caller cannot
 escape the count by naming a different key.
+
+Since ADR 0045 a server with `PV_FACT_SOURCES` set checks the facts a refund
+is decided on against the system of record before allowing it or asking a
+human, and refuses on a mismatch or when the source cannot be read
+(`tests/demos/test_live_checkout_facts.py`). **We do not claim** the source is
+right: a system of record that lies or lags is believed. **We do not claim**
+that a refund made elsewhere between that read and the payment is seen.
 
 Since ADR 0039 the receiver also claims the decision and the approval each
 permit was minted from, and refuses a second, different permit for either
