@@ -1,0 +1,56 @@
+name: challenger
+
+# Continuous pen tester on the live refund demo: every approved action is
+# attacked (changed amount, payee or bytes; forged, swapped and replayed
+# permits; first-use and limit races; false facts; stolen approvals; a gate
+# bypass; receipt tampering) and judged by the money in the payments ledger
+# and the refund grant's spend. Lab services, keys and ledger only.
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: "How long to challenge, in minutes"
+        default: "20"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: challenger
+  cancel-in-progress: false
+
+jobs:
+  challenge:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - name: Install
+        run: uv sync --locked --extra dev
+      - name: Challenge every approved action
+        env:
+          MINUTES: ${{ github.event.inputs.minutes || '20' }}
+        # LEAK:budget_oracle is accepted until refused decides stop spending
+        # the grant (see tests/demos/test_challenger.py). Remove it with the fix.
+        run: |
+          uv run python -m demos.live_checkout.challenger \
+            --minutes "$MINUTES" --run-dir challenger-run \
+            --known LEAK:budget_oracle | tee challenger.log
+      - name: Scoreboard
+        if: always()
+        run: |
+          { echo '```'; sed -n '/approved actions challenged/,$p' challenger.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: challenger-${{ github.run_id }}
+          path: |
+            challenger-run/challenger.jsonl
+            challenger-run/challenger-summary.json
+          retention-days: 30

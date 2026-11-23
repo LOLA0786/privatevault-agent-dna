@@ -33,7 +33,11 @@ APPROVER_KEY_ID = "approver-payments-lead"
 
 PORTS = {"privatevault": 8702, "gate": 8703, "payments": 8704}
 
-QUEUE_FILE = HERE / "refund_queue.json"
+# LIVE_CHECKOUT_QUEUE_FILE swaps in another order book (the challenger's
+# synthetic one). No PV_ prefix: start_world() passes it to the services.
+QUEUE_FILE = Path(
+    os.environ.get("LIVE_CHECKOUT_QUEUE_FILE") or HERE / "refund_queue.json"
+)
 RUNS_DIR = HERE / "runs"
 
 
