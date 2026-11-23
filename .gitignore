@@ -58,3 +58,6 @@ rust/target/
 
 # Local treasury demo runs (the committed examples stay tracked)
 demos/treasury/runs/*.jsonl
+
+# continuous challenger runs (demos/live_checkout/challenger.py)
+demos/live_checkout/.challenger/
