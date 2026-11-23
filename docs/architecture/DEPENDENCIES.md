@@ -30,7 +30,7 @@ flowchart BT
   L6 -->|30| L1
   L6 -->|10| L2
   L6 -->|20| L3
-  L6 -->|54| L4
+  L6 -->|55| L4
   L6 -->|29| L5
   L2 -.->|1 upward| L4
   L3 -.->|5 upward| L4
@@ -64,7 +64,7 @@ flowchart BT
 | `agent_dna.scan.ingest` | Normalize heterogeneous agent logs into AgentAction | `agent_dna.trace` | 2: `agent_dna.scan`, `agent_dna.scan.replay` |
 | `agent_dna.scan.inventory` | What the agents in a log can actually do | `agent_dna.trace` | none |
 | `agent_dna.scan.replay` | Replay a customer's own log through the engine, enforcing nothing | `agent_dna.decision`, `agent_dna.dynamics`, `agent_dna.manifold`, `agent_dna.open_authorizer`, `agent_dna.scan.ingest`, `agent_dna.scorer`, `agent_dna.trace` | 1: `agent_dna.scan` |
-| `api.server` | PrivateVault Agent DNA — Decision Security API | `agent_dna.action_v01`, `agent_dna.advisory`, `agent_dna.amount`, `agent_dna.apikeys`, `agent_dna.approval_bridge`, `agent_dna.authority_deadline`, `agent_dna.authority_v01`, `agent_dna.authorize_binding`, `agent_dna.checkpoint`, `agent_dna.composition`, `agent_dna.connector.cross_agent`, `agent_dna.control_posture`, `agent_dna.decide_limits`, `agent_dna.decide_reservation`, `agent_dna.decision`, `agent_dna.decision_graph`, `agent_dna.dispatch_context_v01`, `agent_dna.execution_v01`, `agent_dna.fact_sources`, `agent_dna.key_custody`, `agent_dna.ledger_reads`, `agent_dna.lineage`, `agent_dna.multi_agent_security.budget_ledger`, `agent_dna.multi_agent_security.delegation`, `agent_dna.multi_agent_security.gate`, `agent_dna.observability.logger`, `agent_dna.observability.metrics`, `agent_dna.observability.prometheus_bridge`, `agent_dna.operation_registry`, `agent_dna.permit_evidence`, `agent_dna.pg_compat`, `agent_dna.presenter_identity`, `agent_dna.rate_limit`, `agent_dna.request_bounds`, `agent_dna.revocation_list`, `agent_dna.runtime`, `agent_dna.security.loop_discovery`, `agent_dna.signer`, `agent_dna.trace`, `agent_dna.wire_serialization_v01` | none |
+| `api.server` | PrivateVault Agent DNA — Decision Security API | `agent_dna.action_v01`, `agent_dna.advisory`, `agent_dna.amount`, `agent_dna.apikeys`, `agent_dna.approval_bridge`, `agent_dna.authority_deadline`, `agent_dna.authority_v01`, `agent_dna.authorize_binding`, `agent_dna.checkpoint`, `agent_dna.composition`, `agent_dna.connector.cross_agent`, `agent_dna.control_posture`, `agent_dna.decide_limits`, `agent_dna.decide_reservation`, `agent_dna.decision`, `agent_dna.decision_graph`, `agent_dna.dispatch_context_v01`, `agent_dna.execution_v01`, `agent_dna.fact_sources`, `agent_dna.grants`, `agent_dna.key_custody`, `agent_dna.ledger_reads`, `agent_dna.lineage`, `agent_dna.multi_agent_security.budget_ledger`, `agent_dna.multi_agent_security.delegation`, `agent_dna.multi_agent_security.gate`, `agent_dna.observability.logger`, `agent_dna.observability.metrics`, `agent_dna.observability.prometheus_bridge`, `agent_dna.operation_registry`, `agent_dna.permit_evidence`, `agent_dna.pg_compat`, `agent_dna.presenter_identity`, `agent_dna.rate_limit`, `agent_dna.request_bounds`, `agent_dna.revocation_list`, `agent_dna.runtime`, `agent_dna.security.loop_discovery`, `agent_dna.signer`, `agent_dna.trace`, `agent_dna.wire_serialization_v01` | none |
 
 ## L5: Enforcement runtime: monitor, breaker, recorder, gates, sidecar
 
@@ -138,7 +138,7 @@ flowchart BT
 | `agent_dna.governance` | Governance control packs and evaluation | nothing in the core | none |
 | `agent_dna.governance.evaluate` | Deterministic evaluation of governance controls | `agent_dna.governance.pack` | none |
 | `agent_dna.governance.pack` | Governance control packs | nothing in the core | 1: `agent_dna.governance.evaluate` |
-| `agent_dna.grants` | CapabilityGrant — grants with lifecycle (expiry, revocation, budget) | `agent_dna.amount`, `agent_dna.grant_spend` | 1: `agent_dna.composition` |
+| `agent_dna.grants` | CapabilityGrant — grants with lifecycle (expiry, revocation, budget) | `agent_dna.amount`, `agent_dna.grant_spend` | 2: `agent_dna.composition`, `api.server` |
 | `agent_dna.intent_adapter` | AgentIntent <-> AgentAction adapter | `agent_dna.trace` | none |
 | `agent_dna.invariant_engine` | Behavioral Invariant Runtime Validator | `agent_dna.invariants` | 2: `agent_dna`, `agent_dna.scorer` |
 | `agent_dna.invariants` | Behavioral Invariants | `agent_dna.trace` | 2: `agent_dna`, `agent_dna.invariant_engine` |

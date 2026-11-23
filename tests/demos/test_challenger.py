@@ -34,18 +34,12 @@ def report(tmp_path_factory):
 
 
 def test_no_money_moves_and_the_oracle_can_see(report):
-    failing = [f for f in report["failures"] if f["verdict"] != "LEAK"]
-    assert not failing, failing
+    assert not report["failures"], report["failures"]
     assert report["tally"]["upstream_direct"].get("BOUNDARY")  # planted bypass seen
     assert report["tally"]["velocity_race"].get("CAUGHT")
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="grant spend committed by the engine is not "
-    "released when /v1/decide later refuses (ADR 0045 fact check)",
-)
 def test_refused_decides_do_not_spend_the_grant(report):
-    assert not report["tally"]["budget_oracle"].get("LEAK"), report["tally"][
-        "budget_oracle"
-    ]
+    """ADR 0046: a strict expected failure until the fix; now permanent."""
+    oracle = report["tally"]["budget_oracle"]
+    assert oracle.get("CAUGHT") and not oracle.get("LEAK"), oracle

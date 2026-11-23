@@ -130,6 +130,7 @@ from agent_dna.fact_sources import (
     sources_from_env,
     sources_manifest,
 )
+from agent_dna.grants import SpendCommit, collect_spend, release_spend
 from agent_dna.key_custody import SignerError, is_kms_ref, signer_from_seed_file
 from agent_dna.ledger_reads import (
     CursorError,
@@ -1371,6 +1372,17 @@ def _reserve_transaction(
     return escalate_with_reservation(result, finding), None
 
 
+def _spend_kept_by(
+    result: DecisionResult, grant_spend: list[SpendCommit] | None
+) -> list[SpendCommit] | None:
+    """ADR 0046: only a sealed ALLOW keeps the grant spend the engine
+    committed; any other verdict gives it back here."""
+    if grant_spend and result.decision is not Decision.ALLOW:
+        release_spend(grant_spend)
+        return None
+    return grant_spend
+
+
 def _seal_decision(
     action: AgentAction,
     result: DecisionResult,
@@ -1380,11 +1392,13 @@ def _seal_decision(
     holder: str,
     charge: Charge | None = None,
     limit_claim: LimitClaim | None = None,
+    grant_spend: list[SpendCommit] | None = None,
 ) -> Any:
-    """Write the decision record. A reservation (ADR 0041) and a delegation
-    budget charge (ADR 0042) are kept only by a sealed ALLOW: they are
-    released when a later control blocked the decide or the record could not
-    be written; a reservation is otherwise named after the record."""
+    """Write the decision record. A reservation (ADR 0041), a delegation
+    budget charge (ADR 0042), a daily limit claim (ADR 0043) and the grant
+    spend the engine committed (ADR 0046) are kept only by a sealed ALLOW:
+    they are released when a later control blocked the decide or the record
+    could not be written; a reservation is otherwise named after the record."""
     reservations: DecideReservations | None = state.get("reservations")
     budgets: DelegationBudgets | None = state.get("delegation_budgets")
     held = reserved_key if reservations is not None else None
@@ -1406,6 +1420,7 @@ def _seal_decision(
     ):
         limits.release(limit_claim)
         limit_claim = None
+    grant_spend = _spend_kept_by(result, grant_spend)
     try:
         record = state["recorder"].record(
             action,
@@ -1420,6 +1435,7 @@ def _seal_decision(
             budgets.release(charge)
         if limit_claim is not None and limits is not None:
             limits.release(limit_claim)
+        release_spend(grant_spend)
         raise
     if held is not None:
         reservations.attach(  # type: ignore[union-attr]
@@ -1466,15 +1482,18 @@ def decide(req: DecideRequest, principal: FullPrincipal):
             status_code=422,
             detail="evidence.shell is reserved; the runtime derives it",
         )
-    result = _decide_or_block_undeclared(
-        req,
-        monitor,
-        action,
-        evidence,
-        approval_context,
-        execution_action,
-        dispatch_context,
-    )
+    # ADR 0046: what the engine charges to a grant here is given back by
+    # _seal_decision if a later control refuses the decide.
+    with collect_spend() as grant_spend:
+        result = _decide_or_block_undeclared(
+            req,
+            monitor,
+            action,
+            evidence,
+            approval_context,
+            execution_action,
+            dispatch_context,
+        )
     result = escalate_with_cross_agent(
         state.get("cross_agent"),
         execution_id=execution_id,
@@ -1559,6 +1578,7 @@ def decide(req: DecideRequest, principal: FullPrincipal):
         reservation_holder,
         budget_charge,
         limit_claim,
+        grant_spend,
     )
 
     content: dict[str, Any] = {

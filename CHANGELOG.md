@@ -5,6 +5,21 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### A refused decide gives back its grant spend (ADR 0046)
+- The engine charged a grant as soon as it reached ALLOW. When a later
+  control refused the decide (the fact check of ADR 0045, the reservation of
+  ADR 0041, the daily limits of ADR 0043, the chain's budgets of ADR 0042),
+  the charge stayed: lies were refused but still spent the agent's budget.
+  Twelve challenged actions leaked Rs 2,27,415, and a three-minute run spent
+  the Rs 10,00,000 grant after about forty honest refunds. Found by the
+  continuous challenger's budget oracle (#254).
+- `_seal_decision` now gives the spend back with the other claims; only a
+  sealed ALLOW keeps it (`tests/demos/test_live_checkout_grant_spend.py`,
+  `tests/test_grant_spend_release.py`, `tests/test_pg_grants.py`). The
+  challenger's budget check is now a permanent test, no longer an expected
+  failure (`tests/demos/test_challenger.py`), and the scheduled run no
+  longer accepts it as known.
+
 ### Test services no longer collide on a port
 - The demo test harnesses picked each service's port one at a time, which can
   hand back the same port twice (7 in 20,000 triples here). The faster
