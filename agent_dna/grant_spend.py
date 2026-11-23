@@ -94,3 +94,30 @@ class GrantSpendLedger:
             conn.rollback()
             raise
         return new
+
+    def release_spend(self, grant_id: str, amount: object) -> Decimal:
+        """Atomically give back ``amount`` that a decide committed but did
+        not keep (ADR 0046). Never goes below zero; never creates a row.
+
+        Returns the new cumulative spend.
+        """
+        delta = coerce_amount(amount)
+        conn = self._conn
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            row = conn.execute(
+                "SELECT spent FROM grant_spend WHERE grant_id = ?", (grant_id,)
+            ).fetchone()
+            if row is None:
+                conn.commit()
+                return Decimal("0")
+            new = max(Decimal(row[0]) - delta, Decimal("0"))
+            conn.execute(
+                "UPDATE grant_spend SET spent = ?, updated_at = ? WHERE grant_id = ?",
+                (str(new), time.time(), grant_id),
+            )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        return new

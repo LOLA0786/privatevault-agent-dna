@@ -18,6 +18,9 @@ from __future__ import annotations
 import threading
 import time
 import uuid
+from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
@@ -220,6 +223,7 @@ class GrantRegistry:
                 raise ValueError(f"grant {grant_id[:14]} revoked before spend")
             if self.spend_ledger is not None:
                 g.spent = self.spend_ledger.commit_spend(grant_id, delta, g.budget)
+                _note_spend(self, grant_id, delta)
                 return
             current = coerce_amount(g.spent)
             if g.budget is not None:
@@ -230,9 +234,67 @@ class GrantRegistry:
                         f"({current + delta} > {budget})"
                     )
             g.spent = current + delta
+            _note_spend(self, grant_id, delta)
+
+    def release_spend(self, grant_id: str, amount: object) -> None:
+        """Give back spend that record_spend() committed for a decide that
+        did not end as a sealed ALLOW (ADR 0046). Never goes below zero."""
+        delta = coerce_amount(amount)
+        with self._spend_lock:
+            g = self._grants.get(grant_id)
+            if self.spend_ledger is not None:
+                spent = self.spend_ledger.release_spend(grant_id, delta)
+                if g is not None:
+                    g.spent = spent
+                return
+            if g is not None:
+                g.spent = max(coerce_amount(g.spent) - delta, Decimal("0"))
 
     # ---- authorizer protocol (drop-in for allowlist) -------------------
 
     def is_authorized(self, agent_id: str, capability: str) -> bool:
         ok, _, _ = self.explain(agent_id, capability)
         return ok
+
+
+# ---- spend a decide may still give back (ADR 0046) --------------------------
+
+
+@dataclass(frozen=True)
+class SpendCommit:
+    """One record_spend() made while a collect_spend() block was open."""
+
+    registry: GrantRegistry
+    grant_id: str
+    amount: Decimal
+
+
+# Commits made while a collect_spend() block is open, in this context only:
+# the API server opens one around the engine, so a decide that a later control
+# refuses (ADR 0041, 0042, 0043, 0045) can give its grant spend back.
+_SPEND_COMMITS: ContextVar[list[SpendCommit] | None] = ContextVar(
+    "pv_spend_commits", default=None
+)
+
+
+def _note_spend(registry: GrantRegistry, grant_id: str, amount: Decimal) -> None:
+    commits = _SPEND_COMMITS.get()
+    if commits is not None:
+        commits.append(SpendCommit(registry, grant_id, amount))
+
+
+@contextmanager
+def collect_spend() -> Iterator[list[SpendCommit]]:
+    """Collect the grant spend committed inside the block."""
+    commits: list[SpendCommit] = []
+    token = _SPEND_COMMITS.set(commits)
+    try:
+        yield commits
+    finally:
+        _SPEND_COMMITS.reset(token)
+
+
+def release_spend(commits: Iterable[SpendCommit] | None) -> None:
+    """Give back each commit to the registry that made it."""
+    for commit in commits or ():
+        commit.registry.release_spend(commit.grant_id, commit.amount)

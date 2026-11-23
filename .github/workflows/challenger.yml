@@ -36,12 +36,9 @@ jobs:
       - name: Challenge every approved action
         env:
           MINUTES: ${{ github.event.inputs.minutes || '20' }}
-        # LEAK:budget_oracle is accepted until refused decides stop spending
-        # the grant (see tests/demos/test_challenger.py). Remove it with the fix.
         run: |
           uv run python -m demos.live_checkout.challenger \
-            --minutes "$MINUTES" --run-dir challenger-run \
-            --known LEAK:budget_oracle | tee challenger.log
+            --minutes "$MINUTES" --run-dir challenger-run | tee challenger.log
       - name: Scoreboard
         if: always()
         run: |

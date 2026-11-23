@@ -17,6 +17,7 @@ import json
 import subprocess
 import sys
 import threading
+import uuid
 from decimal import Decimal
 
 import pytest
@@ -197,3 +198,18 @@ def test_runtime_reports_postgres_spend(dsn, tmp_path, monkeypatch):
         assert rt.composition["authorization"]["revocation"] == "durable (postgresql)"
     finally:
         rt.store.close()
+
+
+def test_release_gives_back_spend_on_any_instance(stores):
+    """ADR 0046 on PostgreSQL: spend committed through one instance is given
+    back through another, under the same row lock, never below zero, and a
+    release for a grant never charged creates no row."""
+    a, b = (PostgresGrantSpendLedger(s.pool) for s in stores)
+    gid = f"grant-release-{uuid.uuid4()}"
+    a.commit_spend(gid, Decimal("100.50"), Decimal("1000"))
+    assert b.release_spend(gid, Decimal("40.25")) == Decimal("60.25")
+    assert a.spent(gid) == Decimal("60.25")
+    assert a.release_spend(gid, 500) == Decimal("0")
+    assert b.spent(gid) == Decimal("0")
+    assert b.release_spend(f"{gid}-never", 5) == Decimal("0")
+    assert a.spent(f"{gid}-never") == Decimal("0")

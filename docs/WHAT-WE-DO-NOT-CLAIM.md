@@ -263,7 +263,10 @@ breakers also reject omitted, `None`, and empty amounts with
 (`tests/test_amount_requirement.py`). Grant spend is durable: it
 survives restart and two workers draw on one budget
 (`tests/test_grant_spend_durable.py`; on PostgreSQL across instances,
-`tests/test_pg_grants.py`). Revocation history is reconstructable from the
+`tests/test_pg_grants.py`). A decide refused after the engine charged a
+grant gives the spend back; only a sealed ALLOW keeps it (ADR 0046,
+`tests/demos/test_live_checkout_grant_spend.py`). An ALLOW that is never
+sent keeps its spend. Revocation history is reconstructable from the
 audit trail alone. Delegation and rescoping are not built.
 
 **A capability covers only the operations the operator declared** (ADR

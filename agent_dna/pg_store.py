@@ -777,6 +777,26 @@ class PostgresGrantSpendLedger:
             )
         return new
 
+    def release_spend(self, grant_id: str, amount: object) -> Decimal:
+        """Give back ``amount`` a decide committed but did not keep
+        (ADR 0046), under the same row lock as commit_spend. Never goes
+        below zero; never creates a row."""
+        delta = coerce_amount(amount)
+        with self._pool.connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                "SELECT spent FROM grant_spend WHERE grant_id = %s FOR UPDATE",
+                (grant_id,),
+            )
+            row = cur.fetchone()
+            if row is None:
+                return Decimal("0")
+            new = max(Decimal(row[0]) - delta, Decimal("0"))
+            cur.execute(
+                "UPDATE grant_spend SET spent = %s, updated_at = %s WHERE grant_id = %s",
+                (str(new), time.time(), grant_id),
+            )
+        return new
+
 
 class PostgresGrantRevocationLedger:
     """GrantRevocationLedger on PostgreSQL, same enforcement boundary.

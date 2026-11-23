@@ -2511,6 +2511,11 @@
   ],
   [
    "api.server",
+   "agent_dna.grants",
+   "top"
+  ],
+  [
+   "api.server",
    "agent_dna.key_custody",
    "top"
   ],
@@ -3671,7 +3676,7 @@
   "agent_dna.governance.pack": 2,
   "agent_dna.grant_revocation": 3,
   "agent_dna.grant_spend": 4,
-  "agent_dna.grants": 7,
+  "agent_dna.grants": 8,
   "agent_dna.identity": 6,
   "agent_dna.intent_adapter": 1,
   "agent_dna.invariant_engine": 2,
@@ -3926,7 +3931,7 @@
   "agent_dna.validation.drift": 1,
   "agent_dna.validation.report": 2,
   "agent_dna.wire_serialization_v01": 1,
-  "api.server": 40,
+  "api.server": 41,
   "examples.amlsim.run_amlsim_sample": 6,
   "examples.authority_blast_radius_demo": 1,
   "examples.authority_derivation_demo": 1,
