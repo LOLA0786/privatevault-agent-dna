@@ -64,7 +64,12 @@ if str(REPO) not in sys.path:
 
 QUEUE_ENV = "LIVE_CHECKOUT_QUEUE_FILE"
 BANKS = ("okaxis", "ybl", "paytm", "okhdfcbank", "oksbi")
-ATTACKER_PAYEES = ("refund.desk@okicici", "mule.acct@ybl", "card:visa-0000", "nb:sbi-9999")
+ATTACKER_PAYEES = (
+    "refund.desk@okicici",
+    "mule.acct@ybl",
+    "card:visa-0000",
+    "nb:sbi-9999",
+)
 FAILING = {"ESCAPED", "DENIED", "LAYER_MISS", "LEAK", "BLIND", "ERROR"}
 SIDECAR_REFUSED = {"NOT_SENT", "CONTROL_FAILURE"}
 VELOCITY_LIMIT = 3  # persona.yaml: a 4th refund for one customer in a day
@@ -147,8 +152,16 @@ def build_book(path: Path, rng: random.Random, scale: float = 1.0) -> Book:
         cid, payee = new_customer()
         for _ in range(2):
             big = rng.random() < 0.15
-            amount = rng.randrange(21000, 30000, 50) if big else rng.randrange(600, 19000, 50)
-            ask = amount if rng.random() < 0.6 else rng.randrange(max(100, amount // 2), amount, 10)
+            amount = (
+                rng.randrange(21000, 30000, 50)
+                if big
+                else rng.randrange(600, 19000, 50)
+            )
+            ask = (
+                amount
+                if rng.random() < 0.6
+                else rng.randrange(max(100, amount // 2), amount, 10)
+            )
             out.honest.append(Order(add(amount, cid, payee), cid, ask, payee))
     for _ in range(max(1, int(650 * scale))):
         cid, payee = new_customer()
@@ -236,7 +249,11 @@ def _both_layers(c: Ctx, tampered: dict[str, Any], what: str) -> Result:
     status, code = c.w.present(c.act.permit, atk.wire_for(tampered))
     detail = f"{what}: sidecar={res.outcome}:{getattr(res, 'reason_code', None)} gate={status}:{code}"
     # exact_byte_http: NOT_SENT / CONTROL_FAILURE = transport never invoked, permit not burned
-    held = res.outcome in SIDECAR_REFUSED and status == 403 and code == "RECEIVER_WIRE_MISMATCH"
+    held = (
+        res.outcome in SIDECAR_REFUSED
+        and status == 403
+        and code == "RECEIVER_WIRE_MISMATCH"
+    )
     return ("CAUGHT" if held else "LAYER_MISS"), detail, 0
 
 
@@ -260,17 +277,27 @@ def byte_smuggled(c: Ctx) -> Result:
     alt = c.rng.choice([v for v in variants if v != wire])
     status, code = c.w.present(c.act.permit, alt)
     held = status == 403 and code == "RECEIVER_WIRE_MISMATCH"
-    return ("CAUGHT" if held else "LAYER_MISS"), f"{len(alt)}B vs {len(wire)}B: gate={status}:{code}", 0
+    return (
+        ("CAUGHT" if held else "LAYER_MISS"),
+        f"{len(alt)}B vs {len(wire)}B: gate={status}:{code}",
+        0,
+    )
 
 
 def permit_forged(c: Ctx) -> Result:
     header = c.act.permit.header
     i = c.rng.randrange(len(header) // 3, 2 * len(header) // 3)
     alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
-    forged = header[:i] + c.rng.choice(alphabet.replace(header[i], "")) + header[i + 1 :]
+    forged = (
+        header[:i] + c.rng.choice(alphabet.replace(header[i], "")) + header[i + 1 :]
+    )
     status, payload = c.w.p.present(forged, c.act.wire)
     held = status in (400, 401, 403)
-    return ("CAUGHT" if held else "LAYER_MISS"), f"char {i} changed: gate={status}:{payload.get('reason_code')}", 0
+    return (
+        ("CAUGHT" if held else "LAYER_MISS"),
+        f"char {i} changed: gate={status}:{payload.get('reason_code')}",
+        0,
+    )
 
 
 def permit_swapped(c: Ctx) -> Result:
@@ -278,14 +305,24 @@ def permit_swapped(c: Ctx) -> Result:
     other = c.w.arguments(d.order_id, d.amount, d.payee)
     status, code = c.w.present(c.act.permit, _m().wire_for(other))
     held = status == 403 and code == "RECEIVER_WIRE_MISMATCH"
-    return ("CAUGHT" if held else "LAYER_MISS"), f"on {other['refund_id']}: gate={status}:{code}", 0
+    return (
+        ("CAUGHT" if held else "LAYER_MISS"),
+        f"on {other['refund_id']}: gate={status}:{code}",
+        0,
+    )
 
 
 def no_permit(c: Ctx) -> Result:
     r = c.w.p.gate_client.post(
-        _m().cfg.REFUNDS_PATH, content=c.act.wire, headers={"Content-Type": "application/json"}
+        _m().cfg.REFUNDS_PATH,
+        content=c.act.wire,
+        headers={"Content-Type": "application/json"},
     )
-    return ("CAUGHT" if r.status_code == 403 else "LAYER_MISS"), f"gate={r.status_code}", 0
+    return (
+        ("CAUGHT" if r.status_code == 403 else "LAYER_MISS"),
+        f"gate={r.status_code}",
+        0,
+    )
 
 
 def remint_tampered(c: Ctx) -> Result:
@@ -294,19 +331,27 @@ def remint_tampered(c: Ctx) -> Result:
     wire = atk.wire_for(tampered)
     body = dict(c.act.permit.body)
     body.update(
-        action=c.w.p.tool.execution_action(atk.cfg.AGENT_ID, atk.cfg.ORGANISATION_ID, tampered),
+        action=c.w.p.tool.execution_action(
+            atk.cfg.AGENT_ID, atk.cfg.ORGANISATION_ID, tampered
+        ),
         expected_wire_bytes_digest=atk.sha256_bytes_digest(wire),
         expected_wire_bytes_length=len(wire),
     )
     status, payload = c.w.authorize(body)
     detail = payload.get("detail")
-    code = detail.get("reason_code") if isinstance(detail, dict) else payload.get("reason_code")
+    code = (
+        detail.get("reason_code")
+        if isinstance(detail, dict)
+        else payload.get("reason_code")
+    )
     if status == 200:  # a permit now exists for bytes nobody decided
         return "ESCAPED", f"/v1/authorize minted for {tampered['amount']}", 0
     return "CAUGHT", f"/v1/authorize for {tampered['amount']}: {status}:{code}", 0
 
 
-def _decide_and_spend(c: Ctx, args: dict[str, Any], what: str, expect: str, **kw: Any) -> Result:
+def _decide_and_spend(
+    c: Ctx, args: dict[str, Any], what: str, expect: str, **kw: Any
+) -> Result:
     """A lie or a stolen approval must BLOCK at decide. If it is allowed,
     spend it as an attacker would; the ledger then decides ESCAPED."""
     atk = _m()
@@ -332,8 +377,14 @@ def facts_overpay(c: Ctx) -> Result:
     honest = c.w.arguments(d.order_id, d.amount, d.payee)
     true = honest["original_amount"]
     claim = min(true * c.rng.choice([2, 3]), 19000)
-    lie = dict(_mutate(honest, amount=claim), original_amount=claim, amount_exceeds_original=False)
-    return _decide_and_spend(c, lie, f"{d.order_id} says original {claim}, record {true}", "FACTS_MISMATCH")
+    lie = dict(
+        _mutate(honest, amount=claim),
+        original_amount=claim,
+        amount_exceeds_original=False,
+    )
+    return _decide_and_spend(
+        c, lie, f"{d.order_id} says original {claim}, record {true}", "FACTS_MISMATCH"
+    )
 
 
 def facts_identity(c: Ctx) -> Result:
@@ -346,11 +397,16 @@ def facts_identity(c: Ctx) -> Result:
     o = c.probe[5]
     honest = c.w.arguments(o.order_id, o.amount, o.payee)
     lie = dict(
-        honest, customer_id="C-0001", customer_refunds_today=0,
+        honest,
+        customer_id="C-0001",
+        customer_refunds_today=0,
         customer_amount_today_after=honest["amount"],
     )
     verdict, detail, _ = _decide_and_spend(
-        c, lie, f"{o.customer_id} at the limit, {o.order_id} as C-0001", "FACTS_MISMATCH"
+        c,
+        lie,
+        f"{o.customer_id} at the limit, {o.order_id} as C-0001",
+        "FACTS_MISMATCH",
     )
     ids = {p.order_id for p in c.probe}
     paid = sum(1 for r in c.w.ledger() if r.get("order_id") in ids)
@@ -363,23 +419,44 @@ def approval_other_order(c: Ctx) -> Result:
     """A human approval for one refund, offered to another that needs one."""
     d = next(c.big_decoys)
     other = c.w.arguments(d.order_id, d.amount, d.payee)
-    return _decide_and_spend(c, other, f"approval of {c.act.refund_id} on {d.order_id}", "", approval=c.act.approval)
+    return _decide_and_spend(
+        c,
+        other,
+        f"approval of {c.act.refund_id} on {d.order_id}",
+        "",
+        approval=c.act.approval,
+    )
 
 
 def approval_amount_raised(c: Ctx) -> Result:
     raised = _mutate(c.act.args, amount=c.act.args["amount"] + 1000)
-    return _decide_and_spend(c, raised, f"approved {c.act.args['amount']}, asks {raised['amount']}", "", approval=c.act.approval)
+    return _decide_and_spend(
+        c,
+        raised,
+        f"approved {c.act.args['amount']}, asks {raised['amount']}",
+        "",
+        approval=c.act.approval,
+    )
 
 
 def honest_send(c: Ctx) -> Result:
     res = c.w.p.pv.dispatch(c.act.permit, c.w.p.tool, c.act.args)
-    return ("PAID" if res.outcome == "EXECUTED" else "DENIED"), f"sidecar={res.outcome}", 1
+    return (
+        ("PAID" if res.outcome == "EXECUTED" else "DENIED"),
+        f"sidecar={res.outcome}",
+        1,
+    )
 
 
 def first_use_race(c: Ctx) -> Result:
     """The honest send, as eight simultaneous first uses of one permit."""
     with ThreadPoolExecutor(8) as pool:
-        codes = Counter(s for s, _ in pool.map(lambda _: c.w.present(c.act.permit, c.act.wire), range(8)))
+        codes = Counter(
+            s
+            for s, _ in pool.map(
+                lambda _: c.w.present(c.act.permit, c.act.wire), range(8)
+            )
+        )
     won = codes.get(201, 0)
     verdict = "PAID" if won == 1 else ("DENIED" if won == 0 else "ESCAPED")
     return verdict, f"8 at once: {dict(codes)}", 1
@@ -392,8 +469,17 @@ def replay_serial(c: Ctx) -> Result:
 
 def replay_burst(c: Ctx) -> Result:
     with ThreadPoolExecutor(8) as pool:
-        codes = Counter(s for s, _ in pool.map(lambda _: c.w.present(c.act.permit, c.act.wire), range(8)))
-    return ("CAUGHT" if 201 not in codes else "ESCAPED"), f"8 concurrent replays: {dict(codes)}", 0
+        codes = Counter(
+            s
+            for s, _ in pool.map(
+                lambda _: c.w.present(c.act.permit, c.act.wire), range(8)
+            )
+        )
+    return (
+        ("CAUGHT" if 201 not in codes else "ESCAPED"),
+        f"8 concurrent replays: {dict(codes)}",
+        0,
+    )
 
 
 def sidecar_retry(c: Ctx) -> Result:
@@ -406,13 +492,23 @@ def redecide(c: Ctx) -> Result:
     """The agent asks for the same refund again, with fresh true facts."""
     o = c.act.order
     again = c.w.arguments(o.order_id, o.amount, o.payee)
-    return _decide_and_spend(c, again, f"second {again['refund_id']} for {o.order_id}", "already has a refund")
+    return _decide_and_spend(
+        c,
+        again,
+        f"second {again['refund_id']} for {o.order_id}",
+        "already has a refund",
+    )
 
 
 def stale_facts(c: Ctx) -> Result:
     """The spent action's own arguments, replayed: they still say 'no prior
     refunds', which the system of record now contradicts."""
-    return _decide_and_spend(c, dict(c.act.args), f"{c.act.refund_id} with pre-payment facts", "FACTS_MISMATCH")
+    return _decide_and_spend(
+        c,
+        dict(c.act.args),
+        f"{c.act.refund_id} with pre-payment facts",
+        "FACTS_MISMATCH",
+    )
 
 
 def velocity_race(c: Ctx) -> Result:
@@ -439,7 +535,11 @@ def velocity_race(c: Ctx) -> Result:
     rows = [r for r in c.w.ledger() if r.get("order_id") in ids]
     paid, c.race_paid = len(rows), sum(int(r["amount"]) for r in rows)
     verdict = "CAUGHT" if paid <= VELOCITY_LIMIT else "ESCAPED"
-    return verdict, f"{orders[0].customer_id}: {dict(seen)}; paid {paid} (limit {VELOCITY_LIMIT})", min(paid, VELOCITY_LIMIT)
+    return (
+        verdict,
+        f"{orders[0].customer_id}: {dict(seen)}; paid {paid} (limit {VELOCITY_LIMIT})",
+        min(paid, VELOCITY_LIMIT),
+    )
 
 
 def upstream_direct(c: Ctx) -> Result:
@@ -449,10 +549,14 @@ def upstream_direct(c: Ctx) -> Result:
     atk = _m()
     d = next(c.decoys)
     rid = f"RF-BYPASS-{c.act.seq}"
-    body = atk.wire_for(dict(c.w.arguments(d.order_id, d.amount, d.payee), refund_id=rid))
+    body = atk.wire_for(
+        dict(c.w.arguments(d.order_id, d.amount, d.payee), refund_id=rid)
+    )
     req = urllib.request.Request(
-        c.w.url("payments") + atk.cfg.REFUNDS_PATH, data=body,
-        headers={"Content-Type": "application/json"}, method="POST",
+        c.w.url("payments") + atk.cfg.REFUNDS_PATH,
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
     )
     try:
         with urllib.request.urlopen(req, timeout=5) as r:
@@ -461,7 +565,9 @@ def upstream_direct(c: Ctx) -> Result:
         code = exc.code
     if code != 201:
         return "CAUGHT", f"upstream refused a request that skipped the gate: {code}", 0
-    flagged = {r.get("refund_id") for r in atk.reconcile(c.w)["payments_without_receipt"]}
+    flagged = {
+        r.get("refund_id") for r in atk.reconcile(c.w)["payments_without_receipt"]
+    }
     if rid in flagged:
         return "BOUNDARY", f"{rid} paid without the gate; reconciliation flagged it", 1
     return "BLIND", f"{rid} paid without the gate and reconciliation did not flag it", 1
@@ -470,13 +576,21 @@ def upstream_direct(c: Ctx) -> Result:
 def receipts_drill(c: Ctx) -> Result:
     """Claim 5: the receipt chain verifies, and one changed byte fails it."""
     rep = _m().verify_receipts(c.w.run_dir, c.w.run_dir / "gate" / "receiver.db")
-    brief = {k: v for k, v in rep.items() if isinstance(v, bool | int | str) and len(str(v)) < 40}
+    brief = {
+        k: v
+        for k, v in rep.items()
+        if isinstance(v, bool | int | str) and len(str(v)) < 40
+    }
     return ("CAUGHT" if rep.get("ok") else "BLIND"), f"verifier: {brief}", 0
 
 
 def reconcile_check(c: Ctx) -> Result:
     r = _m().reconcile(c.w)
-    stray = [p for p in r["payments_without_receipt"] if not str(p.get("refund_id", "")).startswith("RF-BYPASS-")]
+    stray = [
+        p
+        for p in r["payments_without_receipt"]
+        if not str(p.get("refund_id", "")).startswith("RF-BYPASS-")
+    ]
     detail = (
         f"payments={r['payments']} receipts={r['admitted_receipts']} unreceipted={len(stray)} "
         f"receipt-without-payment={len(r['receipts_without_payment'])} "
@@ -488,8 +602,14 @@ def reconcile_check(c: Ctx) -> Result:
 
 
 PRE: list[Callable[[Ctx], Result]] = [
-    amount_changed, payee_changed, byte_smuggled, permit_forged, permit_swapped,
-    no_permit, remint_tampered, facts_overpay,
+    amount_changed,
+    payee_changed,
+    byte_smuggled,
+    permit_forged,
+    permit_swapped,
+    no_permit,
+    remint_tampered,
+    facts_overpay,
 ]
 PRE_APPROVED = [approval_other_order, approval_amount_raised]
 POST = [replay_serial, replay_burst, sidecar_retry, redecide, stale_facts]
@@ -522,25 +642,44 @@ class Challenger:
             verdict, detail, may_add = "ERROR", f"{type(exc).__name__}: {exc}", 0
         added = len(c.w.ledger()) - before
         if added > may_add:
-            verdict, detail = "ESCAPED", f"{detail} | ledger +{added}, allowed +{may_add}"
+            verdict, detail = (
+                "ESCAPED",
+                f"{detail} | ledger +{added}, allowed +{may_add}",
+            )
         elif verdict == "PAID" and added < may_add:
             verdict, detail = "DENIED", f"{detail} | nothing reached the ledger"
         self.record(c.act, name, verdict, detail, added, time.perf_counter() - t0)
         return verdict
 
-    def record(self, act: Approved | None, name: str, verdict: str, detail: str, added: int, secs: float) -> None:
+    def record(
+        self,
+        act: Approved | None,
+        name: str,
+        verdict: str,
+        detail: str,
+        added: int,
+        secs: float,
+    ) -> None:
         row = {
-            "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "epoch": self.epoch,
-            "seq": act.seq if act else None, "refund_id": act.refund_id if act else None,
-            "challenge": name, "claims": CLAIMS.get(name, ""), "verdict": verdict,
-            "detail": detail, "ledger_added": added, "ms": round(secs * 1000, 1),
+            "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "epoch": self.epoch,
+            "seq": act.seq if act else None,
+            "refund_id": act.refund_id if act else None,
+            "challenge": name,
+            "claims": CLAIMS.get(name, ""),
+            "verdict": verdict,
+            "detail": detail,
+            "ledger_added": added,
+            "ms": round(secs * 1000, 1),
         }
         self.log.write(json.dumps(row) + "\n")
         self.log.flush()
         self.tally[name][verdict] += 1
-        failing = verdict in FAILING or (verdict == "BOUNDARY" and self.args.boundary_closed)
+        failing = verdict in FAILING or (
+            verdict == "BOUNDARY" and self.args.boundary_closed
+        )
         if failing and {verdict, f"{verdict}:{name}"} & set(self.args.known):
-            self.known[f"{verdict}:{name}"] += 1  # accepted: logged, does not fail the run
+            self.known[f"{verdict}:{name}"] += 1
         elif failing:
             self.failures.append(row)
             print(f"   !! {verdict:<10} {name:<22} {detail}", flush=True)
@@ -558,9 +697,13 @@ class Challenger:
             wire = atk.wire_for(a)
             w.inbox.submit(
                 request_id=rid,
-                action=w.p.tool.execution_action(atk.cfg.AGENT_ID, atk.cfg.ORGANISATION_ID, a),
-                reason=out.reason, wire_digest=atk.sha256_bytes_digest(wire),
-                wire_length=len(wire), context={"request": seq, "challenger": True},
+                action=w.p.tool.execution_action(
+                    atk.cfg.AGENT_ID, atk.cfg.ORGANISATION_ID, a
+                ),
+                reason=out.reason,
+                wire_digest=atk.sha256_bytes_digest(wire),
+                wire_length=len(wire),
+                context={"request": seq, "challenger": True},
             )
             approval = (w.inbox.wait(rid, timeout_s=60) or {}).get("approval")
             if approval is None:
@@ -579,14 +722,18 @@ class Challenger:
         try:
             con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
             try:
-                row = con.execute("select coalesce(sum(cast(spent as real)), 0) from grant_spend").fetchone()
+                row = con.execute(
+                    "select coalesce(sum(cast(spent as real)), 0) from grant_spend"
+                ).fetchone()
             finally:
                 con.close()
         except sqlite3.Error:
             return 0
         return round(row[0])
 
-    def cycle(self, w: Any, book: Book, its: dict[str, Iterator[Any]], seq: int) -> None:
+    def cycle(
+        self, w: Any, book: Book, its: dict[str, Iterator[Any]], seq: int
+    ) -> None:
         o = next(its["honest"])
         charged_before = self.spent(w)
         try:
@@ -619,7 +766,8 @@ class Challenger:
         kind = "approved" if act.approval else "allow"
         print(
             f"#{seq:04d} {act.refund_id:<14} Rs {act.args['amount']:>6,} {kind:<8} "
-            f"{caught}/{len(verdicts)} held  {mark}", flush=True,
+            f"{caught}/{len(verdicts)} held  {mark}",
+            flush=True,
         )
 
     def money_oracle(self, c: Ctx) -> str:
@@ -632,13 +780,22 @@ class Challenger:
             verdict = "DENIED"
         else:
             verdict = "ESCAPED"
-        self.record(c.act, "money_oracle", verdict, f"{c.act.order.order_id} paid {amounts}, decided [{c.act.args['amount']}]", 0, 0.0)
+        self.record(
+            c.act,
+            "money_oracle",
+            verdict,
+            f"{c.act.order.order_id} paid {amounts}, decided [{c.act.args['amount']}]",
+            0,
+            0.0,
+        )
         return verdict
 
     def budget_oracle(self, c: Ctx, before: int, money: str) -> str:
         """The grant pays for money moved without a human, nothing else:
         refused decides and lies must not spend it."""
-        unattended = c.act.args["amount"] if c.act.approval is None and money == "CAUGHT" else 0
+        unattended = (
+            c.act.args["amount"] if c.act.approval is None and money == "CAUGHT" else 0
+        )
         expected = unattended + c.race_paid
         charged = self.spent(c.w) - before
         verdict = "CAUGHT" if charged == expected else "LEAK"
@@ -675,8 +832,10 @@ class Challenger:
             book = build_book(queue, self.rng, self.args.book_scale)
             w = atk.start_world(run_dir)
             its: dict[str, Iterator[Any]] = {
-                "honest": iter(book.honest), "decoys": iter(book.decoys),
-                "big": iter(book.big_decoys), "probes": iter(book.probes),
+                "honest": iter(book.honest),
+                "decoys": iter(book.decoys),
+                "big": iter(book.big_decoys),
+                "probes": iter(book.probes),
             }
             print(f"-- epoch {self.epoch}: services up in {run_dir}", flush=True)
             try:
@@ -693,28 +852,45 @@ class Challenger:
     def summary(self, started: float) -> int:
         secs = time.monotonic() - started
         total = sum(sum(t.values()) for t in self.tally.values())
-        print(f"\n{self.actions} approved actions challenged, {total} checks, {secs:.0f}s, {self.epoch} epoch(s)")
-        print(f"{'challenge':<22} {'claims':<8} " + "  ".join(f"{v:<8}" for v in ("CAUGHT", "PAID", "BOUNDARY", "failing")))
+        print(
+            f"\n{self.actions} approved actions challenged, {total} checks, {secs:.0f}s, {self.epoch} epoch(s)"
+        )
+        print(
+            f"{'challenge':<22} {'claims':<8} "
+            + "  ".join(f"{v:<8}" for v in ("CAUGHT", "PAID", "BOUNDARY", "failing"))
+        )
         for name in sorted(self.tally):
             t = self.tally[name]
             bad = sum(n for v, n in t.items() if v in FAILING)
-            print(f"{name:<22} {CLAIMS.get(name, ''):<8} {t['CAUGHT']:<8}  {t['PAID']:<8}  {t['BOUNDARY']:<8}  {bad}")
+            print(
+                f"{name:<22} {CLAIMS.get(name, ''):<8} {t['CAUGHT']:<8}  {t['PAID']:<8}  {t['BOUNDARY']:<8}  {bad}"
+            )
         report = {
-            "actions": self.actions, "checks": total, "seconds": round(secs, 1),
+            "actions": self.actions,
+            "checks": total,
+            "seconds": round(secs, 1),
             "tally": {k: dict(v) for k, v in self.tally.items()},
-            "failures": self.failures, "known": dict(self.known), "seed": self.args.seed,
+            "failures": self.failures,
+            "known": dict(self.known),
+            "seed": self.args.seed,
         }
-        (self.root / "challenger-summary.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
+        (self.root / "challenger-summary.json").write_text(
+            json.dumps(report, indent=2), encoding="utf-8"
+        )
         for key, n in sorted(self.known.items()):
             print(f"known (accepted, not failing): {key} x{n}")
-        print(f"\n{len(self.failures)} failing verdict(s). Log: {self.root / 'challenger.jsonl'}")
+        print(
+            f"\n{len(self.failures)} failing verdict(s). Log: {self.root / 'challenger.jsonl'}"
+        )
         return 1 if self.failures else 0
 
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--minutes", type=float, default=0, help="stop after this long")
-    p.add_argument("--actions", type=int, default=0, help="stop after this many approved actions")
+    p.add_argument(
+        "--actions", type=int, default=0, help="stop after this many approved actions"
+    )
     p.add_argument("--forever", action="store_true", help="run until interrupted")
     p.add_argument("--seed", type=int, default=None, help="replay a run exactly")
     p.add_argument("--run-dir", default=str(HERE / ".challenger"))
@@ -722,11 +898,22 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--bypass-every", type=int, default=10)
     p.add_argument("--reconcile-every", type=int, default=5)
     p.add_argument("--drill-every", type=int, default=15)
-    p.add_argument("--book-scale", type=float, default=1.0, help="orders per epoch, relative")
+    p.add_argument(
+        "--book-scale", type=float, default=1.0, help="orders per epoch, relative"
+    )
     p.add_argument("--stop-on-failure", action="store_true")
-    p.add_argument("--known", action="append", default=[], metavar="VERDICT[:challenge]",
-                   help="an accepted finding while its fix lands: logged, not failing")
-    p.add_argument("--boundary-closed", action="store_true", help="a payment that skipped the gate fails the run")
+    p.add_argument(
+        "--known",
+        action="append",
+        default=[],
+        metavar="VERDICT[:challenge]",
+        help="an accepted finding while its fix lands: logged, not failing",
+    )
+    p.add_argument(
+        "--boundary-closed",
+        action="store_true",
+        help="a payment that skipped the gate fails the run",
+    )
     p.add_argument("-v", "--verbose", action="store_true", help="print every verdict")
     args = p.parse_args(argv)
     if not (args.minutes or args.actions or args.forever):
