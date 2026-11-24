@@ -48,6 +48,7 @@ verified.
 | Document | Status | What it covers |
 |---|---|---|
 | [WHAT-WE-DO-NOT-CLAIM.md](WHAT-WE-DO-NOT-CLAIM.md) | current | The limits of every claim |
+| [AAT02-VECTORS.md](AAT02-VECTORS.md) | current | pv-delegation/2 as AAT -02 conformance vectors: coverage, the depth-counting difference, what is not covered |
 | [SECURITY.md](SECURITY.md) | current | Security model |
 | [THREAT-MODEL.md](THREAT-MODEL.md) | reference | Threats indexed by attack, with the test for each |
 | [SECURITY-MIGRATION-v0.5.md](SECURITY-MIGRATION-v0.5.md) | reference | Migration notes for DRP 0.2 mintable decisions |

@@ -61,6 +61,7 @@ flowchart TB
 | `api/` | ships | FastAPI decision service, `api/server.py` |
 | `rust/` | ships | `pv_runtime`: Rust mirror of the record format and signer, byte-for-byte equal to Python (ADR 0012) |
 | `spec/` | reference | Wire contracts, JSON schemas and canonical test vectors (DRP records, execution, approval, authority) |
+| `vectors/` | reference | Conformance vectors in other specifications' layouts: `aat02/` is pv-delegation/2 in the AAT -02 suite's layout (`tools/gen_aat02_vectors.py`, replayed by `tests/test_aat02_vectors.py`) |
 | `tests/` | runs | The test suite; every claim names a test (ADR 0011) |
 | `integrations/` | ships | Claude Code plugin (`claude-code/privatevault`): a PreToolUse hook that sends each tool call to `/v1/decide`, with a starter policy |
 | `tools/` | runs | Stdlib-only verifiers, key and profile bootstrap, generators for the generated docs and pages, benchmarks, smoke tests |
