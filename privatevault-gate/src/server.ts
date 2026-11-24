@@ -312,7 +312,7 @@ export function buildServer(client: PrivateVaultClient = new PrivateVaultClient(
         "Ask PrivateVault for a decision WITHOUT executing. Advisory only — nothing enforces that you honor the verdict, unlike the pv_* tools where execution is structurally behind the check.",
       inputSchema: {
         capability: z.string().describe("Capability identifier"),
-        args: z.record(z.unknown()).default({}).describe("The action's arguments"),
+        args: z.record(z.string(), z.unknown()).default({}).describe("The action's arguments"),
       },
     },
     async ({ capability, args }) => {

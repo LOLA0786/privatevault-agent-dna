@@ -80,7 +80,7 @@ sequenceDiagram
 | One live ALLOW per business transaction (ADR 0041) | `api/server.py::_reserve_transaction` |
 | Daily count and amount limits (ADR 0043) | `api/server.py::_claim_decide_limit` |
 | Delegation chain budgets (ADR 0042) | `api/server.py::_charge_delegation_budget` |
-| Keep every claim only for a sealed ALLOW (ADR 0046) | `api/server.py::_seal_decision`, `api/server.py::_spend_kept_by` |
+| Keep every claim only for a sealed ALLOW (ADR 0046) | `api/server.py::_seal_decision`, `api/server.py::_release_claims` (ADR 0047: also on a fault before the seal) |
 | Seal, sign, persist | `agent_dna/decision_recorder.py::DecisionRecorder.record` |
 | Record formats | `agent_dna/decision_record.py::build_record` (drp/0.1, audit-only), `agent_dna/decision_record.py::build_record_v02` (drp/0.2, bound) |
 | Signature | `agent_dna/signer_bridge.py::ReceiptSigner.sign_record` |

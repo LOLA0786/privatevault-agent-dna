@@ -39,6 +39,12 @@ CLAIM_SITES: dict[str, re.Pattern[str]] = {
     "examples/composed_line_demo.py": re.compile(
         r"every level is a tested code path, (\d+)\+? automated tests"
     ),
+    # Generated pages: regenerate with tools/gen_architecture.py,
+    # tools/gen_scenarios.py and tools/gen_meeting_dashboard.py. Unguarded,
+    # they still said 1,175 tests when the suite had passed 3,200.
+    "architecture.html": re.compile(r'"lastLine": "(\d+) tests collected'),
+    "scenarios.html": re.compile(r'"collectLine": "(\d+) tests collected'),
+    "meeting-dashboard.html": re.compile(r'"collectLine": "(\d+) tests collected'),
 }
 
 # The collected count is ENVIRONMENT-DEPENDENT: tests/test_rust_*.py use

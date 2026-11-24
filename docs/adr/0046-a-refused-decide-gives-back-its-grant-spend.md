@@ -34,7 +34,7 @@ row.
 ## What this does not do
 - An ALLOW that is never minted or sent keeps its spend.
 - A fault between the engine and the seal (an exception in a later control)
-  leaves the spend charged; the decide fails closed.
+  left the spend charged until ADR 0047 gave it back.
 - Until a refused decide reaches the seal, its spend counts against the
   budget, so a concurrent decide can be held for an approval it would not
   need a moment later.

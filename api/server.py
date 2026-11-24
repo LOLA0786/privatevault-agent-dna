@@ -1372,15 +1372,28 @@ def _reserve_transaction(
     return escalate_with_reservation(result, finding), None
 
 
-def _spend_kept_by(
-    result: DecisionResult, grant_spend: list[SpendCommit] | None
-) -> list[SpendCommit] | None:
-    """ADR 0046: only a sealed ALLOW keeps the grant spend the engine
-    committed; any other verdict gives it back here."""
-    if grant_spend and result.decision is not Decision.ALLOW:
-        release_spend(grant_spend)
-        return None
-    return grant_spend
+def _release_claims(
+    reserved_key: TransactionKey | None,
+    holder: str,
+    charge: Charge | None,
+    limit_claim: LimitClaim | None,
+    grant_spend: list[SpendCommit] | None,
+) -> None:
+    """Give back what a decide claimed for an ALLOW it will not seal: the
+    reservation (ADR 0041), the chain's budget charge (ADR 0042), the daily
+    limit claim (ADR 0043) and the grant spend (ADR 0046). Used for a refused
+    verdict, a record that cannot be written, and a fault before the seal
+    (ADR 0047)."""
+    reservations: DecideReservations | None = state.get("reservations")
+    budgets: DelegationBudgets | None = state.get("delegation_budgets")
+    limits: DecideLimits | None = state.get("decide_limits")
+    if reserved_key is not None and reservations is not None:
+        reservations.release(reserved_key, holder=holder)
+    if charge is not None and budgets is not None:
+        budgets.release(charge)
+    if limit_claim is not None and limits is not None:
+        limits.release(limit_claim)
+    release_spend(grant_spend)
 
 
 def _seal_decision(
@@ -1400,27 +1413,10 @@ def _seal_decision(
     they are released when a later control blocked the decide or the record
     could not be written; a reservation is otherwise named after the record."""
     reservations: DecideReservations | None = state.get("reservations")
-    budgets: DelegationBudgets | None = state.get("delegation_budgets")
     held = reserved_key if reservations is not None else None
-    if held is not None and result.decision is not Decision.ALLOW:
-        reservations.release(held, holder=holder)  # type: ignore[union-attr]
-        held = None
-    if (
-        charge is not None
-        and budgets is not None
-        and result.decision is not Decision.ALLOW
-    ):
-        budgets.release(charge)
-        charge = None
-    limits: DecideLimits | None = state.get("decide_limits")
-    if (
-        limit_claim is not None
-        and limits is not None
-        and result.decision is not Decision.ALLOW
-    ):
-        limits.release(limit_claim)
-        limit_claim = None
-    grant_spend = _spend_kept_by(result, grant_spend)
+    if result.decision is not Decision.ALLOW:
+        _release_claims(held, holder, charge, limit_claim, grant_spend)
+        held, charge, limit_claim, grant_spend = None, None, None, None
     try:
         record = state["recorder"].record(
             action,
@@ -1429,13 +1425,7 @@ def _seal_decision(
             dispatch_context=dispatch_context,
         )
     except BaseException:
-        if held is not None:
-            reservations.release(held, holder=holder)  # type: ignore[union-attr]
-        if charge is not None and budgets is not None:
-            budgets.release(charge)
-        if limit_claim is not None and limits is not None:
-            limits.release(limit_claim)
-        release_spend(grant_spend)
+        _release_claims(held, holder, charge, limit_claim, grant_spend)
         raise
     if held is not None:
         reservations.attach(  # type: ignore[union-attr]
@@ -1445,7 +1435,7 @@ def _seal_decision(
 
 
 @app.post("/v1/decide")
-def decide(req: DecideRequest, principal: FullPrincipal):
+def decide(req: DecideRequest, principal: FullPrincipal):  # noqa: C901
     _enforce_identity(principal, req.agent_id)
     execution_action, dispatch_context = _validate_decide_binding(req)
     context = dict(req.context or {})
@@ -1482,92 +1472,104 @@ def decide(req: DecideRequest, principal: FullPrincipal):
             status_code=422,
             detail="evidence.shell is reserved; the runtime derives it",
         )
-    # ADR 0046: what the engine charges to a grant here is given back by
-    # _seal_decision if a later control refuses the decide.
-    with collect_spend() as grant_spend:
-        result = _decide_or_block_undeclared(
-            req,
-            monitor,
-            action,
-            evidence,
-            approval_context,
-            execution_action,
-            dispatch_context,
-        )
-    result = escalate_with_cross_agent(
-        state.get("cross_agent"),
-        execution_id=execution_id,
-        agent_id=req.agent_id,
-        capability=req.capability,
-        result=result,
-    )
-    observe_decide_latency(_time.perf_counter() - started)
-
-    # ADR 0041: reserve the business transaction before anything else is
-    # claimed for this ALLOW. Released below if the verdict does not stay
-    # ALLOW or the record is not sealed.
+    # ADR 0046, 0047: the grant spend the engine commits here and every claim
+    # the controls below make are kept only by a sealed ALLOW. _seal_decision
+    # gives them back for any other verdict; a fault before the seal gives back
+    # what was claimed so far, and the decide fails closed.
+    grant_spend: list[SpendCommit] | None = None
+    reserved_key: TransactionKey | None = None
+    limit_claim: LimitClaim | None = None
+    budget_charge: Charge | None = None
     reservation_holder = f"hold-{_uuid.uuid4().hex}"
-    # ADR 0045: facts first, so nothing is reserved or counted on stale ones.
-    result = _verify_facts(result, req, dispatch_context)
-    result, reserved_key = _reserve_transaction(
-        result, execution_action, dispatch_context, reservation_holder
-    )
-    # ADR 0043: daily per-key limits; ADR 0042: the chain's budgets. Both are
-    # released below, like the reservation, if the decide is not sealed ALLOW.
-    result, limit_claim = _claim_decide_limit(
-        result, execution_action, dispatch_context
-    )
-    result, budget_charge = _charge_delegation_budget(result, req)
-
-    # ADR 0021: server-derived lineage. Escalate-only; enforce blocks on
-    # any finding, shadow reports without changing the verdict.
-    ledger: LineageLedger | None = state.get("lineage")
-    mode = state.get("lineage_mode", "off")
-    lineage_ctx = None
-    lineage_claimed = False
-    if ledger is not None:
-        lineage_ctx = ledger.resolve(
+    try:
+        with collect_spend() as grant_spend:
+            result = _decide_or_block_undeclared(
+                req,
+                monitor,
+                action,
+                evidence,
+                approval_context,
+                execution_action,
+                dispatch_context,
+            )
+        result = escalate_with_cross_agent(
+            state.get("cross_agent"),
+            execution_id=execution_id,
             agent_id=req.agent_id,
             capability=req.capability,
-            lineage=req.lineage.model_dump() if req.lineage else None,
+            result=result,
         )
-        if mode == "enforce":
-            result = escalate_with_lineage(result, lineage_ctx.findings)
-            if (
-                result.decision is Decision.ALLOW
-                and lineage_ctx.approves_record_hash is not None
-            ):
-                lineage_claimed = ledger.claim_approval(lineage_ctx)
-                if not lineage_claimed:
-                    finding = LineageFinding(
-                        LINEAGE_ALREADY_APPROVED,
-                        "this initiate has already been approved once",
-                    )
-                    lineage_ctx.findings.append(finding)
-                    result = escalate_with_lineage(result, [finding])
+        observe_decide_latency(_time.perf_counter() - started)
 
-    enforcer = state.get("cross_agent")
-    require_eid = bool(
-        enforcer is not None and getattr(enforcer, "require_execution_id", False)
-    )
-    engine = state.get("engine")
-    authorizer = getattr(engine, "authorizer", None)
-    runtime = state.get("runtime")
-    attach_control_posture(
-        result,
-        {
-            "authorization_mode": authorization_mode_of(authorizer),
-            "cross_agent_attached": enforcer is not None,
-            "cross_agent_require_execution_id": require_eid,
-            "cross_agent_correlated": bool(execution_id) and enforcer is not None,
-            "loop_events_required": bool(
-                getattr(runtime, "loop_events_required", False)
-            ),
-            "lineage_mode": mode,
-            # ADR 0026: what a permit for this decision may cite.
-            PERMIT_EVIDENCE_KEY: _decided_permit_evidence(result),
-        },
-    )
+        # ADR 0041: reserve the business transaction before anything else is
+        # claimed for this ALLOW. Released below if the verdict does not stay
+        # ALLOW or the record is not sealed.
+        # ADR 0045: facts first, so nothing is reserved or counted on stale ones.
+        result = _verify_facts(result, req, dispatch_context)
+        result, reserved_key = _reserve_transaction(
+            result, execution_action, dispatch_context, reservation_holder
+        )
+        # ADR 0043: daily per-key limits; ADR 0042: the chain's budgets. Both are
+        # released below, like the reservation, if the decide is not sealed ALLOW.
+        result, limit_claim = _claim_decide_limit(
+            result, execution_action, dispatch_context
+        )
+        result, budget_charge = _charge_delegation_budget(result, req)
+
+        # ADR 0021: server-derived lineage. Escalate-only; enforce blocks on
+        # any finding, shadow reports without changing the verdict.
+        ledger: LineageLedger | None = state.get("lineage")
+        mode = state.get("lineage_mode", "off")
+        lineage_ctx = None
+        lineage_claimed = False
+        if ledger is not None:
+            lineage_ctx = ledger.resolve(
+                agent_id=req.agent_id,
+                capability=req.capability,
+                lineage=req.lineage.model_dump() if req.lineage else None,
+            )
+            if mode == "enforce":
+                result = escalate_with_lineage(result, lineage_ctx.findings)
+                if (
+                    result.decision is Decision.ALLOW
+                    and lineage_ctx.approves_record_hash is not None
+                ):
+                    lineage_claimed = ledger.claim_approval(lineage_ctx)
+                    if not lineage_claimed:
+                        finding = LineageFinding(
+                            LINEAGE_ALREADY_APPROVED,
+                            "this initiate has already been approved once",
+                        )
+                        lineage_ctx.findings.append(finding)
+                        result = escalate_with_lineage(result, [finding])
+
+        enforcer = state.get("cross_agent")
+        require_eid = bool(
+            enforcer is not None and getattr(enforcer, "require_execution_id", False)
+        )
+        engine = state.get("engine")
+        authorizer = getattr(engine, "authorizer", None)
+        runtime = state.get("runtime")
+        attach_control_posture(
+            result,
+            {
+                "authorization_mode": authorization_mode_of(authorizer),
+                "cross_agent_attached": enforcer is not None,
+                "cross_agent_require_execution_id": require_eid,
+                "cross_agent_correlated": bool(execution_id) and enforcer is not None,
+                "loop_events_required": bool(
+                    getattr(runtime, "loop_events_required", False)
+                ),
+                "lineage_mode": mode,
+                # ADR 0026: what a permit for this decision may cite.
+                PERMIT_EVIDENCE_KEY: _decided_permit_evidence(result),
+            },
+        )
+    except BaseException:
+        _release_claims(
+            reserved_key, reservation_holder, budget_charge, limit_claim, grant_spend
+        )
+        raise
 
     record = _seal_decision(
         action,
