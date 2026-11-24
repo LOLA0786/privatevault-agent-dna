@@ -5,15 +5,16 @@ One audience, one story:
   CTO   — does it work, is it fast, is it tested
   CAIO  — does the AI layer stay subordinate to deterministic control
   CISO  — can an attacker forge, replay, or silently bypass a refusal
-  CRO   — is every decision an admissible, reconstructable record
+  CRO   — is every decision a verifiable, reconstructable record
 
   L0  UAAL enterprise constraints    "can this ever run?"          -> BLOCK
   L1  behavioral invariants                                         -> BLOCK
-  L2  multi-agent consensus          (evidence-gated)               -> REQUIRE_APPROVAL
-  L3  capability grants              "is this still that agent?"   -> REQUIRE_APPROVAL
-  L4  economics (cost / ROI)                                        -> REQUIRE_APPROVAL
-  L5  learned drift                                                 -> REQUIRE_APPROVAL
-  L6  baseline                                                      -> ALLOW
+  L2  customer policy                (not configured here)          -> as the matched rule says
+  L3  multi-agent consensus          (evidence-gated)               -> REQUIRE_APPROVAL
+  L4  capability grants              "is this still that agent?"   -> REQUIRE_APPROVAL
+  L5  economics (cost / ROI)                                        -> REQUIRE_APPROVAL
+  L6  learned drift                                                 -> REQUIRE_APPROVAL
+  L7  baseline                                                      -> ALLOW
        |
   sealed DecisionRecord -> Ed25519 envelope   "prove it later"
        |
@@ -204,12 +205,12 @@ def main():
             None,
         ),
         (
-            "L2  multi-agent consensus   |CRO CAIO|  finance agent dissents on settlement",
+            "L3  multi-agent consensus   |CRO CAIO|  finance agent dissents on settlement",
             settlement,
             {"consensus": {"action_id": settle_id, "votes": settle_votes}},
         ),
         (
-            "L3  capability grant        |CISO|      ungranted wire transfer",
+            "L4  capability grant        |CISO|      ungranted wire transfer",
             intent_to_action(
                 actor_id="sales-agent-01",
                 verb="initiate_wire",
@@ -220,7 +221,7 @@ def main():
             None,
         ),
         (
-            "L4  economics               |CRO CTO|   cost 25,000x historical average",
+            "L5  economics               |CRO CTO|   cost 25,000x historical average",
             intent_to_action(
                 actor_id="sales-agent-01",
                 verb="send",
@@ -235,7 +236,7 @@ def main():
             },
         ),
         (
-            "L5  learned drift           |CAIO|      honest payment, novel for this agent",
+            "L6  learned drift           |CAIO|      honest payment, novel for this agent",
             intent_to_action(
                 actor_id="sales-agent-01",
                 verb="pay_invoice",
@@ -246,7 +247,7 @@ def main():
             HONEST_EVIDENCE,
         ),
         (
-            "L6  baseline                |CTO|       normal in-profile CRM read",
+            "L7  baseline                |CTO|       normal in-profile CRM read",
             intent_to_action(
                 actor_id="sales-agent-01",
                 verb="read_contact",
@@ -286,7 +287,7 @@ def main():
 
     banner("L-1 CIRCUIT BREAKER — suspension outranks everything  |CISO CRO|")
     print("treasury-agent-07: 17 payments of $60 — each individually")
-    print("in-profile, per-action economics (L4) sees nothing wrong.")
+    print("in-profile, per-action economics (L5) sees nothing wrong.")
     print()
     drained = 0.0
     for i in range(17):
@@ -375,16 +376,14 @@ def main():
     print(
         "CTO   : every level is a tested code path, 3256+ automated tests, CI-guarded."
     )
-    print("CAIO  : drift (L5) is the only probabilistic level — it can escalate, never")
+    print("CAIO  : drift (L6) is the only probabilistic level — it can escalate, never")
     print("        override a deterministic BLOCK above it.")
     print("CISO  : the ATTACK section above is a live exploit attempt against our own")
     print("        signed records, defeated in front of you, not claimed in a slide.")
     print("        The circuit breaker's suspension survives process restart and")
     print("        reset requires an explicit signed capability grant.")
     print("CRO   : every verdict, including every refusal, is a hash-chained, signed,")
-    print(
-        "        independently verifiable record — admissible evidence, not a log line."
-    )
+    print("        independently verifiable record — evidence, not a log line.")
 
 
 if __name__ == "__main__":

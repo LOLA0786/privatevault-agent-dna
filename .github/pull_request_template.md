@@ -10,6 +10,15 @@
 - [ ] Rust gates pass when affected
 - [ ] Schemas, threat model, changelog, and non-claims updated when affected
 
+## Invariants
+
+- [ ] No promise in `INVARIANTS.md` is weakened, or this pull request carries the ADR that changes it
+- [ ] Money path touched: the continuous challenger ran with no failing verdicts
+
+## How this was made
+
+<!-- Which parts an AI assistant drafted, and who read every changed line. -->
+
 ## Security review
 
 <!-- Explain authority, fail-closed, exact-byte, replay, and dispatch impact. -->

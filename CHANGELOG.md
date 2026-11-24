@@ -5,6 +5,30 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Invariants, onboarding, and documentation that matches the code
+- `INVARIANTS.md`: nine promises PrivateVault keeps whatever model drives the
+  agent, each naming the tests that enforce it. `tests/test_invariants_doc.py`
+  fails if a named test disappears or the list grows past ten.
+- The record verifier is now also run with site-packages off, from outside the
+  repository, against the committed vectors
+  (`tests/test_verifier_runs_on_stdlib.py`), beside the existing static check
+  that it imports nothing from this code (`tests/test_verifier_independence.py`).
+- `docs/ONBOARDING.md`: setup, reading order, the trusted core, how to make a
+  change, how we work with AI assistants, and a glossary
+  (`tests/test_docs_structure.py`).
+- The decide flow in `ARCHITECTURE.md` and `docs/architecture/FLOWS.md` shows
+  the server-side controls of ADRs 0041 to 0046 in their real order
+  (`tests/test_architecture_doc.py`, `tests/test_docs_structure.py`).
+- `CONTRIBUTING.md` lists exactly the CI gates, and
+  `tests/test_contributing_gates.py` keeps the two equal; it also states how
+  AI assistants are used here. `AGENTS.md` and the pull request template point
+  at the invariants.
+- Stale claims corrected: 16 adversarial scenarios, not 11; delegation is built
+  (ADR 0042); the composed-line demo uses the contract's level numbers and no
+  longer calls records admissible evidence
+  (`tests/test_demo_precedence_integrity.py`). The brief that commissioned the
+  architecture map moved to `docs/process/architecture-map-brief.md`.
+
 ### A refused decide gives back its grant spend (ADR 0046)
 - The engine charged a grant as soon as it reached ALLOW. When a later
   control refused the decide (the fact check of ADR 0045, the reservation of

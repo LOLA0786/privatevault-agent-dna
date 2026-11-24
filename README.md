@@ -37,7 +37,7 @@ Three properties worth checking before reading further:
 # fail-closed enforcement, end to end, with a log-tamper demo
 python examples/composed_line_demo.py
 
-# 11 adversarial scenarios against the precedence ladder
+# 16 adversarial scenarios against the precedence ladder
 python tools/run_adversarial.py
 
 # chain verification: standard library only

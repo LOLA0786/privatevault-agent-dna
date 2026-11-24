@@ -87,7 +87,7 @@ The strongest domain in this assessment.
 
 | Control | Status | Evidence |
 |---|---|---|
-| ADV-01 Adversarial red-teaming | **PARTIAL** | 11-scenario adversarial corpus exists, explicitly built to be extended and re-run by an external reviewer, not just self-graded (`spec/adversarial/attack_corpus.py`) — but no independent third-party red-team exercise has actually been performed |
+| ADV-01 Adversarial red-teaming | **PARTIAL** | 16-scenario adversarial corpus exists, explicitly built to be extended and re-run by an external reviewer, not just self-graded (`spec/adversarial/attack_corpus.py`) — but no independent third-party red-team exercise has actually been performed |
 | ADV-03 Re-test on system change | **PASS** | CI runs the full test suite and spec vectors on every push (`.github/workflows/`) |
 
 ## OUT — Output Integrity & Anti-Fabrication
