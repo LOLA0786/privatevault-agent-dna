@@ -786,7 +786,7 @@ def vectors() -> list[dict[str, Any]]:
             verdict="DENY",
             reason="not_final_delegate",
             policy={"agent_id": "agent-2"},
-            aat=aat("DENY", "7", "The PoP is not signed by the leaf's holder key."),
+            aat=aat("DENY", "7b", "The PoP is not signed by the leaf's holder key."),
         )
     )
     return out
@@ -799,9 +799,10 @@ def suite() -> dict[str, Any]:
         "conventions": {
             "verdict": "PERMIT or DENY, as in the AAT -02 suite; PERMIT is accept, DENY reject.",
             "expected": "PrivateVault's verdict and reason code for the pv-delegation/2 chain in 'link'.",
-            "aat_02": "The verdict and Section 8 step the AAT -02 text gives the same scenario; read "
-            "from the text, not run through the reference verifier. 'n/a' where AAT has "
-            "no counterpart.",
+            "aat_02": "The verdict and Section 8 step of the AAT -02 reference verifier "
+            "(tenuo-ai/tenuo ietf/vectors/gen_vectors.py) for the same scenario, built as AAT "
+            "-02 tokens by tools/check_aat02_analogues.py; aat-analogues.json records the "
+            "tokens and the verifier commit. 'n/a' where AAT has no counterpart.",
             "chain": "Root first. 'link' is the signed pv-delegation/2 link the replay verifies; "
             "'aat' is its AAT -02 view at the depth it was issued at.",
             "par_hash": "SHA-256 over PrivateVault's link encoding ('pv-delegation/1:' + canonical "

@@ -14,6 +14,12 @@ and a named test that runs in CI.
   `tools/gen_aat02_vectors.py`; `tests/test_aat02_vectors.py` replays every
   vector through `within_scope` and fails on any disagreement, and fails if the
   committed suite is not what the generator writes.
+- Each scenario AAT can express is also built as AAT -02 tokens and run
+  through AAT's reference Section 8 verifier (tenuo-ai/tenuo
+  `ietf/vectors/gen_vectors.py`): 32 of 32 agree with the suite's AAT column,
+  and 3 have no AAT counterpart. The tokens are in
+  `vectors/aat02/aat-analogues.json`, in the AAT suite's layout
+  (`tools/check_aat02_analogues.py`, `tests/test_aat02_analogues.py`).
 - `docs/AAT02-VECTORS.md` records two differences from AAT -02: the limit a
   link carries counts delegations as AAT does, but the eight-link cap refuses
   the nine-token chain AAT admits at a limit of 8 (CC-1); and an argument no

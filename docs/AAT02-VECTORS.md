@@ -11,6 +11,9 @@ Nothing has been submitted.
 | `vectors/aat02/pv-delegation-2.json` | The suite: 35 vectors |
 | `tools/gen_aat02_vectors.py` | Writes it, byte for byte, from PrivateVault's own `issue_link` and deterministic test keys |
 | `tests/test_aat02_vectors.py` | Replays every vector through `within_scope` and `verify_chain`; any disagreement fails CI |
+| `vectors/aat02/aat-analogues.json` | The same scenarios as 32 real AAT -02 vectors, in the AAT suite's layout |
+| `tools/check_aat02_analogues.py` | Builds them with the AAT reference verifier's own helpers and checks the suite's AAT column against it |
+| `tests/test_aat02_analogues.py` | Keeps the analogues in step with the suite; with `TENUO_DIR` set, rebuilds them and reruns the reference verifier |
 
 ## Format
 
@@ -27,9 +30,9 @@ route the AAT interop guide gives an implementation in another format.
 
 - `expected` is PrivateVault's verdict, `PERMIT` (accept) or `DENY`
   (reject), and a stable reason code.
-- `aat_02` is the verdict and Section 8 step that the -02 text gives the same
-  scenario, read from the text, not run through the reference verifier;
-  `n/a` where AAT has no counterpart.
+- `aat_02` is the verdict and Section 8 step that AAT's reference verifier
+  gives the same scenario, built as AAT -02 tokens. All 32 agree; 3 vectors
+  have no AAT counterpart and say `n/a` (a cumulative budget, revocation).
 - `interpretations` gives each draft's reading where they differ.
 
 ## Claim mapping
@@ -75,8 +78,8 @@ PrivateVault has two rules, and they count differently:
   most eight, whatever its limits say.
 
 At a limit of 8 the cap decides. PrivateVault admits eight tokens, as asor
-does (PV.18), and refuses the nine AAT admits (PV.17, `chain_too_deep`). So
-PrivateVault follows AAT for the limit a link carries, and its deepest chain
+does (PV.18), and refuses the nine AAT admits (PV.17, `chain_too_deep`), a
+chain AAT's reference verifier admits. So PrivateVault follows AAT for the limit a link carries, and its deepest chain
 is depth 7, one short of AAT's `MAX_DELEGATION_DEPTH` of 8. A valid AAT chain
 at depth 8 does not verify here. Closing that gap means counting the cap in
 delegations, which allows nine links: a change of behaviour that needs its own
@@ -89,7 +92,7 @@ constraint map does not name, unless the map has `"*"`. So a child that
 constrains a new argument widens (4p2), and an unnamed argument at the leaf
 is denied (6b). PrivateVault checks only the arguments a link names and
 leaves the rest free, as asor's "unbounded" does. It accepts both (PV.9,
-PV.10).
+PV.10); AAT's reference verifier denies them, at 4p2 and 6b.
 
 ## Other differences
 
@@ -119,11 +122,11 @@ PV.10).
 - **Other checks:** `aud`, nonces, clock-skew boundaries, `max_amount`
   ceilings, budget charging, revoked identities, and version 1 links under a
   version 2 parent.
-- **Readings from text:** every AAT verdict comes from the -02 text, not from
-  running the AAT analogue through the reference verifier
-  ([`gen_vectors.py`](https://github.com/tenuo-ai/tenuo/blob/main/ietf/vectors/gen_vectors.py)).
-  The asor readings come from the comparison's README, which asor's author has
-  not reviewed.
+- **asor readings:** they come from the comparison's README, which asor's
+  author has not reviewed. Only the AAT column is checked by running code.
+- **Other AAT implementations:** the analogues are in the layout CleiMesh's
+  draft -02 test reads, but no AAT implementation other than the reference
+  verifier has run them.
 
 ## Regenerate and replay
 
@@ -134,5 +137,17 @@ uv run python -m pytest -q tests/test_aat02_vectors.py
 ```
 
 The first writes the suite, the second fails if the committed suite is
-stale, and the third replays it. The keys are test keys: each Ed25519 seed is
+stale, and the third replays it.
+
+To check the AAT column, with a checkout of tenuo-ai/tenuo:
+
+```bash
+uv run python tools/check_aat02_analogues.py --tenuo ../tenuo
+uv run python tools/check_aat02_analogues.py --tenuo ../tenuo --write
+```
+
+The first builds every scenario AAT can express as AAT -02 tokens, with the
+helpers of AAT's reference verifier ([gen_vectors.py](https://github.com/tenuo-ai/tenuo/blob/main/ietf/vectors/gen_vectors.py)), and runs
+its Section 8 verifier. The second also rewrites the analogues. With
+`TENUO_DIR` set, `tests/test_aat02_analogues.py` does the first. The keys are test keys: each Ed25519 seed is
 SHA-256 of `pv-aat02-vectors/` followed by the party's name.

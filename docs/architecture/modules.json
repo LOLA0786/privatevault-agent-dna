@@ -3365,6 +3365,11 @@
    "top"
   ],
   [
+   "tools.check_aat02_analogues",
+   "agent_dna.multi_agent_security.delegation",
+   "top"
+  ],
+  [
    "tools.gen_aat02_vectors",
    "agent_dna.multi_agent_security",
    "top"
@@ -3714,7 +3719,7 @@
   "agent_dna.multi_agent_security": 2,
   "agent_dna.multi_agent_security.budget_ledger": 2,
   "agent_dna.multi_agent_security.counterparty": 1,
-  "agent_dna.multi_agent_security.delegation": 4,
+  "agent_dna.multi_agent_security.delegation": 5,
   "agent_dna.multi_agent_security.gate": 3,
   "agent_dna.multi_agent_security.independence": 2,
   "agent_dna.multi_agent_security.nonce_ledger": 4,
@@ -3995,6 +4000,7 @@
   "experimental.security_validation.orchestrator": 3,
   "tools.adversarial_egress_demo": 6,
   "tools.benchmark": 4,
+  "tools.check_aat02_analogues": 1,
   "tools.gen_aat02_vectors": 2,
   "tools.generate_api_key": 1,
   "tools.generate_authority_reachability_vectors": 1,
@@ -5160,6 +5166,10 @@
   "tools.build_pvscan_standalone": {
    "group": "tools",
    "path": "tools/build_pvscan_standalone.py"
+  },
+  "tools.check_aat02_analogues": {
+   "group": "tools",
+   "path": "tools/check_aat02_analogues.py"
   },
   "tools.depmap": {
    "group": "tools",
