@@ -48,6 +48,7 @@ CHECKED = [
 CLAIMS = [
     ROOT / "INVARIANTS.md",
     DOCS / "WHAT-WE-DO-NOT-CLAIM.md",
+    DOCS / "AAT02-VECTORS.md",
     DOCS / "PRODUCTION-HARDENING.md",
     DOCS / "ROADMAP.md",
     DOCS / "SECURITY.md",

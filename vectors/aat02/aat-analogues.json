@@ -1,0 +1,887 @@
+{
+ "spec": "draft-niyikiza-oauth-attenuating-agent-tokens-02",
+ "source": "PrivateVault's pv-delegation/2 scenarios (pv-delegation-2.json), built and verified with tenuo-ai/tenuo ietf/vectors/gen_vectors.py by tools/check_aat02_analogues.py",
+ "reference_commit": "43d30e6e187965b4d91a2f5b9400bc0ecbc1dfac",
+ "conventions": {
+  "keys": "Ed25519 seed = SHA-256('pv-aat02-analogues/' + name). Test keys only.",
+  "expected": "The reference verifier's verdict and Section 8 step."
+ },
+ "params": {
+  "max_iat_skew": 30,
+  "max_token_lifetime": 7776000,
+  "max_delegation_depth": 8,
+  "max_constraint_depth": 32,
+  "max_token_size": 65536,
+  "max_chain_size": 262144,
+  "pop_window": 30,
+  "audience": "https://tools.example.com"
+ },
+ "trust_anchors": [
+  {
+   "iss": "https://auth.example.com",
+   "jwk": {
+    "kty": "OKP",
+    "crv": "Ed25519",
+    "x": "Td_6CF-RRpg7F3uSVk_fUOgMwCMKi0UHcwOMV2-KZU0"
+   }
+  }
+ ],
+ "vectors": [
+  {
+   "id": "PV.1",
+   "title": "Every limit narrows at every hop",
+   "description": "Scope, budget, argument values and depth each narrow from root to leaf.",
+   "now": 1704067500,
+   "tool": "payments.refund.issue",
+   "args": {
+    "merchant": "M-101",
+    "currency": "INR"
+   },
+   "args_json": "{\"currency\":\"INR\",\"merchant\":\"M-101\"}",
+   "policy": {},
+   "params": {},
+   "replay_state": null,
+   "presentation": {
+    "aat_chain": [
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnBheW91dC5jcmVhdGUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19LCJwYXltZW50cy5yZWZ1bmQuaXNzdWUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNFNrbHJ5STNnVHh5WFNmR1RpQ3FGcWdrWUQ3N0tOUThXOE9vSUVyM3BsRSJ9fSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoiaHR0cHM6Ly9hdXRoLmV4YW1wbGUuY29tIiwianRpIjoicHYtUFYuMS0wIn0.7xYwq82UXYPU8yoLzQqZwkRDsMFEKS0az2RzGSmI_0Ktda2kuO0XfycNs_90p5BoLMLmAgAHwuSQLBBWkixtDg",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiRkVjWnFLYkQyZUc2UkhYYUNheVdjMHktWnhONHJNSGdmOUUtaEl0cjJFSSJ9fSwiZGVsX2RlcHRoIjoxLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoidXJuOmlldGY6cGFyYW1zOm9hdXRoOmp3ay10aHVtYnByaW50OnNoYS0yNTY6VmtpbFptaGFuZzlmNVpsNHFEdmVTaE1JaVJOSURWazBacm05aUIwZzdhQSIsImp0aSI6InB2LVBWLjEtMSIsInBhcl9oYXNoIjoiVkJ4TDBsWldmX2hlZnRxVVhXU0tPVW0zakVjdmpBazRiNDBXRENGdkZ3OCJ9.4xPIt8WqCDHPoeawF5SJBjnZex5Bx_ZlmjT7Wq4BLfILQ55TXPsf3ueDUeDk_D5CxOlkXwAQk-SR-WYXpi01CQ",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNlhCX1cxYkRSRmhlVXBaRDlxX1B2X2syV0Zldi1yTGxUSXVhR2ltVUZmYyJ9fSwiZGVsX2RlcHRoIjoyLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoidXJuOmlldGY6cGFyYW1zOm9hdXRoOmp3ay10aHVtYnByaW50OnNoYS0yNTY6YVZmMHJUV2YwVk0ya1ZQX3VPa3d1bkRTblVIQkFsY1B4VW1ZVDhEam1FSSIsImp0aSI6InB2LVBWLjEtMiIsInBhcl9oYXNoIjoiOTZnZUxPLUl3N0k3UmNJYU42aHdSWVZNcFNMU1AyZC1DX0VSeTE5bWVmRSJ9.4N2tr2NFOCyFpTMzmARXFx3XIyI24m0CQyUuy_2u6SiFP5RCdyxfgLNVWqFofX7unmFa9tOwtdokCGfCoezvDQ"
+    ],
+    "aat_pop": "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0LXBvcCtqd3QifQ.eyJhYXRfYXVkIjoiaHR0cHM6Ly90b29scy5leGFtcGxlLmNvbSIsImFhdF9oYXNoIjoiUmN3VTV1Mm5NS1l5TTNNZ0ZHNS1iMmd3NjN4OV9qM294NGhTSDZqWW9TSSIsImFhdF9pZCI6InB2LVBWLjEtMiIsImFhdF90b29sIjoicGF5bWVudHMucmVmdW5kLmlzc3VlIiwiaHRhIjp7ImN1cnJlbmN5IjoiSU5SIiwibWVyY2hhbnQiOiJNLTEwMSJ9LCJpYXQiOjE3MDQwNjc1MDAsImp0aSI6InB2LVBWLjEtcG9wIn0.UqLEfElmDY8nQeQX4KSc3lGE2ZcJHgRq_79rmB7RGeVVzAK4IkhFwdmx5L-YFJKl5NgcQxboPY3X00nO408sCQ"
+   },
+   "expected": {
+    "verdict": "PERMIT",
+    "step": null
+   }
+  },
+  {
+   "id": "PV.2",
+   "title": "Children keep their parent's limits unchanged",
+   "description": "An equal budget, scope and value set is narrowing; depth still drops by one.",
+   "now": 1704067500,
+   "tool": "payments.refund.issue",
+   "args": {
+    "merchant": "M-101",
+    "currency": "INR"
+   },
+   "args_json": "{\"currency\":\"INR\",\"merchant\":\"M-101\"}",
+   "policy": {},
+   "params": {},
+   "replay_state": null,
+   "presentation": {
+    "aat_chain": [
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiLCJNLTEwMiJdfX19LCJ0eXBlIjoiYXR0ZW51YXRpbmdfYWdlbnRfdG9rZW4ifV0sImNuZiI6eyJqd2siOnsiY3J2IjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsIngiOiI0U2tscnlJM2dUeHlYU2ZHVGlDcUZxZ2tZRDc3S05ROFc4T29JRXIzcGxFIn19LCJkZWxfZGVwdGgiOjAsImRlbF9tYXhfZGVwdGgiOjIsImV4cCI6MTcwNDA3MDgwMCwiaWF0IjoxNzA0MDY3MjAwLCJpc3MiOiJodHRwczovL2F1dGguZXhhbXBsZS5jb20iLCJqdGkiOiJwdi1QVi4yLTAifQ.PA7x9PAdyIdUBMzg2xQ3Cfw2Yv5No0Uq2cVuj-5OY-TI2ViJv2XRlIThGqAMUWajJpUqzzhxV1GoyBHQxyynCw",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiLCJNLTEwMiJdfX19LCJ0eXBlIjoiYXR0ZW51YXRpbmdfYWdlbnRfdG9rZW4ifV0sImNuZiI6eyJqd2siOnsiY3J2IjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsIngiOiJGRWNacUtiRDJlRzZSSFhhQ2F5V2MweS1aeE40ck1IZ2Y5RS1oSXRyMkVJIn19LCJkZWxfZGVwdGgiOjEsImRlbF9tYXhfZGVwdGgiOjIsImV4cCI6MTcwNDA3MDgwMCwiaWF0IjoxNzA0MDY3MjAwLCJpc3MiOiJ1cm46aWV0ZjpwYXJhbXM6b2F1dGg6andrLXRodW1icHJpbnQ6c2hhLTI1NjpWa2lsWm1oYW5nOWY1Wmw0cUR2ZVNoTUlpUk5JRFZrMFpybTlpQjBnN2FBIiwianRpIjoicHYtUFYuMi0xIiwicGFyX2hhc2giOiJNNWtURndWYU1mWmxpNnhMekN3cFlYYXA1R2ZMdXV5LXNGbmhld3NOakpZIn0.R53va43oLrIO3BWscsaNadvHCsW4OqqMOjH0miZW9QMMlXGxieN-374zi0gb0NaXSP88ZEnVhLnzmyTbroRXCQ",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiLCJNLTEwMiJdfX19LCJ0eXBlIjoiYXR0ZW51YXRpbmdfYWdlbnRfdG9rZW4ifV0sImNuZiI6eyJqd2siOnsiY3J2IjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsIngiOiI2WEJfVzFiRFJGaGVVcFpEOXFfUHZfazJXRmV2LXJMbFRJdWFHaW1VRmZjIn19LCJkZWxfZGVwdGgiOjIsImRlbF9tYXhfZGVwdGgiOjIsImV4cCI6MTcwNDA3MDgwMCwiaWF0IjoxNzA0MDY3MjAwLCJpc3MiOiJ1cm46aWV0ZjpwYXJhbXM6b2F1dGg6andrLXRodW1icHJpbnQ6c2hhLTI1NjphVmYwclRXZjBWTTJrVlBfdU9rd3VuRFNuVUhCQWxjUHhVbVlUOERqbUVJIiwianRpIjoicHYtUFYuMi0yIiwicGFyX2hhc2giOiJXbzV5T1ZrNVpvTTd2WUYtYWs2RXZRWEJCRDlIY2RPNG9Ha29BSGpRMTRzIn0.-_vA-Gnbzw6jAoVpikoXnGiCBODUd6zjxW6qVd3MHWLbUNfIiZHyyp7iK8koC4kGjA-YDJQiAiFTdf9vf8a0DA"
+    ],
+    "aat_pop": "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0LXBvcCtqd3QifQ.eyJhYXRfYXVkIjoiaHR0cHM6Ly90b29scy5leGFtcGxlLmNvbSIsImFhdF9oYXNoIjoiM3p3SXpxQ2haYUhfbTlUS1dWbGtnRnBIaWxuejZuajFyX2M3YnY2eFJKZyIsImFhdF9pZCI6InB2LVBWLjItMiIsImFhdF90b29sIjoicGF5bWVudHMucmVmdW5kLmlzc3VlIiwiaHRhIjp7ImN1cnJlbmN5IjoiSU5SIiwibWVyY2hhbnQiOiJNLTEwMSJ9LCJpYXQiOjE3MDQwNjc1MDAsImp0aSI6InB2LVBWLjItcG9wIn0.EzIMIjVPnJ35tlQhUa_a0tcNAdTa6hGNH12UNreUk2yP_31zXwZD_0Q4RXUuLjv87OwmLB4o_GynZ8165BFxCA"
+   },
+   "expected": {
+    "verdict": "PERMIT",
+    "step": null
+   }
+  },
+  {
+   "id": "PV.3",
+   "title": "A root link alone",
+   "description": "A one-link chain at depth 0, used inside its own limits.",
+   "now": 1704067500,
+   "tool": "payments.refund.issue",
+   "args": {
+    "merchant": "M-102",
+    "currency": "INR"
+   },
+   "args_json": "{\"currency\":\"INR\",\"merchant\":\"M-102\"}",
+   "policy": {},
+   "params": {},
+   "replay_state": null,
+   "presentation": {
+    "aat_chain": [
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnBheW91dC5jcmVhdGUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19LCJwYXltZW50cy5yZWZ1bmQuaXNzdWUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNFNrbHJ5STNnVHh5WFNmR1RpQ3FGcWdrWUQ3N0tOUThXOE9vSUVyM3BsRSJ9fSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoiaHR0cHM6Ly9hdXRoLmV4YW1wbGUuY29tIiwianRpIjoicHYtUFYuMy0wIn0.9NJWT2BYKZsyzyaO_zZk6o2vUUnNJ-Y9mdG-5MImc0clLC_PzlWrQD0xG-kE3-NPZG0r9Vlq3N9xb0_A9i_kAA"
+    ],
+    "aat_pop": "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0LXBvcCtqd3QifQ.eyJhYXRfYXVkIjoiaHR0cHM6Ly90b29scy5leGFtcGxlLmNvbSIsImFhdF9oYXNoIjoiM3lLY25RaXJnRHhqOXgzVnZjOWJCMmN4SFVwNkpmTHZHN0tHMnI3V3pHOCIsImFhdF9pZCI6InB2LVBWLjMtMCIsImFhdF90b29sIjoicGF5bWVudHMucmVmdW5kLmlzc3VlIiwiaHRhIjp7ImN1cnJlbmN5IjoiSU5SIiwibWVyY2hhbnQiOiJNLTEwMiJ9LCJpYXQiOjE3MDQwNjc1MDAsImp0aSI6InB2LVBWLjMtcG9wIn0.xn5gNjsAxERanuz4CyZfKoKEBUVKo94vqVVAnJi6u2zU9nJkgXIlJGZBqSPBpABUsO2haQekmRJt4_gSK0K1CQ"
+   },
+   "expected": {
+    "verdict": "PERMIT",
+    "step": null
+   }
+  },
+  {
+   "id": "PV.6",
+   "title": "Widened scope",
+   "description": "Link 1 adds a tool its parent was not given.",
+   "now": 1704067500,
+   "tool": "payments.refund.issue",
+   "args": {
+    "merchant": "M-101",
+    "currency": "INR"
+   },
+   "args_json": "{\"currency\":\"INR\",\"merchant\":\"M-101\"}",
+   "policy": {},
+   "params": {},
+   "replay_state": null,
+   "presentation": {
+    "aat_chain": [
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiLCJNLTEwMiJdfX19LCJ0eXBlIjoiYXR0ZW51YXRpbmdfYWdlbnRfdG9rZW4ifV0sImNuZiI6eyJqd2siOnsiY3J2IjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsIngiOiI0U2tscnlJM2dUeHlYU2ZHVGlDcUZxZ2tZRDc3S05ROFc4T29JRXIzcGxFIn19LCJkZWxfZGVwdGgiOjAsImRlbF9tYXhfZGVwdGgiOjIsImV4cCI6MTcwNDA3MDgwMCwiaWF0IjoxNzA0MDY3MjAwLCJpc3MiOiJodHRwczovL2F1dGguZXhhbXBsZS5jb20iLCJqdGkiOiJwdi1QVi42LTAifQ.B1VNTOggffdBHXxgascpMbTHg_kitkTqQqsOb2fdbRUCjrFGDBkYhxtwkh0TDjfro8eSxp0d2IzwEE3USqJYCQ",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnBheW91dC5jcmVhdGUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIl19fSwicGF5bWVudHMucmVmdW5kLmlzc3VlIjp7ImN1cnJlbmN5Ijp7ImNvbnN0cmFpbnRfdHlwZSI6Im9uZV9vZiIsInZhbHVlcyI6WyJJTlIiXX0sIm1lcmNoYW50Ijp7ImNvbnN0cmFpbnRfdHlwZSI6Im9uZV9vZiIsInZhbHVlcyI6WyJNLTEwMSJdfX19LCJ0eXBlIjoiYXR0ZW51YXRpbmdfYWdlbnRfdG9rZW4ifV0sImNuZiI6eyJqd2siOnsiY3J2IjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsIngiOiJGRWNacUtiRDJlRzZSSFhhQ2F5V2MweS1aeE40ck1IZ2Y5RS1oSXRyMkVJIn19LCJkZWxfZGVwdGgiOjEsImRlbF9tYXhfZGVwdGgiOjIsImV4cCI6MTcwNDA3MDgwMCwiaWF0IjoxNzA0MDY3MjAwLCJpc3MiOiJ1cm46aWV0ZjpwYXJhbXM6b2F1dGg6andrLXRodW1icHJpbnQ6c2hhLTI1NjpWa2lsWm1oYW5nOWY1Wmw0cUR2ZVNoTUlpUk5JRFZrMFpybTlpQjBnN2FBIiwianRpIjoicHYtUFYuNi0xIiwicGFyX2hhc2giOiJXejZqVGJYSVUxRjd5aHhCeDJRVzhEa0xxVlhZdUxrYU56eVdwLXk1WlV3In0.h0kk0yAQ4InmDgCNcK1AY0FPIz-BN0BKcyFi_edAh9BJ5M10xH9iMAqIy8HIYwnvbnLoIxyZVG4V_YrJfmLRAw",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNlhCX1cxYkRSRmhlVXBaRDlxX1B2X2syV0Zldi1yTGxUSXVhR2ltVUZmYyJ9fSwiZGVsX2RlcHRoIjoyLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoidXJuOmlldGY6cGFyYW1zOm9hdXRoOmp3ay10aHVtYnByaW50OnNoYS0yNTY6YVZmMHJUV2YwVk0ya1ZQX3VPa3d1bkRTblVIQkFsY1B4VW1ZVDhEam1FSSIsImp0aSI6InB2LVBWLjYtMiIsInBhcl9oYXNoIjoiSTlnZGZpamRkTFVmNDRfVWpSbkF5Mms2REV1WnkzZTRLWGVfNkozQmwyZyJ9.rlPD0iCvZ1diValPxVocum60aK5YmTpcS3nsbAPE3r6bW2cJ8KsIuF49l_MA1-6FdwTtNEG17JnD5V4JFHhaDg"
+    ],
+    "aat_pop": "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0LXBvcCtqd3QifQ.eyJhYXRfYXVkIjoiaHR0cHM6Ly90b29scy5leGFtcGxlLmNvbSIsImFhdF9oYXNoIjoiY0RBQnRwd3FqdHBNcWlNaVd4UVFqcEgtaEVJNzhHZm02SjhNRHhMSU1MZyIsImFhdF9pZCI6InB2LVBWLjYtMiIsImFhdF90b29sIjoicGF5bWVudHMucmVmdW5kLmlzc3VlIiwiaHRhIjp7ImN1cnJlbmN5IjoiSU5SIiwibWVyY2hhbnQiOiJNLTEwMSJ9LCJpYXQiOjE3MDQwNjc1MDAsImp0aSI6InB2LVBWLjYtcG9wIn0.baNJsuJSJd2-7GOPvHa6gc-IqgyiZFpQNgs36OAmh_omRFK6F-xLXSOW7V_sxlVwcvjN8YyDEi2VAPEVcZl9AQ"
+   },
+   "expected": {
+    "verdict": "DENY",
+    "step": "4p1"
+   }
+  },
+  {
+   "id": "PV.7",
+   "title": "Added argument value",
+   "description": "Link 1 allows merchant M-999, which the parent's set does not contain.",
+   "now": 1704067500,
+   "tool": "payments.refund.issue",
+   "args": {
+    "merchant": "M-101",
+    "currency": "INR"
+   },
+   "args_json": "{\"currency\":\"INR\",\"merchant\":\"M-101\"}",
+   "policy": {},
+   "params": {},
+   "replay_state": null,
+   "presentation": {
+    "aat_chain": [
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnBheW91dC5jcmVhdGUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19LCJwYXltZW50cy5yZWZ1bmQuaXNzdWUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNFNrbHJ5STNnVHh5WFNmR1RpQ3FGcWdrWUQ3N0tOUThXOE9vSUVyM3BsRSJ9fSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoiaHR0cHM6Ly9hdXRoLmV4YW1wbGUuY29tIiwianRpIjoicHYtUFYuNy0wIn0.nK_KSxzbhlOdmIIsh8FpfJhK9e6ZKmZ5AsH1FBnhR53nzeSejByNOJpdLxEsiGJqmtz6v8JvZbrxJhoA_NsAAg",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiLCJNLTk5OSJdfX19LCJ0eXBlIjoiYXR0ZW51YXRpbmdfYWdlbnRfdG9rZW4ifV0sImNuZiI6eyJqd2siOnsiY3J2IjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsIngiOiJGRWNacUtiRDJlRzZSSFhhQ2F5V2MweS1aeE40ck1IZ2Y5RS1oSXRyMkVJIn19LCJkZWxfZGVwdGgiOjEsImRlbF9tYXhfZGVwdGgiOjIsImV4cCI6MTcwNDA3MDgwMCwiaWF0IjoxNzA0MDY3MjAwLCJpc3MiOiJ1cm46aWV0ZjpwYXJhbXM6b2F1dGg6andrLXRodW1icHJpbnQ6c2hhLTI1NjpWa2lsWm1oYW5nOWY1Wmw0cUR2ZVNoTUlpUk5JRFZrMFpybTlpQjBnN2FBIiwianRpIjoicHYtUFYuNy0xIiwicGFyX2hhc2giOiJ6UkNuOWJ2cm5jRWJwbFJLVnhoOFcwMnI4UnNhczI3cXF3UVZtc2ZFekhRIn0.9c55N5iQGww_UY6NbJy6x5svo6Atxpdi3DKXRlcSaodgdKoIJjY_8D_kNC6aoCMZkSu_iwbMfVBLd2DsWYL9Cw",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNlhCX1cxYkRSRmhlVXBaRDlxX1B2X2syV0Zldi1yTGxUSXVhR2ltVUZmYyJ9fSwiZGVsX2RlcHRoIjoyLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoidXJuOmlldGY6cGFyYW1zOm9hdXRoOmp3ay10aHVtYnByaW50OnNoYS0yNTY6YVZmMHJUV2YwVk0ya1ZQX3VPa3d1bkRTblVIQkFsY1B4VW1ZVDhEam1FSSIsImp0aSI6InB2LVBWLjctMiIsInBhcl9oYXNoIjoiWmFtRW9HM2wwcDRVRkxWSkFONUtvWlYyWXJOYzl0TFFQakpweUowZUZYYyJ9.QD6lGl2Jeet0eK0kD-B1ab4wdf53PSEQTnja7HRW13TVzp5XqR9XRIVVLeuc480jA3fJDr3O6tQ7gxvMk3YuAQ"
+    ],
+    "aat_pop": "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0LXBvcCtqd3QifQ.eyJhYXRfYXVkIjoiaHR0cHM6Ly90b29scy5leGFtcGxlLmNvbSIsImFhdF9oYXNoIjoiTnoyM1N1WTJNd0pRbWNDR01DTWVJck1CcWlfd0JUaExYdUJJZ0k0Z0ZyTSIsImFhdF9pZCI6InB2LVBWLjctMiIsImFhdF90b29sIjoicGF5bWVudHMucmVmdW5kLmlzc3VlIiwiaHRhIjp7ImN1cnJlbmN5IjoiSU5SIiwibWVyY2hhbnQiOiJNLTEwMSJ9LCJpYXQiOjE3MDQwNjc1MDAsImp0aSI6InB2LVBWLjctcG9wIn0.WrS2lPZxq1gW0M4BgL4hWpwbgMXwgmO9R0TfYFrqCi5_j5uojmkIGO0zagmt9NjFSOtwANyux1naoQG2sXSTCg"
+   },
+   "expected": {
+    "verdict": "DENY",
+    "step": "4p4"
+   }
+  },
+  {
+   "id": "PV.8",
+   "title": "Dropped argument constraint",
+   "description": "Link 1 omits the parent's currency constraint.",
+   "now": 1704067500,
+   "tool": "payments.refund.issue",
+   "args": {
+    "merchant": "M-101",
+    "currency": "INR"
+   },
+   "args_json": "{\"currency\":\"INR\",\"merchant\":\"M-101\"}",
+   "policy": {},
+   "params": {},
+   "replay_state": null,
+   "presentation": {
+    "aat_chain": [
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnBheW91dC5jcmVhdGUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19LCJwYXltZW50cy5yZWZ1bmQuaXNzdWUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNFNrbHJ5STNnVHh5WFNmR1RpQ3FGcWdrWUQ3N0tOUThXOE9vSUVyM3BsRSJ9fSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoiaHR0cHM6Ly9hdXRoLmV4YW1wbGUuY29tIiwianRpIjoicHYtUFYuOC0wIn0.GOl1Uz4awRzazvtWjx9fMAbQtuxjMhek6kHI4STs04UZN9xzjOi1878QG0hicYpfVwuF4HFbvcqyAA0WmczfBg",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiRkVjWnFLYkQyZUc2UkhYYUNheVdjMHktWnhONHJNSGdmOUUtaEl0cjJFSSJ9fSwiZGVsX2RlcHRoIjoxLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoidXJuOmlldGY6cGFyYW1zOm9hdXRoOmp3ay10aHVtYnByaW50OnNoYS0yNTY6VmtpbFptaGFuZzlmNVpsNHFEdmVTaE1JaVJOSURWazBacm05aUIwZzdhQSIsImp0aSI6InB2LVBWLjgtMSIsInBhcl9oYXNoIjoiRVZxZEZYV0NxSzlGTlZQc0xZdG5nV2dwS2FlWU9SOWhkY3RqWG5ESVExbyJ9.g2-LFZO04ubtuXR2Q75ohhdxh_hfgRQPB4AA0z8NA4i4IKCQacoqOy_DoV7kMNWJAp-qKdJtX1z9lw590Gm7AA",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNlhCX1cxYkRSRmhlVXBaRDlxX1B2X2syV0Zldi1yTGxUSXVhR2ltVUZmYyJ9fSwiZGVsX2RlcHRoIjoyLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoidXJuOmlldGY6cGFyYW1zOm9hdXRoOmp3ay10aHVtYnByaW50OnNoYS0yNTY6YVZmMHJUV2YwVk0ya1ZQX3VPa3d1bkRTblVIQkFsY1B4VW1ZVDhEam1FSSIsImp0aSI6InB2LVBWLjgtMiIsInBhcl9oYXNoIjoiQVhqaEJldm1PN3dsc3VnVllWMVQyMjZZclg5QkNQQXhqMHVjVENndjhrayJ9.EAdsD7c0MllhZqUrgre80CuvjZu0SUfBooajg5L5dfDsHvJCEGJj2b38fLXY4xfwlWYvErBdo3zpbJ21bRjYAg"
+    ],
+    "aat_pop": "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0LXBvcCtqd3QifQ.eyJhYXRfYXVkIjoiaHR0cHM6Ly90b29scy5leGFtcGxlLmNvbSIsImFhdF9oYXNoIjoiYm1aWVlTSjdiME13a1h6aWwyV1MxRV81OG9uRUplRDk5dUdpZE4tSVlkNCIsImFhdF9pZCI6InB2LVBWLjgtMiIsImFhdF90b29sIjoicGF5bWVudHMucmVmdW5kLmlzc3VlIiwiaHRhIjp7ImN1cnJlbmN5IjoiSU5SIiwibWVyY2hhbnQiOiJNLTEwMSJ9LCJpYXQiOjE3MDQwNjc1MDAsImp0aSI6InB2LVBWLjgtcG9wIn0.TPz7sNKo7bCXd7q5O_FoCEBS7GuXncesZrywniy43y0XyH-8PHFtlHpQ9-1VEC_FpiRMdo-keqBYgjWtAi0oCA"
+   },
+   "expected": {
+    "verdict": "DENY",
+    "step": "4p2"
+   }
+  },
+  {
+   "id": "PV.9",
+   "title": "Child constrains an argument its parent never named",
+   "description": "Link 1 adds a region constraint. In PrivateVault an unnamed argument is free, so naming it narrows; in AAT an unnamed argument is denied, so naming it widens.",
+   "now": 1704067500,
+   "tool": "payments.refund.issue",
+   "args": {
+    "merchant": "M-101",
+    "currency": "INR",
+    "region": "IN-MH"
+   },
+   "args_json": "{\"currency\":\"INR\",\"merchant\":\"M-101\",\"region\":\"IN-MH\"}",
+   "policy": {},
+   "params": {},
+   "replay_state": null,
+   "presentation": {
+    "aat_chain": [
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnBheW91dC5jcmVhdGUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19LCJwYXltZW50cy5yZWZ1bmQuaXNzdWUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNFNrbHJ5STNnVHh5WFNmR1RpQ3FGcWdrWUQ3N0tOUThXOE9vSUVyM3BsRSJ9fSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoiaHR0cHM6Ly9hdXRoLmV4YW1wbGUuY29tIiwianRpIjoicHYtUFYuOS0wIn0.Y6kGFP6J211dor2m-Iek4TGZmbIblGLhe9pBFfgm4hxg3AKLjKkwn4JfPzkYlX1ELJh0UTU9BdRPbpuuhe98AA",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiXX0sInJlZ2lvbiI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU4tTUgiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiRkVjWnFLYkQyZUc2UkhYYUNheVdjMHktWnhONHJNSGdmOUUtaEl0cjJFSSJ9fSwiZGVsX2RlcHRoIjoxLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoidXJuOmlldGY6cGFyYW1zOm9hdXRoOmp3ay10aHVtYnByaW50OnNoYS0yNTY6VmtpbFptaGFuZzlmNVpsNHFEdmVTaE1JaVJOSURWazBacm05aUIwZzdhQSIsImp0aSI6InB2LVBWLjktMSIsInBhcl9oYXNoIjoiTnVSV1BOdTNiYnp4YVZVMkNjQjhtWkVEWVVWSzkyVkloTlFTRXJ2bzY5QSJ9.98zFS32dtLsTclO9qsLdGdwGOWNzvYFBWoZGiSc4H0pFsDKgJVK39kvbt88KAncDB8J5nZdHNGAbPX6I2VuHBQ",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiXX0sInJlZ2lvbiI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU4tTUgiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNlhCX1cxYkRSRmhlVXBaRDlxX1B2X2syV0Zldi1yTGxUSXVhR2ltVUZmYyJ9fSwiZGVsX2RlcHRoIjoyLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoidXJuOmlldGY6cGFyYW1zOm9hdXRoOmp3ay10aHVtYnByaW50OnNoYS0yNTY6YVZmMHJUV2YwVk0ya1ZQX3VPa3d1bkRTblVIQkFsY1B4VW1ZVDhEam1FSSIsImp0aSI6InB2LVBWLjktMiIsInBhcl9oYXNoIjoiVHo4Vjd6ZlFwU0NHZWlTMjdUb1NLMWNQSDBDd3UyRmF5b3dJRml2ZmxpZyJ9.ApJJqYsz-ZawKJlYqEjRk7_JyWzuRghk-gxTEeuHTvhoD1tyRfWPUmS_7i-LIk8yRvXRD2ZVcgWdHBGzlybpCw"
+    ],
+    "aat_pop": "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0LXBvcCtqd3QifQ.eyJhYXRfYXVkIjoiaHR0cHM6Ly90b29scy5leGFtcGxlLmNvbSIsImFhdF9oYXNoIjoiVG9qMUo2LVkyYXpTZ00xS2NDX0xOMjVwd1pUVTZZbnRyRWQ5ZHpGcnF5RSIsImFhdF9pZCI6InB2LVBWLjktMiIsImFhdF90b29sIjoicGF5bWVudHMucmVmdW5kLmlzc3VlIiwiaHRhIjp7ImN1cnJlbmN5IjoiSU5SIiwibWVyY2hhbnQiOiJNLTEwMSIsInJlZ2lvbiI6IklOLU1IIn0sImlhdCI6MTcwNDA2NzUwMCwianRpIjoicHYtUFYuOS1wb3AifQ.XDsKXKHSVHTDXmCJntPgUCA0qvcH9TuS4EUXViO1NnTN4kuOuwTBCOy9Oxym4HqBB-AQKdLsBa_kI_jpJWXPBg"
+   },
+   "expected": {
+    "verdict": "DENY",
+    "step": "4p2"
+   }
+  },
+  {
+   "id": "PV.10",
+   "title": "Argument no constraint names",
+   "description": "The action passes a note argument that no link constrains.",
+   "now": 1704067500,
+   "tool": "payments.refund.issue",
+   "args": {
+    "merchant": "M-101",
+    "currency": "INR",
+    "note": "customer called"
+   },
+   "args_json": "{\"currency\":\"INR\",\"merchant\":\"M-101\",\"note\":\"customer called\"}",
+   "policy": {},
+   "params": {},
+   "replay_state": null,
+   "presentation": {
+    "aat_chain": [
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnBheW91dC5jcmVhdGUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19LCJwYXltZW50cy5yZWZ1bmQuaXNzdWUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNFNrbHJ5STNnVHh5WFNmR1RpQ3FGcWdrWUQ3N0tOUThXOE9vSUVyM3BsRSJ9fSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoiaHR0cHM6Ly9hdXRoLmV4YW1wbGUuY29tIiwianRpIjoicHYtUFYuMTAtMCJ9.5doBdA2U1KQ3eWiXIMez7Fm-tuM9dYYdo6dgXAgsEzLD9EhmBVLmAvB-_A7tu0wBOiCsIkepuUD3LBLAQERiCA",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiRkVjWnFLYkQyZUc2UkhYYUNheVdjMHktWnhONHJNSGdmOUUtaEl0cjJFSSJ9fSwiZGVsX2RlcHRoIjoxLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoidXJuOmlldGY6cGFyYW1zOm9hdXRoOmp3ay10aHVtYnByaW50OnNoYS0yNTY6VmtpbFptaGFuZzlmNVpsNHFEdmVTaE1JaVJOSURWazBacm05aUIwZzdhQSIsImp0aSI6InB2LVBWLjEwLTEiLCJwYXJfaGFzaCI6IjBYdnBXbExFVG8xRE5kLVlzOG9mR1J4Z21ac3lXSUNqRG5WVlptNDJlc3MifQ.yUbEoNKeLas52HUy-vCFIpnkFGI13p9_1XD6KNWgl654Rx_fQ_NofxfgkZbM89_0Vk2483L3yUXhs-E38bB-Bw",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNlhCX1cxYkRSRmhlVXBaRDlxX1B2X2syV0Zldi1yTGxUSXVhR2ltVUZmYyJ9fSwiZGVsX2RlcHRoIjoyLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoidXJuOmlldGY6cGFyYW1zOm9hdXRoOmp3ay10aHVtYnByaW50OnNoYS0yNTY6YVZmMHJUV2YwVk0ya1ZQX3VPa3d1bkRTblVIQkFsY1B4VW1ZVDhEam1FSSIsImp0aSI6InB2LVBWLjEwLTIiLCJwYXJfaGFzaCI6Ikw0dURMMnVnT1A5Uzd4SlhKV2s5clV5ZHp4cUp0RjlEbnFKNk5SX19kejAifQ.wZRWLpsUbY3SShnZBWGOh1ic-MWFBffQOVCn-0zva1jszluIIlbFDM59PL7NMj9bi7GCxwvoS1ccNzspH3AVBQ"
+    ],
+    "aat_pop": "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0LXBvcCtqd3QifQ.eyJhYXRfYXVkIjoiaHR0cHM6Ly90b29scy5leGFtcGxlLmNvbSIsImFhdF9oYXNoIjoiS1JGc3loMVBKZlVGUFZaY3JacXhieml4LURScGR5UURpcGplZDIwVnI0byIsImFhdF9pZCI6InB2LVBWLjEwLTIiLCJhYXRfdG9vbCI6InBheW1lbnRzLnJlZnVuZC5pc3N1ZSIsImh0YSI6eyJjdXJyZW5jeSI6IklOUiIsIm1lcmNoYW50IjoiTS0xMDEiLCJub3RlIjoiY3VzdG9tZXIgY2FsbGVkIn0sImlhdCI6MTcwNDA2NzUwMCwianRpIjoicHYtUFYuMTAtcG9wIn0.8sEBEQMio6JPQZG70bdRu0LGr43gpgxG0kn1VZahpYaVcF_RBpAK5KFkVpUXcgKjebUohkaTNXpbuekU2WHNAA"
+   },
+   "expected": {
+    "verdict": "DENY",
+    "step": "6b"
+   }
+  },
+  {
+   "id": "PV.11",
+   "title": "Depth beyond the limit",
+   "description": "Root limit 1: link 1 is terminal (remaining 0), so link 2 exceeds del_max_depth.",
+   "now": 1704067500,
+   "tool": "payments.refund.issue",
+   "args": {
+    "merchant": "M-101",
+    "currency": "INR"
+   },
+   "args_json": "{\"currency\":\"INR\",\"merchant\":\"M-101\"}",
+   "policy": {},
+   "params": {},
+   "replay_state": null,
+   "presentation": {
+    "aat_chain": [
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6e319LCJ0eXBlIjoiYXR0ZW51YXRpbmdfYWdlbnRfdG9rZW4ifV0sImNuZiI6eyJqd2siOnsiY3J2IjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsIngiOiI0U2tscnlJM2dUeHlYU2ZHVGlDcUZxZ2tZRDc3S05ROFc4T29JRXIzcGxFIn19LCJkZWxfZGVwdGgiOjAsImRlbF9tYXhfZGVwdGgiOjEsImV4cCI6MTcwNDA3MDgwMCwiaWF0IjoxNzA0MDY3MjAwLCJpc3MiOiJodHRwczovL2F1dGguZXhhbXBsZS5jb20iLCJqdGkiOiJwdi1QVi4xMS0wIn0.Xsb-zge8iheaHu0B_2hJSF2fe7uelJniBEqMSXhKaxGvEKRv4wT5J8LecapUrKykooeR0Lyp4J8lypM_3965AQ",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6e319LCJ0eXBlIjoiYXR0ZW51YXRpbmdfYWdlbnRfdG9rZW4ifV0sImNuZiI6eyJqd2siOnsiY3J2IjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsIngiOiJGRWNacUtiRDJlRzZSSFhhQ2F5V2MweS1aeE40ck1IZ2Y5RS1oSXRyMkVJIn19LCJkZWxfZGVwdGgiOjEsImRlbF9tYXhfZGVwdGgiOjEsImV4cCI6MTcwNDA3MDgwMCwiaWF0IjoxNzA0MDY3MjAwLCJpc3MiOiJ1cm46aWV0ZjpwYXJhbXM6b2F1dGg6andrLXRodW1icHJpbnQ6c2hhLTI1NjpWa2lsWm1oYW5nOWY1Wmw0cUR2ZVNoTUlpUk5JRFZrMFpybTlpQjBnN2FBIiwianRpIjoicHYtUFYuMTEtMSIsInBhcl9oYXNoIjoiYmVPbFNOeUFULUt2NEJ6N01zcVpCb1hrbXpUSWNHSVdxdUNmbGI1TVF6QSJ9.Sd6bC2XBsWjvIzyoNo2XaGFONpW6UOOvr5d6FFrBi4XudCBRyTVEM-lYkr9sWpocZV4KkMu3FWy0vh9vd5mkCg",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6e319LCJ0eXBlIjoiYXR0ZW51YXRpbmdfYWdlbnRfdG9rZW4ifV0sImNuZiI6eyJqd2siOnsiY3J2IjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsIngiOiI2WEJfVzFiRFJGaGVVcFpEOXFfUHZfazJXRmV2LXJMbFRJdWFHaW1VRmZjIn19LCJkZWxfZGVwdGgiOjIsImRlbF9tYXhfZGVwdGgiOjIsImV4cCI6MTcwNDA3MDgwMCwiaWF0IjoxNzA0MDY3MjAwLCJpc3MiOiJ1cm46aWV0ZjpwYXJhbXM6b2F1dGg6andrLXRodW1icHJpbnQ6c2hhLTI1NjphVmYwclRXZjBWTTJrVlBfdU9rd3VuRFNuVUhCQWxjUHhVbVlUOERqbUVJIiwianRpIjoicHYtUFYuMTEtMiIsInBhcl9oYXNoIjoiMHdQNzFjR05wU2wyRkNPR09RWlpfQmNrLVNINlp3Tm9MWV9QSkdLREp0TSJ9.szHBzmBVRgSt1lXA8z9KogFRfDzog7tc11nZJppOfPHBPv0C9LqRYyaRaN46NWc82zhEldZdoo3XM5_8Fkw7Dw"
+    ],
+    "aat_pop": "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0LXBvcCtqd3QifQ.eyJhYXRfYXVkIjoiaHR0cHM6Ly90b29scy5leGFtcGxlLmNvbSIsImFhdF9oYXNoIjoiSmxFSHlaUG5JMlVmMkJkVEphWVJvOGdMS3N2VDNRSWI1bjZuS3NNRERzdyIsImFhdF9pZCI6InB2LVBWLjExLTIiLCJhYXRfdG9vbCI6InBheW1lbnRzLnJlZnVuZC5pc3N1ZSIsImh0YSI6eyJjdXJyZW5jeSI6IklOUiIsIm1lcmNoYW50IjoiTS0xMDEifSwiaWF0IjoxNzA0MDY3NTAwLCJqdGkiOiJwdi1QVi4xMS1wb3AifQ.-ULMxilZX_FikYHcX0uw8VX9XxL0ye4AjPooyzSlDOeqbuuVoZ3lSKEImPwlg314gPBFul6bomGb-Wlwcb4BCg"
+   },
+   "expected": {
+    "verdict": "DENY",
+    "step": "4e"
+   }
+  },
+  {
+   "id": "PV.12",
+   "title": "Child raises the depth limit",
+   "description": "Link 1 keeps 2 remaining hops under a parent with 2: del_max_depth rises from 2 to 3.",
+   "now": 1704067500,
+   "tool": "payments.refund.issue",
+   "args": {
+    "merchant": "M-101",
+    "currency": "INR"
+   },
+   "args_json": "{\"currency\":\"INR\",\"merchant\":\"M-101\"}",
+   "policy": {},
+   "params": {},
+   "replay_state": null,
+   "presentation": {
+    "aat_chain": [
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnBheW91dC5jcmVhdGUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19LCJwYXltZW50cy5yZWZ1bmQuaXNzdWUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNFNrbHJ5STNnVHh5WFNmR1RpQ3FGcWdrWUQ3N0tOUThXOE9vSUVyM3BsRSJ9fSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoiaHR0cHM6Ly9hdXRoLmV4YW1wbGUuY29tIiwianRpIjoicHYtUFYuMTItMCJ9.kRAiIjChit2atOFqZChk2HcIlLPLcgkR0knd_91L62YGPZE2ZcoF2Wtonlb-kfRpCX84Rf7IXy8jmI2zBLKuDw",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiRkVjWnFLYkQyZUc2UkhYYUNheVdjMHktWnhONHJNSGdmOUUtaEl0cjJFSSJ9fSwiZGVsX2RlcHRoIjoxLCJkZWxfbWF4X2RlcHRoIjozLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoidXJuOmlldGY6cGFyYW1zOm9hdXRoOmp3ay10aHVtYnByaW50OnNoYS0yNTY6VmtpbFptaGFuZzlmNVpsNHFEdmVTaE1JaVJOSURWazBacm05aUIwZzdhQSIsImp0aSI6InB2LVBWLjEyLTEiLCJwYXJfaGFzaCI6ImwybDBoWUFHLTVvYjNqamJURElwM2JLcE5uNkNub2s3QmVuMENTdjUyNGMifQ.hsdv-RaQrzoXaXtXGXugQmJagFgZHm2ab5WJR06pNghEsNA7okOZMv5P6zeikeE2FavczKv50vb_zVITll6RAw",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNlhCX1cxYkRSRmhlVXBaRDlxX1B2X2syV0Zldi1yTGxUSXVhR2ltVUZmYyJ9fSwiZGVsX2RlcHRoIjoyLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoidXJuOmlldGY6cGFyYW1zOm9hdXRoOmp3ay10aHVtYnByaW50OnNoYS0yNTY6YVZmMHJUV2YwVk0ya1ZQX3VPa3d1bkRTblVIQkFsY1B4VW1ZVDhEam1FSSIsImp0aSI6InB2LVBWLjEyLTIiLCJwYXJfaGFzaCI6IlZsNVZiSmQyQy1OZU9peWJGT0xnZGV4dlF6MjI4QjZMejljMmY4bnliQVEifQ.J0SeDYBmuC34-WGB2n6JF-t09w02jezTWAVK0RmpVYKKpqb6-5zlTMzy7gsiGrim_tbSnYsJmCiL31AxcIuNAA"
+    ],
+    "aat_pop": "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0LXBvcCtqd3QifQ.eyJhYXRfYXVkIjoiaHR0cHM6Ly90b29scy5leGFtcGxlLmNvbSIsImFhdF9oYXNoIjoiMzVyaHg2a080UWtRZkpudVdaVmZINkFRaEp3eUhlUEZOQUJtUl84U25ZNCIsImFhdF9pZCI6InB2LVBWLjEyLTIiLCJhYXRfdG9vbCI6InBheW1lbnRzLnJlZnVuZC5pc3N1ZSIsImh0YSI6eyJjdXJyZW5jeSI6IklOUiIsIm1lcmNoYW50IjoiTS0xMDEifSwiaWF0IjoxNzA0MDY3NTAwLCJqdGkiOiJwdi1QVi4xMi1wb3AifQ.vnZMZS6rMpdEWqUnhqV1dRapEYlAhJgW3O3vf8Mc_oB9txlSgqmyGQBJrlwp-FVu8wIaLGzoZnbyphpvVjJHDQ"
+   },
+   "expected": {
+    "verdict": "DENY",
+    "step": "4g"
+   }
+  },
+  {
+   "id": "PV.13",
+   "title": "Child drops the depth limit",
+   "description": "Link 1 carries no depth limit under a parent with one.",
+   "now": 1704067500,
+   "tool": "payments.refund.issue",
+   "args": {
+    "merchant": "M-101",
+    "currency": "INR"
+   },
+   "args_json": "{\"currency\":\"INR\",\"merchant\":\"M-101\"}",
+   "policy": {},
+   "params": {},
+   "replay_state": null,
+   "presentation": {
+    "aat_chain": [
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnBheW91dC5jcmVhdGUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19LCJwYXltZW50cy5yZWZ1bmQuaXNzdWUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNFNrbHJ5STNnVHh5WFNmR1RpQ3FGcWdrWUQ3N0tOUThXOE9vSUVyM3BsRSJ9fSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoiaHR0cHM6Ly9hdXRoLmV4YW1wbGUuY29tIiwianRpIjoicHYtUFYuMTMtMCJ9.tdOYPJcAG9ShCs6lt_qQWc0SdD0McZUdjUIczfFsv6mtsDp3tcDr1C1tjbyoLtug_8KZSgzagcwZsY1LJxM1Aw",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiRkVjWnFLYkQyZUc2UkhYYUNheVdjMHktWnhONHJNSGdmOUUtaEl0cjJFSSJ9fSwiZGVsX2RlcHRoIjoxLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoidXJuOmlldGY6cGFyYW1zOm9hdXRoOmp3ay10aHVtYnByaW50OnNoYS0yNTY6VmtpbFptaGFuZzlmNVpsNHFEdmVTaE1JaVJOSURWazBacm05aUIwZzdhQSIsImp0aSI6InB2LVBWLjEzLTEiLCJwYXJfaGFzaCI6Ik40VF9PSE1nZ1F2NWI4UE85b2lRUHdVYUNuNEowM2otMmVjOWhvbkkwZ2sifQ.tcgj8ID6BUrvL9bd_T_H9fVPbrHXYiT5yWx9RGcr642GFUxaNUwOKUK7p_SSk8S9GYm7ACf-GqLv32dxvrY1Dg",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNlhCX1cxYkRSRmhlVXBaRDlxX1B2X2syV0Zldi1yTGxUSXVhR2ltVUZmYyJ9fSwiZGVsX2RlcHRoIjoyLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoidXJuOmlldGY6cGFyYW1zOm9hdXRoOmp3ay10aHVtYnByaW50OnNoYS0yNTY6YVZmMHJUV2YwVk0ya1ZQX3VPa3d1bkRTblVIQkFsY1B4VW1ZVDhEam1FSSIsImp0aSI6InB2LVBWLjEzLTIiLCJwYXJfaGFzaCI6Imw1bGx5ZEhpTmxkbWU3WTE2bnZ4NFJGNE5nZlVmdFhXbXBLR0V1YnB0OUkifQ.M9W7NVjrCYKMv4PbD1KZY7NB4oOPLMIhNcLs_OugIs9BsiaL7RzDi5BqyvdJiertFRsZ7o_y1v-08LKBqDulBw"
+    ],
+    "aat_pop": "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0LXBvcCtqd3QifQ.eyJhYXRfYXVkIjoiaHR0cHM6Ly90b29scy5leGFtcGxlLmNvbSIsImFhdF9oYXNoIjoiT1UxYzBybTA5aTF1TkV6bWdUX1hZWUI1MkpvY1pRWFB0QXpScm1tdUcxZyIsImFhdF9pZCI6InB2LVBWLjEzLTIiLCJhYXRfdG9vbCI6InBheW1lbnRzLnJlZnVuZC5pc3N1ZSIsImh0YSI6eyJjdXJyZW5jeSI6IklOUiIsIm1lcmNoYW50IjoiTS0xMDEifSwiaWF0IjoxNzA0MDY3NTAwLCJqdGkiOiJwdi1QVi4xMy1wb3AifQ.3gZu2MjLyuaeDg80TKEIHncxdkqSBoBcel8PpiJiqQVyICr3IpcStbXKzahEDwEcitqor7l70z4QTmSzxvx3Dw"
+   },
+   "expected": {
+    "verdict": "DENY",
+    "step": "4b4"
+   }
+  },
+  {
+   "id": "PV.14",
+   "title": "A terminal root delegates",
+   "description": "Root limit 0 is terminal; its child is refused.",
+   "now": 1704067500,
+   "tool": "payments.refund.issue",
+   "args": {
+    "merchant": "M-101",
+    "currency": "INR"
+   },
+   "args_json": "{\"currency\":\"INR\",\"merchant\":\"M-101\"}",
+   "policy": {},
+   "params": {},
+   "replay_state": null,
+   "presentation": {
+    "aat_chain": [
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6e319LCJ0eXBlIjoiYXR0ZW51YXRpbmdfYWdlbnRfdG9rZW4ifV0sImNuZiI6eyJqd2siOnsiY3J2IjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsIngiOiI0U2tscnlJM2dUeHlYU2ZHVGlDcUZxZ2tZRDc3S05ROFc4T29JRXIzcGxFIn19LCJkZWxfZGVwdGgiOjAsImRlbF9tYXhfZGVwdGgiOjAsImV4cCI6MTcwNDA3MDgwMCwiaWF0IjoxNzA0MDY3MjAwLCJpc3MiOiJodHRwczovL2F1dGguZXhhbXBsZS5jb20iLCJqdGkiOiJwdi1QVi4xNC0wIn0.O8WbqlJjFux5aN1A468hl9K7BuIn3QHawN8QLX0YRe8HAOZAHjUjElpsaz_vsdCpAYxdD9T5e-Mkj4uSeUcADA",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6e319LCJ0eXBlIjoiYXR0ZW51YXRpbmdfYWdlbnRfdG9rZW4ifV0sImNuZiI6eyJqd2siOnsiY3J2IjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsIngiOiJGRWNacUtiRDJlRzZSSFhhQ2F5V2MweS1aeE40ck1IZ2Y5RS1oSXRyMkVJIn19LCJkZWxfZGVwdGgiOjEsImRlbF9tYXhfZGVwdGgiOjEsImV4cCI6MTcwNDA3MDgwMCwiaWF0IjoxNzA0MDY3MjAwLCJpc3MiOiJ1cm46aWV0ZjpwYXJhbXM6b2F1dGg6andrLXRodW1icHJpbnQ6c2hhLTI1NjpWa2lsWm1oYW5nOWY1Wmw0cUR2ZVNoTUlpUk5JRFZrMFpybTlpQjBnN2FBIiwianRpIjoicHYtUFYuMTQtMSIsInBhcl9oYXNoIjoiOUJJQkszRUZDWnhZTzJmc0djUjdQS2hHcFRJQTZEdHVIWHRQRmdCMXBwVSJ9.Hm86gLD8vbNXEXk0ZQ38lGHfEfL13iZLVrmEnRKKqSSM-jlxZfU6E7jMGNQUlYvO1-bZAqLFoN45E5VBTMKsAg"
+    ],
+    "aat_pop": "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0LXBvcCtqd3QifQ.eyJhYXRfYXVkIjoiaHR0cHM6Ly90b29scy5leGFtcGxlLmNvbSIsImFhdF9oYXNoIjoiM2FRWUhsSVIxSTQxSHY5cVh4Qzcza00zYm80ekFBZTZPRS1nSzByTG5jUSIsImFhdF9pZCI6InB2LVBWLjE0LTEiLCJhYXRfdG9vbCI6InBheW1lbnRzLnJlZnVuZC5pc3N1ZSIsImh0YSI6eyJjdXJyZW5jeSI6IklOUiIsIm1lcmNoYW50IjoiTS0xMDEifSwiaWF0IjoxNzA0MDY3NTAwLCJqdGkiOiJwdi1QVi4xNC1wb3AifQ.6Rnru_XVsXWAnhS7jTkmSCeMN2JA4yiUYnQTdRQQPwAmFp-rshY--K_8H5DR6AIWcnwzQ56BTDgQ6AvgyD2mDw"
+   },
+   "expected": {
+    "verdict": "DENY",
+    "step": "4e"
+   }
+  },
+  {
+   "id": "PV.15",
+   "title": "Depth limit 3, four tokens",
+   "description": "Root limit 3 and four links (depths 0..3).",
+   "now": 1704067500,
+   "tool": "payments.refund.issue",
+   "args": {},
+   "args_json": "{}",
+   "policy": {},
+   "params": {},
+   "replay_state": null,
+   "presentation": {
+    "aat_chain": [
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6e319LCJ0eXBlIjoiYXR0ZW51YXRpbmdfYWdlbnRfdG9rZW4ifV0sImNuZiI6eyJqd2siOnsiY3J2IjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsIngiOiI0U2tscnlJM2dUeHlYU2ZHVGlDcUZxZ2tZRDc3S05ROFc4T29JRXIzcGxFIn19LCJkZWxfZGVwdGgiOjAsImRlbF9tYXhfZGVwdGgiOjMsImV4cCI6MTcwNDA3MDgwMCwiaWF0IjoxNzA0MDY3MjAwLCJpc3MiOiJodHRwczovL2F1dGguZXhhbXBsZS5jb20iLCJqdGkiOiJwdi1QVi4xNS0wIn0.6WkT_c9ZNCZbstyw51eWWdiR3TqlGtledW2VOVzbO_at2ACnGlVhXdqCp_XZyh7N2NVYXE1U6dwLUwPaFxOQAw",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6e319LCJ0eXBlIjoiYXR0ZW51YXRpbmdfYWdlbnRfdG9rZW4ifV0sImNuZiI6eyJqd2siOnsiY3J2IjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsIngiOiJGRWNacUtiRDJlRzZSSFhhQ2F5V2MweS1aeE40ck1IZ2Y5RS1oSXRyMkVJIn19LCJkZWxfZGVwdGgiOjEsImRlbF9tYXhfZGVwdGgiOjMsImV4cCI6MTcwNDA3MDgwMCwiaWF0IjoxNzA0MDY3MjAwLCJpc3MiOiJ1cm46aWV0ZjpwYXJhbXM6b2F1dGg6andrLXRodW1icHJpbnQ6c2hhLTI1NjpWa2lsWm1oYW5nOWY1Wmw0cUR2ZVNoTUlpUk5JRFZrMFpybTlpQjBnN2FBIiwianRpIjoicHYtUFYuMTUtMSIsInBhcl9oYXNoIjoidjJxaklmRDJ0RzJYUU9VekU3U2Foc1J4MWNTNjh1WGMxWVE1ck0xcXVhMCJ9.WICaoMAjwYqmfzHi3He8jkslfnmF_bnYsVpQAK4nGuLg3HsSgZyxgc1tY-HRqV2xvYwDq8by29Sqf4VOpergBA",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6e319LCJ0eXBlIjoiYXR0ZW51YXRpbmdfYWdlbnRfdG9rZW4ifV0sImNuZiI6eyJqd2siOnsiY3J2IjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsIngiOiI2WEJfVzFiRFJGaGVVcFpEOXFfUHZfazJXRmV2LXJMbFRJdWFHaW1VRmZjIn19LCJkZWxfZGVwdGgiOjIsImRlbF9tYXhfZGVwdGgiOjMsImV4cCI6MTcwNDA3MDgwMCwiaWF0IjoxNzA0MDY3MjAwLCJpc3MiOiJ1cm46aWV0ZjpwYXJhbXM6b2F1dGg6andrLXRodW1icHJpbnQ6c2hhLTI1NjphVmYwclRXZjBWTTJrVlBfdU9rd3VuRFNuVUhCQWxjUHhVbVlUOERqbUVJIiwianRpIjoicHYtUFYuMTUtMiIsInBhcl9oYXNoIjoiZWVQNkFDelFaRmEwT01wZDgwZnlLandOeDNJa0JiLXNrbVloZ2ota1V3SSJ9.iqIcJnPZUAYflfqNiwZ41N8AKbNswWqouhE4yXeLbP29WXVfbOWj_GQDauCDQK1xKRpwYpWixKYJultt6VXUDQ",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6e319LCJ0eXBlIjoiYXR0ZW51YXRpbmdfYWdlbnRfdG9rZW4ifV0sImNuZiI6eyJqd2siOnsiY3J2IjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsIngiOiJRMjdhM21EdUZETm1ZNEdjRW9YaDRfcUVCQk16NUZvczFZNzVPUEhiNGNBIn19LCJkZWxfZGVwdGgiOjMsImRlbF9tYXhfZGVwdGgiOjMsImV4cCI6MTcwNDA3MDgwMCwiaWF0IjoxNzA0MDY3MjAwLCJpc3MiOiJ1cm46aWV0ZjpwYXJhbXM6b2F1dGg6andrLXRodW1icHJpbnQ6c2hhLTI1NjpaOHg0NGpVbG9KWlJlTk81VDVGZDhpU1B3bGdzMzR1ekFnQmd1YlhQSkZZIiwianRpIjoicHYtUFYuMTUtMyIsInBhcl9oYXNoIjoiNjRZRFlUT1JLQlBZbXA1YmN4ejYzek91TUNpQmM1dllUSC1yemxqaTUxZyJ9.tNIKo9DKAYihib4CCce6MyFsSoQ0_gHoOHXCMm4BDXVKsAyI5I6UjJe7wMHutd7Zu8HZKyiY-cOflEt_DX18Dg"
+    ],
+    "aat_pop": "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0LXBvcCtqd3QifQ.eyJhYXRfYXVkIjoiaHR0cHM6Ly90b29scy5leGFtcGxlLmNvbSIsImFhdF9oYXNoIjoidkRMR2N1b0V3QzVzZ1FTWmY4R0JEekF4X1lEalhzTGtBZ1RoNVkxb1NwcyIsImFhdF9pZCI6InB2LVBWLjE1LTMiLCJhYXRfdG9vbCI6InBheW1lbnRzLnJlZnVuZC5pc3N1ZSIsImh0YSI6e30sImlhdCI6MTcwNDA2NzUwMCwianRpIjoicHYtUFYuMTUtcG9wIn0.Z1bEK-isy-cMMo5bHcAxZkeO11d4k1sYMznSFds6c54Y1B4hEtdMk3qxfXhCtg2MY7LJy4N4oeHx8y3dUKXxCA"
+   },
+   "expected": {
+    "verdict": "PERMIT",
+    "step": null
+   }
+  },
+  {
+   "id": "PV.16",
+   "title": "Depth limit 3, five tokens",
+   "description": "Root limit 3 and five links.",
+   "now": 1704067500,
+   "tool": "payments.refund.issue",
+   "args": {},
+   "args_json": "{}",
+   "policy": {},
+   "params": {},
+   "replay_state": null,
+   "presentation": {
+    "aat_chain": [
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6e319LCJ0eXBlIjoiYXR0ZW51YXRpbmdfYWdlbnRfdG9rZW4ifV0sImNuZiI6eyJqd2siOnsiY3J2IjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsIngiOiI0U2tscnlJM2dUeHlYU2ZHVGlDcUZxZ2tZRDc3S05ROFc4T29JRXIzcGxFIn19LCJkZWxfZGVwdGgiOjAsImRlbF9tYXhfZGVwdGgiOjMsImV4cCI6MTcwNDA3MDgwMCwiaWF0IjoxNzA0MDY3MjAwLCJpc3MiOiJodHRwczovL2F1dGguZXhhbXBsZS5jb20iLCJqdGkiOiJwdi1QVi4xNi0wIn0.DltZE5oj7oXx8anj8cID0dU4vYcpLWD6DwUqrBbjT15XP29hDeXPqpyiAKSSLeKS-qyRljBoh4J-cWSlv-g_Bg",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6e319LCJ0eXBlIjoiYXR0ZW51YXRpbmdfYWdlbnRfdG9rZW4ifV0sImNuZiI6eyJqd2siOnsiY3J2IjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsIngiOiJGRWNacUtiRDJlRzZSSFhhQ2F5V2MweS1aeE40ck1IZ2Y5RS1oSXRyMkVJIn19LCJkZWxfZGVwdGgiOjEsImRlbF9tYXhfZGVwdGgiOjMsImV4cCI6MTcwNDA3MDgwMCwiaWF0IjoxNzA0MDY3MjAwLCJpc3MiOiJ1cm46aWV0ZjpwYXJhbXM6b2F1dGg6andrLXRodW1icHJpbnQ6c2hhLTI1NjpWa2lsWm1oYW5nOWY1Wmw0cUR2ZVNoTUlpUk5JRFZrMFpybTlpQjBnN2FBIiwianRpIjoicHYtUFYuMTYtMSIsInBhcl9oYXNoIjoiNDVvYVh0M2FVTWZUWFFXTkJNNWhKQWhtVHhWWUcxRERCUWt4Ulh4Z2syZyJ9.xel7L2yYlcky5cGpAIxFAF7iO7c9-Hgh-wppmFN1dYYHPWoZA9gCKdnnK3Tnp1OcMpcBE0N00h9nVod8ZLZiAw",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6e319LCJ0eXBlIjoiYXR0ZW51YXRpbmdfYWdlbnRfdG9rZW4ifV0sImNuZiI6eyJqd2siOnsiY3J2IjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsIngiOiI2WEJfVzFiRFJGaGVVcFpEOXFfUHZfazJXRmV2LXJMbFRJdWFHaW1VRmZjIn19LCJkZWxfZGVwdGgiOjIsImRlbF9tYXhfZGVwdGgiOjMsImV4cCI6MTcwNDA3MDgwMCwiaWF0IjoxNzA0MDY3MjAwLCJpc3MiOiJ1cm46aWV0ZjpwYXJhbXM6b2F1dGg6andrLXRodW1icHJpbnQ6c2hhLTI1NjphVmYwclRXZjBWTTJrVlBfdU9rd3VuRFNuVUhCQWxjUHhVbVlUOERqbUVJIiwianRpIjoicHYtUFYuMTYtMiIsInBhcl9oYXNoIjoiZm4zR2lCelNOdWIyYm1wcHlBcl9EMDkwM0NpMmNFTlJQaEFBWjVSRkpIdyJ9.gSoNsx20iPqJcr4uwybt22FZ_4qlOa1T0bXmD4YhzZRH0hSmfXoA9drpQIQcZFh_RnBLUSCwTS5PikA_GeiIBg",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6e319LCJ0eXBlIjoiYXR0ZW51YXRpbmdfYWdlbnRfdG9rZW4ifV0sImNuZiI6eyJqd2siOnsiY3J2IjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsIngiOiJRMjdhM21EdUZETm1ZNEdjRW9YaDRfcUVCQk16NUZvczFZNzVPUEhiNGNBIn19LCJkZWxfZGVwdGgiOjMsImRlbF9tYXhfZGVwdGgiOjMsImV4cCI6MTcwNDA3MDgwMCwiaWF0IjoxNzA0MDY3MjAwLCJpc3MiOiJ1cm46aWV0ZjpwYXJhbXM6b2F1dGg6andrLXRodW1icHJpbnQ6c2hhLTI1NjpaOHg0NGpVbG9KWlJlTk81VDVGZDhpU1B3bGdzMzR1ekFnQmd1YlhQSkZZIiwianRpIjoicHYtUFYuMTYtMyIsInBhcl9oYXNoIjoiOWVIa2NvS1hWRXVQQkthN3FjdXlDT1RHSko3bjZySWh1U21FMlp5RW56dyJ9.YZPDZyoqLA3zSRR4QAlYYioX28hB752mzWx0eKHYJT_Lxlvg5vVc0zHoHBniUq-_JhPzmIIow9V0bL_lK3GYCQ",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6e319LCJ0eXBlIjoiYXR0ZW51YXRpbmdfYWdlbnRfdG9rZW4ifV0sImNuZiI6eyJqd2siOnsiY3J2IjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsIngiOiJ2cFJXQlBKWEN0RkRGby1qU0YyRWFzd2VVa0Z5Rld0X3RvY25ETmdsVS13In19LCJkZWxfZGVwdGgiOjQsImRlbF9tYXhfZGVwdGgiOjQsImV4cCI6MTcwNDA3MDgwMCwiaWF0IjoxNzA0MDY3MjAwLCJpc3MiOiJ1cm46aWV0ZjpwYXJhbXM6b2F1dGg6andrLXRodW1icHJpbnQ6c2hhLTI1Njpfa05ORHZ5OVF3QTd5ektCTkxHVnNPRkFaT1F2NDNvU3ZDOENkbEM0Tld3IiwianRpIjoicHYtUFYuMTYtNCIsInBhcl9oYXNoIjoiZlhxZ1ZNTE00ekNhem5zU2EwT0Q2N3Q5M09ZNnFDUVc0cDVJWE5ReERQdyJ9.wMpK7iIOsoLV1Jklyp8yJH16zgzn_8HxuzNdH3tQ0cGVATtggVUx6QCmcSyCWyUTKxzGFuH-CYahjWBAU-ApBA"
+    ],
+    "aat_pop": "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0LXBvcCtqd3QifQ.eyJhYXRfYXVkIjoiaHR0cHM6Ly90b29scy5leGFtcGxlLmNvbSIsImFhdF9oYXNoIjoiQ2N5QnVfLWtUNXItMDhLMFFDZGNrVjl6ZjFVUEVlbW91ZmlvbFlINlpjZyIsImFhdF9pZCI6InB2LVBWLjE2LTQiLCJhYXRfdG9vbCI6InBheW1lbnRzLnJlZnVuZC5pc3N1ZSIsImh0YSI6e30sImlhdCI6MTcwNDA2NzUwMCwianRpIjoicHYtUFYuMTYtcG9wIn0.Zz4OLJiqzm2tiUSq60sDsmv5yP35IsCfHBaR9rjGrhIGkUf6Af_tgJVnQua7fFZmrQVJMgdmbJ15TzCHmQ3oAw"
+   },
+   "expected": {
+    "verdict": "DENY",
+    "step": "4e"
+   }
+  },
+  {
+   "id": "PV.17",
+   "title": "Depth limit 8, nine tokens",
+   "description": "Root limit 8 and nine links (depths 0..8). AAT admits it; PrivateVault caps a chain at eight links, so it refuses before reading any limit.",
+   "now": 1704067500,
+   "tool": "payments.refund.issue",
+   "args": {},
+   "args_json": "{}",
+   "policy": {},
+   "params": {},
+   "replay_state": null,
+   "presentation": {
+    "aat_chain": [
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6e319LCJ0eXBlIjoiYXR0ZW51YXRpbmdfYWdlbnRfdG9rZW4ifV0sImNuZiI6eyJqd2siOnsiY3J2IjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsIngiOiI0U2tscnlJM2dUeHlYU2ZHVGlDcUZxZ2tZRDc3S05ROFc4T29JRXIzcGxFIn19LCJkZWxfZGVwdGgiOjAsImRlbF9tYXhfZGVwdGgiOjgsImV4cCI6MTcwNDA3MDgwMCwiaWF0IjoxNzA0MDY3MjAwLCJpc3MiOiJodHRwczovL2F1dGguZXhhbXBsZS5jb20iLCJqdGkiOiJwdi1QVi4xNy0wIn0.iuEucMzWk0OWKsnDe5z_dyeCdiGiC6M0J837m5o65ZK53S4B7GSY1vkokOOS07TkgkCFD71oOX_YPJ4ZfOOXCA",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6e319LCJ0eXBlIjoiYXR0ZW51YXRpbmdfYWdlbnRfdG9rZW4ifV0sImNuZiI6eyJqd2siOnsiY3J2IjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsIngiOiJGRWNacUtiRDJlRzZSSFhhQ2F5V2MweS1aeE40ck1IZ2Y5RS1oSXRyMkVJIn19LCJkZWxfZGVwdGgiOjEsImRlbF9tYXhfZGVwdGgiOjgsImV4cCI6MTcwNDA3MDgwMCwiaWF0IjoxNzA0MDY3MjAwLCJpc3MiOiJ1cm46aWV0ZjpwYXJhbXM6b2F1dGg6andrLXRodW1icHJpbnQ6c2hhLTI1NjpWa2lsWm1oYW5nOWY1Wmw0cUR2ZVNoTUlpUk5JRFZrMFpybTlpQjBnN2FBIiwianRpIjoicHYtUFYuMTctMSIsInBhcl9oYXNoIjoiSHZwUk5mY2VNOUNJbGZZNmFSem1BUGxUeGt3bDB2VnRxV0xpYzFycWRyYyJ9.gITe3IbA5CJcqlYGjRBYuDi8ef0M9pVN4bJUTDA7pEdWQXRmNrE9w4e6GLf29BLAU6mU4ZEXezGhRwMO0rjrAA",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6e319LCJ0eXBlIjoiYXR0ZW51YXRpbmdfYWdlbnRfdG9rZW4ifV0sImNuZiI6eyJqd2siOnsiY3J2IjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsIngiOiI2WEJfVzFiRFJGaGVVcFpEOXFfUHZfazJXRmV2LXJMbFRJdWFHaW1VRmZjIn19LCJkZWxfZGVwdGgiOjIsImRlbF9tYXhfZGVwdGgiOjgsImV4cCI6MTcwNDA3MDgwMCwiaWF0IjoxNzA0MDY3MjAwLCJpc3MiOiJ1cm46aWV0ZjpwYXJhbXM6b2F1dGg6andrLXRodW1icHJpbnQ6c2hhLTI1NjphVmYwclRXZjBWTTJrVlBfdU9rd3VuRFNuVUhCQWxjUHhVbVlUOERqbUVJIiwianRpIjoicHYtUFYuMTctMiIsInBhcl9oYXNoIjoidkE1UGlIc3RuNWZPQ1VzWEs1Qk9EVTRhTG9hdUlZakdMbWdpV3lwQzlzbyJ9.LBwyLCZHwY5TKEP5y4xLYrow9Eb1go3SzQhTqlGaP3oCYyizigE9wx3jNevqGJECpyRZJOJ7BlwdbzQ0bQULDw",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6e319LCJ0eXBlIjoiYXR0ZW51YXRpbmdfYWdlbnRfdG9rZW4ifV0sImNuZiI6eyJqd2siOnsiY3J2IjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsIngiOiJRMjdhM21EdUZETm1ZNEdjRW9YaDRfcUVCQk16NUZvczFZNzVPUEhiNGNBIn19LCJkZWxfZGVwdGgiOjMsImRlbF9tYXhfZGVwdGgiOjgsImV4cCI6MTcwNDA3MDgwMCwiaWF0IjoxNzA0MDY3MjAwLCJpc3MiOiJ1cm46aWV0ZjpwYXJhbXM6b2F1dGg6andrLXRodW1icHJpbnQ6c2hhLTI1NjpaOHg0NGpVbG9KWlJlTk81VDVGZDhpU1B3bGdzMzR1ekFnQmd1YlhQSkZZIiwianRpIjoicHYtUFYuMTctMyIsInBhcl9oYXNoIjoiMlR2TFJtNm0xNW95VWQzQTFBc3VSVGN2bGw1ZzNLZEQ0X0V3T29OT25xQSJ9._meW3TdX6_5eciXLlvuicZMxkhMxsLLVzaOTOLn0qqHd24tRowJ7Cr_ddNg_b7nBoaj1LWJC9QuIqTWnHWUpAw",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6e319LCJ0eXBlIjoiYXR0ZW51YXRpbmdfYWdlbnRfdG9rZW4ifV0sImNuZiI6eyJqd2siOnsiY3J2IjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsIngiOiJ2cFJXQlBKWEN0RkRGby1qU0YyRWFzd2VVa0Z5Rld0X3RvY25ETmdsVS13In19LCJkZWxfZGVwdGgiOjQsImRlbF9tYXhfZGVwdGgiOjgsImV4cCI6MTcwNDA3MDgwMCwiaWF0IjoxNzA0MDY3MjAwLCJpc3MiOiJ1cm46aWV0ZjpwYXJhbXM6b2F1dGg6andrLXRodW1icHJpbnQ6c2hhLTI1Njpfa05ORHZ5OVF3QTd5ektCTkxHVnNPRkFaT1F2NDNvU3ZDOENkbEM0Tld3IiwianRpIjoicHYtUFYuMTctNCIsInBhcl9oYXNoIjoiM3diQWgxb2J3aUJ5QUFOUWdablE0WjFOcjk1eWhvdjJ3bG54cFl0eDFwOCJ9.Q8mGlOCctOv8Yg66NRKISk96DAwVqM0ewq3dG9gW1uHWLXBx3X9Bp_i6VaeocDFQq_l5Mou01TzgVG_BLx-UDg",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6e319LCJ0eXBlIjoiYXR0ZW51YXRpbmdfYWdlbnRfdG9rZW4ifV0sImNuZiI6eyJqd2siOnsiY3J2IjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsIngiOiJFVG9EaGRKTzdGQm8tUnltdjJZTlhGSWVBNlI4Y05mTGZOc0RIZUgtMTFRIn19LCJkZWxfZGVwdGgiOjUsImRlbF9tYXhfZGVwdGgiOjgsImV4cCI6MTcwNDA3MDgwMCwiaWF0IjoxNzA0MDY3MjAwLCJpc3MiOiJ1cm46aWV0ZjpwYXJhbXM6b2F1dGg6andrLXRodW1icHJpbnQ6c2hhLTI1Njp2c3VtbE05c0M2S0xIZlJpdUlLRTVTTXE0bWZQZ0QxRF82bmxZOVNGbUg0IiwianRpIjoicHYtUFYuMTctNSIsInBhcl9oYXNoIjoicGZoQjhhdjlobG5SRzVVSWRtaUpuYWliZTVPcmRkYk5yZTROZ2VORFhDOCJ9.p0tPgIxeA4BV75PxuRxcwMYOahSzwZs6hLal6uivH84sevcFfLiSLfgp2LlyU4SwgEwCiHWV69L8m4D-HRxLAw",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6e319LCJ0eXBlIjoiYXR0ZW51YXRpbmdfYWdlbnRfdG9rZW4ifV0sImNuZiI6eyJqd2siOnsiY3J2IjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsIngiOiJDQnpTa3JiclAyZnVhX2FnUDZCTU9vSGpjcUhCYi0wZWdnMHRGM09walJVIn19LCJkZWxfZGVwdGgiOjYsImRlbF9tYXhfZGVwdGgiOjgsImV4cCI6MTcwNDA3MDgwMCwiaWF0IjoxNzA0MDY3MjAwLCJpc3MiOiJ1cm46aWV0ZjpwYXJhbXM6b2F1dGg6andrLXRodW1icHJpbnQ6c2hhLTI1Njpya1VLRkdlMkVvNS1IY2tzR0NoYlhjSFJ6emVMTmt1bVJLTkZCUFY5RG5VIiwianRpIjoicHYtUFYuMTctNiIsInBhcl9oYXNoIjoiWXVzN2pJRVhwXzhpYm1JQ05jeFpoQXZzT3BvUmo3OWZSaWpDX1dJUWF4OCJ9.CEJ_4c9ErWO1oD64qAGLS0aqFy8oAvf0ZgPd2xIDJZNlA0Rh29DUCm3i1GB_9mZwZbe-AtRn_UHakepyJZGoDQ",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6e319LCJ0eXBlIjoiYXR0ZW51YXRpbmdfYWdlbnRfdG9rZW4ifV0sImNuZiI6eyJqd2siOnsiY3J2IjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsIngiOiJ0ZzBLODlJcjRQaWhTMVV5MGdVd0J5REhsWFlLREJ5N2dMLVNNR1ItNVpBIn19LCJkZWxfZGVwdGgiOjcsImRlbF9tYXhfZGVwdGgiOjgsImV4cCI6MTcwNDA3MDgwMCwiaWF0IjoxNzA0MDY3MjAwLCJpc3MiOiJ1cm46aWV0ZjpwYXJhbXM6b2F1dGg6andrLXRodW1icHJpbnQ6c2hhLTI1NjpoSjlBNHpuWEVyTGxMcDlCZ0hmZGlBMXNCYXpBdXhlLWV0blU2ZWsxUFJzIiwianRpIjoicHYtUFYuMTctNyIsInBhcl9oYXNoIjoieW5ueElrWHgzSnJlS2ZYdzN5dE5XYTFXU3haeGhrLU1YYzdiZU1jUVdMcyJ9.7mKQCmsNPNfmeCndKddrK54Rbc9nWKpfU7DUmTsyv32BwtUNFWzfKldXtGOWi6jA9xl12_I67Usag2IZlIOVAg",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6e319LCJ0eXBlIjoiYXR0ZW51YXRpbmdfYWdlbnRfdG9rZW4ifV0sImNuZiI6eyJqd2siOnsiY3J2IjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsIngiOiJmWXZXT2pTbzFKdU54MHM3Y0I3bDNTYzZJQmRhS29NTG5zUXFwTzZOdXRZIn19LCJkZWxfZGVwdGgiOjgsImRlbF9tYXhfZGVwdGgiOjgsImV4cCI6MTcwNDA3MDgwMCwiaWF0IjoxNzA0MDY3MjAwLCJpc3MiOiJ1cm46aWV0ZjpwYXJhbXM6b2F1dGg6andrLXRodW1icHJpbnQ6c2hhLTI1NjpGMWc5ekQxZmVhM21wUlJBWnVHSUlEcDBteEYwNlpYNlh0ZC11VVF2VWlVIiwianRpIjoicHYtUFYuMTctOCIsInBhcl9oYXNoIjoiM0s5blZXRnowT01IRHlHMFhMV21YVVpnaEVTLVdCeERhOUE1WjhnUzc2OCJ9.xkWjE5BGlxw_mq3CA0D6QKUuznPXsX1BWlFJXI1FEoSfcmw2x82IHiXCFn82l2MvTF_dQt3s3HRa5YoJL-NNCA"
+    ],
+    "aat_pop": "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0LXBvcCtqd3QifQ.eyJhYXRfYXVkIjoiaHR0cHM6Ly90b29scy5leGFtcGxlLmNvbSIsImFhdF9oYXNoIjoiT1QwSWxrQXVVYUZvT1d4d19kZUs1N3o4SHNzY2NXTW40bDdTVDJFN1lNdyIsImFhdF9pZCI6InB2LVBWLjE3LTgiLCJhYXRfdG9vbCI6InBheW1lbnRzLnJlZnVuZC5pc3N1ZSIsImh0YSI6e30sImlhdCI6MTcwNDA2NzUwMCwianRpIjoicHYtUFYuMTctcG9wIn0._3-MK4qo5xseC8nzMSZotZm5AUHXshK-YQSyNpUjtq004V_5cdIx5jJBgUMKNI8hpIXKYWrVTL7TsU7O4OqqBw"
+   },
+   "expected": {
+    "verdict": "PERMIT",
+    "step": null
+   }
+  },
+  {
+   "id": "PV.18",
+   "title": "Depth limit 8, eight tokens",
+   "description": "Root limit 8 and eight links (depths 0..7).",
+   "now": 1704067500,
+   "tool": "payments.refund.issue",
+   "args": {},
+   "args_json": "{}",
+   "policy": {},
+   "params": {},
+   "replay_state": null,
+   "presentation": {
+    "aat_chain": [
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6e319LCJ0eXBlIjoiYXR0ZW51YXRpbmdfYWdlbnRfdG9rZW4ifV0sImNuZiI6eyJqd2siOnsiY3J2IjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsIngiOiI0U2tscnlJM2dUeHlYU2ZHVGlDcUZxZ2tZRDc3S05ROFc4T29JRXIzcGxFIn19LCJkZWxfZGVwdGgiOjAsImRlbF9tYXhfZGVwdGgiOjgsImV4cCI6MTcwNDA3MDgwMCwiaWF0IjoxNzA0MDY3MjAwLCJpc3MiOiJodHRwczovL2F1dGguZXhhbXBsZS5jb20iLCJqdGkiOiJwdi1QVi4xOC0wIn0.-VwWvbiUFOQJyTqcj-V9MAgpQTdc6JUZPhmoS1GuryX5kMAZW5sknxU1vG_EcZ_4sQQC0Q8Eu-Z6-DREeqEBDA",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6e319LCJ0eXBlIjoiYXR0ZW51YXRpbmdfYWdlbnRfdG9rZW4ifV0sImNuZiI6eyJqd2siOnsiY3J2IjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsIngiOiJGRWNacUtiRDJlRzZSSFhhQ2F5V2MweS1aeE40ck1IZ2Y5RS1oSXRyMkVJIn19LCJkZWxfZGVwdGgiOjEsImRlbF9tYXhfZGVwdGgiOjgsImV4cCI6MTcwNDA3MDgwMCwiaWF0IjoxNzA0MDY3MjAwLCJpc3MiOiJ1cm46aWV0ZjpwYXJhbXM6b2F1dGg6andrLXRodW1icHJpbnQ6c2hhLTI1NjpWa2lsWm1oYW5nOWY1Wmw0cUR2ZVNoTUlpUk5JRFZrMFpybTlpQjBnN2FBIiwianRpIjoicHYtUFYuMTgtMSIsInBhcl9oYXNoIjoiRURQZEJibTRmaXV4YklxUkJsRWNUR1lzOWpFcVA5eXd5OUxES05xTUJ2MCJ9.J_Ox1eicpb6gJjPldIrp3S3iKeCa0R6DL6mCKrvga4fnE1cVp3-kjBgf6JTPmXOxSJK5PzLXNEvzs0yedzLACw",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6e319LCJ0eXBlIjoiYXR0ZW51YXRpbmdfYWdlbnRfdG9rZW4ifV0sImNuZiI6eyJqd2siOnsiY3J2IjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsIngiOiI2WEJfVzFiRFJGaGVVcFpEOXFfUHZfazJXRmV2LXJMbFRJdWFHaW1VRmZjIn19LCJkZWxfZGVwdGgiOjIsImRlbF9tYXhfZGVwdGgiOjgsImV4cCI6MTcwNDA3MDgwMCwiaWF0IjoxNzA0MDY3MjAwLCJpc3MiOiJ1cm46aWV0ZjpwYXJhbXM6b2F1dGg6andrLXRodW1icHJpbnQ6c2hhLTI1NjphVmYwclRXZjBWTTJrVlBfdU9rd3VuRFNuVUhCQWxjUHhVbVlUOERqbUVJIiwianRpIjoicHYtUFYuMTgtMiIsInBhcl9oYXNoIjoiM0VRTWNhZ2hDV0NQTklILWdJY05neGdmUkVST053dlVPemQ3cWNQa1VBUSJ9.4UcfwRklsotAFgTUX_P26x_WPruI5sH0Vo4mT-xHjhQvnpJSF7zAnRjA2Hj-25UPq-ikYOt45lqvjbvVrRHcAw",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6e319LCJ0eXBlIjoiYXR0ZW51YXRpbmdfYWdlbnRfdG9rZW4ifV0sImNuZiI6eyJqd2siOnsiY3J2IjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsIngiOiJRMjdhM21EdUZETm1ZNEdjRW9YaDRfcUVCQk16NUZvczFZNzVPUEhiNGNBIn19LCJkZWxfZGVwdGgiOjMsImRlbF9tYXhfZGVwdGgiOjgsImV4cCI6MTcwNDA3MDgwMCwiaWF0IjoxNzA0MDY3MjAwLCJpc3MiOiJ1cm46aWV0ZjpwYXJhbXM6b2F1dGg6andrLXRodW1icHJpbnQ6c2hhLTI1NjpaOHg0NGpVbG9KWlJlTk81VDVGZDhpU1B3bGdzMzR1ekFnQmd1YlhQSkZZIiwianRpIjoicHYtUFYuMTgtMyIsInBhcl9oYXNoIjoiMnE1ZDhNTWk3U1ZuVld1MkNRaFVhUTNjcjVGQVlYa2NTNkZTVHJCZWctVSJ9.8Neh6YbuzlmVyk7FCivpIie1KDVQ0whlOMUokAhhPKYcIkh53ue_wXESjW5DfrNL49v4wvKZPfuf7dOYSMaLDQ",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6e319LCJ0eXBlIjoiYXR0ZW51YXRpbmdfYWdlbnRfdG9rZW4ifV0sImNuZiI6eyJqd2siOnsiY3J2IjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsIngiOiJ2cFJXQlBKWEN0RkRGby1qU0YyRWFzd2VVa0Z5Rld0X3RvY25ETmdsVS13In19LCJkZWxfZGVwdGgiOjQsImRlbF9tYXhfZGVwdGgiOjgsImV4cCI6MTcwNDA3MDgwMCwiaWF0IjoxNzA0MDY3MjAwLCJpc3MiOiJ1cm46aWV0ZjpwYXJhbXM6b2F1dGg6andrLXRodW1icHJpbnQ6c2hhLTI1Njpfa05ORHZ5OVF3QTd5ektCTkxHVnNPRkFaT1F2NDNvU3ZDOENkbEM0Tld3IiwianRpIjoicHYtUFYuMTgtNCIsInBhcl9oYXNoIjoiQ05KOGdwVTZ1MXNhQmZ5eTBTcUFTTE5Iei1pMmxQN3VCTEU2SnJKNFg3ZyJ9.CW15N74nkHIBLqxOGtlzSRi6FahBTYY8-WDJ5etj0suZAD4whemHijcC4DtTH6zAuYcBb4oUQgy-vfWRBujDAA",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6e319LCJ0eXBlIjoiYXR0ZW51YXRpbmdfYWdlbnRfdG9rZW4ifV0sImNuZiI6eyJqd2siOnsiY3J2IjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsIngiOiJFVG9EaGRKTzdGQm8tUnltdjJZTlhGSWVBNlI4Y05mTGZOc0RIZUgtMTFRIn19LCJkZWxfZGVwdGgiOjUsImRlbF9tYXhfZGVwdGgiOjgsImV4cCI6MTcwNDA3MDgwMCwiaWF0IjoxNzA0MDY3MjAwLCJpc3MiOiJ1cm46aWV0ZjpwYXJhbXM6b2F1dGg6andrLXRodW1icHJpbnQ6c2hhLTI1Njp2c3VtbE05c0M2S0xIZlJpdUlLRTVTTXE0bWZQZ0QxRF82bmxZOVNGbUg0IiwianRpIjoicHYtUFYuMTgtNSIsInBhcl9oYXNoIjoiZ2k3T2NVRWhWWFlhODlCZE9CaW56M0ZYSnhaSUF1ZndjNThHVjlQcE54ZyJ9.hI0N4a4AWGOaZvMosva11vvrVEhgYHv6PUQblw0KVwLQKRbnUR_WBwnXvUms2XtFVdm-Z48I66athWCaueyfBg",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6e319LCJ0eXBlIjoiYXR0ZW51YXRpbmdfYWdlbnRfdG9rZW4ifV0sImNuZiI6eyJqd2siOnsiY3J2IjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsIngiOiJDQnpTa3JiclAyZnVhX2FnUDZCTU9vSGpjcUhCYi0wZWdnMHRGM09walJVIn19LCJkZWxfZGVwdGgiOjYsImRlbF9tYXhfZGVwdGgiOjgsImV4cCI6MTcwNDA3MDgwMCwiaWF0IjoxNzA0MDY3MjAwLCJpc3MiOiJ1cm46aWV0ZjpwYXJhbXM6b2F1dGg6andrLXRodW1icHJpbnQ6c2hhLTI1Njpya1VLRkdlMkVvNS1IY2tzR0NoYlhjSFJ6emVMTmt1bVJLTkZCUFY5RG5VIiwianRpIjoicHYtUFYuMTgtNiIsInBhcl9oYXNoIjoicE5nUGNYX2tLZTRFaW1ERjZZT3BISzFYMS1OdUdmVWE1ODQtZFpqa1JRTSJ9.0ew35QKFV--wJDJi3wl6Dyj-CYnOXHM8nWtr7d9_tfycfemW_X45gThcjkWxmuo8IttDbF5_LjzvtwBatHZCCw",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6e319LCJ0eXBlIjoiYXR0ZW51YXRpbmdfYWdlbnRfdG9rZW4ifV0sImNuZiI6eyJqd2siOnsiY3J2IjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsIngiOiJ0ZzBLODlJcjRQaWhTMVV5MGdVd0J5REhsWFlLREJ5N2dMLVNNR1ItNVpBIn19LCJkZWxfZGVwdGgiOjcsImRlbF9tYXhfZGVwdGgiOjgsImV4cCI6MTcwNDA3MDgwMCwiaWF0IjoxNzA0MDY3MjAwLCJpc3MiOiJ1cm46aWV0ZjpwYXJhbXM6b2F1dGg6andrLXRodW1icHJpbnQ6c2hhLTI1NjpoSjlBNHpuWEVyTGxMcDlCZ0hmZGlBMXNCYXpBdXhlLWV0blU2ZWsxUFJzIiwianRpIjoicHYtUFYuMTgtNyIsInBhcl9oYXNoIjoiWEpJUmdZdU1mbVdsM0xEX0hmaWM0WmI1X2dScXpKc1g3MkJQZ1dJWWdMMCJ9.a4BXKrDx4h99pjUjUMPq2_tJ1jGLXuEg2-5esaqOiDsNyzUgZl63jYsPlKEjMyUZtF2ytuhM9mHSk2FTjwZOBg"
+    ],
+    "aat_pop": "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0LXBvcCtqd3QifQ.eyJhYXRfYXVkIjoiaHR0cHM6Ly90b29scy5leGFtcGxlLmNvbSIsImFhdF9oYXNoIjoiXzVzVUhnY21LQ0R2TW51QkN1V3ZPc096UEJxZkxOT3dMc2V3eVhQN1BFUSIsImFhdF9pZCI6InB2LVBWLjE4LTciLCJhYXRfdG9vbCI6InBheW1lbnRzLnJlZnVuZC5pc3N1ZSIsImh0YSI6e30sImlhdCI6MTcwNDA2NzUwMCwianRpIjoicHYtUFYuMTgtcG9wIn0.-YlOZxjA1R9YgDM4cyS-eKpPI0B2QJkVo4i4URBHHaQpDlZr7svm3UJTTlgMIDGmiiBkApI25r8g6ddHkb6IBg"
+   },
+   "expected": {
+    "verdict": "PERMIT",
+    "step": null
+   }
+  },
+  {
+   "id": "PV.19",
+   "title": "Wrong par_hash",
+   "description": "Link 1 names the root of a different chain held by the same agents.",
+   "now": 1704067500,
+   "tool": "payments.refund.issue",
+   "args": {
+    "merchant": "M-101",
+    "currency": "INR"
+   },
+   "args_json": "{\"currency\":\"INR\",\"merchant\":\"M-101\"}",
+   "policy": {},
+   "params": {},
+   "replay_state": null,
+   "presentation": {
+    "aat_chain": [
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnBheW91dC5jcmVhdGUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19LCJwYXltZW50cy5yZWZ1bmQuaXNzdWUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNFNrbHJ5STNnVHh5WFNmR1RpQ3FGcWdrWUQ3N0tOUThXOE9vSUVyM3BsRSJ9fSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoiaHR0cHM6Ly9hdXRoLmV4YW1wbGUuY29tIiwianRpIjoicHYtUFYuMTktMCJ9.hzMPwuHh1Nkk8gAKE1NsolUAAGaFXjbGo-roCy-QmyoAamZksrAWE9piAUzwghF_O27H03q6m67gIFpo4qYyDg",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiRkVjWnFLYkQyZUc2UkhYYUNheVdjMHktWnhONHJNSGdmOUUtaEl0cjJFSSJ9fSwiZGVsX2RlcHRoIjoxLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoidXJuOmlldGY6cGFyYW1zOm9hdXRoOmp3ay10aHVtYnByaW50OnNoYS0yNTY6VmtpbFptaGFuZzlmNVpsNHFEdmVTaE1JaVJOSURWazBacm05aUIwZzdhQSIsImp0aSI6InB2LVBWLjE5LTEiLCJwYXJfaGFzaCI6IjI0VUIyM1AyNnRfX19oSXVQeGFybW9MUkQyV0VJSEswcWVaRkxiT2w5U2MifQ.M_8pW4tWZsC_uIgz6IMzz1X6SFAzVlccPvUMC6u4jyYeRBrPNHYX7K0SmMf6K6JqmaRLauqkWCHO4pLBHk1YBQ"
+    ],
+    "aat_pop": "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0LXBvcCtqd3QifQ.eyJhYXRfYXVkIjoiaHR0cHM6Ly90b29scy5leGFtcGxlLmNvbSIsImFhdF9oYXNoIjoiVVhPQjVYM1JuOEdlSnZCV2h4STYxcUZqS0hibWtmRVNoU0MtLTdmX1NIOCIsImFhdF9pZCI6InB2LVBWLjE5LTEiLCJhYXRfdG9vbCI6InBheW1lbnRzLnJlZnVuZC5pc3N1ZSIsImh0YSI6eyJjdXJyZW5jeSI6IklOUiIsIm1lcmNoYW50IjoiTS0xMDEifSwiaWF0IjoxNzA0MDY3NTAwLCJqdGkiOiJwdi1QVi4xOS1wb3AifQ.XKmuK5kMNneb7GVTK0je2_3Qo3oN4VBqalaFie3hXITLAkWrAPkPjiyrT9htmbnuKypS6DKrD_wO6j14pUiwAA"
+   },
+   "expected": {
+    "verdict": "DENY",
+    "step": "4q"
+   }
+  },
+  {
+   "id": "PV.20",
+   "title": "Missing par_hash on a derived link",
+   "description": "Link 1 carries no parent.",
+   "now": 1704067500,
+   "tool": "payments.refund.issue",
+   "args": {
+    "merchant": "M-101",
+    "currency": "INR"
+   },
+   "args_json": "{\"currency\":\"INR\",\"merchant\":\"M-101\"}",
+   "policy": {},
+   "params": {},
+   "replay_state": null,
+   "presentation": {
+    "aat_chain": [
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnBheW91dC5jcmVhdGUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19LCJwYXltZW50cy5yZWZ1bmQuaXNzdWUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNFNrbHJ5STNnVHh5WFNmR1RpQ3FGcWdrWUQ3N0tOUThXOE9vSUVyM3BsRSJ9fSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoiaHR0cHM6Ly9hdXRoLmV4YW1wbGUuY29tIiwianRpIjoicHYtUFYuMjAtMCJ9.ODMXTM7IhwQmIMVzNKLi2POL0MX_8Du6Ey45vXlRORSyTYB-zHICQo0DyHX91D8B6ziFTOtKP4MgAP9-A8TqDA",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiRkVjWnFLYkQyZUc2UkhYYUNheVdjMHktWnhONHJNSGdmOUUtaEl0cjJFSSJ9fSwiZGVsX2RlcHRoIjoxLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoidXJuOmlldGY6cGFyYW1zOm9hdXRoOmp3ay10aHVtYnByaW50OnNoYS0yNTY6VmtpbFptaGFuZzlmNVpsNHFEdmVTaE1JaVJOSURWazBacm05aUIwZzdhQSIsImp0aSI6InB2LVBWLjIwLTEifQ.Y9SPE7Cp1_Xqq8zzKiROLCgQ5Cx494Oi_Ez01-1-_SA2GJFFK9lgcsWfq3hgLAd5-zANNILN-w_YZ2ghvRG8BA"
+    ],
+    "aat_pop": "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0LXBvcCtqd3QifQ.eyJhYXRfYXVkIjoiaHR0cHM6Ly90b29scy5leGFtcGxlLmNvbSIsImFhdF9oYXNoIjoiazhtUjVrYW0xOUx0REFoM2VfSWNFbk1lbEtIWXVUX1VIYVRJaE5PWHFlOCIsImFhdF9pZCI6InB2LVBWLjIwLTEiLCJhYXRfdG9vbCI6InBheW1lbnRzLnJlZnVuZC5pc3N1ZSIsImh0YSI6eyJjdXJyZW5jeSI6IklOUiIsIm1lcmNoYW50IjoiTS0xMDEifSwiaWF0IjoxNzA0MDY3NTAwLCJqdGkiOiJwdi1QVi4yMC1wb3AifQ.esyH7X-2jCkBD6RtaY51FT9wFXbCp_iBEzQNbvO81bEMbeniyxej9GPEWDBP_vgQC7u30CbvutTH6yFSpaklAw"
+   },
+   "expected": {
+    "verdict": "DENY",
+    "step": "4b5"
+   }
+  },
+  {
+   "id": "PV.21",
+   "title": "par_hash on the root",
+   "description": "The root link names a parent.",
+   "now": 1704067500,
+   "tool": "payments.refund.issue",
+   "args": {
+    "merchant": "M-101",
+    "currency": "INR"
+   },
+   "args_json": "{\"currency\":\"INR\",\"merchant\":\"M-101\"}",
+   "policy": {},
+   "params": {},
+   "replay_state": null,
+   "presentation": {
+    "aat_chain": [
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnBheW91dC5jcmVhdGUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19LCJwYXltZW50cy5yZWZ1bmQuaXNzdWUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNFNrbHJ5STNnVHh5WFNmR1RpQ3FGcWdrWUQ3N0tOUThXOE9vSUVyM3BsRSJ9fSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoiaHR0cHM6Ly9hdXRoLmV4YW1wbGUuY29tIiwianRpIjoicHYtUFYuMjEtMCIsInBhcl9oYXNoIjoia0F3RXJmXzNYbVNRLWFNS0NJUFFxWm9KcEFIaXo1RE1xdmFuWXNLMFFYSSJ9.sRJEhp0sNEygYbO-z8HfinRxr9CKF_UdQ5ZcKHPlLP7dlJiLeWoYHyuwFKWfdaCQNTchpVY1BOKpIka1yWh4CQ"
+    ],
+    "aat_pop": "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0LXBvcCtqd3QifQ.eyJhYXRfYXVkIjoiaHR0cHM6Ly90b29scy5leGFtcGxlLmNvbSIsImFhdF9oYXNoIjoiZGZhVmVxamVHLWU2WDVJOUliT1piZGdkbC0yWkJKaHlzWlI3V3lKUThkMCIsImFhdF9pZCI6InB2LVBWLjIxLTAiLCJhYXRfdG9vbCI6InBheW1lbnRzLnJlZnVuZC5pc3N1ZSIsImh0YSI6eyJjdXJyZW5jeSI6IklOUiIsIm1lcmNoYW50IjoiTS0xMDEifSwiaWF0IjoxNzA0MDY3NTAwLCJqdGkiOiJwdi1QVi4yMS1wb3AifQ.abrIh4pZVrB8Fj1zQf9XfY4tGEsig1NuQxftMEhHA4CfKA5QSUwwOc41x7LWcxEYCcnqInffdU-zvCCbeEBlCA"
+   },
+   "expected": {
+    "verdict": "DENY",
+    "step": "3d"
+   }
+  },
+  {
+   "id": "PV.22",
+   "title": "Spliced link",
+   "description": "Link 2 comes from a different chain whose agents match.",
+   "now": 1704067500,
+   "tool": "payments.refund.issue",
+   "args": {
+    "merchant": "M-101",
+    "currency": "INR"
+   },
+   "args_json": "{\"currency\":\"INR\",\"merchant\":\"M-101\"}",
+   "policy": {},
+   "params": {},
+   "replay_state": null,
+   "presentation": {
+    "aat_chain": [
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnBheW91dC5jcmVhdGUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19LCJwYXltZW50cy5yZWZ1bmQuaXNzdWUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNFNrbHJ5STNnVHh5WFNmR1RpQ3FGcWdrWUQ3N0tOUThXOE9vSUVyM3BsRSJ9fSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoiaHR0cHM6Ly9hdXRoLmV4YW1wbGUuY29tIiwianRpIjoicHYtUFYuMjItMCJ9.rGgjSyTrwOWWfyGMJpYe04f0MgLRJ43mo2y7KAos8U1z1QlRTlnQRQkPB4HvKqGKo6la2PX_XfdBqvvxa66KDA",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiRkVjWnFLYkQyZUc2UkhYYUNheVdjMHktWnhONHJNSGdmOUUtaEl0cjJFSSJ9fSwiZGVsX2RlcHRoIjoxLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoidXJuOmlldGY6cGFyYW1zOm9hdXRoOmp3ay10aHVtYnByaW50OnNoYS0yNTY6VmtpbFptaGFuZzlmNVpsNHFEdmVTaE1JaVJOSURWazBacm05aUIwZzdhQSIsImp0aSI6InB2LVBWLjIyLTEiLCJwYXJfaGFzaCI6IlRON0diWDVJOGNUUDh5cUZEUVBvOHl1ZjJtTUtFeXY0Z3p4VGhrX0N2WXMifQ.ZUfl_bMYrqH7BX_cFgLCwi_d2EoGJ9nGngFObslq6P9VIeZbzrDOiLcM2cdcvbTWFZ4xPEdZid63E7F1vUSPBg",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNlhCX1cxYkRSRmhlVXBaRDlxX1B2X2syV0Zldi1yTGxUSXVhR2ltVUZmYyJ9fSwiZGVsX2RlcHRoIjoyLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoidXJuOmlldGY6cGFyYW1zOm9hdXRoOmp3ay10aHVtYnByaW50OnNoYS0yNTY6YVZmMHJUV2YwVk0ya1ZQX3VPa3d1bkRTblVIQkFsY1B4VW1ZVDhEam1FSSIsImp0aSI6InB2LVBWLjIyLTIiLCJwYXJfaGFzaCI6ImJXWlFWdWktS05LLV9ON0xPT0pScXNPXzdsSExwR3FEY2wxZE9salNQMncifQ.b0N4B4wqW-zw8xLGO2VpKqLVE-1Zb6HXBnNzCIj0deXBfGtO4VCkODLYS1B0vriwntwHRLAAYBNap1gFu3GrDQ"
+    ],
+    "aat_pop": "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0LXBvcCtqd3QifQ.eyJhYXRfYXVkIjoiaHR0cHM6Ly90b29scy5leGFtcGxlLmNvbSIsImFhdF9oYXNoIjoiUG5wcFVVeURwd1llSFpzeW13S3VkTG5hX1Fwa3hfUkpJcEFKeUFScDJBUSIsImFhdF9pZCI6InB2LVBWLjIyLTIiLCJhYXRfdG9vbCI6InBheW1lbnRzLnJlZnVuZC5pc3N1ZSIsImh0YSI6eyJjdXJyZW5jeSI6IklOUiIsIm1lcmNoYW50IjoiTS0xMDEifSwiaWF0IjoxNzA0MDY3NTAwLCJqdGkiOiJwdi1QVi4yMi1wb3AifQ.y8U1YZ2-pTaeqMIeVNet_0xXYnm8BREdW3hONQ5r5fv3t4cFsYJjgec1CIjUgy2cfM2gR71o9tjDj1iYIeeuBg"
+   },
+   "expected": {
+    "verdict": "DENY",
+    "step": "4q"
+   }
+  },
+  {
+   "id": "PV.23",
+   "title": "Reordered links",
+   "description": "Links 1 and 2 swapped.",
+   "now": 1704067500,
+   "tool": "payments.refund.issue",
+   "args": {
+    "merchant": "M-101",
+    "currency": "INR"
+   },
+   "args_json": "{\"currency\":\"INR\",\"merchant\":\"M-101\"}",
+   "policy": {},
+   "params": {},
+   "replay_state": null,
+   "presentation": {
+    "aat_chain": [
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnBheW91dC5jcmVhdGUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19LCJwYXltZW50cy5yZWZ1bmQuaXNzdWUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNFNrbHJ5STNnVHh5WFNmR1RpQ3FGcWdrWUQ3N0tOUThXOE9vSUVyM3BsRSJ9fSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoiaHR0cHM6Ly9hdXRoLmV4YW1wbGUuY29tIiwianRpIjoicHYtUFYuMjMtMCJ9.EXemqoEIPZCCd9SiWt8lqPFANImtHoz7TW6f0SGf8o3FKKdNHhpZNg4W34kR98_udMT9H-6tf1NtDiwZDfEUAA",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNlhCX1cxYkRSRmhlVXBaRDlxX1B2X2syV0Zldi1yTGxUSXVhR2ltVUZmYyJ9fSwiZGVsX2RlcHRoIjoyLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoidXJuOmlldGY6cGFyYW1zOm9hdXRoOmp3ay10aHVtYnByaW50OnNoYS0yNTY6YVZmMHJUV2YwVk0ya1ZQX3VPa3d1bkRTblVIQkFsY1B4VW1ZVDhEam1FSSIsImp0aSI6InB2LVBWLjIzLTEiLCJwYXJfaGFzaCI6IjY5UTlzek5DaU1RX0ktUG41OXpBTFhCRGt4cGd0YkVYcU55ZTVGbklkSkEifQ.XYbv4xr19vkT0pq4nmF0XHkr_L4r685_56QiHSNsrwIeOOx_9nkkca4rWEwUyVpCEzfWsdbdK4rL8-YwJmgQDQ",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiRkVjWnFLYkQyZUc2UkhYYUNheVdjMHktWnhONHJNSGdmOUUtaEl0cjJFSSJ9fSwiZGVsX2RlcHRoIjoxLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoidXJuOmlldGY6cGFyYW1zOm9hdXRoOmp3ay10aHVtYnByaW50OnNoYS0yNTY6VmtpbFptaGFuZzlmNVpsNHFEdmVTaE1JaVJOSURWazBacm05aUIwZzdhQSIsImp0aSI6InB2LVBWLjIzLTIiLCJwYXJfaGFzaCI6ImVtRVoyVTl5VHBYYndtdUFwOHBiTkxhQWNYZVJLc3d1TEdYdC1FdnA5aGcifQ.q73LCL8ak0gJiS0IlcIdBVdWfKe-UOA16xMDyrQZJn6omzlZmmgPnoKsNGzJ4y2eGXWl6NSSdC9iHJdhCNLBCw"
+    ],
+    "aat_pop": "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0LXBvcCtqd3QifQ.eyJhYXRfYXVkIjoiaHR0cHM6Ly90b29scy5leGFtcGxlLmNvbSIsImFhdF9oYXNoIjoiNjlROXN6TkNpTVFfSS1QbjU5ekFMWEJEa3hwZ3RiRVhxTnllNUZuSWRKQSIsImFhdF9pZCI6InB2LVBWLjIzLTIiLCJhYXRfdG9vbCI6InBheW1lbnRzLnJlZnVuZC5pc3N1ZSIsImh0YSI6eyJjdXJyZW5jeSI6IklOUiIsIm1lcmNoYW50IjoiTS0xMDEifSwiaWF0IjoxNzA0MDY3NTAwLCJqdGkiOiJwdi1QVi4yMy1wb3AifQ.xXZK8nwPR_jmzRH8wIbhNrYyUr-Z8XcE57RVtYB_Zhz9CCdHn43ck2LTaduXyP-Hb5ziaop32F2Fnc9ljTj-AA"
+   },
+   "expected": {
+    "verdict": "DENY",
+    "step": "4b"
+   }
+  },
+  {
+   "id": "PV.24",
+   "title": "Replayed link",
+   "description": "The same link presented twice in one chain.",
+   "now": 1704067500,
+   "tool": "payments.refund.issue",
+   "args": {
+    "merchant": "M-101",
+    "currency": "INR"
+   },
+   "args_json": "{\"currency\":\"INR\",\"merchant\":\"M-101\"}",
+   "policy": {},
+   "params": {},
+   "replay_state": null,
+   "presentation": {
+    "aat_chain": [
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnBheW91dC5jcmVhdGUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19LCJwYXltZW50cy5yZWZ1bmQuaXNzdWUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNFNrbHJ5STNnVHh5WFNmR1RpQ3FGcWdrWUQ3N0tOUThXOE9vSUVyM3BsRSJ9fSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoiaHR0cHM6Ly9hdXRoLmV4YW1wbGUuY29tIiwianRpIjoicHYtUFYuMjQtMCJ9.z2Jr7l0F5EeDMtMaKIOpu1kgiEsdh_AZA1CbtcwZCsHFmY1CI5-OWyqg4VDFqfVYmBMPr3-ReUXrxEBHw4ipDw",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiRkVjWnFLYkQyZUc2UkhYYUNheVdjMHktWnhONHJNSGdmOUUtaEl0cjJFSSJ9fSwiZGVsX2RlcHRoIjoxLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoidXJuOmlldGY6cGFyYW1zOm9hdXRoOmp3ay10aHVtYnByaW50OnNoYS0yNTY6VmtpbFptaGFuZzlmNVpsNHFEdmVTaE1JaVJOSURWazBacm05aUIwZzdhQSIsImp0aSI6InB2LVBWLjI0LTEiLCJwYXJfaGFzaCI6IlpfSXJnTS1KU2lKVjY4X1NreFZLR0ZDRE40bWE2am8yQS1YWFZsLXVxMEkifQ.PZwKJe-l964CozdoG_j2jq_zdGRc_5R3mVrSplmFlIl6xWywjQ-PJTAOYm8otr-kvOBf76TiwkQyB6a3s8hwAg",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiRkVjWnFLYkQyZUc2UkhYYUNheVdjMHktWnhONHJNSGdmOUUtaEl0cjJFSSJ9fSwiZGVsX2RlcHRoIjoxLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoidXJuOmlldGY6cGFyYW1zOm9hdXRoOmp3ay10aHVtYnByaW50OnNoYS0yNTY6VmtpbFptaGFuZzlmNVpsNHFEdmVTaE1JaVJOSURWazBacm05aUIwZzdhQSIsImp0aSI6InB2LVBWLjI0LTEiLCJwYXJfaGFzaCI6IlpfSXJnTS1KU2lKVjY4X1NreFZLR0ZDRE40bWE2am8yQS1YWFZsLXVxMEkifQ.PZwKJe-l964CozdoG_j2jq_zdGRc_5R3mVrSplmFlIl6xWywjQ-PJTAOYm8otr-kvOBf76TiwkQyB6a3s8hwAg"
+    ],
+    "aat_pop": "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0LXBvcCtqd3QifQ.eyJhYXRfYXVkIjoiaHR0cHM6Ly90b29scy5leGFtcGxlLmNvbSIsImFhdF9oYXNoIjoiY1gwTlBwX2RGSERkTW1JdGRxQmR2dmdHNVJ2RWd0cUQ1UFJtNHYyYVJUMCIsImFhdF9pZCI6InB2LVBWLjI0LTEiLCJhYXRfdG9vbCI6InBheW1lbnRzLnJlZnVuZC5pc3N1ZSIsImh0YSI6eyJjdXJyZW5jeSI6IklOUiIsIm1lcmNoYW50IjoiTS0xMDEifSwiaWF0IjoxNzA0MDY3NTAwLCJqdGkiOiJwdi1QVi4yNC1wb3AifQ.s5yLRfKvokWsIzc9iUr7l8vWu1o-xLvlanWyUYJLnIiBHBHwDz5bpBwaVoXZL5RUxpd6ieoVJiL1YgXpIVvTAQ"
+   },
+   "expected": {
+    "verdict": "DENY",
+    "step": "2c"
+   }
+  },
+  {
+   "id": "PV.26",
+   "title": "Expired chain presented again",
+   "description": "Presented at the root's expiry.",
+   "now": 1704070800,
+   "tool": "payments.refund.issue",
+   "args": {
+    "merchant": "M-101",
+    "currency": "INR"
+   },
+   "args_json": "{\"currency\":\"INR\",\"merchant\":\"M-101\"}",
+   "policy": {},
+   "params": {},
+   "replay_state": null,
+   "presentation": {
+    "aat_chain": [
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnBheW91dC5jcmVhdGUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19LCJwYXltZW50cy5yZWZ1bmQuaXNzdWUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNFNrbHJ5STNnVHh5WFNmR1RpQ3FGcWdrWUQ3N0tOUThXOE9vSUVyM3BsRSJ9fSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoiaHR0cHM6Ly9hdXRoLmV4YW1wbGUuY29tIiwianRpIjoicHYtUFYuMjYtMCJ9.k1hhQM2z8ESatTAh30n_hMnCDoSOpeHxD3cK_ze2ulqFGhtoW45o9B3qQF2nYvaR0C7Tsq71TpBwG-Tua-9KCw",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiRkVjWnFLYkQyZUc2UkhYYUNheVdjMHktWnhONHJNSGdmOUUtaEl0cjJFSSJ9fSwiZGVsX2RlcHRoIjoxLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoidXJuOmlldGY6cGFyYW1zOm9hdXRoOmp3ay10aHVtYnByaW50OnNoYS0yNTY6VmtpbFptaGFuZzlmNVpsNHFEdmVTaE1JaVJOSURWazBacm05aUIwZzdhQSIsImp0aSI6InB2LVBWLjI2LTEiLCJwYXJfaGFzaCI6IlV2emcyakdvNjNJRDFHY2kyM19TT2c5YWstWWlXc0FsOTZLMkVEU05VOVUifQ.F31Q81BF9PETBRsNgZcs4S-fHTg4yHg4ISa-oHsptqnTNV9QWFAyBgKu4WifGLrkk0QKCd5RVX1omLrj13odBA",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNlhCX1cxYkRSRmhlVXBaRDlxX1B2X2syV0Zldi1yTGxUSXVhR2ltVUZmYyJ9fSwiZGVsX2RlcHRoIjoyLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoidXJuOmlldGY6cGFyYW1zOm9hdXRoOmp3ay10aHVtYnByaW50OnNoYS0yNTY6YVZmMHJUV2YwVk0ya1ZQX3VPa3d1bkRTblVIQkFsY1B4VW1ZVDhEam1FSSIsImp0aSI6InB2LVBWLjI2LTIiLCJwYXJfaGFzaCI6IkotTng0WFZ1TzI5X0htRU54ZVR6RVNCZEZhVmV4UDRWMGp5SktQMHJyRHcifQ.HWKFjys2XoXKWJKY-MVeIkQo3n8mfWzBvXOEHRQf-C82OxJgyKShsCLesqsDuP6fliWWN3i0vUdCT8SJ8IcZDg"
+    ],
+    "aat_pop": "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0LXBvcCtqd3QifQ.eyJhYXRfYXVkIjoiaHR0cHM6Ly90b29scy5leGFtcGxlLmNvbSIsImFhdF9oYXNoIjoiVXJSU3FmR0tYdDNoanBKVE1ZSkZGRzN2dWhuUEd0Tm1YWE9WbEpjanhkUSIsImFhdF9pZCI6InB2LVBWLjI2LTIiLCJhYXRfdG9vbCI6InBheW1lbnRzLnJlZnVuZC5pc3N1ZSIsImh0YSI6eyJjdXJyZW5jeSI6IklOUiIsIm1lcmNoYW50IjoiTS0xMDEifSwiaWF0IjoxNzA0MDcwODAwLCJqdGkiOiJwdi1QVi4yNi1wb3AifQ.g23tZTzZL0zLhUDWUPdNrur_nBtN63MOnvMu7Fme3HG01mvgNmb9kTzDxbrIAaMzo_eEWe-i0TbZ5aVdicfxAw"
+   },
+   "expected": {
+    "verdict": "DENY",
+    "step": "3e"
+   }
+  },
+  {
+   "id": "PV.27",
+   "title": "Forged signature",
+   "description": "One hex digit of link 1's signature changed.",
+   "now": 1704067500,
+   "tool": "payments.refund.issue",
+   "args": {
+    "merchant": "M-101",
+    "currency": "INR"
+   },
+   "args_json": "{\"currency\":\"INR\",\"merchant\":\"M-101\"}",
+   "policy": {},
+   "params": {},
+   "replay_state": null,
+   "presentation": {
+    "aat_chain": [
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnBheW91dC5jcmVhdGUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19LCJwYXltZW50cy5yZWZ1bmQuaXNzdWUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNFNrbHJ5STNnVHh5WFNmR1RpQ3FGcWdrWUQ3N0tOUThXOE9vSUVyM3BsRSJ9fSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoiaHR0cHM6Ly9hdXRoLmV4YW1wbGUuY29tIiwianRpIjoicHYtUFYuMjctMCJ9.oyxQx7wxTa1xn6dpJIWftqwFybwpmkiTGcws8cM2w9AzjR8cI1J_z5LYeEhRyIBfflcMiP_yzJ40CP9LJ33sAQ",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiRkVjWnFLYkQyZUc2UkhYYUNheVdjMHktWnhONHJNSGdmOUUtaEl0cjJFSSJ9fSwiZGVsX2RlcHRoIjoxLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoidXJuOmlldGY6cGFyYW1zOm9hdXRoOmp3ay10aHVtYnByaW50OnNoYS0yNTY6VmtpbFptaGFuZzlmNVpsNHFEdmVTaE1JaVJOSURWazBacm05aUIwZzdhQSIsImp0aSI6InB2LVBWLjI3LTEiLCJwYXJfaGFzaCI6IlNLRkdOeHNpX3MzeUxvTXNsWlR2eEJuN0xFUE9RUXdxS0FUWE43WGVkMzAifQ.mv0Ifpy206JJ806aBuu4_6la1QU_6rpAe1Fy8BwQlCDAH3FTpdljBPf4rlLsQYq4ZCWNxzfAAU3y6uI9eoj9Cw",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNlhCX1cxYkRSRmhlVXBaRDlxX1B2X2syV0Zldi1yTGxUSXVhR2ltVUZmYyJ9fSwiZGVsX2RlcHRoIjoyLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoidXJuOmlldGY6cGFyYW1zOm9hdXRoOmp3ay10aHVtYnByaW50OnNoYS0yNTY6YVZmMHJUV2YwVk0ya1ZQX3VPa3d1bkRTblVIQkFsY1B4VW1ZVDhEam1FSSIsImp0aSI6InB2LVBWLjI3LTIiLCJwYXJfaGFzaCI6InZDdXlhQ2JadkxMb0QyakRHUDZrU2hTaGFUbEYxeG83ejZ4MmN5QUh2cmsifQ.15g_xcpe_N0XvMyk1tbu8hJ4muveCzBr-vwdNyw2Qh-g0MhPzV7hP7Sk9x-lZ3tRtX67F0KvlZsnV7d85MM8Dg"
+    ],
+    "aat_pop": "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0LXBvcCtqd3QifQ.eyJhYXRfYXVkIjoiaHR0cHM6Ly90b29scy5leGFtcGxlLmNvbSIsImFhdF9oYXNoIjoiWlZMOFJxZlRKaDR0Wm5ncGFEMjFSV3U2MDNWV1p5ZEprd2kzcWI4QmJaWSIsImFhdF9pZCI6InB2LVBWLjI3LTIiLCJhYXRfdG9vbCI6InBheW1lbnRzLnJlZnVuZC5pc3N1ZSIsImh0YSI6eyJjdXJyZW5jeSI6IklOUiIsIm1lcmNoYW50IjoiTS0xMDEifSwiaWF0IjoxNzA0MDY3NTAwLCJqdGkiOiJwdi1QVi4yNy1wb3AifQ.y7iy18pco0Kdi13AHqtRyXdcgvRuq0MgG-dqNuwtjr7Gcn6VlGypNVzwXmCM3W5BLyEccNuwILIpOUQCkgaVDQ"
+   },
+   "expected": {
+    "verdict": "DENY",
+    "step": "4b"
+   }
+  },
+  {
+   "id": "PV.28",
+   "title": "Signed with the wrong key",
+   "description": "Link 1 says agent-1 delegated, but an unpinned key signed it.",
+   "now": 1704067500,
+   "tool": "payments.refund.issue",
+   "args": {
+    "merchant": "M-101",
+    "currency": "INR"
+   },
+   "args_json": "{\"currency\":\"INR\",\"merchant\":\"M-101\"}",
+   "policy": {},
+   "params": {},
+   "replay_state": null,
+   "presentation": {
+    "aat_chain": [
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnBheW91dC5jcmVhdGUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19LCJwYXltZW50cy5yZWZ1bmQuaXNzdWUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNFNrbHJ5STNnVHh5WFNmR1RpQ3FGcWdrWUQ3N0tOUThXOE9vSUVyM3BsRSJ9fSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoiaHR0cHM6Ly9hdXRoLmV4YW1wbGUuY29tIiwianRpIjoicHYtUFYuMjgtMCJ9.sxNp13oUYn2ya1dQTyfi0bnrdDegeLj5-4HfzLF4YyDhlONNf9jqw0N4O4bPy8C7npxeur1_bfVliDsyy5yiAA",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiRkVjWnFLYkQyZUc2UkhYYUNheVdjMHktWnhONHJNSGdmOUUtaEl0cjJFSSJ9fSwiZGVsX2RlcHRoIjoxLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoidXJuOmlldGY6cGFyYW1zOm9hdXRoOmp3ay10aHVtYnByaW50OnNoYS0yNTY6djRmZllIMUxaSnJuNG41bDQxLXZzenNFSUJYRktOcm8tbk56ai1XQTEzdyIsImp0aSI6InB2LVBWLjI4LTEiLCJwYXJfaGFzaCI6IjdSa25Bb1Q0bkdWSVBKNUthUzdjQ1UwQ2ZOV1JqXzAyM2ZoZ0VJSzhQb28ifQ._AnZvarooRhytxay9wsKHG_IQwuvN3bir9mRbU0DXLFRDgHGrIDFHZOxAakMNXWzR2UmjD_vk59-fT1aW1n8CQ"
+    ],
+    "aat_pop": "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0LXBvcCtqd3QifQ.eyJhYXRfYXVkIjoiaHR0cHM6Ly90b29scy5leGFtcGxlLmNvbSIsImFhdF9oYXNoIjoiOXBuTEhKcERiSkJqakZCTjVzUExRUURfZ19sWjBhSWtYTGtMT2JaM2tTSSIsImFhdF9pZCI6InB2LVBWLjI4LTEiLCJhYXRfdG9vbCI6InBheW1lbnRzLnJlZnVuZC5pc3N1ZSIsImh0YSI6eyJjdXJyZW5jeSI6IklOUiIsIm1lcmNoYW50IjoiTS0xMDEifSwiaWF0IjoxNzA0MDY3NTAwLCJqdGkiOiJwdi1QVi4yOC1wb3AifQ.9W1TRJGJe-5ZQgUpaYZ305weoMVHEhraebTvPbzoOji1t67Exlv_EO1WcRsKtaf6s0CzgOFRXD2Q3pwbav3SCQ"
+   },
+   "expected": {
+    "verdict": "DENY",
+    "step": "4b"
+   }
+  },
+  {
+   "id": "PV.29",
+   "title": "Root not pinned",
+   "description": "The root's delegator is not a trust anchor.",
+   "now": 1704067500,
+   "tool": "payments.refund.issue",
+   "args": {
+    "merchant": "M-101",
+    "currency": "INR"
+   },
+   "args_json": "{\"currency\":\"INR\",\"merchant\":\"M-101\"}",
+   "policy": {},
+   "params": {},
+   "replay_state": null,
+   "presentation": {
+    "aat_chain": [
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnBheW91dC5jcmVhdGUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19LCJwYXltZW50cy5yZWZ1bmQuaXNzdWUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNFNrbHJ5STNnVHh5WFNmR1RpQ3FGcWdrWUQ3N0tOUThXOE9vSUVyM3BsRSJ9fSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoiaHR0cHM6Ly9hdXRoLmV4YW1wbGUuY29tIiwianRpIjoicHYtUFYuMjktMCJ9.qM4kMA1XI3IOLdrCsECH3duDFqI2d2O5wnYJEqKU1XqBSMvMQ17m02U8ZYahCEv-KvIQdx5-LoetpSnEkd1bBQ"
+    ],
+    "aat_pop": "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0LXBvcCtqd3QifQ.eyJhYXRfYXVkIjoiaHR0cHM6Ly90b29scy5leGFtcGxlLmNvbSIsImFhdF9oYXNoIjoiUDkxU3dfUnZzX3dJcEZWbDJqWnZqSFRwUlJYQ2RidXg5bGFLQy1PT2NpSSIsImFhdF9pZCI6InB2LVBWLjI5LTAiLCJhYXRfdG9vbCI6InBheW1lbnRzLnJlZnVuZC5pc3N1ZSIsImh0YSI6eyJjdXJyZW5jeSI6IklOUiIsIm1lcmNoYW50IjoiTS0xMDEifSwiaWF0IjoxNzA0MDY3NTAwLCJqdGkiOiJwdi1QVi4yOS1wb3AifQ.Fk1tZ2UUUQXpwTEIzbDc4stDikV1swLOl4z8k9CaOK4AgGEUXtvgR2e13d63tz-qvmIh1bec2Ql6_xOSgN3BBA"
+   },
+   "expected": {
+    "verdict": "DENY",
+    "step": "3b"
+   }
+  },
+  {
+   "id": "PV.30",
+   "title": "Field changed after signing",
+   "description": "Link 1's budget lowered after it was signed: still narrower, but the signature no longer covers it.",
+   "now": 1704067500,
+   "tool": "payments.refund.issue",
+   "args": {
+    "merchant": "M-101",
+    "currency": "INR"
+   },
+   "args_json": "{\"currency\":\"INR\",\"merchant\":\"M-101\"}",
+   "policy": {},
+   "params": {},
+   "replay_state": null,
+   "presentation": {
+    "aat_chain": [
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnBheW91dC5jcmVhdGUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19LCJwYXltZW50cy5yZWZ1bmQuaXNzdWUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNFNrbHJ5STNnVHh5WFNmR1RpQ3FGcWdrWUQ3N0tOUThXOE9vSUVyM3BsRSJ9fSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoiaHR0cHM6Ly9hdXRoLmV4YW1wbGUuY29tIiwianRpIjoicHYtUFYuMzAtMCJ9.ZxVi_ef_v2FxRZRaagr_gg4axyzmLiJSYvDLiI1-yg-yLMI5igpmaM1wOwKIGvNLsnAr6IaeNU1ZWEN8bId-AQ",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiRkVjWnFLYkQyZUc2UkhYYUNheVdjMHktWnhONHJNSGdmOUUtaEl0cjJFSSJ9fSwiZGVsX2RlcHRoIjoxLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoidXJuOmlldGY6cGFyYW1zOm9hdXRoOmp3ay10aHVtYnByaW50OnNoYS0yNTY6VmtpbFptaGFuZzlmNVpsNHFEdmVTaE1JaVJOSURWazBacm05aUIwZzdhQSIsImp0aSI6InB2LVBWLjMwLTEiLCJwYXJfaGFzaCI6InQyMjl5R3BUVGRGcWEybHVodmNxWHlNSmVlLWcwY1ZLejJEWVdCeHdLWDAifQ.jjpmn5wDIRocbzC2UJWzYNH6nwLDIZOLo-KIhlQAixPAjX1BSiQHbiE6dTqlnucJSUjQBAbdkq1uIp2e1D7EBA",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNlhCX1cxYkRSRmhlVXBaRDlxX1B2X2syV0Zldi1yTGxUSXVhR2ltVUZmYyJ9fSwiZGVsX2RlcHRoIjoyLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoidXJuOmlldGY6cGFyYW1zOm9hdXRoOmp3ay10aHVtYnByaW50OnNoYS0yNTY6YVZmMHJUV2YwVk0ya1ZQX3VPa3d1bkRTblVIQkFsY1B4VW1ZVDhEam1FSSIsImp0aSI6InB2LVBWLjMwLTIiLCJwYXJfaGFzaCI6ImJ2NTNMSkw2RjRfdWNXQ2VLY3o1eldiTnRiclVJYnJPMEtKOGtJOW9EX1kifQ.GlLZJYgESlVAgSOceyVSKvJDH7QIxRipA4v9-XrxBljKBfPtzONYqKK6Gb4I2xxGRbLuYGhbGJ4nSNzw2awzBg"
+    ],
+    "aat_pop": "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0LXBvcCtqd3QifQ.eyJhYXRfYXVkIjoiaHR0cHM6Ly90b29scy5leGFtcGxlLmNvbSIsImFhdF9oYXNoIjoickEyRDJJTW83V0k5UnBadzRSWUprQjZQWDBWZDIwTk1sM3lQR1l4ZVlSUSIsImFhdF9pZCI6InB2LVBWLjMwLTIiLCJhYXRfdG9vbCI6InBheW1lbnRzLnJlZnVuZC5pc3N1ZSIsImh0YSI6eyJjdXJyZW5jeSI6IklOUiIsIm1lcmNoYW50IjoiTS0xMDEifSwiaWF0IjoxNzA0MDY3NTAwLCJqdGkiOiJwdi1QVi4zMC1wb3AifQ.hMW3ck6Mj-lNR727lxOjDD-0caVupP67qfHn7vaBaZFu8H_Q3v2OuVt6A0F6IeNQJseusnvLTjXFFJpTHUxDCg"
+   },
+   "expected": {
+    "verdict": "DENY",
+    "step": "4b"
+   }
+  },
+  {
+   "id": "PV.31",
+   "title": "Child outlives its parent",
+   "description": "Link 1 expires ten minutes after the root.",
+   "now": 1704067500,
+   "tool": "payments.refund.issue",
+   "args": {
+    "merchant": "M-101",
+    "currency": "INR"
+   },
+   "args_json": "{\"currency\":\"INR\",\"merchant\":\"M-101\"}",
+   "policy": {},
+   "params": {},
+   "replay_state": null,
+   "presentation": {
+    "aat_chain": [
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnBheW91dC5jcmVhdGUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19LCJwYXltZW50cy5yZWZ1bmQuaXNzdWUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNFNrbHJ5STNnVHh5WFNmR1RpQ3FGcWdrWUQ3N0tOUThXOE9vSUVyM3BsRSJ9fSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoiaHR0cHM6Ly9hdXRoLmV4YW1wbGUuY29tIiwianRpIjoicHYtUFYuMzEtMCJ9.tgewRrySXE7t-Ga4ICkAi9pEzYSBO7_mTrNpXPy8VN7lBDv9l0eWRxWHdnE_WDwI6QvN2zg8tUk3MQcA6UsJCw",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiRkVjWnFLYkQyZUc2UkhYYUNheVdjMHktWnhONHJNSGdmOUUtaEl0cjJFSSJ9fSwiZGVsX2RlcHRoIjoxLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzE0MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoidXJuOmlldGY6cGFyYW1zOm9hdXRoOmp3ay10aHVtYnByaW50OnNoYS0yNTY6VmtpbFptaGFuZzlmNVpsNHFEdmVTaE1JaVJOSURWazBacm05aUIwZzdhQSIsImp0aSI6InB2LVBWLjMxLTEiLCJwYXJfaGFzaCI6IjZwX3FEVmxlNzkwSFp4czBrdU1pc1h0bkg5aW5KZ2liQ2lvZm1uSnJwMzAifQ.Q1DWTJzknps3jT5vFbJe1gyhKJUF7G0Cm0AcnRnX3T0dQqC2uAjUT51sSzDH9GpwKSLejVwRKmCEpqD34LrZAg"
+    ],
+    "aat_pop": "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0LXBvcCtqd3QifQ.eyJhYXRfYXVkIjoiaHR0cHM6Ly90b29scy5leGFtcGxlLmNvbSIsImFhdF9oYXNoIjoiT185MS10eHdtNkVUbUxfMkhMMkdJZzdhRWZ5ejVkU2xlWU4yWWVwb2djZyIsImFhdF9pZCI6InB2LVBWLjMxLTEiLCJhYXRfdG9vbCI6InBheW1lbnRzLnJlZnVuZC5pc3N1ZSIsImh0YSI6eyJjdXJyZW5jeSI6IklOUiIsIm1lcmNoYW50IjoiTS0xMDEifSwiaWF0IjoxNzA0MDY3NTAwLCJqdGkiOiJwdi1QVi4zMS1wb3AifQ.8vtQ3pSVihTFtaywBpwW2V_ENqFhFqHN8f66DyNS2iyWhw9BxCnNcVUxhQBswQ5qUGwd1U0o6EejZezZnNIpCg"
+   },
+   "expected": {
+    "verdict": "DENY",
+    "step": "4h"
+   }
+  },
+  {
+   "id": "PV.32",
+   "title": "Swapped constrained argument",
+   "description": "Merchant M-102: the root allows it, link 1 narrowed it away.",
+   "now": 1704067500,
+   "tool": "payments.refund.issue",
+   "args": {
+    "merchant": "M-102",
+    "currency": "INR"
+   },
+   "args_json": "{\"currency\":\"INR\",\"merchant\":\"M-102\"}",
+   "policy": {},
+   "params": {},
+   "replay_state": null,
+   "presentation": {
+    "aat_chain": [
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnBheW91dC5jcmVhdGUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19LCJwYXltZW50cy5yZWZ1bmQuaXNzdWUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNFNrbHJ5STNnVHh5WFNmR1RpQ3FGcWdrWUQ3N0tOUThXOE9vSUVyM3BsRSJ9fSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoiaHR0cHM6Ly9hdXRoLmV4YW1wbGUuY29tIiwianRpIjoicHYtUFYuMzItMCJ9.jcW0RtATAFs1Hm1NuBi7eKwNmhKmAPUgi7FU7EKykOC1TqvDwLCGGQ467HOy0KpDDzKgaLE-PsAQ5ElXFteCDw",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiRkVjWnFLYkQyZUc2UkhYYUNheVdjMHktWnhONHJNSGdmOUUtaEl0cjJFSSJ9fSwiZGVsX2RlcHRoIjoxLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoidXJuOmlldGY6cGFyYW1zOm9hdXRoOmp3ay10aHVtYnByaW50OnNoYS0yNTY6VmtpbFptaGFuZzlmNVpsNHFEdmVTaE1JaVJOSURWazBacm05aUIwZzdhQSIsImp0aSI6InB2LVBWLjMyLTEiLCJwYXJfaGFzaCI6IjZiZDFDNmV6WWhlaUhZZG54X0gzMk55d2lDaWkwb2hHWUlOYkpuQkF3MVkifQ.EYZ7-hucvfWIuiDAetFdm89aruB_1KMHiSPFcb1r16R0X_Mfb3WknssFjl6uNxClT6eYlUb8uaLd_sCpqGwXAA",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNlhCX1cxYkRSRmhlVXBaRDlxX1B2X2syV0Zldi1yTGxUSXVhR2ltVUZmYyJ9fSwiZGVsX2RlcHRoIjoyLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoidXJuOmlldGY6cGFyYW1zOm9hdXRoOmp3ay10aHVtYnByaW50OnNoYS0yNTY6YVZmMHJUV2YwVk0ya1ZQX3VPa3d1bkRTblVIQkFsY1B4VW1ZVDhEam1FSSIsImp0aSI6InB2LVBWLjMyLTIiLCJwYXJfaGFzaCI6Il82MW9EXzhqbzNhTTFFZWR3TTAzZTdER1BES3F2X2dJYnRUNG1tYmUtYnMifQ.LaFePSuCnOUbwixUZhf5Nfn6AvVTYdzHP8iClM7NBQY5EwEwrGvwlByxX9yH3lm1m0GhvmzyJ7XNQ-juv9pTBA"
+    ],
+    "aat_pop": "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0LXBvcCtqd3QifQ.eyJhYXRfYXVkIjoiaHR0cHM6Ly90b29scy5leGFtcGxlLmNvbSIsImFhdF9oYXNoIjoibmtlQlBGam0zSUZSWEFVaEdDYUFzcXZmWmpUOF9YSEJYOFJPS3Y5YXB1MCIsImFhdF9pZCI6InB2LVBWLjMyLTIiLCJhYXRfdG9vbCI6InBheW1lbnRzLnJlZnVuZC5pc3N1ZSIsImh0YSI6eyJjdXJyZW5jeSI6IklOUiIsIm1lcmNoYW50IjoiTS0xMDIifSwiaWF0IjoxNzA0MDY3NTAwLCJqdGkiOiJwdi1QVi4zMi1wb3AifQ.uLgYxql0ZGPvZ80K_luKwBTUmqeWQb5F08kC4v6Ta-TT2236K12TS5zA8NhrKXu8zMnPM6VDqyygY1w_TrohCQ"
+   },
+   "expected": {
+    "verdict": "DENY",
+    "step": "6b"
+   }
+  },
+  {
+   "id": "PV.33",
+   "title": "Omitted constrained argument",
+   "description": "No currency argument.",
+   "now": 1704067500,
+   "tool": "payments.refund.issue",
+   "args": {
+    "merchant": "M-101"
+   },
+   "args_json": "{\"merchant\":\"M-101\"}",
+   "policy": {},
+   "params": {},
+   "replay_state": null,
+   "presentation": {
+    "aat_chain": [
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnBheW91dC5jcmVhdGUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19LCJwYXltZW50cy5yZWZ1bmQuaXNzdWUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNFNrbHJ5STNnVHh5WFNmR1RpQ3FGcWdrWUQ3N0tOUThXOE9vSUVyM3BsRSJ9fSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoiaHR0cHM6Ly9hdXRoLmV4YW1wbGUuY29tIiwianRpIjoicHYtUFYuMzMtMCJ9.6DQ2__N9Gilql2yYDkt77-3JlJYR8hDvDgfz7oXNIQWzvNMUq6zQj_Dp6U70W_d2hYsPA3-CndMmn3Y3vNMdBQ",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiRkVjWnFLYkQyZUc2UkhYYUNheVdjMHktWnhONHJNSGdmOUUtaEl0cjJFSSJ9fSwiZGVsX2RlcHRoIjoxLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoidXJuOmlldGY6cGFyYW1zOm9hdXRoOmp3ay10aHVtYnByaW50OnNoYS0yNTY6VmtpbFptaGFuZzlmNVpsNHFEdmVTaE1JaVJOSURWazBacm05aUIwZzdhQSIsImp0aSI6InB2LVBWLjMzLTEiLCJwYXJfaGFzaCI6IjVXNTFHeGs1anktdVhTSEd1VXpOMHRLLWRPZW14Vk5wRDIzOFEwSWxrQ00ifQ.k4oQ65_Yx7xlXRpBDzGIgIky5ZClrxHfS323wS6BcoL1lAAlvqFxh6SJbTlMP5_-1lgYQeeyeegMkZX5SvJWDQ",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNlhCX1cxYkRSRmhlVXBaRDlxX1B2X2syV0Zldi1yTGxUSXVhR2ltVUZmYyJ9fSwiZGVsX2RlcHRoIjoyLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoidXJuOmlldGY6cGFyYW1zOm9hdXRoOmp3ay10aHVtYnByaW50OnNoYS0yNTY6YVZmMHJUV2YwVk0ya1ZQX3VPa3d1bkRTblVIQkFsY1B4VW1ZVDhEam1FSSIsImp0aSI6InB2LVBWLjMzLTIiLCJwYXJfaGFzaCI6Ii11V204VVFSWkNqRmx4QlZXQUFES1N4ZjlSM0t3dmluR3luX2xqWlQ4VTQifQ.pejszXMK8gIw2ZF1F28oNqTzPohemAhFazABLzyI_DEnAHjwvf4kqYnCVy6A6jFv5Fi2asUc46mrZLA0XdzlCg"
+    ],
+    "aat_pop": "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0LXBvcCtqd3QifQ.eyJhYXRfYXVkIjoiaHR0cHM6Ly90b29scy5leGFtcGxlLmNvbSIsImFhdF9oYXNoIjoia3hEV1hyTm0xQ3VjY3BpRlg2cXRXTHBVN3k5bGR6M2owZlc3dmQ1d1BPUSIsImFhdF9pZCI6InB2LVBWLjMzLTIiLCJhYXRfdG9vbCI6InBheW1lbnRzLnJlZnVuZC5pc3N1ZSIsImh0YSI6eyJtZXJjaGFudCI6Ik0tMTAxIn0sImlhdCI6MTcwNDA2NzUwMCwianRpIjoicHYtUFYuMzMtcG9wIn0.fMCmZaLEqm8-CBLQmop_WVKGhhy89eNT-UgJUGK64Iwnx9RXsGwAH4Ft9mEF-N4_DnsjNt0B-SSiSdxlujusCw"
+   },
+   "expected": {
+    "verdict": "DENY",
+    "step": "6b"
+   }
+  },
+  {
+   "id": "PV.34",
+   "title": "Tool outside the leaf's scope",
+   "description": "The root allows payouts; the leaf does not.",
+   "now": 1704067500,
+   "tool": "payments.payout.create",
+   "args": {
+    "merchant": "M-101",
+    "currency": "INR"
+   },
+   "args_json": "{\"currency\":\"INR\",\"merchant\":\"M-101\"}",
+   "policy": {},
+   "params": {},
+   "replay_state": null,
+   "presentation": {
+    "aat_chain": [
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnBheW91dC5jcmVhdGUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19LCJwYXltZW50cy5yZWZ1bmQuaXNzdWUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNFNrbHJ5STNnVHh5WFNmR1RpQ3FGcWdrWUQ3N0tOUThXOE9vSUVyM3BsRSJ9fSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoiaHR0cHM6Ly9hdXRoLmV4YW1wbGUuY29tIiwianRpIjoicHYtUFYuMzQtMCJ9.kaSNCLfnN9dFOCYZk3qg_kr5HjptI9H8Mos0ZxUeicyhTIX4HujhBaVAKqnyNvsaj9pT6njjEtzrjiVci-pfCg",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiRkVjWnFLYkQyZUc2UkhYYUNheVdjMHktWnhONHJNSGdmOUUtaEl0cjJFSSJ9fSwiZGVsX2RlcHRoIjoxLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoidXJuOmlldGY6cGFyYW1zOm9hdXRoOmp3ay10aHVtYnByaW50OnNoYS0yNTY6VmtpbFptaGFuZzlmNVpsNHFEdmVTaE1JaVJOSURWazBacm05aUIwZzdhQSIsImp0aSI6InB2LVBWLjM0LTEiLCJwYXJfaGFzaCI6IjJaWE9zUGdqbkpXTGdMbjhHREg3dnoyYjZGclFZVDZXeTBzTUJMcUU2bFUifQ.F_8RsEZzCbMGPB-UaX8MNOjH1iuKsy3VDKNjFQdb9MFonp-zRfn_yrtXKTUaYC8wxaLryq5b_3wtRl8Hx1TtDg",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNlhCX1cxYkRSRmhlVXBaRDlxX1B2X2syV0Zldi1yTGxUSXVhR2ltVUZmYyJ9fSwiZGVsX2RlcHRoIjoyLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoidXJuOmlldGY6cGFyYW1zOm9hdXRoOmp3ay10aHVtYnByaW50OnNoYS0yNTY6YVZmMHJUV2YwVk0ya1ZQX3VPa3d1bkRTblVIQkFsY1B4VW1ZVDhEam1FSSIsImp0aSI6InB2LVBWLjM0LTIiLCJwYXJfaGFzaCI6InZFbGctVzlVY1JoeVFpUmVDSTg3dHJaOTExZkswX0ZoUlJTSEI2ZDBkaTAifQ.rPtMoZen9mhnUzI7VjigspNWVG_uigrBtRW5eJxHFAZGfvXUJADd30vYahfeD30xL6WG0xJITbh0ByObLdQXDw"
+    ],
+    "aat_pop": "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0LXBvcCtqd3QifQ.eyJhYXRfYXVkIjoiaHR0cHM6Ly90b29scy5leGFtcGxlLmNvbSIsImFhdF9oYXNoIjoiOXUxc0J2cGI5R3NpMUluQklJcjFYVnpiYVQ1MzlnbF9JUzJSTkRrTTRxUSIsImFhdF9pZCI6InB2LVBWLjM0LTIiLCJhYXRfdG9vbCI6InBheW1lbnRzLnBheW91dC5jcmVhdGUiLCJodGEiOnsiY3VycmVuY3kiOiJJTlIiLCJtZXJjaGFudCI6Ik0tMTAxIn0sImlhdCI6MTcwNDA2NzUwMCwianRpIjoicHYtUFYuMzQtcG9wIn0.CFVMFsGrmIdpV5bRY6vRzMaEFkIbPDC33nOzpzdP4FZEBQNzvZDWTG6r2m2Mw8TT-S3Rv_4xhCm_wxuKMd9KBQ"
+   },
+   "expected": {
+    "verdict": "DENY",
+    "step": "6b"
+   }
+  },
+  {
+   "id": "PV.35",
+   "title": "Presented by an agent that is not the leaf",
+   "description": "agent-2 presents the chain that ends at agent-3.",
+   "now": 1704067500,
+   "tool": "payments.refund.issue",
+   "args": {
+    "merchant": "M-101",
+    "currency": "INR"
+   },
+   "args_json": "{\"currency\":\"INR\",\"merchant\":\"M-101\"}",
+   "policy": {},
+   "params": {},
+   "replay_state": null,
+   "presentation": {
+    "aat_chain": [
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnBheW91dC5jcmVhdGUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19LCJwYXltZW50cy5yZWZ1bmQuaXNzdWUiOnsiY3VycmVuY3kiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIklOUiJdfSwibWVyY2hhbnQiOnsiY29uc3RyYWludF90eXBlIjoib25lX29mIiwidmFsdWVzIjpbIk0tMTAxIiwiTS0xMDIiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNFNrbHJ5STNnVHh5WFNmR1RpQ3FGcWdrWUQ3N0tOUThXOE9vSUVyM3BsRSJ9fSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoiaHR0cHM6Ly9hdXRoLmV4YW1wbGUuY29tIiwianRpIjoicHYtUFYuMzUtMCJ9.R5ph8kDPN4pLQLwnjuU5eKRdZYr970tFtDmPRtcYR86g6aJyfQ5nl0pVbFzbc2Xr-7EeYd8dcv-bmmH_LWKsCw",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiRkVjWnFLYkQyZUc2UkhYYUNheVdjMHktWnhONHJNSGdmOUUtaEl0cjJFSSJ9fSwiZGVsX2RlcHRoIjoxLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoidXJuOmlldGY6cGFyYW1zOm9hdXRoOmp3ay10aHVtYnByaW50OnNoYS0yNTY6VmtpbFptaGFuZzlmNVpsNHFEdmVTaE1JaVJOSURWazBacm05aUIwZzdhQSIsImp0aSI6InB2LVBWLjM1LTEiLCJwYXJfaGFzaCI6InJpOFNHNmdWd09UdFNiSzBRQjQ3cV95Y1lmaWZBTHZUdXdncE5wR05hTHcifQ.CRCkaxTpzrC_vYw9DN2d5pseMf3dW2P0g2BK5QYKW-uD1aDzMa-yFi5tEFbmHqn7y9eOIKjZv0yMDI0TXtYYDw",
+     "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0K2p3dCJ9.eyJhdXRob3JpemF0aW9uX2RldGFpbHMiOlt7InRvb2xzIjp7InBheW1lbnRzLnJlZnVuZC5pc3N1ZSI6eyJjdXJyZW5jeSI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiSU5SIl19LCJtZXJjaGFudCI6eyJjb25zdHJhaW50X3R5cGUiOiJvbmVfb2YiLCJ2YWx1ZXMiOlsiTS0xMDEiXX19fSwidHlwZSI6ImF0dGVudWF0aW5nX2FnZW50X3Rva2VuIn1dLCJjbmYiOnsiandrIjp7ImNydiI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiNlhCX1cxYkRSRmhlVXBaRDlxX1B2X2syV0Zldi1yTGxUSXVhR2ltVUZmYyJ9fSwiZGVsX2RlcHRoIjoyLCJkZWxfbWF4X2RlcHRoIjoyLCJleHAiOjE3MDQwNzA4MDAsImlhdCI6MTcwNDA2NzIwMCwiaXNzIjoidXJuOmlldGY6cGFyYW1zOm9hdXRoOmp3ay10aHVtYnByaW50OnNoYS0yNTY6YVZmMHJUV2YwVk0ya1ZQX3VPa3d1bkRTblVIQkFsY1B4VW1ZVDhEam1FSSIsImp0aSI6InB2LVBWLjM1LTIiLCJwYXJfaGFzaCI6IkRaU05WTGZqRmdvdW0zYkNiVW1fU2ZRSlZqUlBHbFRlRWdXelV0b18tTFkifQ.Ecy3detlWPVVt5MMW4G9Bw8lYM8Ty9zAd8r-_IqQoLlWP3XJqhRm2GSnaDwRZO3CuSIgFHbBwf21nriCqcYeBQ"
+    ],
+    "aat_pop": "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWF0LXBvcCtqd3QifQ.eyJhYXRfYXVkIjoiaHR0cHM6Ly90b29scy5leGFtcGxlLmNvbSIsImFhdF9oYXNoIjoicEVHb0hKa3ctaFVLZkJlQk5JQ09jbjYybGhsU3gzTF9WMHRKaFF1Q2dfMCIsImFhdF9pZCI6InB2LVBWLjM1LTIiLCJhYXRfdG9vbCI6InBheW1lbnRzLnJlZnVuZC5pc3N1ZSIsImh0YSI6eyJjdXJyZW5jeSI6IklOUiIsIm1lcmNoYW50IjoiTS0xMDEifSwiaWF0IjoxNzA0MDY3NTAwLCJqdGkiOiJwdi1QVi4zNS1wb3AifQ.LYs5JoQPVghlfnngphJn3E_8yD2URcJzj6QHo_G-FvFfMdWr6iJ4e8kCHC3lIwe3-C0LurWJLa2rDxjSNTlrCg"
+   },
+   "expected": {
+    "verdict": "DENY",
+    "step": "7b"
+   }
+  }
+ ]
+}

@@ -5,6 +5,26 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### pv-delegation/2 as AAT -02 conformance vectors
+- `vectors/aat02/pv-delegation-2.json`: 35 vectors in the layout of the AAT -02
+  suite (draft-niyikiza-oauth-attenuating-agent-tokens-02), each chain real
+  pv-delegation/2 links with its AAT view (`par_hash`, `del_depth`,
+  `del_max_depth`): narrowing, widening, depth, parent hashes, replay,
+  signatures and keys, and constrained arguments. Written by
+  `tools/gen_aat02_vectors.py`; `tests/test_aat02_vectors.py` replays every
+  vector through `within_scope` and fails on any disagreement, and fails if the
+  committed suite is not what the generator writes.
+- Each scenario AAT can express is also built as AAT -02 tokens and run
+  through AAT's reference Section 8 verifier (tenuo-ai/tenuo
+  `ietf/vectors/gen_vectors.py`): 32 of 32 agree with the suite's AAT column,
+  and 3 have no AAT counterpart. The tokens are in
+  `vectors/aat02/aat-analogues.json`, in the AAT suite's layout
+  (`tools/check_aat02_analogues.py`, `tests/test_aat02_analogues.py`).
+- `docs/AAT02-VECTORS.md` records two differences from AAT -02: the limit a
+  link carries counts delegations as AAT does, but the eight-link cap refuses
+  the nine-token chain AAT admits at a limit of 8 (CC-1); and an argument no
+  constraint names is free, as in asor (CC-3).
+
 ### A decide that fails partway gives back what it claimed (ADR 0047)
 - A fault between the engine and the seal kept the grant spend, the
   transaction reservation, the daily limit claim and the chain's budget
