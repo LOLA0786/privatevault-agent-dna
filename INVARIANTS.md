@@ -52,11 +52,13 @@ one admission and one payment.
 ## 5. A refused decide keeps nothing
 
 A block or a hold moves no money, and gives back the grant spend and the
-transaction reservation claimed while deciding.
+transaction reservation claimed while deciding. So does a decide that fails
+partway, which also fails closed.
 
 - Enforced by: `tests/demos/test_live_checkout_grant_spend.py::test_refused_decides_give_back_the_grant_spend`,
   `tests/demos/test_challenger.py::test_refused_decides_do_not_spend_the_grant`,
-  `tests/test_decide_reservation.py::test_release_only_drops_an_unsealed_hold`
+  `tests/test_decide_reservation.py::test_release_only_drops_an_unsealed_hold`,
+  `tests/test_decide_fault_releases_claims.py::test_fault_before_the_seal_releases_the_reservation`
 - Broken once: refused decides kept their grant spend until ADR 0046. The
   continuous challenger found it.
 

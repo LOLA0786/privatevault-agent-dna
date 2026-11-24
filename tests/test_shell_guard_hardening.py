@@ -82,6 +82,24 @@ def codes(args):
         "export DB_PASSWORD='s3cr3t-Value-99'",
         "client_secret: abcdEFGH1234",
     ],
+    # Plain labels: a test id that spells a credential, even a fake one, leaks
+    # into pytest output and generated pages, where scanners cannot tell it
+    # from a real one (GitHub push protection refused one).
+    ids=[
+        "aws-access-key-id",
+        "github-token",
+        "slack-bot-token",
+        "stripe-live-key",
+        "openai-project-key",
+        "google-api-key",
+        "openssh-private-key",
+        "rsa-private-key",
+        "jwt",
+        "postgres-url-with-password",
+        "aws-secret-access-key",
+        "exported-db-password",
+        "client-secret",
+    ],
 )
 def test_known_credential_formats_detected(text):
     assert content_reveals_secret(text)

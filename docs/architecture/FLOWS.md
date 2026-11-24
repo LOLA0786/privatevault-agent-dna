@@ -112,9 +112,10 @@ inside `api/server.py::decide`:
    (`api/server.py::_seal_decision`,
    `agent_dna/decision_recorder.py::DecisionRecorder.record`), then record
    the lineage event (`agent_dna/lineage.py::LineageLedger.record`). What
-   steps 4 and 6 claimed is kept only by a sealed allow: a refusal, or a
-   record that cannot be written, releases the reservation, the limit claim,
-   the chain-budget charge and the grant spend (ADR 0046).
+   steps 4 and 6 claimed is kept only by a sealed allow: a refusal, a record
+   that cannot be written, or a fault anywhere before the seal releases the
+   reservation, the limit claim, the chain-budget charge and the grant spend
+   (`api/server.py::_release_claims`, ADR 0046 and 0047).
 10. HTTP status from the verdict: 200 allow, 202 approval, 403 block.
 
 ## Approval (ADR 0020)

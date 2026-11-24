@@ -5,6 +5,32 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### A decide that fails partway gives back what it claimed (ADR 0047)
+- A fault between the engine and the seal kept the grant spend, the
+  transaction reservation, the daily limit claim and the chain's budget
+  charge: one failing store could block the honest retry of a refund until
+  its reservation lapsed. One function, `_release_claims`, now gives them
+  back on every path where a decide does not end sealed ALLOW, and the decide
+  still fails closed (`tests/test_decide_fault_releases_claims.py`).
+
+### privatevault-gate: no known vulnerabilities
+- `zod` 3 to 4.6.7 (memory exhaustion while validating oversized
+  collections, high) and a fixed `body-parser` under the MCP SDK (denial of
+  service, high). `npm audit` now reports nothing at any severity. The SDK
+  supports zod 4; the one schema that changed is the arguments record. The
+  gate's suites (`npm test`) and its contract test against a live engine
+  (`npm run test:contract`) pass.
+
+### Generated pages are claim sites
+- `architecture.html`, `scenarios.html` and `meeting-dashboard.html` were
+  regenerated (they still said 1,175 tests) and are now guarded like the
+  README: their test count may not overstate the suite or fall more than 40
+  behind it (`tests/test_claim_counts.py`).
+- Test ids no longer spell out the fake credentials the shell-guard tests
+  use, and no generated page may carry a credential-shaped string, fake or
+  not (`tests/test_generated_pages_carry_no_credentials.py`): GitHub push
+  protection refused a regenerated dashboard that listed one.
+
 ### Invariants, onboarding, and documentation that matches the code
 - `INVARIANTS.md`: nine promises PrivateVault keeps whatever model drives the
   agent, each naming the tests that enforce it. `tests/test_invariants_doc.py`
