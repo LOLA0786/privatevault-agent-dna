@@ -5,6 +5,11 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### One legal name for the company
+- The company is named one way everywhere: Pentaprime Solutions, Inc., a
+  Delaware corporation (`LICENSE`, `README.md`, the documentation headers).
+  `tests/test_company_name.py` fails on any other form in a tracked file.
+
 ### pv-delegation/2 as AAT -02 conformance vectors
 - `vectors/aat02/pv-delegation-2.json`: 35 vectors in the layout of the AAT -02
   suite (draft-niyikiza-oauth-attenuating-agent-tokens-02), each chain real

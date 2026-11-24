@@ -1,6 +1,6 @@
 # What We Do NOT Claim
 
-PrivateVault AI (Pentaprime Solutions) · Decision Security Runtime · July 2026
+PrivateVault AI (Pentaprime Solutions, Inc.) · Decision Security Runtime · July 2026
 
 This page exists because a vendor's claims should be as verifiable as
 its cryptography. Where we can't back a claim with a test, a public
@@ -636,7 +636,7 @@ a limitation is resolved — this page updates in the same commit as
 the code that changes it. The git history of this file is itself part
 of the audit trail.
 
-PrivateVault AI (Pentaprime Solutions) · privatevault.ai
+PrivateVault AI (Pentaprime Solutions, Inc.) · privatevault.ai
 
 ## Model validation (pv-validation/1)
 

@@ -463,4 +463,5 @@ regression tests.
 
 Apache-2.0. See `LICENSE`. The DRP wire specification is published
 under Apache-2.0 / CC-BY-4.0 in its own repository.
-OWNER- PENTAPRIME SOLUTIONS , INC 
+
+PrivateVault is developed by Pentaprime Solutions, Inc., a Delaware corporation.

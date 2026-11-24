@@ -95,4 +95,4 @@ The DRP wire format, schemas, test vectors, and verifier are open
 locked to the vendor. The runtime is commercial.
 
 ---
-PrivateVault AI (Pentaprime Solutions) · Mumbai · privatevault.ai
+PrivateVault AI (Pentaprime Solutions, Inc.) · Mumbai · privatevault.ai
