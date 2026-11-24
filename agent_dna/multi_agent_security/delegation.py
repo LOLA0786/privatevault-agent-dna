@@ -64,6 +64,10 @@ SPEC_V2 = "pv-delegation/2"
 MAX_CONSTRAINT_KEYS = 32
 MAX_CONSTRAINT_VALUES = 64
 MAX_DEPTH = 8
+# The cap counts delegations, as the limit a link carries does and as the
+# AAT -02 draft counts del_depth (ADR 0048): a root and at most MAX_DEPTH
+# delegations below it, so every max_depth a link may carry is reachable.
+MAX_CHAIN_LINKS = MAX_DEPTH + 1
 MAX_TTL = 24 * 3600.0
 CLOCK_SKEW_SECONDS = 30.0
 _TAG = b"pv-delegation/1:"
@@ -424,8 +428,10 @@ def verify_chain(  # noqa: C901 - ordered refusal checklist
     moment = time.time() if now is None else float(now)
     if not isinstance(chain, list) or not chain:
         raise DelegationError("chain must be a non-empty list of links")
-    if len(chain) > MAX_DEPTH:
-        raise DelegationError(f"chain is deeper than {MAX_DEPTH} links")
+    if len(chain) > MAX_CHAIN_LINKS:
+        raise DelegationError(
+            f"chain is deeper than {MAX_DEPTH} delegations ({MAX_CHAIN_LINKS} links)"
+        )
 
     seen: set[str] = set()
     previous: dict[str, Any] | None = None

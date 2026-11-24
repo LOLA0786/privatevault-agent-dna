@@ -48,7 +48,7 @@ EXP = IAT + 3600
 TOOL = "payments.refund.issue"
 OTHER_TOOL = "payments.payout.create"
 MERCHANTS = ["M-101", "M-102"]
-PARTIES = ["operator"] + [f"agent-{i}" for i in range(1, 10)]
+PARTIES = ["operator"] + [f"agent-{i}" for i in range(1, 11)]
 UNPINNED = ("mallory", "rogue-root")
 
 
@@ -507,11 +507,11 @@ def vectors() -> list[dict[str, Any]]:
         vec(
             "PV.17",
             "Depth limit 8, nine tokens",
-            "Root limit 8 and nine links (depths 0..8). AAT admits it; PrivateVault caps a chain at "
-            "eight links, so it refuses before reading any limit.",
+            "Root limit 8 and nine links (depths 0..8). PrivateVault's cap counts delegations, "
+            "as AAT's does (ADR 0048), so the format's largest limit is reachable.",
             chain("cc1-8-9", depth_hops(8, 9)),
-            verdict="DENY",
-            reason="chain_too_deep",
+            verdict="PERMIT",
+            reason="in_scope",
             args={},
             aat=aat(
                 "PERMIT",
@@ -522,9 +522,9 @@ def vectors() -> list[dict[str, Any]]:
                 "verdicts": {
                     "aat-02": "PERMIT",
                     "asor-03": "DENY",
-                    "pv-delegation/2": "DENY",
+                    "pv-delegation/2": "PERMIT",
                 },
-                "pv-delegation/2": "MAX_DEPTH = 8 counts links, so the deepest chain is depth 7.",
+                "pv-delegation/2": "Follows AAT at the cap too (ADR 0048).",
             },
         )
     )
@@ -789,6 +789,26 @@ def vectors() -> list[dict[str, Any]]:
             aat=aat("DENY", "7b", "The PoP is not signed by the leaf's holder key."),
         )
     )
+    out.append(
+        vec(
+            "PV.36",
+            "Depth limit 8, ten tokens",
+            "Root limit 8 and ten links: one delegation past the cap.",
+            chain("cc1-8-10", depth_hops(8, 10)),
+            verdict="DENY",
+            reason="chain_too_deep",
+            args={},
+            aat=aat("DENY", "4e"),
+            interpretations={
+                **cc1,
+                "verdicts": {
+                    "aat-02": "DENY",
+                    "asor-03": "DENY",
+                    "pv-delegation/2": "DENY",
+                },
+            },
+        )
+    )
     return out
 
 
@@ -814,7 +834,7 @@ def suite() -> dict[str, Any]:
         },
         "params": {
             "now": NOW,
-            "max_chain_links": dl.MAX_DEPTH,
+            "max_chain_links": dl.MAX_CHAIN_LINKS,
             "max_depth_claim": dl.MAX_DEPTH,
         },
         "keys": {name: public_key(name) for name in [*PARTIES, *UNPINNED]},

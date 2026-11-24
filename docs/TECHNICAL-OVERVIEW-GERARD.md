@@ -1,7 +1,7 @@
 # PrivateVault — Decision Security Runtime
 ## Technical Overview: Runtime Enforcement for Autonomous Agents
 
-Prepared for review · Updated July 2026 · PrivateVault AI (Pentaprime Solutions)
+Prepared for review · Updated July 2026 · PrivateVault AI (Pentaprime Solutions, Inc.)
 
 ---
 

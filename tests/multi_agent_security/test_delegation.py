@@ -273,6 +273,34 @@ def test_depth_is_bounded():
         verify_chain(chain, anchors)
 
 
+def test_the_cap_counts_delegations():
+    """ADR 0048: a root and eight delegations below it, nine links, verify;
+    test_depth_is_bounded refuses a tenth."""
+    from agent_dna.multi_agent_security.delegation import MAX_CHAIN_LINKS
+
+    names = [f"n{i}" for i in range(9)]
+    keys = {n: generate_voter_keypair() for n in names}
+    anchors = TrustAnchors(
+        roots={"operator": KEYS["operator"]["public_key"]},
+        agents={n: k["public_key"] for n, k in keys.items()},
+    )
+    chain = [link("operator", "n0")]
+    for a, b in zip(names, names[1:], strict=False):
+        chain.append(
+            issue_link(
+                keys[a]["signing_key"],
+                delegator=a,
+                delegate=b,
+                capabilities=["payments."],
+                max_amount=1000.0,
+                may_delegate=True,
+                parent=chain[-1],
+            )
+        )
+    assert len(chain) == MAX_CHAIN_LINKS == 9
+    assert verify_chain(chain, anchors)["delegate"] == "n8"
+
+
 @pytest.mark.parametrize("field", ["max_amount", "issued_at", "expires_at"])
 @pytest.mark.parametrize(
     "value", [10**400, -(10**400), float("inf"), float("nan"), True]

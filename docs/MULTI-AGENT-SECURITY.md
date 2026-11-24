@@ -61,7 +61,8 @@ capabilities, a raised or removed ceiling, a link that outlives its parent,
 onward delegation without permission, an unpinned root, a link signed by
 someone other than the holder, a forged signature, an edited link, links
 spliced from two chains, a dropped middle link, cycles, expired or
-future-dated links, a revoked link, and chains deeper than eight.
+future-dated links, a revoked link, and chains of more than eight
+delegations (nine links; ADR 0048).
 
 ## Delegation on `/v1/decide`
 

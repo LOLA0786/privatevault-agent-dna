@@ -55,6 +55,7 @@ explicit statement that no such test exists.
 | [0045](0045-facts-are-checked-against-the-system-of-record.md) | Decision facts are checked against the system of record; stale, false or unreadable facts block | accepted | `tests/demos/test_live_checkout_facts.py::test_refund_during_approval_wait_is_caught` |
 | [0046](0046-a-refused-decide-gives-back-its-grant-spend.md) | A decide refused after the engine charged a grant gives the spend back; only a sealed ALLOW keeps it | accepted | `tests/demos/test_live_checkout_grant_spend.py::test_refused_decides_give_back_the_grant_spend` |
 | [0047](0047-a-fault-before-the-seal-gives-back-every-claim.md) | A decide that fails between the engine and the seal gives back every claim and fails closed | accepted | `tests/test_decide_fault_releases_claims.py::test_fault_before_the_seal_releases_the_reservation` |
+| [0048](0048-the-delegation-cap-counts-delegations.md) | The delegation cap counts delegations: a root and at most eight below it, nine links, as AAT -02 counts | accepted | `tests/multi_agent_security/test_delegation.py::test_the_cap_counts_delegations` |
 
 0001–0014 are the enforcement-spine decisions. 0015 is the earlier
 loop-discovery placement record, renumbered so the spine could own
