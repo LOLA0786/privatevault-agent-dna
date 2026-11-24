@@ -267,7 +267,11 @@ survives restart and two workers draw on one budget
 grant gives the spend back; only a sealed ALLOW keeps it (ADR 0046,
 `tests/demos/test_live_checkout_grant_spend.py`). An ALLOW that is never
 sent keeps its spend. Revocation history is reconstructable from the
-audit trail alone. Delegation and rescoping are not built.
+audit trail alone. Delegation is built: authority passed from one agent to
+another can only narrow, with a cumulative budget, argument constraints and a
+depth limit, enforced on `/v1/decide` when `PV_DELEGATION_FILE` is set (ADR
+0042, `tests/multi_agent_security/test_delegation_v2.py`). Rescoping an issued
+grant in place is not built.
 
 **A capability covers only the operations the operator declared** (ADR
 0025). `PV_OPERATIONS_FILE` maps each capability to its transport,

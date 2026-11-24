@@ -6,6 +6,9 @@ ladder that fails closed, and every decision is sealed into a signed,
 hash-chained record that a separate, stdlib-only verifier can check without
 importing this codebase.
 
+The promises this design exists to keep, and the tests that hold them, are
+in `INVARIANTS.md`. A new engineer starts at `docs/ONBOARDING.md`.
+
 This file is the map for a new engineer. It is kept true by
 `tests/test_architecture_doc.py`: every code reference below must resolve to
 a real definition, and the precedence table must equal the pinned contract.
@@ -45,11 +48,15 @@ sequenceDiagram
         E->>E: L0 uaal_constraint, authorization lookup, drift signal
         E->>E: decide_from ladder, first firing level wins (a policy hold adds to the levels below)
         E-->>G: DecisionResult
+        G->>G: an ALLOW under a budgeted grant commits its spend
         G->>B: finalize(reservation, verdict)
         G-->>M: DecisionResult
     end
     M-->>A: DecisionResult
     A->>X: escalate_with_cross_agent (can only tighten)
+    A->>A: _verify_facts against the system of record (ADR 0045)
+    A->>A: _reserve_transaction, _claim_decide_limit, _charge_delegation_budget (ADR 0041, 0043, 0042)
+    Note over A: each can only refuse, and a refusal releases every claim, grant spend included (ADR 0046)
     A->>R: record(action, result, execution_action, dispatch_context)
     R->>S: sign the sealed record
     R->>D: record and envelope in one transaction
@@ -68,6 +75,12 @@ sequenceDiagram
 | L0 and authorization lookup | `agent_dna/decision.py::DecisionEngine._decide_unsafe` |
 | Precedence ladder | `agent_dna/decision.py::DecisionEngine.decide_from` |
 | Cross-agent escalation | `agent_dna/connector/cross_agent.py::escalate_with_cross_agent` |
+| Grant spend for an ALLOW | `agent_dna/circuit_breaker.py::GuardedEngine._commit_spend`, `agent_dna/grants.py::GrantRegistry.record_spend` |
+| Facts against the system of record (ADR 0045) | `api/server.py::_verify_facts` |
+| One live ALLOW per business transaction (ADR 0041) | `api/server.py::_reserve_transaction` |
+| Daily count and amount limits (ADR 0043) | `api/server.py::_claim_decide_limit` |
+| Delegation chain budgets (ADR 0042) | `api/server.py::_charge_delegation_budget` |
+| Keep every claim only for a sealed ALLOW (ADR 0046) | `api/server.py::_seal_decision`, `api/server.py::_spend_kept_by` |
 | Seal, sign, persist | `agent_dna/decision_recorder.py::DecisionRecorder.record` |
 | Record formats | `agent_dna/decision_record.py::build_record` (drp/0.1, audit-only), `agent_dna/decision_record.py::build_record_v02` (drp/0.2, bound) |
 | Signature | `agent_dna/signer_bridge.py::ReceiptSigner.sign_record` |
@@ -106,6 +119,7 @@ and can only tighten a verdict.
 | Budget and swarm limits | `agent_dna/circuit_breaker.py::CircuitBreaker.reserve`; groups loaded by `agent_dna/composition.py::_load_breaker_groups` | BLOCK `circuit_breaker`; malformed config refuses startup |
 | Engine faults | `agent_dna/decision.py::DecisionEngine.decide` | BLOCK `engine_fault`, never ALLOW |
 | Capability grants | `agent_dna/grants.py::GrantRegistry` | require_approval |
+| Facts the rules read (ADR 0045) | `api/server.py::_verify_facts` | BLOCK; every claim made while deciding is released (ADR 0046) |
 | Maker is not checker | `agent_dna/multi_agent/dual_control.py::is_initiate_intent`, `agent_dna/connector/cross_agent.py::escalate_with_cross_agent` | escalate only |
 | Execution permit | `api/server.py::authorize` (POST /v1/authorize) | refuses mint without a stored, bound ALLOW |
 | Suspension at dispatch | `agent_dna/sqlite_store.py::SQLiteDecisionStore.try_consume_unless_suspended`, `agent_dna/connector/adapters/exact_byte_http.py::ExactByteHttpDispatcher._consume` | DISPATCH_SUSPENDED; nothing sent, permit not burned |
@@ -133,10 +147,12 @@ and can only tighten a verdict.
 
 ## Changing the architecture
 
-1. Write or update an ADR in `docs/adr/`.
-2. Make the change with a failing test first and a negative control.
-3. Run `python tools/archmap.py` if imports changed; commit the regenerated map.
-4. If a precedence level changes, update `spec/contracts/precedence-order.json`,
+1. Check the change against `INVARIANTS.md`; changing a promise takes its own ADR.
+2. Write or update an ADR in `docs/adr/`.
+3. Make the change with a failing test first and a negative control.
+4. Run `python tools/archmap.py` and `python tools/depmap.py` if imports changed;
+   commit the regenerated pages.
+5. If a precedence level changes, update `spec/contracts/precedence-order.json`,
    the ladder table above, and the engine together; three tests will fail until
    all three agree.
-5. State anything you cannot prove in `docs/WHAT-WE-DO-NOT-CLAIM.md`.
+6. State anything you cannot prove in `docs/WHAT-WE-DO-NOT-CLAIM.md`.

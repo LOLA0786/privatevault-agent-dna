@@ -5,7 +5,7 @@ reader to run, and it prints a summary table mapping each precedence
 level to the trigger that fired. That table is a public claim.
 
 It has silently broken before. Raising the demo breaker's cumulative cap
-without re-checking the scenarios caused the L3 wire (900,000) to trip
+without re-checking the scenarios caused the capability-grant wire (900,000) to trip
 the breaker mid-walk; every scenario after it then reported
 `circuit_breaker` instead of its own level, and the treasury drain that
 was calibrated against a $1,000 cap stopped tripping at all. The engine
@@ -34,11 +34,11 @@ DEMO = REPO_ROOT / "examples" / "composed_line_demo.py"
 EXPECTED_TRIGGER = {
     "L0  enterprise constraint": "uaal_constraint",
     "L1  behavioral invariant": "invariant",
-    "L2  multi-agent consensus": "consensus",
-    "L3  capability grant": "authorization",
-    "L4  economics": "economics",
-    "L5  learned drift": "drift",
-    "L6  baseline": "baseline",
+    "L3  multi-agent consensus": "consensus",
+    "L4  capability grant": "authorization",
+    "L5  economics": "economics",
+    "L6  learned drift": "drift",
+    "L7  baseline": "baseline",
     "L-1 circuit breaker": "circuit_breaker",
 }
 
@@ -122,7 +122,7 @@ def test_baseline_is_the_only_allow(demo_output: str) -> None:
     permits normal work -- it just shows a system that blocks."""
     rows = _summary_rows(demo_output)
     allowed = [k for k, v in rows.items() if v["verdict"] == "ALLOW"]
-    assert allowed == [k for k in rows if k.startswith("L6  baseline")], (
+    assert allowed == [k for k in rows if k.startswith("L7  baseline")], (
         f"expected exactly L6 to be ALLOW, got {allowed}"
     )
 

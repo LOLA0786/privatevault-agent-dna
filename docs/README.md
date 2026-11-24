@@ -21,7 +21,7 @@ verified.
 
 | You are | Read, in order |
 |---|---|
-| New engineer | [architecture/README.md](architecture/README.md), [../ARCHITECTURE.md](../ARCHITECTURE.md), [architecture/REPO-MAP.md](architecture/REPO-MAP.md), [architecture/DEPENDENCIES.md](architecture/DEPENDENCIES.md), [adr/README.md](adr/README.md) |
+| New engineer | [ONBOARDING.md](ONBOARDING.md), [../INVARIANTS.md](../INVARIANTS.md), [architecture/README.md](architecture/README.md), [../ARCHITECTURE.md](../ARCHITECTURE.md), [architecture/REPO-MAP.md](architecture/REPO-MAP.md), [architecture/DEPENDENCIES.md](architecture/DEPENDENCIES.md), [adr/README.md](adr/README.md) |
 | Integrating an agent | [architecture/FLOWS.md](architecture/FLOWS.md), [HARNESS_INTEGRATION.md](HARNESS_INTEGRATION.md), [integration-patterns/enforcement-middleware.md](integration-patterns/enforcement-middleware.md), [API-SURFACE.md](API-SURFACE.md) |
 | Operating a deployment | [architecture/DEPLOYMENT.md](architecture/DEPLOYMENT.md), [architecture/DATA.md](architecture/DATA.md), [operations/BACKUP.md](operations/BACKUP.md), [RELEASE-CHECKLIST.md](RELEASE-CHECKLIST.md) |
 | Security reviewer | [architecture/TRUST-AND-KEYS.md](architecture/TRUST-AND-KEYS.md), [SECURITY.md](SECURITY.md), [THREAT-MODEL.md](THREAT-MODEL.md), [WHAT-WE-DO-NOT-CLAIM.md](WHAT-WE-DO-NOT-CLAIM.md), [PRODUCTION-HARDENING.md](PRODUCTION-HARDENING.md) |
@@ -91,7 +91,7 @@ verified.
 
 | Document | Status | What it covers |
 |---|---|---|
-| [CURSOR-BRIEF-architecture.md](CURSOR-BRIEF-architecture.md) | historical | The brief that led to the generated map and the ADRs |
+| [process/architecture-map-brief.md](process/architecture-map-brief.md) | historical | The human brief, given to an AI assistant, that commissioned the generated map and the ADRs |
 | [PHASE1-PRECHANGE-MAP.md](PHASE1-PRECHANGE-MAP.md) | historical | The code as it was before Phase 1 |
 | [PROPOSED-CLAIMS-CORRECTION-PV001.md](PROPOSED-CLAIMS-CORRECTION-PV001.md) | historical | A proposed claims correction |
 | [TECHNICAL-OVERVIEW-GERARD.md](TECHNICAL-OVERVIEW-GERARD.md) | historical | A technical overview written for one reader |

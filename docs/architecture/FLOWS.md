@@ -91,17 +91,31 @@ inside `api/server.py::decide`:
 3. The sealed destination and operation are exposed to policy as
    `evidence.bound`; callers cannot set it themselves.
 4. Monitor, breaker, engine and precedence ladder
-   (`agent_dna/runtime.py::RuntimeMonitor.process`).
-5. Cross-agent escalation (`agent_dna/connector/cross_agent.py::escalate_with_cross_agent`)
-   and lineage escalation (`agent_dna/lineage.py::escalate_with_lineage`).
-   Both can only tighten.
-6. The control posture, including the permit evidence (policy bundle and
+   (`agent_dna/runtime.py::RuntimeMonitor.process`). An allow under a
+   budgeted grant commits its spend here
+   (`agent_dna/circuit_breaker.py::GuardedEngine._commit_spend`).
+5. Cross-agent escalation
+   (`agent_dna/connector/cross_agent.py::escalate_with_cross_agent`); it can
+   only tighten.
+6. Server-side controls, in this order, each of which can only refuse: the
+   stated facts against the system of record (ADR 0045,
+   `api/server.py::_verify_facts`); one live allow per business transaction
+   (ADR 0041, `api/server.py::_reserve_transaction`); daily count and amount
+   limits (ADR 0043, `api/server.py::_claim_decide_limit`); the delegation
+   chain's budgets (ADR 0042, `api/server.py::_charge_delegation_budget`).
+7. Lineage escalation (`agent_dna/lineage.py::escalate_with_lineage`); it can
+   only tighten.
+8. The control posture, including the permit evidence (policy bundle and
    grant digests, ADR 0026, `api/server.py::_decided_permit_evidence`), is
    attached to the result as a server-only evidence item.
-7. Seal, sign and store record and envelope together
-   (`agent_dna/decision_recorder.py::DecisionRecorder.record`), then record
-   the lineage event (`agent_dna/lineage.py::LineageLedger.record`).
-8. HTTP status from the verdict: 200 allow, 202 approval, 403 block.
+9. Seal, sign and store record and envelope together
+   (`api/server.py::_seal_decision`,
+   `agent_dna/decision_recorder.py::DecisionRecorder.record`), then record
+   the lineage event (`agent_dna/lineage.py::LineageLedger.record`). What
+   steps 4 and 6 claimed is kept only by a sealed allow: a refusal, or a
+   record that cannot be written, releases the reservation, the limit claim,
+   the chain-budget charge and the grant spend (ADR 0046).
+10. HTTP status from the verdict: 200 allow, 202 approval, 403 block.
 
 ## Approval (ADR 0020)
 

@@ -56,7 +56,7 @@ under an advisory lock so concurrent instances cannot fork a chain.
 
 | Table | Written by | Read by | Purpose |
 |---|---|---|---|
-| `grant_spend` | `agent_dna/grant_spend.py::GrantSpendLedger`, `agent_dna/pg_store.py::PostgresGrantSpendLedger` | the authorization level of the ladder | Cumulative spend per grant against its budget |
+| `grant_spend` | `agent_dna/grant_spend.py::GrantSpendLedger`, `agent_dna/pg_store.py::PostgresGrantSpendLedger` | the authorization level of the ladder | Cumulative spend per grant against its budget; a decide refused after the engine charged it gives the spend back (ADR 0046, `api/server.py::_seal_decision`) |
 | `grant_revocations` | `pv grants revoke` (`agent_dna/cli.py::cmd_grants_revoke`) | decide, `/v1/authorize`, `/v1/revocations` | Durable revocations with who and why |
 
 ## Enforcement state

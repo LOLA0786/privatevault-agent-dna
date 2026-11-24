@@ -41,10 +41,12 @@ CHECKED = [
     ARCH / "TRUST-AND-KEYS.md",
     ARCH / "DEPLOYMENT.md",
     DOCS / "README.md",
+    DOCS / "ONBOARDING.md",
 ]
 # Claim pages: every file and test they cite must exist. (Structure only;
 # whether each claim is true is still a human review.)
 CLAIMS = [
+    ROOT / "INVARIANTS.md",
     DOCS / "WHAT-WE-DO-NOT-CLAIM.md",
     DOCS / "PRODUCTION-HARDENING.md",
     DOCS / "ROADMAP.md",

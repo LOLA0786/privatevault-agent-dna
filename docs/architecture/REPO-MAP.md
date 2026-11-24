@@ -111,6 +111,7 @@ network lives under `network/`.
 |---|---|
 | `README.md` | Product overview and quick start |
 | `ARCHITECTURE.md` | One decision end to end, precedence ladder, trust boundaries |
+| `INVARIANTS.md` | The promises that hold whatever model drives the agent, each with the tests that enforce it |
 | `AGENTS.md`, `CONTRIBUTING.md` | How to work in this repository |
 | `SECURITY.md`, `.well-known/` | Vulnerability reporting |
 | `CHANGELOG.md` | What changed in each release |

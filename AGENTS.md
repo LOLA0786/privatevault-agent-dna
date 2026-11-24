@@ -2,6 +2,10 @@
 
 These rules apply to the entire repository.
 
+Read `INVARIANTS.md` first. A change that breaks a promise there is wrong even
+if every test passes; changing a promise needs an ADR and a maintainer's
+sign-off.
+
 1. Treat models as proposal-only components. They never receive credentials or
    mint authority.
 2. Preserve fail-closed behavior at policy, authorization, dispatch, closure,
@@ -15,3 +19,8 @@ These rules apply to the entire repository.
    `CONTRIBUTING.md` before handing off a change.
 7. Discovery output is proposal-only: never auto-apply, auto-merge, or treat a
    priority score, synthetic label, advisory model, or model output as authority.
+8. On the money path (decide, authorize, the sidecar, the receiver gate, the
+   ledgers), run `uv run python -m demos.live_checkout.challenger --actions 20`
+   and hand off only with no failing verdicts.
+9. Say what you wrote: commits you helped write carry a `Co-authored-by:`
+   trailer naming you, so a reviewer knows which lines to read most closely.
