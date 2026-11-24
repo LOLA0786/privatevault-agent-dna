@@ -5,6 +5,16 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### The delegation cap counts delegations (ADR 0048)
+- A chain may be a root and up to eight delegations below it, nine links, as
+  AAT -02 counts depth. The cap counted links, so a root could carry the
+  format's largest limit, `max_depth` 8, yet only seven delegations would
+  verify, and the nine-token chain AAT admits at that limit was refused
+  (constraint-comparison CC-1). Version 1 chains, which carry no limit, gain
+  one hop (`tests/multi_agent_security/test_delegation.py`). Vector PV.17 now
+  accepts and the new PV.36 refuses ten links: 36 of 36 vectors agree with
+  the code, and 33 of 33 with AAT's reference verifier.
+
 ### One legal name for the company
 - The company is named one way everywhere: Pentaprime Solutions, Inc., a
   Delaware corporation (`LICENSE`, `README.md`, the documentation headers).

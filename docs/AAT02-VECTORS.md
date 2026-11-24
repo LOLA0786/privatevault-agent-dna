@@ -8,10 +8,10 @@ Nothing has been submitted.
 
 | File | What it is |
 |---|---|
-| `vectors/aat02/pv-delegation-2.json` | The suite: 35 vectors |
+| `vectors/aat02/pv-delegation-2.json` | The suite: 36 vectors |
 | `tools/gen_aat02_vectors.py` | Writes it, byte for byte, from PrivateVault's own `issue_link` and deterministic test keys |
 | `tests/test_aat02_vectors.py` | Replays every vector through `within_scope` and `verify_chain`; any disagreement fails CI |
-| `vectors/aat02/aat-analogues.json` | The same scenarios as 32 real AAT -02 vectors, in the AAT suite's layout |
+| `vectors/aat02/aat-analogues.json` | The same scenarios as 33 real AAT -02 vectors, in the AAT suite's layout |
 | `tools/check_aat02_analogues.py` | Builds them with the AAT reference verifier's own helpers and checks the suite's AAT column against it |
 | `tests/test_aat02_analogues.py` | Keeps the analogues in step with the suite; with `TENUO_DIR` set, rebuilds them and reruns the reference verifier |
 
@@ -31,7 +31,7 @@ route the AAT interop guide gives an implementation in another format.
 - `expected` is PrivateVault's verdict, `PERMIT` (accept) or `DENY`
   (reject), and a stable reason code.
 - `aat_02` is the verdict and Section 8 step that AAT's reference verifier
-  gives the same scenario, built as AAT -02 tokens. All 32 agree; 3 vectors
+  gives the same scenario, built as AAT -02 tokens. All 33 agree; 3 vectors
   have no AAT counterpart and say `n/a` (a cumulative budget, revocation).
 - `interpretations` gives each draft's reading where they differ.
 
@@ -55,7 +55,7 @@ route the AAT interop guide gives an implementation in another format.
 | Widened scope; an added argument value; a dropped constraint | PV.6 to PV.8 | Reject |
 | A constraint on an argument the parent never named; an argument no link names | PV.9, PV.10 | Accept, unlike AAT |
 | Depth past the limit; a raised or dropped limit; a terminal root | PV.11 to PV.14 | Reject |
-| Depth counting at limits 3 and 8 | PV.15 to PV.18 | See below |
+| Depth counting at limits 3 and 8 | PV.15 to PV.18, PV.36 | As AAT counts; see below |
 | Wrong, missing, spliced or reordered `par_hash`; one on the root | PV.19 to PV.23 | Reject |
 | A replayed, revoked or expired link; a forged signature, a wrong key, an unpinned root, a field changed after signing | PV.24 to PV.30 | Reject |
 | A child that outlives its parent | PV.31 | Reject |
@@ -69,21 +69,15 @@ The comparison names this case CC-1.
   N, which is N + 1 tokens. A limit of 8 admits nine.
 - **asor -03:** a limit of N admits N tokens. A limit of 8 admits eight.
 
-PrivateVault has two rules, and they count differently:
+PrivateVault counts as AAT does, at every limit. The limit a link carries
+counts delegations: a root limit of 3 admits four links (PV.15) and refuses a
+fifth (PV.16). The fixed cap counts delegations too (ADR 0048): a chain is a
+root and at most eight delegations, so a limit of 8 admits nine links (PV.17)
+and refuses a tenth (PV.36). AAT's reference verifier agrees on all four.
 
-- **The limit a link carries** counts delegations, as AAT does. A root limit
-  of 3 admits four links (PV.15) and refuses a fifth (PV.16).
-- **The fixed cap** (`MAX_DEPTH = 8` in
-  `agent_dna/multi_agent_security/delegation.py`) counts links. A chain has at
-  most eight, whatever its limits say.
-
-At a limit of 8 the cap decides. PrivateVault admits eight tokens, as asor
-does (PV.18), and refuses the nine AAT admits (PV.17, `chain_too_deep`), a
-chain AAT's reference verifier admits. So PrivateVault follows AAT for the limit a link carries, and its deepest chain
-is depth 7, one short of AAT's `MAX_DELEGATION_DEPTH` of 8. A valid AAT chain
-at depth 8 does not verify here. Closing that gap means counting the cap in
-delegations, which allows nine links: a change of behaviour that needs its own
-ADR, and it is not made here.
+Before ADR 0048 the cap counted links. A root could carry a limit of 8, but
+the ninth link was refused, so PrivateVault matched asor at the cap and AAT
+below it.
 
 ## Arguments no constraint names
 

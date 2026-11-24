@@ -13,7 +13,7 @@
  },
  "params": {
   "now": 1704067500,
-  "max_chain_links": 8,
+  "max_chain_links": 9,
   "max_depth_claim": 8
  },
  "keys": {
@@ -27,6 +27,7 @@
   "agent-7": "5319261f5c9e341b62a3e3940fcf46c40fbcc0ee54858d53ba1986d939b70995",
   "agent-8": "339e079e28c3eb392ca44241bd59fc22e76325ab12155ec56d16ebd88e8f09b4",
   "agent-9": "7e2331270d7a3b43be816acae01c5c230701c3d8a08df367f21919b3426928c1",
+  "agent-10": "4758a4b2147c8cfb9544c8c68bc5980c0fc3bc51735979f6d7d9f4f4523f38fa",
   "mallory": "ae7b6dd5be82c574177c4d6861654d69959eb231687ea8747065affae5fe5001",
   "rogue-root": "bd300e04a8fc699062a8abd3ccc13b9badc706b25b0d23ef64ee1c7e6c2cec40"
  },
@@ -80,6 +81,11 @@
    "name": "agent-9",
    "role": "agent",
    "ed25519_public_key_hex": "7e2331270d7a3b43be816acae01c5c230701c3d8a08df367f21919b3426928c1"
+  },
+  {
+   "name": "agent-10",
+   "role": "agent",
+   "ed25519_public_key_hex": "4758a4b2147c8cfb9544c8c68bc5980c0fc3bc51735979f6d7d9f4f4523f38fa"
   }
  ],
  "vectors": [
@@ -3235,7 +3241,7 @@
   {
    "id": "PV.17",
    "title": "Depth limit 8, nine tokens",
-   "description": "Root limit 8 and nine links (depths 0..8). AAT admits it; PrivateVault caps a chain at eight links, so it refuses before reading any limit.",
+   "description": "Root limit 8 and nine links (depths 0..8). PrivateVault's cap counts delegations, as AAT's does (ADR 0048), so the format's largest limit is reachable.",
    "notes": [],
    "now": 1704067500,
    "tool": "payments.refund.issue",
@@ -3588,8 +3594,8 @@
     }
    ],
    "expected": {
-    "verdict": "DENY",
-    "reason": "chain_too_deep"
+    "verdict": "PERMIT",
+    "reason": "in_scope"
    },
    "aat_02": {
     "verdict": "PERMIT",
@@ -3603,9 +3609,9 @@
     "verdicts": {
      "aat-02": "PERMIT",
      "asor-03": "DENY",
-     "pv-delegation/2": "DENY"
+     "pv-delegation/2": "PERMIT"
     },
-    "pv-delegation/2": "MAX_DEPTH = 8 counts links, so the deepest chain is depth 7."
+    "pv-delegation/2": "Follows AAT at the cap too (ADR 0048)."
    }
   },
   {
@@ -7177,6 +7183,418 @@
     "verdict": "DENY",
     "step": "7b",
     "note": "The PoP is not signed by the leaf's holder key."
+   }
+  },
+  {
+   "id": "PV.36",
+   "title": "Depth limit 8, ten tokens",
+   "description": "Root limit 8 and ten links: one delegation past the cap.",
+   "notes": [],
+   "now": 1704067500,
+   "tool": "payments.refund.issue",
+   "args": {},
+   "args_json": "{}",
+   "policy": {},
+   "params": {},
+   "replay_state": null,
+   "chain": [
+    {
+     "aat": {
+      "pv_delegator": "operator",
+      "pv_delegate": "agent-1",
+      "iat": 1704067200.0,
+      "exp": 1704070800.0,
+      "del_depth": 0,
+      "authorization_details": [
+       {
+        "type": "attenuating_agent_token",
+        "tools": {
+         "payments.refund.issue": {}
+        }
+       }
+      ],
+      "del_max_depth": 8,
+      "pv_budget": 1000
+     },
+     "link": {
+      "spec": "pv-delegation/2",
+      "delegator": "operator",
+      "delegate": "agent-1",
+      "capabilities": [
+       "payments.refund.issue"
+      ],
+      "max_amount": null,
+      "issued_at": 1704067200.0,
+      "expires_at": 1704070800.0,
+      "may_delegate": true,
+      "parent": null,
+      "nonce": "6c225c6e950a666ee55bb40114773bc3",
+      "budget": 1000,
+      "constraints": {},
+      "max_depth": 8,
+      "signature": "22a3af47992cd1636e2f05a3ebb9765283b908f06039b2137c813e500d56e3b37b9140db9dc40f9e375fb1b35565352aca699f97ceee19382684c619c00a6106"
+     }
+    },
+    {
+     "aat": {
+      "pv_delegator": "agent-1",
+      "pv_delegate": "agent-2",
+      "iat": 1704067200.0,
+      "exp": 1704070800.0,
+      "del_depth": 1,
+      "authorization_details": [
+       {
+        "type": "attenuating_agent_token",
+        "tools": {
+         "payments.refund.issue": {}
+        }
+       }
+      ],
+      "del_max_depth": 8,
+      "par_hash": "I1_Yiq-eWFbkmSUnOs8pGhvg7IXxyE1XpFP6LtxH5iQ",
+      "pv_budget": 1000
+     },
+     "link": {
+      "spec": "pv-delegation/2",
+      "delegator": "agent-1",
+      "delegate": "agent-2",
+      "capabilities": [
+       "payments.refund.issue"
+      ],
+      "max_amount": null,
+      "issued_at": 1704067200.0,
+      "expires_at": 1704070800.0,
+      "may_delegate": true,
+      "parent": "235fd88aaf9e5856e49925273acf291a1be0ec85f1c84d57a453fa2edc47e624",
+      "nonce": "8bd2deacebf6838bbc61b650c1afcea1",
+      "budget": 1000,
+      "constraints": {},
+      "max_depth": 7,
+      "signature": "62c350040aa49f5439419a8c5ad0acf6d1b8a0ed8449596044caca49fe9a3457989cb9f34e45161918dc457ca0080c4db769d99aafd80e27e4b6fbb3df961708"
+     }
+    },
+    {
+     "aat": {
+      "pv_delegator": "agent-2",
+      "pv_delegate": "agent-3",
+      "iat": 1704067200.0,
+      "exp": 1704070800.0,
+      "del_depth": 2,
+      "authorization_details": [
+       {
+        "type": "attenuating_agent_token",
+        "tools": {
+         "payments.refund.issue": {}
+        }
+       }
+      ],
+      "del_max_depth": 8,
+      "par_hash": "G_qv5ducvB1jrNS-QFEXFz05QoS_L6nIrzTXAT3KneI",
+      "pv_budget": 1000
+     },
+     "link": {
+      "spec": "pv-delegation/2",
+      "delegator": "agent-2",
+      "delegate": "agent-3",
+      "capabilities": [
+       "payments.refund.issue"
+      ],
+      "max_amount": null,
+      "issued_at": 1704067200.0,
+      "expires_at": 1704070800.0,
+      "may_delegate": true,
+      "parent": "1bfaafe5db9cbc1d63acd4be405117173d394284bf2fa9c8af34d7013dca9de2",
+      "nonce": "7219cee9657e99bd78bbe8ea34d17006",
+      "budget": 1000,
+      "constraints": {},
+      "max_depth": 6,
+      "signature": "63a010aa02868fc887462fa4ae28c53d0a92a1f3ba1e6a9442d4dba9a0dcdbaa48af67f4f0c6a4e83c82523f4c9cc880657be1f64fdf12b931d43739bdef9c0a"
+     }
+    },
+    {
+     "aat": {
+      "pv_delegator": "agent-3",
+      "pv_delegate": "agent-4",
+      "iat": 1704067200.0,
+      "exp": 1704070800.0,
+      "del_depth": 3,
+      "authorization_details": [
+       {
+        "type": "attenuating_agent_token",
+        "tools": {
+         "payments.refund.issue": {}
+        }
+       }
+      ],
+      "del_max_depth": 8,
+      "par_hash": "DdQPG-AN9yIiBuGt-m6H40_hPY7TB10QZuILqClE7vI",
+      "pv_budget": 1000
+     },
+     "link": {
+      "spec": "pv-delegation/2",
+      "delegator": "agent-3",
+      "delegate": "agent-4",
+      "capabilities": [
+       "payments.refund.issue"
+      ],
+      "max_amount": null,
+      "issued_at": 1704067200.0,
+      "expires_at": 1704070800.0,
+      "may_delegate": true,
+      "parent": "0dd40f1be00df7222206e1adfa6e87e34fe13d8ed3075d1066e20ba82944eef2",
+      "nonce": "001c8b12d3ec5bebf6c90648f30e3d9f",
+      "budget": 1000,
+      "constraints": {},
+      "max_depth": 5,
+      "signature": "96992227685a550b44dd5aa974c4d9d2f5961639b3ab23b4231d889cd565a990258e14254b2a9bff973bb735afa276501e8b04a2f2384896f5cb03b8bce8d80f"
+     }
+    },
+    {
+     "aat": {
+      "pv_delegator": "agent-4",
+      "pv_delegate": "agent-5",
+      "iat": 1704067200.0,
+      "exp": 1704070800.0,
+      "del_depth": 4,
+      "authorization_details": [
+       {
+        "type": "attenuating_agent_token",
+        "tools": {
+         "payments.refund.issue": {}
+        }
+       }
+      ],
+      "del_max_depth": 8,
+      "par_hash": "Ceqe8C9oNwFx7Kd63ONrHh-hKMhEP65i20jd5u96uFA",
+      "pv_budget": 1000
+     },
+     "link": {
+      "spec": "pv-delegation/2",
+      "delegator": "agent-4",
+      "delegate": "agent-5",
+      "capabilities": [
+       "payments.refund.issue"
+      ],
+      "max_amount": null,
+      "issued_at": 1704067200.0,
+      "expires_at": 1704070800.0,
+      "may_delegate": true,
+      "parent": "09ea9ef02f68370171eca77adce36b1e1fa128c8443fae62db48dde6ef7ab850",
+      "nonce": "5b20da603a0a11b0dade1be8bc495b45",
+      "budget": 1000,
+      "constraints": {},
+      "max_depth": 4,
+      "signature": "1872b7fadf52b579d58c9fbd71430c23ca7b11dba82221ae30c37d7861bf860e2c8940394844c07dab360ec3e3bc2f3ab379dada8d05af311c2044986036d40a"
+     }
+    },
+    {
+     "aat": {
+      "pv_delegator": "agent-5",
+      "pv_delegate": "agent-6",
+      "iat": 1704067200.0,
+      "exp": 1704070800.0,
+      "del_depth": 5,
+      "authorization_details": [
+       {
+        "type": "attenuating_agent_token",
+        "tools": {
+         "payments.refund.issue": {}
+        }
+       }
+      ],
+      "del_max_depth": 8,
+      "par_hash": "NqSIyisE6IMfPenrxBQVTjqBQppq6GRvlGq7kXgM6gQ",
+      "pv_budget": 1000
+     },
+     "link": {
+      "spec": "pv-delegation/2",
+      "delegator": "agent-5",
+      "delegate": "agent-6",
+      "capabilities": [
+       "payments.refund.issue"
+      ],
+      "max_amount": null,
+      "issued_at": 1704067200.0,
+      "expires_at": 1704070800.0,
+      "may_delegate": true,
+      "parent": "36a488ca2b04e8831f3de9ebc414154e3a81429a6ae8646f946abb91780cea04",
+      "nonce": "eb04b1d6bb3dcf73073acf884b53ef8c",
+      "budget": 1000,
+      "constraints": {},
+      "max_depth": 3,
+      "signature": "8ef287a84f5421393c9ba8ab89dc5830922507fe9af810b61e2570b81cc19b438d2bfe7f9bf8e43424f7fffaff40aae920c18685f03a6b53e82a9a341aa98c01"
+     }
+    },
+    {
+     "aat": {
+      "pv_delegator": "agent-6",
+      "pv_delegate": "agent-7",
+      "iat": 1704067200.0,
+      "exp": 1704070800.0,
+      "del_depth": 6,
+      "authorization_details": [
+       {
+        "type": "attenuating_agent_token",
+        "tools": {
+         "payments.refund.issue": {}
+        }
+       }
+      ],
+      "del_max_depth": 8,
+      "par_hash": "Ziv5SripaW_d1K2_desp38_jgw4MJwF_BZf_i5T91I4",
+      "pv_budget": 1000
+     },
+     "link": {
+      "spec": "pv-delegation/2",
+      "delegator": "agent-6",
+      "delegate": "agent-7",
+      "capabilities": [
+       "payments.refund.issue"
+      ],
+      "max_amount": null,
+      "issued_at": 1704067200.0,
+      "expires_at": 1704070800.0,
+      "may_delegate": true,
+      "parent": "662bf94ab8a9696fddd4adbf75eb29dfcfe3830e0c27017f0597ff8b94fdd48e",
+      "nonce": "92656ea2beba52a6e8878882eb4409c4",
+      "budget": 1000,
+      "constraints": {},
+      "max_depth": 2,
+      "signature": "ce34f5ba9d479ba3d31711d469dac32894796d938dbb3ef926bc25bb292abf4bb136fa824d919f4b20bab6b6c96c4c993881cfe33f2878b58a98fdfbf438bd08"
+     }
+    },
+    {
+     "aat": {
+      "pv_delegator": "agent-7",
+      "pv_delegate": "agent-8",
+      "iat": 1704067200.0,
+      "exp": 1704070800.0,
+      "del_depth": 7,
+      "authorization_details": [
+       {
+        "type": "attenuating_agent_token",
+        "tools": {
+         "payments.refund.issue": {}
+        }
+       }
+      ],
+      "del_max_depth": 8,
+      "par_hash": "DsVla3bfEh6D15A5sQWxt8WXk-62Ge80Z4TpzcjCTAc",
+      "pv_budget": 1000
+     },
+     "link": {
+      "spec": "pv-delegation/2",
+      "delegator": "agent-7",
+      "delegate": "agent-8",
+      "capabilities": [
+       "payments.refund.issue"
+      ],
+      "max_amount": null,
+      "issued_at": 1704067200.0,
+      "expires_at": 1704070800.0,
+      "may_delegate": true,
+      "parent": "0ec5656b76df121e83d79039b105b1b7c59793eeb619ef346784e9cdc8c24c07",
+      "nonce": "6f233db2c578af239fce0915c26239ab",
+      "budget": 1000,
+      "constraints": {},
+      "max_depth": 1,
+      "signature": "c38dc5985c277e7d5412b8ad92b4880738e134c9aa33bdfec6bc22e73aefcd3df1e10a4c986df24990803857fa9edb40b07fd1e76890d427e81398bc14b18e08"
+     }
+    },
+    {
+     "aat": {
+      "pv_delegator": "agent-8",
+      "pv_delegate": "agent-9",
+      "iat": 1704067200.0,
+      "exp": 1704070800.0,
+      "del_depth": 8,
+      "authorization_details": [
+       {
+        "type": "attenuating_agent_token",
+        "tools": {
+         "payments.refund.issue": {}
+        }
+       }
+      ],
+      "del_max_depth": 8,
+      "par_hash": "JFgLhKa8BvrSn22pjzgIxoBvRHp80uj8UMmIg-QTgVg",
+      "pv_budget": 1000
+     },
+     "link": {
+      "spec": "pv-delegation/2",
+      "delegator": "agent-8",
+      "delegate": "agent-9",
+      "capabilities": [
+       "payments.refund.issue"
+      ],
+      "max_amount": null,
+      "issued_at": 1704067200.0,
+      "expires_at": 1704070800.0,
+      "may_delegate": true,
+      "parent": "24580b84a6bc06fad29f6da98f3808c6806f447a7cd2e8fc50c98883e4138158",
+      "nonce": "e81b1994bf94cfda776b1fa42edc70cb",
+      "budget": 1000,
+      "constraints": {},
+      "max_depth": 0,
+      "signature": "108580f6236cf930c0b2efab9d264c8aa248be41c392611e12bc2004a900861d15be7240389780f22805c2e7d2c16dda5753f7521b83ddefb68931cf7ea15001"
+     }
+    },
+    {
+     "aat": {
+      "pv_delegator": "agent-9",
+      "pv_delegate": "agent-10",
+      "iat": 1704067200.0,
+      "exp": 1704070800.0,
+      "del_depth": 9,
+      "authorization_details": [
+       {
+        "type": "attenuating_agent_token",
+        "tools": {
+         "payments.refund.issue": {}
+        }
+       }
+      ],
+      "del_max_depth": 9,
+      "par_hash": "LjjJIjeVUpCr0TpqjTDkMbnRHz6Ju9OWvDbvCg-zmRE",
+      "pv_budget": 1000
+     },
+     "link": {
+      "spec": "pv-delegation/2",
+      "delegator": "agent-9",
+      "delegate": "agent-10",
+      "capabilities": [
+       "payments.refund.issue"
+      ],
+      "max_amount": null,
+      "issued_at": 1704067200.0,
+      "expires_at": 1704070800.0,
+      "may_delegate": false,
+      "parent": "2e38c92237955290abd13a6a8d30e431b9d11f3e89bbd396bc36ef0a0fb39911",
+      "nonce": "cbd90002f72a43e6a07a77ab28766064",
+      "budget": 1000,
+      "constraints": {},
+      "max_depth": 0,
+      "signature": "ff1c9bec779035bb709df1d2499878680871bd9d013bc53636b8849759984c68ef3274821be30c051b29204d1424f30c9a56550dbb4ac735117039862b30ff0e"
+     }
+    }
+   ],
+   "expected": {
+    "verdict": "DENY",
+    "reason": "chain_too_deep"
+   },
+   "aat_02": {
+    "verdict": "DENY",
+    "step": "4e"
+   },
+   "interpretations": {
+    "case": "constraint-comparison CC-1",
+    "aat-02": "A limit of N admits del_depth 0..N: N+1 tokens.",
+    "asor-03": "A limit of N admits N tokens.",
+    "verdicts": {
+     "aat-02": "DENY",
+     "asor-03": "DENY",
+     "pv-delegation/2": "DENY"
+    }
    }
   }
  ]
