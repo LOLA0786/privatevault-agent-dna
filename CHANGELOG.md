@@ -5,6 +5,17 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Conformance vectors for the permit-to-wire path
+- `spec/execution-v01/vectors/execution-v01.json`: 38 cases another
+  implementation can be held to: 19 execution-authorization cases (bytes,
+  peer, action, dispatch, request, validity window, single use, signature,
+  key usage, trust bundle, schema), 6 receiver-gate presenter cases, 8
+  dispatch-witness cases and 5 authorize-time wire-binding cases. Each case
+  declares its intended outcome in `tools/gen_execution_vectors.py`, which
+  refuses to write the file if PrivateVault's verifiers disagree;
+  `tests/test_execution_vectors.py` replays the committed file and fails when
+  it is stale.
+
 ### The delegation cap counts delegations (ADR 0048)
 - A chain may be a root and up to eight delegations below it, nine links, as
   AAT -02 counts depth. The cap counted links, so a root could carry the

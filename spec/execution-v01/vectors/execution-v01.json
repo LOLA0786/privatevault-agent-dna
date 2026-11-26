@@ -1,0 +1,2964 @@
+{
+  "spec": "pv-execution-vectors/1",
+  "generated_by": "tools/gen_execution_vectors.py",
+  "covers": [
+    "pv-execution-authorization/0.1-experimental",
+    "pv-execution-authorization/0.2-experimental",
+    "pv-dispatch-witness/0.1-experimental"
+  ],
+  "canonicalization": "RFC8785",
+  "signature_format": "ed25519:<base64 of the 64-byte Ed25519 signature over the RFC 8785 bytes of the document without its signature field>",
+  "wire_serializations": {
+    "pv-json-parameters/0.1": "UTF-8 JSON of action.parameters: keys sorted by code point, no whitespace, non-ASCII unescaped, NaN and Infinity refused"
+  },
+  "seed_derivation": "test-only Ed25519 seed = SHA-256 of the UTF-8 text 'pv-execution-vectors/1 ' followed by seed_label",
+  "keys": {
+    "exec-1": {
+      "public_key": "CgrGDvrrniiRUkrjmn5IraQ8Nf8fGVb/6Ll40Wo44B8=",
+      "seed_label": "execution-authorization-signer"
+    },
+    "witness-1": {
+      "public_key": "rQ5ng8kzgKlnTiN+uEAioqEUTJ2Qqm54utYqvIaHrCc=",
+      "seed_label": "dispatch-witness-signer"
+    },
+    "stranger-1": {
+      "public_key": "6XZYxUFiP1cGcH2vuYX4oY6EsaTD4BMP7zXAPTXFOFw=",
+      "seed_label": "key-not-in-any-trust-bundle"
+    }
+  },
+  "trust_bundles": {
+    "default": {
+      "spec": "pv-trust-bundle/0.1-experimental",
+      "canonicalization": "RFC8785",
+      "organisation_id": "org-vectors",
+      "bundle_version": 1,
+      "pinned_at": "2026-11-01T00:00:00Z",
+      "keys": [
+        {
+          "key_id": "exec-1",
+          "principal": "execution-runtime@org-vectors",
+          "algorithm": "ed25519",
+          "public_key": "CgrGDvrrniiRUkrjmn5IraQ8Nf8fGVb/6Ll40Wo44B8=",
+          "usages": [
+            "execution_authorization_signer"
+          ]
+        },
+        {
+          "key_id": "witness-1",
+          "principal": "egress-sidecar@org-vectors",
+          "algorithm": "ed25519",
+          "public_key": "rQ5ng8kzgKlnTiN+uEAioqEUTJ2Qqm54utYqvIaHrCc=",
+          "usages": [
+            "dispatch_witness_signer"
+          ]
+        }
+      ]
+    },
+    "rotated": {
+      "spec": "pv-trust-bundle/0.1-experimental",
+      "canonicalization": "RFC8785",
+      "organisation_id": "org-vectors",
+      "bundle_version": 2,
+      "pinned_at": "2026-11-01T00:00:00Z",
+      "keys": [
+        {
+          "key_id": "exec-1",
+          "principal": "execution-runtime@org-vectors",
+          "algorithm": "ed25519",
+          "public_key": "CgrGDvrrniiRUkrjmn5IraQ8Nf8fGVb/6Ll40Wo44B8=",
+          "usages": [
+            "execution_authorization_signer"
+          ]
+        },
+        {
+          "key_id": "witness-1",
+          "principal": "egress-sidecar@org-vectors",
+          "algorithm": "ed25519",
+          "public_key": "rQ5ng8kzgKlnTiN+uEAioqEUTJ2Qqm54utYqvIaHrCc=",
+          "usages": [
+            "dispatch_witness_signer"
+          ]
+        }
+      ]
+    },
+    "other-organisation": {
+      "spec": "pv-trust-bundle/0.1-experimental",
+      "canonicalization": "RFC8785",
+      "organisation_id": "org-elsewhere",
+      "bundle_version": 1,
+      "pinned_at": "2026-11-01T00:00:00Z",
+      "keys": [
+        {
+          "key_id": "exec-1",
+          "principal": "execution-runtime@org-elsewhere",
+          "algorithm": "ed25519",
+          "public_key": "CgrGDvrrniiRUkrjmn5IraQ8Nf8fGVb/6Ll40Wo44B8=",
+          "usages": [
+            "execution_authorization_signer"
+          ]
+        },
+        {
+          "key_id": "witness-1",
+          "principal": "egress-sidecar@org-elsewhere",
+          "algorithm": "ed25519",
+          "public_key": "rQ5ng8kzgKlnTiN+uEAioqEUTJ2Qqm54utYqvIaHrCc=",
+          "usages": [
+            "dispatch_witness_signer"
+          ]
+        }
+      ]
+    }
+  },
+  "fixtures": {
+    "action": {
+      "subject_principal": "refunds-agent@org-vectors",
+      "subject_key_id": "refunds-agent",
+      "action": "payments.refund.issue",
+      "resource": "orders:ORD-70340",
+      "parameters": {
+        "amount": 3000,
+        "currency": "INR",
+        "order_id": "ORD-70340",
+        "payee": "kavya.n@okaxis"
+      }
+    },
+    "dispatch": {
+      "transport": "https",
+      "destination": "payments.example",
+      "operation": "POST /v1/refunds",
+      "wire_content_type": "application/json",
+      "wire_content_encoding": "identity",
+      "tool_id": "payments.refund.issue.v1",
+      "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+      "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+      "credential_audience": "payments.example",
+      "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+      "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+      "serialization": "pv-json-parameters/0.1"
+    },
+    "wire_bytes_b64": "eyJhbW91bnQiOjMwMDAsImN1cnJlbmN5IjoiSU5SIiwib3JkZXJfaWQiOiJPUkQtNzAzNDAiLCJwYXllZSI6ImthdnlhLm5Ab2theGlzIn0=",
+    "peer_identity_b64": "MCowBQYDK2VwAyEAixMsRez8hqzwOQR6K4rPCPHyNLDN83CoAi5H8MXdrck=",
+    "presenter_certificate_der_b64": "MIHzMIGmoAMCAQICCBtdohm9zWJAMAUGAytlcDAgMR4wHAYDVQQDDBVyZWZ1bmRzLWFnZW50IHNpZGVjYXIwHhcNMjYxMTAxMDAwMDAwWhcNMjcxMTAxMDAwMDAwWjAgMR4wHAYDVQQDDBVyZWZ1bmRzLWFnZW50IHNpZGVjYXIwKjAFBgMrZXADIQBtg0IZmVwkS2I6e0VCvCRJ7W8W7dfe7btxOKfAbtp+jDAFBgMrZXADQQCuT0+oJYY+PqjjfA+QeTZ0EN+Fml0kj2h50rlU+0LJG0urowtCrCbMt5XW5NJfl7d9ODoGu2mEVpQFL+YKD6wE",
+    "presenter_spki_der_b64": "MCowBQYDK2VwAyEAbYNCGZlcJEtiOntFQrwkSe1vFu3X3u27cTinwG7afow=",
+    "presenter_identity_digest": "sha256:0cf02015f5e200494453ba92d34edbfa2e49f0702b11f903d5a819df092b86e0",
+    "ea01_signing_input_b64": "eyJhY3Rpb24iOnsiYWN0aW9uIjoicGF5bWVudHMucmVmdW5kLmlzc3VlIiwicGFyYW1ldGVycyI6eyJhbW91bnQiOjMwMDAsImN1cnJlbmN5IjoiSU5SIiwib3JkZXJfaWQiOiJPUkQtNzAzNDAiLCJwYXllZSI6ImthdnlhLm5Ab2theGlzIn0sInJlc291cmNlIjoib3JkZXJzOk9SRC03MDM0MCIsInN1YmplY3Rfa2V5X2lkIjoicmVmdW5kcy1hZ2VudCIsInN1YmplY3RfcHJpbmNpcGFsIjoicmVmdW5kcy1hZ2VudEBvcmctdmVjdG9ycyJ9LCJhY3Rpb25fZGlnZXN0Ijoic2hhMjU2OjM2MmUwNWQxNDNlMTM0OWY1MDM4OTFiMjk5MzA5YjBkY2ZiNmM4NTY5ZjliOGM4NGEzNTQ4ZTVhNWZkZTFhNWUiLCJhcHByb3ZhbF9hcnRpZmFjdF9kaWdlc3QiOm51bGwsImF1dGhvcml0eV9yZWNlaXB0X2RpZ2VzdCI6InNoYTI1Njo5MDk1Mjk5NTE1YTNkZjBiZmQ4ZDhjOTc1ZTQ2NWNhYjdkMGMzODBiNDc3NWM2Zjk1MzNhMGJmODBhOThkZWFlIiwiY2Fub25pY2FsaXphdGlvbiI6IlJGQzg3ODUiLCJkZWNpc2lvbl9yZWNlaXB0X2RpZ2VzdCI6InNoYTI1NjpjYmM1OWU3ZjQ1ZWJjYmNjMzk3ODIzY2RlNWRiY2JhZTdiMTYwZGM1MDc4MjNkNGY0MThlOWIzOTBlZDdjZGJlIiwiZGlzcGF0Y2giOnsiY3JlZGVudGlhbF9hdWRpZW5jZSI6InBheW1lbnRzLmV4YW1wbGUiLCJkZXN0aW5hdGlvbiI6InBheW1lbnRzLmV4YW1wbGUiLCJpZGVtcG90ZW5jeV9rZXlfZGlnZXN0Ijoic2hhMjU2OjlhNmJlNmU3ZjUyOGY2Mjk5ZWNhYTAyYWVkOWFmMTI1OTI1ZjY0MDQ1MjA1ZGIwYzk4YjcyY2JlZmRlY2FiM2YiLCJvcGVyYXRpb24iOiJQT1NUIC92MS9yZWZ1bmRzIiwicmV0cnlfcG9saWN5X2RpZ2VzdCI6InNoYTI1NjpmNjk2MWNkZDgyMjUyNWE0ZWFkNmU1ZGU2MzdkYzFkOTAzNzUxZjIyYTg4NDBmMTcyYjhlNzJjNDYwZGZmNjdmIiwic2VyaWFsaXphdGlvbiI6InB2LWpzb24tcGFyYW1ldGVycy8wLjEiLCJ0b29sX2FydGlmYWN0X2RpZ2VzdCI6InNoYTI1NjphYTc1ZmRlNzk5MGRjNzY4ZWVhNTBiNzc1ZDQ2MDg3MDBhNjM3ZDU2ODM1MDAwOWRhYzg2YTZhNjMwYjU1ZDE3IiwidG9vbF9pZCI6InBheW1lbnRzLnJlZnVuZC5pc3N1ZS52MSIsInRvb2xfc2NoZW1hX2RpZ2VzdCI6InNoYTI1NjpiNDFjMTI4MjFhMmE1MTZmYjgzZGNiN2UxY2VlM2YwNTczNWJiNDhmOGU2MDIwNmY4NTBkN2NiODkzOTYxYTcyIiwidHJhbnNwb3J0IjoiaHR0cHMiLCJ3aXJlX2NvbnRlbnRfZW5jb2RpbmciOiJpZGVudGl0eSIsIndpcmVfY29udGVudF90eXBlIjoiYXBwbGljYXRpb24vanNvbiJ9LCJleGVjdXRpb25fYXV0aG9yaXphdGlvbl9pZCI6ImVhLXZlY3RvcnMtMDAwMSIsImV4cGVjdGVkX3BlZXJfaWRlbnRpdHlfZGlnZXN0Ijoic2hhMjU2OmYxZjQ4MzQzZjMzZDk5MzlhNmVlYjcxNTBmZTJmZWE4Yjg1Njg0MDQ1ODA0N2I0MWM0N2RlM2JjMzgwYTA5YzQiLCJleHBlY3RlZF93aXJlX2J5dGVzX2RpZ2VzdCI6InNoYTI1NjpjMjVkMjYxZmU1NTU3ZTM2MmY4YTMyYWYwYWI2YTUzYjNjMjNkMjMzOWI2ZTMxYWFhMDZiNDQ3MGQ5MzNkZGZhIiwiZXhwZWN0ZWRfd2lyZV9ieXRlc19sZW5ndGgiOjgwLCJleHBpcmVzX2F0IjoiMjAyNi0xMS0yNVQxMDowMTowMFoiLCJpc3N1ZWRfYXQiOiIyMDI2LTExLTI1VDEwOjAwOjAwWiIsIm1heF91c2VzIjoxLCJub25jZSI6Im4tN2YzYTljMWU1YjJkNGY2MCIsIm5vdF9iZWZvcmUiOiIyMDI2LTExLTI1VDEwOjAwOjAwWiIsIm9ibGlnYXRpb25zX2RpZ2VzdCI6InNoYTI1NjpiNWJiZDhmMzBhYzFmNDNkMzU0NDdiY2RjYWU5NTcyNjk5MWVjNWJkODJkYmFmZjU4MTcxODI4ZDQ5N2MyNjU3Iiwib3JnYW5pc2F0aW9uX2lkIjoib3JnLXZlY3RvcnMiLCJwb2xpY3lfYnVuZGxlX2RpZ2VzdCI6InNoYTI1NjpkYzlkYmI1NzgzZWJkMmYyNDYzYzNlMjFiMWMwMzcyM2M3MWZjNTA0ZTU1NmU1M2M1MDUwZmIwMWFmNTgzNzk5IiwicmVxdWVzdF9pZCI6InJlcS1PUkQtNzAzNDAtcmVmdW5kIiwic2lnbmVyX2tleV9pZCI6ImV4ZWMtMSIsInNwZWMiOiJwdi1leGVjdXRpb24tYXV0aG9yaXphdGlvbi8wLjEtZXhwZXJpbWVudGFsIiwic3RhdGVfc25hcHNob3RfZGlnZXN0Ijoic2hhMjU2OmQ3MmVlZmYyZDdmODZkNDQ4MWQyNzk4NWVjMGFhZTY0MGIzNmQ3YjlmMzBlMjRkNmM0YTVlNmIwYTJjNjFhZTgiLCJ0cnVzdF9idW5kbGVfZGlnZXN0Ijoic2hhMjU2OmUxYWFmNDczYTgzODhlNjVkNmYyOWIxZDU1MTY3NjBiZWY0ODFlMjliMDM1MjU4YmQ5ODAzYWZjOTRjYjBiMzEifQ==",
+    "ea01_authorization_digest": "sha256:66de0a1a1037dc3712f15b0d2e2abb1b5d63066eb775de207fba8d51868fd56d"
+  },
+  "authorization_cases": [
+    {
+      "id": "EA-01",
+      "title": "A valid 0.1 permit, presented with exactly its bytes, peer and window",
+      "authorization": {
+        "spec": "pv-execution-authorization/0.1-experimental",
+        "canonicalization": "RFC8785",
+        "execution_authorization_id": "ea-vectors-0001",
+        "organisation_id": "org-vectors",
+        "request_id": "req-ORD-70340-refund",
+        "issued_at": "2026-11-25T10:00:00Z",
+        "not_before": "2026-11-25T10:00:00Z",
+        "expires_at": "2026-11-25T10:01:00Z",
+        "nonce": "n-7f3a9c1e5b2d4f60",
+        "decision_receipt_digest": "sha256:cbc59e7f45ebcbcc397823cde5dbcbae7b160dc507823d4f418e9b390ed7cdbe",
+        "authority_receipt_digest": "sha256:9095299515a3df0bfd8d8c975e465cab7d0c380b4775c6f9533a0bf80a98deae",
+        "approval_artifact_digest": null,
+        "state_snapshot_digest": "sha256:d72eeff2d7f86d4481d27985ec0aae640b36d7b9f30e24d6c4a5e6b0a2c61ae8",
+        "policy_bundle_digest": "sha256:dc9dbb5783ebd2f2463c3e21b1c03723c71fc504e556e53c5050fb01af583799",
+        "obligations_digest": "sha256:b5bbd8f30ac1f43d35447bcdcae95726991ec5bd82dbaff58171828d497c2657",
+        "action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "action_digest": "sha256:362e05d143e1349f503891b299309b0dcfb6c8569f9b8c84a3548e5a5fde1a5e",
+        "expected_wire_bytes_digest": "sha256:c25d261fe5557e362f8a32af0ab6a53b3c23d2339b6e31aaa06b4470d933ddfa",
+        "expected_wire_bytes_length": 80,
+        "expected_peer_identity_digest": "sha256:f1f48343f33d9939a6eeb7150fe2fea8b856840458047b41c47de3bc380a09c4",
+        "dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "trust_bundle_digest": "sha256:e1aaf473a8388e65d6f29b1d5516760bef481e29b035258bd9803afc94cb0b31",
+        "max_uses": 1,
+        "signer_key_id": "exec-1",
+        "signature": "ed25519:MtGrNJy1Dmym2K1N7/4ZozeSU7FVdeikXNA1h18sKiZ53BLvj3E9GoNmb8rL16om41aBIiEgU9zhMqvgqOY4BA=="
+      },
+      "trust_bundle": "default",
+      "context": {
+        "expected_request_id": "req-ORD-70340-refund",
+        "expected_action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "expected_dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "expected_decision_receipt_digest": "sha256:cbc59e7f45ebcbcc397823cde5dbcbae7b160dc507823d4f418e9b390ed7cdbe",
+        "expected_authority_receipt_digest": "sha256:9095299515a3df0bfd8d8c975e465cab7d0c380b4775c6f9533a0bf80a98deae",
+        "expected_approval_artifact_digest": null,
+        "expected_state_snapshot_digest": "sha256:d72eeff2d7f86d4481d27985ec0aae640b36d7b9f30e24d6c4a5e6b0a2c61ae8",
+        "expected_policy_bundle_digest": "sha256:dc9dbb5783ebd2f2463c3e21b1c03723c71fc504e556e53c5050fb01af583799",
+        "expected_obligations_digest": "sha256:b5bbd8f30ac1f43d35447bcdcae95726991ec5bd82dbaff58171828d497c2657",
+        "expected_wire_bytes_b64": "eyJhbW91bnQiOjMwMDAsImN1cnJlbmN5IjoiSU5SIiwib3JkZXJfaWQiOiJPUkQtNzAzNDAiLCJwYXllZSI6ImthdnlhLm5Ab2theGlzIn0=",
+        "expected_peer_identity_b64": "MCowBQYDK2VwAyEAixMsRez8hqzwOQR6K4rPCPHyNLDN83CoAi5H8MXdrck=",
+        "at_time": "2026-11-25T10:00:30Z",
+        "already_consumed": false,
+        "ledger_already_holds_id": false
+      },
+      "expect": {
+        "evidence_state": "VERIFIED",
+        "decision_conformance": "CONFORMANT",
+        "reason_code": null,
+        "failures": [],
+        "accountable_principal": "execution-runtime@org-vectors"
+      }
+    },
+    {
+      "id": "EA-02",
+      "title": "A valid 0.2 permit; the presenter is checked by the receiver gate (PR cases)",
+      "authorization": {
+        "spec": "pv-execution-authorization/0.2-experimental",
+        "canonicalization": "RFC8785",
+        "execution_authorization_id": "ea-vectors-0001",
+        "organisation_id": "org-vectors",
+        "request_id": "req-ORD-70340-refund",
+        "issued_at": "2026-11-25T10:00:00Z",
+        "not_before": "2026-11-25T10:00:00Z",
+        "expires_at": "2026-11-25T10:01:00Z",
+        "nonce": "n-7f3a9c1e5b2d4f60",
+        "decision_receipt_digest": "sha256:cbc59e7f45ebcbcc397823cde5dbcbae7b160dc507823d4f418e9b390ed7cdbe",
+        "authority_receipt_digest": "sha256:9095299515a3df0bfd8d8c975e465cab7d0c380b4775c6f9533a0bf80a98deae",
+        "approval_artifact_digest": null,
+        "state_snapshot_digest": "sha256:d72eeff2d7f86d4481d27985ec0aae640b36d7b9f30e24d6c4a5e6b0a2c61ae8",
+        "policy_bundle_digest": "sha256:dc9dbb5783ebd2f2463c3e21b1c03723c71fc504e556e53c5050fb01af583799",
+        "obligations_digest": "sha256:b5bbd8f30ac1f43d35447bcdcae95726991ec5bd82dbaff58171828d497c2657",
+        "action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "action_digest": "sha256:362e05d143e1349f503891b299309b0dcfb6c8569f9b8c84a3548e5a5fde1a5e",
+        "expected_wire_bytes_digest": "sha256:c25d261fe5557e362f8a32af0ab6a53b3c23d2339b6e31aaa06b4470d933ddfa",
+        "expected_wire_bytes_length": 80,
+        "expected_peer_identity_digest": "sha256:f1f48343f33d9939a6eeb7150fe2fea8b856840458047b41c47de3bc380a09c4",
+        "dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "trust_bundle_digest": "sha256:e1aaf473a8388e65d6f29b1d5516760bef481e29b035258bd9803afc94cb0b31",
+        "max_uses": 1,
+        "signer_key_id": "exec-1",
+        "expected_presenter_identity_digest": "sha256:0cf02015f5e200494453ba92d34edbfa2e49f0702b11f903d5a819df092b86e0",
+        "signature": "ed25519:RTaMpF/fArJueBu+D+ntsAO8To/LaGUejOqiJtLcGcgyEIHwKxXFmZpp3Az2uhTuAkRa2JXOs6DpNcyPCueUAA=="
+      },
+      "trust_bundle": "default",
+      "context": {
+        "expected_request_id": "req-ORD-70340-refund",
+        "expected_action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "expected_dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "expected_decision_receipt_digest": "sha256:cbc59e7f45ebcbcc397823cde5dbcbae7b160dc507823d4f418e9b390ed7cdbe",
+        "expected_authority_receipt_digest": "sha256:9095299515a3df0bfd8d8c975e465cab7d0c380b4775c6f9533a0bf80a98deae",
+        "expected_approval_artifact_digest": null,
+        "expected_state_snapshot_digest": "sha256:d72eeff2d7f86d4481d27985ec0aae640b36d7b9f30e24d6c4a5e6b0a2c61ae8",
+        "expected_policy_bundle_digest": "sha256:dc9dbb5783ebd2f2463c3e21b1c03723c71fc504e556e53c5050fb01af583799",
+        "expected_obligations_digest": "sha256:b5bbd8f30ac1f43d35447bcdcae95726991ec5bd82dbaff58171828d497c2657",
+        "expected_wire_bytes_b64": "eyJhbW91bnQiOjMwMDAsImN1cnJlbmN5IjoiSU5SIiwib3JkZXJfaWQiOiJPUkQtNzAzNDAiLCJwYXllZSI6ImthdnlhLm5Ab2theGlzIn0=",
+        "expected_peer_identity_b64": "MCowBQYDK2VwAyEAixMsRez8hqzwOQR6K4rPCPHyNLDN83CoAi5H8MXdrck=",
+        "at_time": "2026-11-25T10:00:30Z",
+        "already_consumed": false,
+        "ledger_already_holds_id": false
+      },
+      "expect": {
+        "evidence_state": "VERIFIED",
+        "decision_conformance": "CONFORMANT",
+        "reason_code": null,
+        "failures": [],
+        "accountable_principal": "execution-runtime@org-vectors"
+      }
+    },
+    {
+      "id": "EA-03",
+      "title": "One byte of the body changed, same length",
+      "authorization": {
+        "spec": "pv-execution-authorization/0.1-experimental",
+        "canonicalization": "RFC8785",
+        "execution_authorization_id": "ea-vectors-0001",
+        "organisation_id": "org-vectors",
+        "request_id": "req-ORD-70340-refund",
+        "issued_at": "2026-11-25T10:00:00Z",
+        "not_before": "2026-11-25T10:00:00Z",
+        "expires_at": "2026-11-25T10:01:00Z",
+        "nonce": "n-7f3a9c1e5b2d4f60",
+        "decision_receipt_digest": "sha256:cbc59e7f45ebcbcc397823cde5dbcbae7b160dc507823d4f418e9b390ed7cdbe",
+        "authority_receipt_digest": "sha256:9095299515a3df0bfd8d8c975e465cab7d0c380b4775c6f9533a0bf80a98deae",
+        "approval_artifact_digest": null,
+        "state_snapshot_digest": "sha256:d72eeff2d7f86d4481d27985ec0aae640b36d7b9f30e24d6c4a5e6b0a2c61ae8",
+        "policy_bundle_digest": "sha256:dc9dbb5783ebd2f2463c3e21b1c03723c71fc504e556e53c5050fb01af583799",
+        "obligations_digest": "sha256:b5bbd8f30ac1f43d35447bcdcae95726991ec5bd82dbaff58171828d497c2657",
+        "action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "action_digest": "sha256:362e05d143e1349f503891b299309b0dcfb6c8569f9b8c84a3548e5a5fde1a5e",
+        "expected_wire_bytes_digest": "sha256:c25d261fe5557e362f8a32af0ab6a53b3c23d2339b6e31aaa06b4470d933ddfa",
+        "expected_wire_bytes_length": 80,
+        "expected_peer_identity_digest": "sha256:f1f48343f33d9939a6eeb7150fe2fea8b856840458047b41c47de3bc380a09c4",
+        "dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "trust_bundle_digest": "sha256:e1aaf473a8388e65d6f29b1d5516760bef481e29b035258bd9803afc94cb0b31",
+        "max_uses": 1,
+        "signer_key_id": "exec-1",
+        "signature": "ed25519:MtGrNJy1Dmym2K1N7/4ZozeSU7FVdeikXNA1h18sKiZ53BLvj3E9GoNmb8rL16om41aBIiEgU9zhMqvgqOY4BA=="
+      },
+      "trust_bundle": "default",
+      "context": {
+        "expected_request_id": "req-ORD-70340-refund",
+        "expected_action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "expected_dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "expected_decision_receipt_digest": "sha256:cbc59e7f45ebcbcc397823cde5dbcbae7b160dc507823d4f418e9b390ed7cdbe",
+        "expected_authority_receipt_digest": "sha256:9095299515a3df0bfd8d8c975e465cab7d0c380b4775c6f9533a0bf80a98deae",
+        "expected_approval_artifact_digest": null,
+        "expected_state_snapshot_digest": "sha256:d72eeff2d7f86d4481d27985ec0aae640b36d7b9f30e24d6c4a5e6b0a2c61ae8",
+        "expected_policy_bundle_digest": "sha256:dc9dbb5783ebd2f2463c3e21b1c03723c71fc504e556e53c5050fb01af583799",
+        "expected_obligations_digest": "sha256:b5bbd8f30ac1f43d35447bcdcae95726991ec5bd82dbaff58171828d497c2657",
+        "expected_wire_bytes_b64": "eyJhbW91bnQiOjkwMDAsImN1cnJlbmN5IjoiSU5SIiwib3JkZXJfaWQiOiJPUkQtNzAzNDAiLCJwYXllZSI6ImthdnlhLm5Ab2theGlzIn0=",
+        "expected_peer_identity_b64": "MCowBQYDK2VwAyEAixMsRez8hqzwOQR6K4rPCPHyNLDN83CoAi5H8MXdrck=",
+        "at_time": "2026-11-25T10:00:30Z",
+        "already_consumed": false,
+        "ledger_already_holds_id": false
+      },
+      "expect": {
+        "evidence_state": "VERIFIED",
+        "decision_conformance": "NON_CONFORMANT",
+        "reason_code": "EXECUTION_AUTHORIZATION_NON_CONFORMANT",
+        "failures": [
+          "authorization does not bind the intended outbound bytes"
+        ],
+        "accountable_principal": "execution-runtime@org-vectors"
+      }
+    },
+    {
+      "id": "EA-04",
+      "title": "The body changed length",
+      "authorization": {
+        "spec": "pv-execution-authorization/0.1-experimental",
+        "canonicalization": "RFC8785",
+        "execution_authorization_id": "ea-vectors-0001",
+        "organisation_id": "org-vectors",
+        "request_id": "req-ORD-70340-refund",
+        "issued_at": "2026-11-25T10:00:00Z",
+        "not_before": "2026-11-25T10:00:00Z",
+        "expires_at": "2026-11-25T10:01:00Z",
+        "nonce": "n-7f3a9c1e5b2d4f60",
+        "decision_receipt_digest": "sha256:cbc59e7f45ebcbcc397823cde5dbcbae7b160dc507823d4f418e9b390ed7cdbe",
+        "authority_receipt_digest": "sha256:9095299515a3df0bfd8d8c975e465cab7d0c380b4775c6f9533a0bf80a98deae",
+        "approval_artifact_digest": null,
+        "state_snapshot_digest": "sha256:d72eeff2d7f86d4481d27985ec0aae640b36d7b9f30e24d6c4a5e6b0a2c61ae8",
+        "policy_bundle_digest": "sha256:dc9dbb5783ebd2f2463c3e21b1c03723c71fc504e556e53c5050fb01af583799",
+        "obligations_digest": "sha256:b5bbd8f30ac1f43d35447bcdcae95726991ec5bd82dbaff58171828d497c2657",
+        "action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "action_digest": "sha256:362e05d143e1349f503891b299309b0dcfb6c8569f9b8c84a3548e5a5fde1a5e",
+        "expected_wire_bytes_digest": "sha256:c25d261fe5557e362f8a32af0ab6a53b3c23d2339b6e31aaa06b4470d933ddfa",
+        "expected_wire_bytes_length": 80,
+        "expected_peer_identity_digest": "sha256:f1f48343f33d9939a6eeb7150fe2fea8b856840458047b41c47de3bc380a09c4",
+        "dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "trust_bundle_digest": "sha256:e1aaf473a8388e65d6f29b1d5516760bef481e29b035258bd9803afc94cb0b31",
+        "max_uses": 1,
+        "signer_key_id": "exec-1",
+        "signature": "ed25519:MtGrNJy1Dmym2K1N7/4ZozeSU7FVdeikXNA1h18sKiZ53BLvj3E9GoNmb8rL16om41aBIiEgU9zhMqvgqOY4BA=="
+      },
+      "trust_bundle": "default",
+      "context": {
+        "expected_request_id": "req-ORD-70340-refund",
+        "expected_action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "expected_dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "expected_decision_receipt_digest": "sha256:cbc59e7f45ebcbcc397823cde5dbcbae7b160dc507823d4f418e9b390ed7cdbe",
+        "expected_authority_receipt_digest": "sha256:9095299515a3df0bfd8d8c975e465cab7d0c380b4775c6f9533a0bf80a98deae",
+        "expected_approval_artifact_digest": null,
+        "expected_state_snapshot_digest": "sha256:d72eeff2d7f86d4481d27985ec0aae640b36d7b9f30e24d6c4a5e6b0a2c61ae8",
+        "expected_policy_bundle_digest": "sha256:dc9dbb5783ebd2f2463c3e21b1c03723c71fc504e556e53c5050fb01af583799",
+        "expected_obligations_digest": "sha256:b5bbd8f30ac1f43d35447bcdcae95726991ec5bd82dbaff58171828d497c2657",
+        "expected_wire_bytes_b64": "eyJhbW91bnQiOjMwMDAwLCJjdXJyZW5jeSI6IklOUiIsIm9yZGVyX2lkIjoiT1JELTcwMzQwIiwicGF5ZWUiOiJrYXZ5YS5uQG9rYXhpcyJ9",
+        "expected_peer_identity_b64": "MCowBQYDK2VwAyEAixMsRez8hqzwOQR6K4rPCPHyNLDN83CoAi5H8MXdrck=",
+        "at_time": "2026-11-25T10:00:30Z",
+        "already_consumed": false,
+        "ledger_already_holds_id": false
+      },
+      "expect": {
+        "evidence_state": "VERIFIED",
+        "decision_conformance": "NON_CONFORMANT",
+        "reason_code": "EXECUTION_AUTHORIZATION_NON_CONFORMANT",
+        "failures": [
+          "authorization does not bind the intended outbound bytes",
+          "authorization does not bind the intended outbound byte length"
+        ],
+        "accountable_principal": "execution-runtime@org-vectors"
+      }
+    },
+    {
+      "id": "EA-05",
+      "title": "Sent to a different TLS peer",
+      "authorization": {
+        "spec": "pv-execution-authorization/0.1-experimental",
+        "canonicalization": "RFC8785",
+        "execution_authorization_id": "ea-vectors-0001",
+        "organisation_id": "org-vectors",
+        "request_id": "req-ORD-70340-refund",
+        "issued_at": "2026-11-25T10:00:00Z",
+        "not_before": "2026-11-25T10:00:00Z",
+        "expires_at": "2026-11-25T10:01:00Z",
+        "nonce": "n-7f3a9c1e5b2d4f60",
+        "decision_receipt_digest": "sha256:cbc59e7f45ebcbcc397823cde5dbcbae7b160dc507823d4f418e9b390ed7cdbe",
+        "authority_receipt_digest": "sha256:9095299515a3df0bfd8d8c975e465cab7d0c380b4775c6f9533a0bf80a98deae",
+        "approval_artifact_digest": null,
+        "state_snapshot_digest": "sha256:d72eeff2d7f86d4481d27985ec0aae640b36d7b9f30e24d6c4a5e6b0a2c61ae8",
+        "policy_bundle_digest": "sha256:dc9dbb5783ebd2f2463c3e21b1c03723c71fc504e556e53c5050fb01af583799",
+        "obligations_digest": "sha256:b5bbd8f30ac1f43d35447bcdcae95726991ec5bd82dbaff58171828d497c2657",
+        "action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "action_digest": "sha256:362e05d143e1349f503891b299309b0dcfb6c8569f9b8c84a3548e5a5fde1a5e",
+        "expected_wire_bytes_digest": "sha256:c25d261fe5557e362f8a32af0ab6a53b3c23d2339b6e31aaa06b4470d933ddfa",
+        "expected_wire_bytes_length": 80,
+        "expected_peer_identity_digest": "sha256:f1f48343f33d9939a6eeb7150fe2fea8b856840458047b41c47de3bc380a09c4",
+        "dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "trust_bundle_digest": "sha256:e1aaf473a8388e65d6f29b1d5516760bef481e29b035258bd9803afc94cb0b31",
+        "max_uses": 1,
+        "signer_key_id": "exec-1",
+        "signature": "ed25519:MtGrNJy1Dmym2K1N7/4ZozeSU7FVdeikXNA1h18sKiZ53BLvj3E9GoNmb8rL16om41aBIiEgU9zhMqvgqOY4BA=="
+      },
+      "trust_bundle": "default",
+      "context": {
+        "expected_request_id": "req-ORD-70340-refund",
+        "expected_action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "expected_dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "expected_decision_receipt_digest": "sha256:cbc59e7f45ebcbcc397823cde5dbcbae7b160dc507823d4f418e9b390ed7cdbe",
+        "expected_authority_receipt_digest": "sha256:9095299515a3df0bfd8d8c975e465cab7d0c380b4775c6f9533a0bf80a98deae",
+        "expected_approval_artifact_digest": null,
+        "expected_state_snapshot_digest": "sha256:d72eeff2d7f86d4481d27985ec0aae640b36d7b9f30e24d6c4a5e6b0a2c61ae8",
+        "expected_policy_bundle_digest": "sha256:dc9dbb5783ebd2f2463c3e21b1c03723c71fc504e556e53c5050fb01af583799",
+        "expected_obligations_digest": "sha256:b5bbd8f30ac1f43d35447bcdcae95726991ec5bd82dbaff58171828d497c2657",
+        "expected_wire_bytes_b64": "eyJhbW91bnQiOjMwMDAsImN1cnJlbmN5IjoiSU5SIiwib3JkZXJfaWQiOiJPUkQtNzAzNDAiLCJwYXllZSI6ImthdnlhLm5Ab2theGlzIn0=",
+        "expected_peer_identity_b64": "MCowBQYDK2VwAyEAAD6dDHi1qFDzRCzExaH7F8KWmRcEBwIe2SrB/Evd+/g=",
+        "at_time": "2026-11-25T10:00:30Z",
+        "already_consumed": false,
+        "ledger_already_holds_id": false
+      },
+      "expect": {
+        "evidence_state": "VERIFIED",
+        "decision_conformance": "NON_CONFORMANT",
+        "reason_code": "EXECUTION_AUTHORIZATION_NON_CONFORMANT",
+        "failures": [
+          "authorization does not bind the intended peer identity"
+        ],
+        "accountable_principal": "execution-runtime@org-vectors"
+      }
+    },
+    {
+      "id": "EA-06",
+      "title": "The action differs from the one the permit names",
+      "authorization": {
+        "spec": "pv-execution-authorization/0.1-experimental",
+        "canonicalization": "RFC8785",
+        "execution_authorization_id": "ea-vectors-0001",
+        "organisation_id": "org-vectors",
+        "request_id": "req-ORD-70340-refund",
+        "issued_at": "2026-11-25T10:00:00Z",
+        "not_before": "2026-11-25T10:00:00Z",
+        "expires_at": "2026-11-25T10:01:00Z",
+        "nonce": "n-7f3a9c1e5b2d4f60",
+        "decision_receipt_digest": "sha256:cbc59e7f45ebcbcc397823cde5dbcbae7b160dc507823d4f418e9b390ed7cdbe",
+        "authority_receipt_digest": "sha256:9095299515a3df0bfd8d8c975e465cab7d0c380b4775c6f9533a0bf80a98deae",
+        "approval_artifact_digest": null,
+        "state_snapshot_digest": "sha256:d72eeff2d7f86d4481d27985ec0aae640b36d7b9f30e24d6c4a5e6b0a2c61ae8",
+        "policy_bundle_digest": "sha256:dc9dbb5783ebd2f2463c3e21b1c03723c71fc504e556e53c5050fb01af583799",
+        "obligations_digest": "sha256:b5bbd8f30ac1f43d35447bcdcae95726991ec5bd82dbaff58171828d497c2657",
+        "action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "action_digest": "sha256:362e05d143e1349f503891b299309b0dcfb6c8569f9b8c84a3548e5a5fde1a5e",
+        "expected_wire_bytes_digest": "sha256:c25d261fe5557e362f8a32af0ab6a53b3c23d2339b6e31aaa06b4470d933ddfa",
+        "expected_wire_bytes_length": 80,
+        "expected_peer_identity_digest": "sha256:f1f48343f33d9939a6eeb7150fe2fea8b856840458047b41c47de3bc380a09c4",
+        "dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "trust_bundle_digest": "sha256:e1aaf473a8388e65d6f29b1d5516760bef481e29b035258bd9803afc94cb0b31",
+        "max_uses": 1,
+        "signer_key_id": "exec-1",
+        "signature": "ed25519:MtGrNJy1Dmym2K1N7/4ZozeSU7FVdeikXNA1h18sKiZ53BLvj3E9GoNmb8rL16om41aBIiEgU9zhMqvgqOY4BA=="
+      },
+      "trust_bundle": "default",
+      "context": {
+        "expected_request_id": "req-ORD-70340-refund",
+        "expected_action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 9000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "expected_dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "expected_decision_receipt_digest": "sha256:cbc59e7f45ebcbcc397823cde5dbcbae7b160dc507823d4f418e9b390ed7cdbe",
+        "expected_authority_receipt_digest": "sha256:9095299515a3df0bfd8d8c975e465cab7d0c380b4775c6f9533a0bf80a98deae",
+        "expected_approval_artifact_digest": null,
+        "expected_state_snapshot_digest": "sha256:d72eeff2d7f86d4481d27985ec0aae640b36d7b9f30e24d6c4a5e6b0a2c61ae8",
+        "expected_policy_bundle_digest": "sha256:dc9dbb5783ebd2f2463c3e21b1c03723c71fc504e556e53c5050fb01af583799",
+        "expected_obligations_digest": "sha256:b5bbd8f30ac1f43d35447bcdcae95726991ec5bd82dbaff58171828d497c2657",
+        "expected_wire_bytes_b64": "eyJhbW91bnQiOjMwMDAsImN1cnJlbmN5IjoiSU5SIiwib3JkZXJfaWQiOiJPUkQtNzAzNDAiLCJwYXllZSI6ImthdnlhLm5Ab2theGlzIn0=",
+        "expected_peer_identity_b64": "MCowBQYDK2VwAyEAixMsRez8hqzwOQR6K4rPCPHyNLDN83CoAi5H8MXdrck=",
+        "at_time": "2026-11-25T10:00:30Z",
+        "already_consumed": false,
+        "ledger_already_holds_id": false
+      },
+      "expect": {
+        "evidence_state": "VERIFIED",
+        "decision_conformance": "NON_CONFORMANT",
+        "reason_code": "EXECUTION_AUTHORIZATION_NON_CONFORMANT",
+        "failures": [
+          "authorization action_digest does not match the observed action",
+          "authorization action does not exactly match the observed action"
+        ],
+        "accountable_principal": "execution-runtime@org-vectors"
+      }
+    },
+    {
+      "id": "EA-07",
+      "title": "The dispatch goes to another destination",
+      "authorization": {
+        "spec": "pv-execution-authorization/0.1-experimental",
+        "canonicalization": "RFC8785",
+        "execution_authorization_id": "ea-vectors-0001",
+        "organisation_id": "org-vectors",
+        "request_id": "req-ORD-70340-refund",
+        "issued_at": "2026-11-25T10:00:00Z",
+        "not_before": "2026-11-25T10:00:00Z",
+        "expires_at": "2026-11-25T10:01:00Z",
+        "nonce": "n-7f3a9c1e5b2d4f60",
+        "decision_receipt_digest": "sha256:cbc59e7f45ebcbcc397823cde5dbcbae7b160dc507823d4f418e9b390ed7cdbe",
+        "authority_receipt_digest": "sha256:9095299515a3df0bfd8d8c975e465cab7d0c380b4775c6f9533a0bf80a98deae",
+        "approval_artifact_digest": null,
+        "state_snapshot_digest": "sha256:d72eeff2d7f86d4481d27985ec0aae640b36d7b9f30e24d6c4a5e6b0a2c61ae8",
+        "policy_bundle_digest": "sha256:dc9dbb5783ebd2f2463c3e21b1c03723c71fc504e556e53c5050fb01af583799",
+        "obligations_digest": "sha256:b5bbd8f30ac1f43d35447bcdcae95726991ec5bd82dbaff58171828d497c2657",
+        "action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "action_digest": "sha256:362e05d143e1349f503891b299309b0dcfb6c8569f9b8c84a3548e5a5fde1a5e",
+        "expected_wire_bytes_digest": "sha256:c25d261fe5557e362f8a32af0ab6a53b3c23d2339b6e31aaa06b4470d933ddfa",
+        "expected_wire_bytes_length": 80,
+        "expected_peer_identity_digest": "sha256:f1f48343f33d9939a6eeb7150fe2fea8b856840458047b41c47de3bc380a09c4",
+        "dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "trust_bundle_digest": "sha256:e1aaf473a8388e65d6f29b1d5516760bef481e29b035258bd9803afc94cb0b31",
+        "max_uses": 1,
+        "signer_key_id": "exec-1",
+        "signature": "ed25519:MtGrNJy1Dmym2K1N7/4ZozeSU7FVdeikXNA1h18sKiZ53BLvj3E9GoNmb8rL16om41aBIiEgU9zhMqvgqOY4BA=="
+      },
+      "trust_bundle": "default",
+      "context": {
+        "expected_request_id": "req-ORD-70340-refund",
+        "expected_action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "expected_dispatch": {
+          "transport": "https",
+          "destination": "payments.attacker.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "expected_decision_receipt_digest": "sha256:cbc59e7f45ebcbcc397823cde5dbcbae7b160dc507823d4f418e9b390ed7cdbe",
+        "expected_authority_receipt_digest": "sha256:9095299515a3df0bfd8d8c975e465cab7d0c380b4775c6f9533a0bf80a98deae",
+        "expected_approval_artifact_digest": null,
+        "expected_state_snapshot_digest": "sha256:d72eeff2d7f86d4481d27985ec0aae640b36d7b9f30e24d6c4a5e6b0a2c61ae8",
+        "expected_policy_bundle_digest": "sha256:dc9dbb5783ebd2f2463c3e21b1c03723c71fc504e556e53c5050fb01af583799",
+        "expected_obligations_digest": "sha256:b5bbd8f30ac1f43d35447bcdcae95726991ec5bd82dbaff58171828d497c2657",
+        "expected_wire_bytes_b64": "eyJhbW91bnQiOjMwMDAsImN1cnJlbmN5IjoiSU5SIiwib3JkZXJfaWQiOiJPUkQtNzAzNDAiLCJwYXllZSI6ImthdnlhLm5Ab2theGlzIn0=",
+        "expected_peer_identity_b64": "MCowBQYDK2VwAyEAixMsRez8hqzwOQR6K4rPCPHyNLDN83CoAi5H8MXdrck=",
+        "at_time": "2026-11-25T10:00:30Z",
+        "already_consumed": false,
+        "ledger_already_holds_id": false
+      },
+      "expect": {
+        "evidence_state": "VERIFIED",
+        "decision_conformance": "NON_CONFORMANT",
+        "reason_code": "EXECUTION_AUTHORIZATION_NON_CONFORMANT",
+        "failures": [
+          "authorization dispatch does not exactly match the observed dispatch"
+        ],
+        "accountable_principal": "execution-runtime@org-vectors"
+      }
+    },
+    {
+      "id": "EA-08",
+      "title": "Presented for a different request",
+      "authorization": {
+        "spec": "pv-execution-authorization/0.1-experimental",
+        "canonicalization": "RFC8785",
+        "execution_authorization_id": "ea-vectors-0001",
+        "organisation_id": "org-vectors",
+        "request_id": "req-ORD-70340-refund",
+        "issued_at": "2026-11-25T10:00:00Z",
+        "not_before": "2026-11-25T10:00:00Z",
+        "expires_at": "2026-11-25T10:01:00Z",
+        "nonce": "n-7f3a9c1e5b2d4f60",
+        "decision_receipt_digest": "sha256:cbc59e7f45ebcbcc397823cde5dbcbae7b160dc507823d4f418e9b390ed7cdbe",
+        "authority_receipt_digest": "sha256:9095299515a3df0bfd8d8c975e465cab7d0c380b4775c6f9533a0bf80a98deae",
+        "approval_artifact_digest": null,
+        "state_snapshot_digest": "sha256:d72eeff2d7f86d4481d27985ec0aae640b36d7b9f30e24d6c4a5e6b0a2c61ae8",
+        "policy_bundle_digest": "sha256:dc9dbb5783ebd2f2463c3e21b1c03723c71fc504e556e53c5050fb01af583799",
+        "obligations_digest": "sha256:b5bbd8f30ac1f43d35447bcdcae95726991ec5bd82dbaff58171828d497c2657",
+        "action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "action_digest": "sha256:362e05d143e1349f503891b299309b0dcfb6c8569f9b8c84a3548e5a5fde1a5e",
+        "expected_wire_bytes_digest": "sha256:c25d261fe5557e362f8a32af0ab6a53b3c23d2339b6e31aaa06b4470d933ddfa",
+        "expected_wire_bytes_length": 80,
+        "expected_peer_identity_digest": "sha256:f1f48343f33d9939a6eeb7150fe2fea8b856840458047b41c47de3bc380a09c4",
+        "dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "trust_bundle_digest": "sha256:e1aaf473a8388e65d6f29b1d5516760bef481e29b035258bd9803afc94cb0b31",
+        "max_uses": 1,
+        "signer_key_id": "exec-1",
+        "signature": "ed25519:MtGrNJy1Dmym2K1N7/4ZozeSU7FVdeikXNA1h18sKiZ53BLvj3E9GoNmb8rL16om41aBIiEgU9zhMqvgqOY4BA=="
+      },
+      "trust_bundle": "default",
+      "context": {
+        "expected_request_id": "req-someone-else",
+        "expected_action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "expected_dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "expected_decision_receipt_digest": "sha256:cbc59e7f45ebcbcc397823cde5dbcbae7b160dc507823d4f418e9b390ed7cdbe",
+        "expected_authority_receipt_digest": "sha256:9095299515a3df0bfd8d8c975e465cab7d0c380b4775c6f9533a0bf80a98deae",
+        "expected_approval_artifact_digest": null,
+        "expected_state_snapshot_digest": "sha256:d72eeff2d7f86d4481d27985ec0aae640b36d7b9f30e24d6c4a5e6b0a2c61ae8",
+        "expected_policy_bundle_digest": "sha256:dc9dbb5783ebd2f2463c3e21b1c03723c71fc504e556e53c5050fb01af583799",
+        "expected_obligations_digest": "sha256:b5bbd8f30ac1f43d35447bcdcae95726991ec5bd82dbaff58171828d497c2657",
+        "expected_wire_bytes_b64": "eyJhbW91bnQiOjMwMDAsImN1cnJlbmN5IjoiSU5SIiwib3JkZXJfaWQiOiJPUkQtNzAzNDAiLCJwYXllZSI6ImthdnlhLm5Ab2theGlzIn0=",
+        "expected_peer_identity_b64": "MCowBQYDK2VwAyEAixMsRez8hqzwOQR6K4rPCPHyNLDN83CoAi5H8MXdrck=",
+        "at_time": "2026-11-25T10:00:30Z",
+        "already_consumed": false,
+        "ledger_already_holds_id": false
+      },
+      "expect": {
+        "evidence_state": "VERIFIED",
+        "decision_conformance": "NON_CONFORMANT",
+        "reason_code": "EXECUTION_AUTHORIZATION_NON_CONFORMANT",
+        "failures": [
+          "authorization request_id does not match the execution request"
+        ],
+        "accountable_principal": "execution-runtime@org-vectors"
+      }
+    },
+    {
+      "id": "EA-09",
+      "title": "Presented one second before not_before",
+      "authorization": {
+        "spec": "pv-execution-authorization/0.1-experimental",
+        "canonicalization": "RFC8785",
+        "execution_authorization_id": "ea-vectors-0001",
+        "organisation_id": "org-vectors",
+        "request_id": "req-ORD-70340-refund",
+        "issued_at": "2026-11-25T10:00:00Z",
+        "not_before": "2026-11-25T10:00:00Z",
+        "expires_at": "2026-11-25T10:01:00Z",
+        "nonce": "n-7f3a9c1e5b2d4f60",
+        "decision_receipt_digest": "sha256:cbc59e7f45ebcbcc397823cde5dbcbae7b160dc507823d4f418e9b390ed7cdbe",
+        "authority_receipt_digest": "sha256:9095299515a3df0bfd8d8c975e465cab7d0c380b4775c6f9533a0bf80a98deae",
+        "approval_artifact_digest": null,
+        "state_snapshot_digest": "sha256:d72eeff2d7f86d4481d27985ec0aae640b36d7b9f30e24d6c4a5e6b0a2c61ae8",
+        "policy_bundle_digest": "sha256:dc9dbb5783ebd2f2463c3e21b1c03723c71fc504e556e53c5050fb01af583799",
+        "obligations_digest": "sha256:b5bbd8f30ac1f43d35447bcdcae95726991ec5bd82dbaff58171828d497c2657",
+        "action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "action_digest": "sha256:362e05d143e1349f503891b299309b0dcfb6c8569f9b8c84a3548e5a5fde1a5e",
+        "expected_wire_bytes_digest": "sha256:c25d261fe5557e362f8a32af0ab6a53b3c23d2339b6e31aaa06b4470d933ddfa",
+        "expected_wire_bytes_length": 80,
+        "expected_peer_identity_digest": "sha256:f1f48343f33d9939a6eeb7150fe2fea8b856840458047b41c47de3bc380a09c4",
+        "dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "trust_bundle_digest": "sha256:e1aaf473a8388e65d6f29b1d5516760bef481e29b035258bd9803afc94cb0b31",
+        "max_uses": 1,
+        "signer_key_id": "exec-1",
+        "signature": "ed25519:MtGrNJy1Dmym2K1N7/4ZozeSU7FVdeikXNA1h18sKiZ53BLvj3E9GoNmb8rL16om41aBIiEgU9zhMqvgqOY4BA=="
+      },
+      "trust_bundle": "default",
+      "context": {
+        "expected_request_id": "req-ORD-70340-refund",
+        "expected_action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "expected_dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "expected_decision_receipt_digest": "sha256:cbc59e7f45ebcbcc397823cde5dbcbae7b160dc507823d4f418e9b390ed7cdbe",
+        "expected_authority_receipt_digest": "sha256:9095299515a3df0bfd8d8c975e465cab7d0c380b4775c6f9533a0bf80a98deae",
+        "expected_approval_artifact_digest": null,
+        "expected_state_snapshot_digest": "sha256:d72eeff2d7f86d4481d27985ec0aae640b36d7b9f30e24d6c4a5e6b0a2c61ae8",
+        "expected_policy_bundle_digest": "sha256:dc9dbb5783ebd2f2463c3e21b1c03723c71fc504e556e53c5050fb01af583799",
+        "expected_obligations_digest": "sha256:b5bbd8f30ac1f43d35447bcdcae95726991ec5bd82dbaff58171828d497c2657",
+        "expected_wire_bytes_b64": "eyJhbW91bnQiOjMwMDAsImN1cnJlbmN5IjoiSU5SIiwib3JkZXJfaWQiOiJPUkQtNzAzNDAiLCJwYXllZSI6ImthdnlhLm5Ab2theGlzIn0=",
+        "expected_peer_identity_b64": "MCowBQYDK2VwAyEAixMsRez8hqzwOQR6K4rPCPHyNLDN83CoAi5H8MXdrck=",
+        "at_time": "2026-11-25T09:59:59Z",
+        "already_consumed": false,
+        "ledger_already_holds_id": false
+      },
+      "expect": {
+        "evidence_state": "VERIFIED",
+        "decision_conformance": "NON_CONFORMANT",
+        "reason_code": "EXECUTION_AUTHORIZATION_NON_CONFORMANT",
+        "failures": [
+          "execution authorization is not valid at dispatch time"
+        ],
+        "accountable_principal": "execution-runtime@org-vectors"
+      }
+    },
+    {
+      "id": "EA-10",
+      "title": "Presented exactly at expires_at (the window excludes it)",
+      "authorization": {
+        "spec": "pv-execution-authorization/0.1-experimental",
+        "canonicalization": "RFC8785",
+        "execution_authorization_id": "ea-vectors-0001",
+        "organisation_id": "org-vectors",
+        "request_id": "req-ORD-70340-refund",
+        "issued_at": "2026-11-25T10:00:00Z",
+        "not_before": "2026-11-25T10:00:00Z",
+        "expires_at": "2026-11-25T10:01:00Z",
+        "nonce": "n-7f3a9c1e5b2d4f60",
+        "decision_receipt_digest": "sha256:cbc59e7f45ebcbcc397823cde5dbcbae7b160dc507823d4f418e9b390ed7cdbe",
+        "authority_receipt_digest": "sha256:9095299515a3df0bfd8d8c975e465cab7d0c380b4775c6f9533a0bf80a98deae",
+        "approval_artifact_digest": null,
+        "state_snapshot_digest": "sha256:d72eeff2d7f86d4481d27985ec0aae640b36d7b9f30e24d6c4a5e6b0a2c61ae8",
+        "policy_bundle_digest": "sha256:dc9dbb5783ebd2f2463c3e21b1c03723c71fc504e556e53c5050fb01af583799",
+        "obligations_digest": "sha256:b5bbd8f30ac1f43d35447bcdcae95726991ec5bd82dbaff58171828d497c2657",
+        "action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "action_digest": "sha256:362e05d143e1349f503891b299309b0dcfb6c8569f9b8c84a3548e5a5fde1a5e",
+        "expected_wire_bytes_digest": "sha256:c25d261fe5557e362f8a32af0ab6a53b3c23d2339b6e31aaa06b4470d933ddfa",
+        "expected_wire_bytes_length": 80,
+        "expected_peer_identity_digest": "sha256:f1f48343f33d9939a6eeb7150fe2fea8b856840458047b41c47de3bc380a09c4",
+        "dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "trust_bundle_digest": "sha256:e1aaf473a8388e65d6f29b1d5516760bef481e29b035258bd9803afc94cb0b31",
+        "max_uses": 1,
+        "signer_key_id": "exec-1",
+        "signature": "ed25519:MtGrNJy1Dmym2K1N7/4ZozeSU7FVdeikXNA1h18sKiZ53BLvj3E9GoNmb8rL16om41aBIiEgU9zhMqvgqOY4BA=="
+      },
+      "trust_bundle": "default",
+      "context": {
+        "expected_request_id": "req-ORD-70340-refund",
+        "expected_action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "expected_dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "expected_decision_receipt_digest": "sha256:cbc59e7f45ebcbcc397823cde5dbcbae7b160dc507823d4f418e9b390ed7cdbe",
+        "expected_authority_receipt_digest": "sha256:9095299515a3df0bfd8d8c975e465cab7d0c380b4775c6f9533a0bf80a98deae",
+        "expected_approval_artifact_digest": null,
+        "expected_state_snapshot_digest": "sha256:d72eeff2d7f86d4481d27985ec0aae640b36d7b9f30e24d6c4a5e6b0a2c61ae8",
+        "expected_policy_bundle_digest": "sha256:dc9dbb5783ebd2f2463c3e21b1c03723c71fc504e556e53c5050fb01af583799",
+        "expected_obligations_digest": "sha256:b5bbd8f30ac1f43d35447bcdcae95726991ec5bd82dbaff58171828d497c2657",
+        "expected_wire_bytes_b64": "eyJhbW91bnQiOjMwMDAsImN1cnJlbmN5IjoiSU5SIiwib3JkZXJfaWQiOiJPUkQtNzAzNDAiLCJwYXllZSI6ImthdnlhLm5Ab2theGlzIn0=",
+        "expected_peer_identity_b64": "MCowBQYDK2VwAyEAixMsRez8hqzwOQR6K4rPCPHyNLDN83CoAi5H8MXdrck=",
+        "at_time": "2026-11-25T10:01:00Z",
+        "already_consumed": false,
+        "ledger_already_holds_id": false
+      },
+      "expect": {
+        "evidence_state": "VERIFIED",
+        "decision_conformance": "NON_CONFORMANT",
+        "reason_code": "EXECUTION_AUTHORIZATION_NON_CONFORMANT",
+        "failures": [
+          "execution authorization is not valid at dispatch time"
+        ],
+        "accountable_principal": "execution-runtime@org-vectors"
+      }
+    },
+    {
+      "id": "EA-11",
+      "title": "The caller already knows the permit was used",
+      "authorization": {
+        "spec": "pv-execution-authorization/0.1-experimental",
+        "canonicalization": "RFC8785",
+        "execution_authorization_id": "ea-vectors-0001",
+        "organisation_id": "org-vectors",
+        "request_id": "req-ORD-70340-refund",
+        "issued_at": "2026-11-25T10:00:00Z",
+        "not_before": "2026-11-25T10:00:00Z",
+        "expires_at": "2026-11-25T10:01:00Z",
+        "nonce": "n-7f3a9c1e5b2d4f60",
+        "decision_receipt_digest": "sha256:cbc59e7f45ebcbcc397823cde5dbcbae7b160dc507823d4f418e9b390ed7cdbe",
+        "authority_receipt_digest": "sha256:9095299515a3df0bfd8d8c975e465cab7d0c380b4775c6f9533a0bf80a98deae",
+        "approval_artifact_digest": null,
+        "state_snapshot_digest": "sha256:d72eeff2d7f86d4481d27985ec0aae640b36d7b9f30e24d6c4a5e6b0a2c61ae8",
+        "policy_bundle_digest": "sha256:dc9dbb5783ebd2f2463c3e21b1c03723c71fc504e556e53c5050fb01af583799",
+        "obligations_digest": "sha256:b5bbd8f30ac1f43d35447bcdcae95726991ec5bd82dbaff58171828d497c2657",
+        "action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "action_digest": "sha256:362e05d143e1349f503891b299309b0dcfb6c8569f9b8c84a3548e5a5fde1a5e",
+        "expected_wire_bytes_digest": "sha256:c25d261fe5557e362f8a32af0ab6a53b3c23d2339b6e31aaa06b4470d933ddfa",
+        "expected_wire_bytes_length": 80,
+        "expected_peer_identity_digest": "sha256:f1f48343f33d9939a6eeb7150fe2fea8b856840458047b41c47de3bc380a09c4",
+        "dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "trust_bundle_digest": "sha256:e1aaf473a8388e65d6f29b1d5516760bef481e29b035258bd9803afc94cb0b31",
+        "max_uses": 1,
+        "signer_key_id": "exec-1",
+        "signature": "ed25519:MtGrNJy1Dmym2K1N7/4ZozeSU7FVdeikXNA1h18sKiZ53BLvj3E9GoNmb8rL16om41aBIiEgU9zhMqvgqOY4BA=="
+      },
+      "trust_bundle": "default",
+      "context": {
+        "expected_request_id": "req-ORD-70340-refund",
+        "expected_action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "expected_dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "expected_decision_receipt_digest": "sha256:cbc59e7f45ebcbcc397823cde5dbcbae7b160dc507823d4f418e9b390ed7cdbe",
+        "expected_authority_receipt_digest": "sha256:9095299515a3df0bfd8d8c975e465cab7d0c380b4775c6f9533a0bf80a98deae",
+        "expected_approval_artifact_digest": null,
+        "expected_state_snapshot_digest": "sha256:d72eeff2d7f86d4481d27985ec0aae640b36d7b9f30e24d6c4a5e6b0a2c61ae8",
+        "expected_policy_bundle_digest": "sha256:dc9dbb5783ebd2f2463c3e21b1c03723c71fc504e556e53c5050fb01af583799",
+        "expected_obligations_digest": "sha256:b5bbd8f30ac1f43d35447bcdcae95726991ec5bd82dbaff58171828d497c2657",
+        "expected_wire_bytes_b64": "eyJhbW91bnQiOjMwMDAsImN1cnJlbmN5IjoiSU5SIiwib3JkZXJfaWQiOiJPUkQtNzAzNDAiLCJwYXllZSI6ImthdnlhLm5Ab2theGlzIn0=",
+        "expected_peer_identity_b64": "MCowBQYDK2VwAyEAixMsRez8hqzwOQR6K4rPCPHyNLDN83CoAi5H8MXdrck=",
+        "at_time": "2026-11-25T10:00:30Z",
+        "already_consumed": true,
+        "ledger_already_holds_id": false
+      },
+      "expect": {
+        "evidence_state": "VERIFIED",
+        "decision_conformance": "NON_CONFORMANT",
+        "reason_code": "EXECUTION_AUTHORIZATION_CONSUMED",
+        "failures": [
+          "execution authorization has already been consumed"
+        ],
+        "accountable_principal": "execution-runtime@org-vectors"
+      }
+    },
+    {
+      "id": "EA-12",
+      "title": "Second use: the durable ledger already holds this permit id",
+      "authorization": {
+        "spec": "pv-execution-authorization/0.1-experimental",
+        "canonicalization": "RFC8785",
+        "execution_authorization_id": "ea-vectors-0001",
+        "organisation_id": "org-vectors",
+        "request_id": "req-ORD-70340-refund",
+        "issued_at": "2026-11-25T10:00:00Z",
+        "not_before": "2026-11-25T10:00:00Z",
+        "expires_at": "2026-11-25T10:01:00Z",
+        "nonce": "n-7f3a9c1e5b2d4f60",
+        "decision_receipt_digest": "sha256:cbc59e7f45ebcbcc397823cde5dbcbae7b160dc507823d4f418e9b390ed7cdbe",
+        "authority_receipt_digest": "sha256:9095299515a3df0bfd8d8c975e465cab7d0c380b4775c6f9533a0bf80a98deae",
+        "approval_artifact_digest": null,
+        "state_snapshot_digest": "sha256:d72eeff2d7f86d4481d27985ec0aae640b36d7b9f30e24d6c4a5e6b0a2c61ae8",
+        "policy_bundle_digest": "sha256:dc9dbb5783ebd2f2463c3e21b1c03723c71fc504e556e53c5050fb01af583799",
+        "obligations_digest": "sha256:b5bbd8f30ac1f43d35447bcdcae95726991ec5bd82dbaff58171828d497c2657",
+        "action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "action_digest": "sha256:362e05d143e1349f503891b299309b0dcfb6c8569f9b8c84a3548e5a5fde1a5e",
+        "expected_wire_bytes_digest": "sha256:c25d261fe5557e362f8a32af0ab6a53b3c23d2339b6e31aaa06b4470d933ddfa",
+        "expected_wire_bytes_length": 80,
+        "expected_peer_identity_digest": "sha256:f1f48343f33d9939a6eeb7150fe2fea8b856840458047b41c47de3bc380a09c4",
+        "dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "trust_bundle_digest": "sha256:e1aaf473a8388e65d6f29b1d5516760bef481e29b035258bd9803afc94cb0b31",
+        "max_uses": 1,
+        "signer_key_id": "exec-1",
+        "signature": "ed25519:MtGrNJy1Dmym2K1N7/4ZozeSU7FVdeikXNA1h18sKiZ53BLvj3E9GoNmb8rL16om41aBIiEgU9zhMqvgqOY4BA=="
+      },
+      "trust_bundle": "default",
+      "context": {
+        "expected_request_id": "req-ORD-70340-refund",
+        "expected_action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "expected_dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "expected_decision_receipt_digest": "sha256:cbc59e7f45ebcbcc397823cde5dbcbae7b160dc507823d4f418e9b390ed7cdbe",
+        "expected_authority_receipt_digest": "sha256:9095299515a3df0bfd8d8c975e465cab7d0c380b4775c6f9533a0bf80a98deae",
+        "expected_approval_artifact_digest": null,
+        "expected_state_snapshot_digest": "sha256:d72eeff2d7f86d4481d27985ec0aae640b36d7b9f30e24d6c4a5e6b0a2c61ae8",
+        "expected_policy_bundle_digest": "sha256:dc9dbb5783ebd2f2463c3e21b1c03723c71fc504e556e53c5050fb01af583799",
+        "expected_obligations_digest": "sha256:b5bbd8f30ac1f43d35447bcdcae95726991ec5bd82dbaff58171828d497c2657",
+        "expected_wire_bytes_b64": "eyJhbW91bnQiOjMwMDAsImN1cnJlbmN5IjoiSU5SIiwib3JkZXJfaWQiOiJPUkQtNzAzNDAiLCJwYXllZSI6ImthdnlhLm5Ab2theGlzIn0=",
+        "expected_peer_identity_b64": "MCowBQYDK2VwAyEAixMsRez8hqzwOQR6K4rPCPHyNLDN83CoAi5H8MXdrck=",
+        "at_time": "2026-11-25T10:00:30Z",
+        "already_consumed": false,
+        "ledger_already_holds_id": true
+      },
+      "expect": {
+        "evidence_state": "VERIFIED",
+        "decision_conformance": "NON_CONFORMANT",
+        "reason_code": "EXECUTION_AUTHORIZATION_CONSUMED",
+        "failures": [
+          "execution authorization has already been consumed"
+        ],
+        "accountable_principal": "execution-runtime@org-vectors"
+      }
+    },
+    {
+      "id": "EA-13",
+      "title": "expires_at extended after signing",
+      "authorization": {
+        "spec": "pv-execution-authorization/0.1-experimental",
+        "canonicalization": "RFC8785",
+        "execution_authorization_id": "ea-vectors-0001",
+        "organisation_id": "org-vectors",
+        "request_id": "req-ORD-70340-refund",
+        "issued_at": "2026-11-25T10:00:00Z",
+        "not_before": "2026-11-25T10:00:00Z",
+        "expires_at": "2026-11-25T11:00:00Z",
+        "nonce": "n-7f3a9c1e5b2d4f60",
+        "decision_receipt_digest": "sha256:cbc59e7f45ebcbcc397823cde5dbcbae7b160dc507823d4f418e9b390ed7cdbe",
+        "authority_receipt_digest": "sha256:9095299515a3df0bfd8d8c975e465cab7d0c380b4775c6f9533a0bf80a98deae",
+        "approval_artifact_digest": null,
+        "state_snapshot_digest": "sha256:d72eeff2d7f86d4481d27985ec0aae640b36d7b9f30e24d6c4a5e6b0a2c61ae8",
+        "policy_bundle_digest": "sha256:dc9dbb5783ebd2f2463c3e21b1c03723c71fc504e556e53c5050fb01af583799",
+        "obligations_digest": "sha256:b5bbd8f30ac1f43d35447bcdcae95726991ec5bd82dbaff58171828d497c2657",
+        "action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "action_digest": "sha256:362e05d143e1349f503891b299309b0dcfb6c8569f9b8c84a3548e5a5fde1a5e",
+        "expected_wire_bytes_digest": "sha256:c25d261fe5557e362f8a32af0ab6a53b3c23d2339b6e31aaa06b4470d933ddfa",
+        "expected_wire_bytes_length": 80,
+        "expected_peer_identity_digest": "sha256:f1f48343f33d9939a6eeb7150fe2fea8b856840458047b41c47de3bc380a09c4",
+        "dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "trust_bundle_digest": "sha256:e1aaf473a8388e65d6f29b1d5516760bef481e29b035258bd9803afc94cb0b31",
+        "max_uses": 1,
+        "signer_key_id": "exec-1",
+        "signature": "ed25519:MtGrNJy1Dmym2K1N7/4ZozeSU7FVdeikXNA1h18sKiZ53BLvj3E9GoNmb8rL16om41aBIiEgU9zhMqvgqOY4BA=="
+      },
+      "trust_bundle": "default",
+      "context": {
+        "expected_request_id": "req-ORD-70340-refund",
+        "expected_action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "expected_dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "expected_decision_receipt_digest": "sha256:cbc59e7f45ebcbcc397823cde5dbcbae7b160dc507823d4f418e9b390ed7cdbe",
+        "expected_authority_receipt_digest": "sha256:9095299515a3df0bfd8d8c975e465cab7d0c380b4775c6f9533a0bf80a98deae",
+        "expected_approval_artifact_digest": null,
+        "expected_state_snapshot_digest": "sha256:d72eeff2d7f86d4481d27985ec0aae640b36d7b9f30e24d6c4a5e6b0a2c61ae8",
+        "expected_policy_bundle_digest": "sha256:dc9dbb5783ebd2f2463c3e21b1c03723c71fc504e556e53c5050fb01af583799",
+        "expected_obligations_digest": "sha256:b5bbd8f30ac1f43d35447bcdcae95726991ec5bd82dbaff58171828d497c2657",
+        "expected_wire_bytes_b64": "eyJhbW91bnQiOjMwMDAsImN1cnJlbmN5IjoiSU5SIiwib3JkZXJfaWQiOiJPUkQtNzAzNDAiLCJwYXllZSI6ImthdnlhLm5Ab2theGlzIn0=",
+        "expected_peer_identity_b64": "MCowBQYDK2VwAyEAixMsRez8hqzwOQR6K4rPCPHyNLDN83CoAi5H8MXdrck=",
+        "at_time": "2026-11-25T10:00:30Z",
+        "already_consumed": false,
+        "ledger_already_holds_id": false
+      },
+      "expect": {
+        "evidence_state": "INVALID",
+        "decision_conformance": "NOT_ASSESSABLE",
+        "reason_code": "EXECUTION_AUTHORIZATION_SIGNATURE_INVALID",
+        "failures": [
+          "execution authorization signature is invalid"
+        ],
+        "accountable_principal": null
+      }
+    },
+    {
+      "id": "EA-14",
+      "title": "Signed by a key the trust bundle does not hold",
+      "authorization": {
+        "spec": "pv-execution-authorization/0.1-experimental",
+        "canonicalization": "RFC8785",
+        "execution_authorization_id": "ea-vectors-0001",
+        "organisation_id": "org-vectors",
+        "request_id": "req-ORD-70340-refund",
+        "issued_at": "2026-11-25T10:00:00Z",
+        "not_before": "2026-11-25T10:00:00Z",
+        "expires_at": "2026-11-25T10:01:00Z",
+        "nonce": "n-7f3a9c1e5b2d4f60",
+        "decision_receipt_digest": "sha256:cbc59e7f45ebcbcc397823cde5dbcbae7b160dc507823d4f418e9b390ed7cdbe",
+        "authority_receipt_digest": "sha256:9095299515a3df0bfd8d8c975e465cab7d0c380b4775c6f9533a0bf80a98deae",
+        "approval_artifact_digest": null,
+        "state_snapshot_digest": "sha256:d72eeff2d7f86d4481d27985ec0aae640b36d7b9f30e24d6c4a5e6b0a2c61ae8",
+        "policy_bundle_digest": "sha256:dc9dbb5783ebd2f2463c3e21b1c03723c71fc504e556e53c5050fb01af583799",
+        "obligations_digest": "sha256:b5bbd8f30ac1f43d35447bcdcae95726991ec5bd82dbaff58171828d497c2657",
+        "action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "action_digest": "sha256:362e05d143e1349f503891b299309b0dcfb6c8569f9b8c84a3548e5a5fde1a5e",
+        "expected_wire_bytes_digest": "sha256:c25d261fe5557e362f8a32af0ab6a53b3c23d2339b6e31aaa06b4470d933ddfa",
+        "expected_wire_bytes_length": 80,
+        "expected_peer_identity_digest": "sha256:f1f48343f33d9939a6eeb7150fe2fea8b856840458047b41c47de3bc380a09c4",
+        "dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "trust_bundle_digest": "sha256:e1aaf473a8388e65d6f29b1d5516760bef481e29b035258bd9803afc94cb0b31",
+        "max_uses": 1,
+        "signer_key_id": "stranger-1",
+        "signature": "ed25519:EuHWQdy9cUzPtuRFj+FtRVYb9G0HQC32zMD4uqSVQw1xOfPlRLainFHEQ0GJOA2efjWJ9z5728+QfpwURwTZCA=="
+      },
+      "trust_bundle": "default",
+      "context": {
+        "expected_request_id": "req-ORD-70340-refund",
+        "expected_action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "expected_dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "expected_decision_receipt_digest": "sha256:cbc59e7f45ebcbcc397823cde5dbcbae7b160dc507823d4f418e9b390ed7cdbe",
+        "expected_authority_receipt_digest": "sha256:9095299515a3df0bfd8d8c975e465cab7d0c380b4775c6f9533a0bf80a98deae",
+        "expected_approval_artifact_digest": null,
+        "expected_state_snapshot_digest": "sha256:d72eeff2d7f86d4481d27985ec0aae640b36d7b9f30e24d6c4a5e6b0a2c61ae8",
+        "expected_policy_bundle_digest": "sha256:dc9dbb5783ebd2f2463c3e21b1c03723c71fc504e556e53c5050fb01af583799",
+        "expected_obligations_digest": "sha256:b5bbd8f30ac1f43d35447bcdcae95726991ec5bd82dbaff58171828d497c2657",
+        "expected_wire_bytes_b64": "eyJhbW91bnQiOjMwMDAsImN1cnJlbmN5IjoiSU5SIiwib3JkZXJfaWQiOiJPUkQtNzAzNDAiLCJwYXllZSI6ImthdnlhLm5Ab2theGlzIn0=",
+        "expected_peer_identity_b64": "MCowBQYDK2VwAyEAixMsRez8hqzwOQR6K4rPCPHyNLDN83CoAi5H8MXdrck=",
+        "at_time": "2026-11-25T10:00:30Z",
+        "already_consumed": false,
+        "ledger_already_holds_id": false
+      },
+      "expect": {
+        "evidence_state": "INVALID",
+        "decision_conformance": "NOT_ASSESSABLE",
+        "reason_code": "TRUST_ROOT_UNKNOWN",
+        "failures": [
+          "execution signer key 'stranger-1' is absent from trust bundle"
+        ],
+        "accountable_principal": null
+      }
+    },
+    {
+      "id": "EA-15",
+      "title": "Signed by the witness key, which may not sign permits",
+      "authorization": {
+        "spec": "pv-execution-authorization/0.1-experimental",
+        "canonicalization": "RFC8785",
+        "execution_authorization_id": "ea-vectors-0001",
+        "organisation_id": "org-vectors",
+        "request_id": "req-ORD-70340-refund",
+        "issued_at": "2026-11-25T10:00:00Z",
+        "not_before": "2026-11-25T10:00:00Z",
+        "expires_at": "2026-11-25T10:01:00Z",
+        "nonce": "n-7f3a9c1e5b2d4f60",
+        "decision_receipt_digest": "sha256:cbc59e7f45ebcbcc397823cde5dbcbae7b160dc507823d4f418e9b390ed7cdbe",
+        "authority_receipt_digest": "sha256:9095299515a3df0bfd8d8c975e465cab7d0c380b4775c6f9533a0bf80a98deae",
+        "approval_artifact_digest": null,
+        "state_snapshot_digest": "sha256:d72eeff2d7f86d4481d27985ec0aae640b36d7b9f30e24d6c4a5e6b0a2c61ae8",
+        "policy_bundle_digest": "sha256:dc9dbb5783ebd2f2463c3e21b1c03723c71fc504e556e53c5050fb01af583799",
+        "obligations_digest": "sha256:b5bbd8f30ac1f43d35447bcdcae95726991ec5bd82dbaff58171828d497c2657",
+        "action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "action_digest": "sha256:362e05d143e1349f503891b299309b0dcfb6c8569f9b8c84a3548e5a5fde1a5e",
+        "expected_wire_bytes_digest": "sha256:c25d261fe5557e362f8a32af0ab6a53b3c23d2339b6e31aaa06b4470d933ddfa",
+        "expected_wire_bytes_length": 80,
+        "expected_peer_identity_digest": "sha256:f1f48343f33d9939a6eeb7150fe2fea8b856840458047b41c47de3bc380a09c4",
+        "dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "trust_bundle_digest": "sha256:e1aaf473a8388e65d6f29b1d5516760bef481e29b035258bd9803afc94cb0b31",
+        "max_uses": 1,
+        "signer_key_id": "witness-1",
+        "signature": "ed25519:AJJuf1s3zAyMRKfSNKP+lyS8/L7i/zNueXx7ei2WyNoD8R51IsbuycaqHZhLsdGLiiZqnKYK4EGKBod48oAaDw=="
+      },
+      "trust_bundle": "default",
+      "context": {
+        "expected_request_id": "req-ORD-70340-refund",
+        "expected_action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "expected_dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "expected_decision_receipt_digest": "sha256:cbc59e7f45ebcbcc397823cde5dbcbae7b160dc507823d4f418e9b390ed7cdbe",
+        "expected_authority_receipt_digest": "sha256:9095299515a3df0bfd8d8c975e465cab7d0c380b4775c6f9533a0bf80a98deae",
+        "expected_approval_artifact_digest": null,
+        "expected_state_snapshot_digest": "sha256:d72eeff2d7f86d4481d27985ec0aae640b36d7b9f30e24d6c4a5e6b0a2c61ae8",
+        "expected_policy_bundle_digest": "sha256:dc9dbb5783ebd2f2463c3e21b1c03723c71fc504e556e53c5050fb01af583799",
+        "expected_obligations_digest": "sha256:b5bbd8f30ac1f43d35447bcdcae95726991ec5bd82dbaff58171828d497c2657",
+        "expected_wire_bytes_b64": "eyJhbW91bnQiOjMwMDAsImN1cnJlbmN5IjoiSU5SIiwib3JkZXJfaWQiOiJPUkQtNzAzNDAiLCJwYXllZSI6ImthdnlhLm5Ab2theGlzIn0=",
+        "expected_peer_identity_b64": "MCowBQYDK2VwAyEAixMsRez8hqzwOQR6K4rPCPHyNLDN83CoAi5H8MXdrck=",
+        "at_time": "2026-11-25T10:00:30Z",
+        "already_consumed": false,
+        "ledger_already_holds_id": false
+      },
+      "expect": {
+        "evidence_state": "INVALID",
+        "decision_conformance": "NOT_ASSESSABLE",
+        "reason_code": "KEY_USAGE_INVALID",
+        "failures": [
+          "key 'witness-1' lacks required usage 'execution_authorization_signer'"
+        ],
+        "accountable_principal": null
+      }
+    },
+    {
+      "id": "EA-16",
+      "title": "Verified against a rotated trust bundle it does not bind",
+      "authorization": {
+        "spec": "pv-execution-authorization/0.1-experimental",
+        "canonicalization": "RFC8785",
+        "execution_authorization_id": "ea-vectors-0001",
+        "organisation_id": "org-vectors",
+        "request_id": "req-ORD-70340-refund",
+        "issued_at": "2026-11-25T10:00:00Z",
+        "not_before": "2026-11-25T10:00:00Z",
+        "expires_at": "2026-11-25T10:01:00Z",
+        "nonce": "n-7f3a9c1e5b2d4f60",
+        "decision_receipt_digest": "sha256:cbc59e7f45ebcbcc397823cde5dbcbae7b160dc507823d4f418e9b390ed7cdbe",
+        "authority_receipt_digest": "sha256:9095299515a3df0bfd8d8c975e465cab7d0c380b4775c6f9533a0bf80a98deae",
+        "approval_artifact_digest": null,
+        "state_snapshot_digest": "sha256:d72eeff2d7f86d4481d27985ec0aae640b36d7b9f30e24d6c4a5e6b0a2c61ae8",
+        "policy_bundle_digest": "sha256:dc9dbb5783ebd2f2463c3e21b1c03723c71fc504e556e53c5050fb01af583799",
+        "obligations_digest": "sha256:b5bbd8f30ac1f43d35447bcdcae95726991ec5bd82dbaff58171828d497c2657",
+        "action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "action_digest": "sha256:362e05d143e1349f503891b299309b0dcfb6c8569f9b8c84a3548e5a5fde1a5e",
+        "expected_wire_bytes_digest": "sha256:c25d261fe5557e362f8a32af0ab6a53b3c23d2339b6e31aaa06b4470d933ddfa",
+        "expected_wire_bytes_length": 80,
+        "expected_peer_identity_digest": "sha256:f1f48343f33d9939a6eeb7150fe2fea8b856840458047b41c47de3bc380a09c4",
+        "dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "trust_bundle_digest": "sha256:e1aaf473a8388e65d6f29b1d5516760bef481e29b035258bd9803afc94cb0b31",
+        "max_uses": 1,
+        "signer_key_id": "exec-1",
+        "signature": "ed25519:MtGrNJy1Dmym2K1N7/4ZozeSU7FVdeikXNA1h18sKiZ53BLvj3E9GoNmb8rL16om41aBIiEgU9zhMqvgqOY4BA=="
+      },
+      "trust_bundle": "rotated",
+      "context": {
+        "expected_request_id": "req-ORD-70340-refund",
+        "expected_action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "expected_dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "expected_decision_receipt_digest": "sha256:cbc59e7f45ebcbcc397823cde5dbcbae7b160dc507823d4f418e9b390ed7cdbe",
+        "expected_authority_receipt_digest": "sha256:9095299515a3df0bfd8d8c975e465cab7d0c380b4775c6f9533a0bf80a98deae",
+        "expected_approval_artifact_digest": null,
+        "expected_state_snapshot_digest": "sha256:d72eeff2d7f86d4481d27985ec0aae640b36d7b9f30e24d6c4a5e6b0a2c61ae8",
+        "expected_policy_bundle_digest": "sha256:dc9dbb5783ebd2f2463c3e21b1c03723c71fc504e556e53c5050fb01af583799",
+        "expected_obligations_digest": "sha256:b5bbd8f30ac1f43d35447bcdcae95726991ec5bd82dbaff58171828d497c2657",
+        "expected_wire_bytes_b64": "eyJhbW91bnQiOjMwMDAsImN1cnJlbmN5IjoiSU5SIiwib3JkZXJfaWQiOiJPUkQtNzAzNDAiLCJwYXllZSI6ImthdnlhLm5Ab2theGlzIn0=",
+        "expected_peer_identity_b64": "MCowBQYDK2VwAyEAixMsRez8hqzwOQR6K4rPCPHyNLDN83CoAi5H8MXdrck=",
+        "at_time": "2026-11-25T10:00:30Z",
+        "already_consumed": false,
+        "ledger_already_holds_id": false
+      },
+      "expect": {
+        "evidence_state": "INVALID",
+        "decision_conformance": "NOT_ASSESSABLE",
+        "reason_code": "TRUST_BUNDLE_DIGEST_MISMATCH",
+        "failures": [
+          "authorization does not bind the supplied trust bundle"
+        ],
+        "accountable_principal": null
+      }
+    },
+    {
+      "id": "EA-17",
+      "title": "Verified against another organisation's trust bundle",
+      "authorization": {
+        "spec": "pv-execution-authorization/0.1-experimental",
+        "canonicalization": "RFC8785",
+        "execution_authorization_id": "ea-vectors-0001",
+        "organisation_id": "org-vectors",
+        "request_id": "req-ORD-70340-refund",
+        "issued_at": "2026-11-25T10:00:00Z",
+        "not_before": "2026-11-25T10:00:00Z",
+        "expires_at": "2026-11-25T10:01:00Z",
+        "nonce": "n-7f3a9c1e5b2d4f60",
+        "decision_receipt_digest": "sha256:cbc59e7f45ebcbcc397823cde5dbcbae7b160dc507823d4f418e9b390ed7cdbe",
+        "authority_receipt_digest": "sha256:9095299515a3df0bfd8d8c975e465cab7d0c380b4775c6f9533a0bf80a98deae",
+        "approval_artifact_digest": null,
+        "state_snapshot_digest": "sha256:d72eeff2d7f86d4481d27985ec0aae640b36d7b9f30e24d6c4a5e6b0a2c61ae8",
+        "policy_bundle_digest": "sha256:dc9dbb5783ebd2f2463c3e21b1c03723c71fc504e556e53c5050fb01af583799",
+        "obligations_digest": "sha256:b5bbd8f30ac1f43d35447bcdcae95726991ec5bd82dbaff58171828d497c2657",
+        "action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "action_digest": "sha256:362e05d143e1349f503891b299309b0dcfb6c8569f9b8c84a3548e5a5fde1a5e",
+        "expected_wire_bytes_digest": "sha256:c25d261fe5557e362f8a32af0ab6a53b3c23d2339b6e31aaa06b4470d933ddfa",
+        "expected_wire_bytes_length": 80,
+        "expected_peer_identity_digest": "sha256:f1f48343f33d9939a6eeb7150fe2fea8b856840458047b41c47de3bc380a09c4",
+        "dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "trust_bundle_digest": "sha256:e1aaf473a8388e65d6f29b1d5516760bef481e29b035258bd9803afc94cb0b31",
+        "max_uses": 1,
+        "signer_key_id": "exec-1",
+        "signature": "ed25519:MtGrNJy1Dmym2K1N7/4ZozeSU7FVdeikXNA1h18sKiZ53BLvj3E9GoNmb8rL16om41aBIiEgU9zhMqvgqOY4BA=="
+      },
+      "trust_bundle": "other-organisation",
+      "context": {
+        "expected_request_id": "req-ORD-70340-refund",
+        "expected_action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "expected_dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "expected_decision_receipt_digest": "sha256:cbc59e7f45ebcbcc397823cde5dbcbae7b160dc507823d4f418e9b390ed7cdbe",
+        "expected_authority_receipt_digest": "sha256:9095299515a3df0bfd8d8c975e465cab7d0c380b4775c6f9533a0bf80a98deae",
+        "expected_approval_artifact_digest": null,
+        "expected_state_snapshot_digest": "sha256:d72eeff2d7f86d4481d27985ec0aae640b36d7b9f30e24d6c4a5e6b0a2c61ae8",
+        "expected_policy_bundle_digest": "sha256:dc9dbb5783ebd2f2463c3e21b1c03723c71fc504e556e53c5050fb01af583799",
+        "expected_obligations_digest": "sha256:b5bbd8f30ac1f43d35447bcdcae95726991ec5bd82dbaff58171828d497c2657",
+        "expected_wire_bytes_b64": "eyJhbW91bnQiOjMwMDAsImN1cnJlbmN5IjoiSU5SIiwib3JkZXJfaWQiOiJPUkQtNzAzNDAiLCJwYXllZSI6ImthdnlhLm5Ab2theGlzIn0=",
+        "expected_peer_identity_b64": "MCowBQYDK2VwAyEAixMsRez8hqzwOQR6K4rPCPHyNLDN83CoAi5H8MXdrck=",
+        "at_time": "2026-11-25T10:00:30Z",
+        "already_consumed": false,
+        "ledger_already_holds_id": false
+      },
+      "expect": {
+        "evidence_state": "INVALID",
+        "decision_conformance": "NOT_ASSESSABLE",
+        "reason_code": "ORGANISATION_MISMATCH",
+        "failures": [
+          "authorization and trust bundle organisations differ"
+        ],
+        "accountable_principal": null
+      }
+    },
+    {
+      "id": "EA-18",
+      "title": "Signed, but allows two uses",
+      "authorization": {
+        "spec": "pv-execution-authorization/0.1-experimental",
+        "canonicalization": "RFC8785",
+        "execution_authorization_id": "ea-vectors-0001",
+        "organisation_id": "org-vectors",
+        "request_id": "req-ORD-70340-refund",
+        "issued_at": "2026-11-25T10:00:00Z",
+        "not_before": "2026-11-25T10:00:00Z",
+        "expires_at": "2026-11-25T10:01:00Z",
+        "nonce": "n-7f3a9c1e5b2d4f60",
+        "decision_receipt_digest": "sha256:cbc59e7f45ebcbcc397823cde5dbcbae7b160dc507823d4f418e9b390ed7cdbe",
+        "authority_receipt_digest": "sha256:9095299515a3df0bfd8d8c975e465cab7d0c380b4775c6f9533a0bf80a98deae",
+        "approval_artifact_digest": null,
+        "state_snapshot_digest": "sha256:d72eeff2d7f86d4481d27985ec0aae640b36d7b9f30e24d6c4a5e6b0a2c61ae8",
+        "policy_bundle_digest": "sha256:dc9dbb5783ebd2f2463c3e21b1c03723c71fc504e556e53c5050fb01af583799",
+        "obligations_digest": "sha256:b5bbd8f30ac1f43d35447bcdcae95726991ec5bd82dbaff58171828d497c2657",
+        "action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "action_digest": "sha256:362e05d143e1349f503891b299309b0dcfb6c8569f9b8c84a3548e5a5fde1a5e",
+        "expected_wire_bytes_digest": "sha256:c25d261fe5557e362f8a32af0ab6a53b3c23d2339b6e31aaa06b4470d933ddfa",
+        "expected_wire_bytes_length": 80,
+        "expected_peer_identity_digest": "sha256:f1f48343f33d9939a6eeb7150fe2fea8b856840458047b41c47de3bc380a09c4",
+        "dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "trust_bundle_digest": "sha256:e1aaf473a8388e65d6f29b1d5516760bef481e29b035258bd9803afc94cb0b31",
+        "max_uses": 2,
+        "signer_key_id": "exec-1",
+        "signature": "ed25519:u8m/w0F+gZsAsvqkGr5B7+0TWyZOTn5+Fp8/hQiXHvSX1VYbqKX4U9653wHovDbeoXlRKpC8S0IQYdjdxMihAQ=="
+      },
+      "trust_bundle": "default",
+      "context": {
+        "expected_request_id": "req-ORD-70340-refund",
+        "expected_action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "expected_dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "expected_decision_receipt_digest": "sha256:cbc59e7f45ebcbcc397823cde5dbcbae7b160dc507823d4f418e9b390ed7cdbe",
+        "expected_authority_receipt_digest": "sha256:9095299515a3df0bfd8d8c975e465cab7d0c380b4775c6f9533a0bf80a98deae",
+        "expected_approval_artifact_digest": null,
+        "expected_state_snapshot_digest": "sha256:d72eeff2d7f86d4481d27985ec0aae640b36d7b9f30e24d6c4a5e6b0a2c61ae8",
+        "expected_policy_bundle_digest": "sha256:dc9dbb5783ebd2f2463c3e21b1c03723c71fc504e556e53c5050fb01af583799",
+        "expected_obligations_digest": "sha256:b5bbd8f30ac1f43d35447bcdcae95726991ec5bd82dbaff58171828d497c2657",
+        "expected_wire_bytes_b64": "eyJhbW91bnQiOjMwMDAsImN1cnJlbmN5IjoiSU5SIiwib3JkZXJfaWQiOiJPUkQtNzAzNDAiLCJwYXllZSI6ImthdnlhLm5Ab2theGlzIn0=",
+        "expected_peer_identity_b64": "MCowBQYDK2VwAyEAixMsRez8hqzwOQR6K4rPCPHyNLDN83CoAi5H8MXdrck=",
+        "at_time": "2026-11-25T10:00:30Z",
+        "already_consumed": false,
+        "ledger_already_holds_id": false
+      },
+      "expect": {
+        "evidence_state": "INVALID",
+        "decision_conformance": "NOT_ASSESSABLE",
+        "reason_code": "SCHEMA_INVALID",
+        "failures": [
+          "execution_authorization.max_uses: expected integer 1"
+        ],
+        "accountable_principal": null
+      }
+    },
+    {
+      "id": "EA-19",
+      "title": "No trust bundle supplied",
+      "authorization": {
+        "spec": "pv-execution-authorization/0.1-experimental",
+        "canonicalization": "RFC8785",
+        "execution_authorization_id": "ea-vectors-0001",
+        "organisation_id": "org-vectors",
+        "request_id": "req-ORD-70340-refund",
+        "issued_at": "2026-11-25T10:00:00Z",
+        "not_before": "2026-11-25T10:00:00Z",
+        "expires_at": "2026-11-25T10:01:00Z",
+        "nonce": "n-7f3a9c1e5b2d4f60",
+        "decision_receipt_digest": "sha256:cbc59e7f45ebcbcc397823cde5dbcbae7b160dc507823d4f418e9b390ed7cdbe",
+        "authority_receipt_digest": "sha256:9095299515a3df0bfd8d8c975e465cab7d0c380b4775c6f9533a0bf80a98deae",
+        "approval_artifact_digest": null,
+        "state_snapshot_digest": "sha256:d72eeff2d7f86d4481d27985ec0aae640b36d7b9f30e24d6c4a5e6b0a2c61ae8",
+        "policy_bundle_digest": "sha256:dc9dbb5783ebd2f2463c3e21b1c03723c71fc504e556e53c5050fb01af583799",
+        "obligations_digest": "sha256:b5bbd8f30ac1f43d35447bcdcae95726991ec5bd82dbaff58171828d497c2657",
+        "action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "action_digest": "sha256:362e05d143e1349f503891b299309b0dcfb6c8569f9b8c84a3548e5a5fde1a5e",
+        "expected_wire_bytes_digest": "sha256:c25d261fe5557e362f8a32af0ab6a53b3c23d2339b6e31aaa06b4470d933ddfa",
+        "expected_wire_bytes_length": 80,
+        "expected_peer_identity_digest": "sha256:f1f48343f33d9939a6eeb7150fe2fea8b856840458047b41c47de3bc380a09c4",
+        "dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "trust_bundle_digest": "sha256:e1aaf473a8388e65d6f29b1d5516760bef481e29b035258bd9803afc94cb0b31",
+        "max_uses": 1,
+        "signer_key_id": "exec-1",
+        "signature": "ed25519:MtGrNJy1Dmym2K1N7/4ZozeSU7FVdeikXNA1h18sKiZ53BLvj3E9GoNmb8rL16om41aBIiEgU9zhMqvgqOY4BA=="
+      },
+      "trust_bundle": null,
+      "context": {
+        "expected_request_id": "req-ORD-70340-refund",
+        "expected_action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "expected_dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "expected_decision_receipt_digest": "sha256:cbc59e7f45ebcbcc397823cde5dbcbae7b160dc507823d4f418e9b390ed7cdbe",
+        "expected_authority_receipt_digest": "sha256:9095299515a3df0bfd8d8c975e465cab7d0c380b4775c6f9533a0bf80a98deae",
+        "expected_approval_artifact_digest": null,
+        "expected_state_snapshot_digest": "sha256:d72eeff2d7f86d4481d27985ec0aae640b36d7b9f30e24d6c4a5e6b0a2c61ae8",
+        "expected_policy_bundle_digest": "sha256:dc9dbb5783ebd2f2463c3e21b1c03723c71fc504e556e53c5050fb01af583799",
+        "expected_obligations_digest": "sha256:b5bbd8f30ac1f43d35447bcdcae95726991ec5bd82dbaff58171828d497c2657",
+        "expected_wire_bytes_b64": "eyJhbW91bnQiOjMwMDAsImN1cnJlbmN5IjoiSU5SIiwib3JkZXJfaWQiOiJPUkQtNzAzNDAiLCJwYXllZSI6ImthdnlhLm5Ab2theGlzIn0=",
+        "expected_peer_identity_b64": "MCowBQYDK2VwAyEAixMsRez8hqzwOQR6K4rPCPHyNLDN83CoAi5H8MXdrck=",
+        "at_time": "2026-11-25T10:00:30Z",
+        "already_consumed": false,
+        "ledger_already_holds_id": false
+      },
+      "expect": {
+        "evidence_state": "UNVERIFIABLE",
+        "decision_conformance": "NOT_ASSESSABLE",
+        "reason_code": "TRUST_BUNDLE_UNAVAILABLE",
+        "failures": [
+          "no out-of-band trust bundle was supplied"
+        ],
+        "accountable_principal": null
+      }
+    }
+  ],
+  "presenter_cases": [
+    {
+      "id": "PR-01",
+      "title": "0.2 permit over mTLS with the key it names",
+      "authorization_case": "EA-02",
+      "gate_requires_presenter": true,
+      "client_certificate_der_b64": "MIHzMIGmoAMCAQICCBtdohm9zWJAMAUGAytlcDAgMR4wHAYDVQQDDBVyZWZ1bmRzLWFnZW50IHNpZGVjYXIwHhcNMjYxMTAxMDAwMDAwWhcNMjcxMTAxMDAwMDAwWjAgMR4wHAYDVQQDDBVyZWZ1bmRzLWFnZW50IHNpZGVjYXIwKjAFBgMrZXADIQBtg0IZmVwkS2I6e0VCvCRJ7W8W7dfe7btxOKfAbtp+jDAFBgMrZXADQQCuT0+oJYY+PqjjfA+QeTZ0EN+Fml0kj2h50rlU+0LJG0urowtCrCbMt5XW5NJfl7d9ODoGu2mEVpQFL+YKD6wE",
+      "expect": {
+        "admitted": true,
+        "reason_code": null
+      }
+    },
+    {
+      "id": "PR-02",
+      "title": "0.2 permit over mTLS with another key",
+      "authorization_case": "EA-02",
+      "gate_requires_presenter": true,
+      "client_certificate_der_b64": "MIHtMIGgoAMCAQICCB8cd709y6q+MAUGAytlcDAdMRswGQYDVQQDDBJzb21lIG90aGVyIHByb2Nlc3MwHhcNMjYxMTAxMDAwMDAwWhcNMjcxMTAxMDAwMDAwWjAdMRswGQYDVQQDDBJzb21lIG90aGVyIHByb2Nlc3MwKjAFBgMrZXADIQBluNJqvo2nSKB7v4BZlccJOpYciT3UQSPOQENGvz0RmjAFBgMrZXADQQAmKQ396lMbI9Ny9AMc/BPIhv+t9oWlLa5hDdHM4g6tkRsSqvipFVwTno+yY0I1PFhPmag15M8buVYhaEr+BSEP",
+      "expect": {
+        "admitted": false,
+        "reason_code": "RECEIVER_PRESENTER_MISMATCH"
+      }
+    },
+    {
+      "id": "PR-03",
+      "title": "0.2 permit with no client certificate",
+      "authorization_case": "EA-02",
+      "gate_requires_presenter": true,
+      "client_certificate_der_b64": null,
+      "expect": {
+        "admitted": false,
+        "reason_code": "RECEIVER_PRESENTER_MISSING"
+      }
+    },
+    {
+      "id": "PR-04",
+      "title": "0.2 permit with bytes that are not a certificate",
+      "authorization_case": "EA-02",
+      "gate_requires_presenter": true,
+      "client_certificate_der_b64": "bm90IGEgY2VydGlmaWNhdGU=",
+      "expect": {
+        "admitted": false,
+        "reason_code": "RECEIVER_PRESENTER_MISMATCH"
+      }
+    },
+    {
+      "id": "PR-05",
+      "title": "0.1 permit at a gate that requires a presenter",
+      "authorization_case": "EA-01",
+      "gate_requires_presenter": true,
+      "client_certificate_der_b64": "MIHzMIGmoAMCAQICCBtdohm9zWJAMAUGAytlcDAgMR4wHAYDVQQDDBVyZWZ1bmRzLWFnZW50IHNpZGVjYXIwHhcNMjYxMTAxMDAwMDAwWhcNMjcxMTAxMDAwMDAwWjAgMR4wHAYDVQQDDBVyZWZ1bmRzLWFnZW50IHNpZGVjYXIwKjAFBgMrZXADIQBtg0IZmVwkS2I6e0VCvCRJ7W8W7dfe7btxOKfAbtp+jDAFBgMrZXADQQCuT0+oJYY+PqjjfA+QeTZ0EN+Fml0kj2h50rlU+0LJG0urowtCrCbMt5XW5NJfl7d9ODoGu2mEVpQFL+YKD6wE",
+      "expect": {
+        "admitted": false,
+        "reason_code": "RECEIVER_PRESENTER_REQUIRED"
+      }
+    },
+    {
+      "id": "PR-06",
+      "title": "0.1 permit at a gate that does not require one",
+      "authorization_case": "EA-01",
+      "gate_requires_presenter": false,
+      "client_certificate_der_b64": null,
+      "expect": {
+        "admitted": true,
+        "reason_code": null
+      }
+    }
+  ],
+  "witness_cases": [
+    {
+      "id": "DW-01",
+      "title": "The sidecar sent exactly the permitted bytes to the permitted peer",
+      "witness": {
+        "spec": "pv-dispatch-witness/0.1-experimental",
+        "canonicalization": "RFC8785",
+        "dispatch_witness_id": "dw-vectors-0001",
+        "organisation_id": "org-vectors",
+        "request_id": "req-ORD-70340-refund",
+        "execution_authorization_id": "ea-vectors-0001",
+        "execution_authorization_digest": "sha256:66de0a1a1037dc3712f15b0d2e2abb1b5d63066eb775de207fba8d51868fd56d",
+        "observed_at": "2026-11-25T10:00:31Z",
+        "attempt": 1,
+        "witness_component_id": "egress-sidecar-1",
+        "observed_action_digest": "sha256:362e05d143e1349f503891b299309b0dcfb6c8569f9b8c84a3548e5a5fde1a5e",
+        "observed_dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "wire_content_type": "application/json",
+        "wire_content_encoding": "identity",
+        "wire_bytes_digest": "sha256:c25d261fe5557e362f8a32af0ab6a53b3c23d2339b6e31aaa06b4470d933ddfa",
+        "wire_bytes_length": 80,
+        "peer_identity_digest": "sha256:f1f48343f33d9939a6eeb7150fe2fea8b856840458047b41c47de3bc380a09c4",
+        "trust_bundle_digest": "sha256:e1aaf473a8388e65d6f29b1d5516760bef481e29b035258bd9803afc94cb0b31",
+        "signer_key_id": "witness-1",
+        "signature": "ed25519:LcCaMC+r9+T0NH+wI3fRTLjpTr1waN80WaVAHGcJaiJ3fe+383EDilbste8A/QO2Iey7oSjcKoBRC1o8ibA2Bg=="
+      },
+      "authorization_case": "EA-01",
+      "trust_bundle": "default",
+      "observed": {
+        "action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "wire_bytes_b64": "eyJhbW91bnQiOjMwMDAsImN1cnJlbmN5IjoiSU5SIiwib3JkZXJfaWQiOiJPUkQtNzAzNDAiLCJwYXllZSI6ImthdnlhLm5Ab2theGlzIn0=",
+        "peer_identity_b64": "MCowBQYDK2VwAyEAixMsRez8hqzwOQR6K4rPCPHyNLDN83CoAi5H8MXdrck="
+      },
+      "expect": {
+        "evidence_state": "VERIFIED",
+        "decision_conformance": "CONFORMANT",
+        "reason_code": null,
+        "failures": [],
+        "accountable_principal": "egress-sidecar@org-vectors"
+      }
+    },
+    {
+      "id": "DW-02",
+      "title": "The sidecar honestly witnesses different bytes",
+      "witness": {
+        "spec": "pv-dispatch-witness/0.1-experimental",
+        "canonicalization": "RFC8785",
+        "dispatch_witness_id": "dw-vectors-0001",
+        "organisation_id": "org-vectors",
+        "request_id": "req-ORD-70340-refund",
+        "execution_authorization_id": "ea-vectors-0001",
+        "execution_authorization_digest": "sha256:66de0a1a1037dc3712f15b0d2e2abb1b5d63066eb775de207fba8d51868fd56d",
+        "observed_at": "2026-11-25T10:00:31Z",
+        "attempt": 1,
+        "witness_component_id": "egress-sidecar-1",
+        "observed_action_digest": "sha256:362e05d143e1349f503891b299309b0dcfb6c8569f9b8c84a3548e5a5fde1a5e",
+        "observed_dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "wire_content_type": "application/json",
+        "wire_content_encoding": "identity",
+        "wire_bytes_digest": "sha256:45ee48d53c8ec5593f5e92569106094ccb60da4c12ff14e209876887fd68b3c3",
+        "wire_bytes_length": 80,
+        "peer_identity_digest": "sha256:f1f48343f33d9939a6eeb7150fe2fea8b856840458047b41c47de3bc380a09c4",
+        "trust_bundle_digest": "sha256:e1aaf473a8388e65d6f29b1d5516760bef481e29b035258bd9803afc94cb0b31",
+        "signer_key_id": "witness-1",
+        "signature": "ed25519:ykGI+KSg4FkamBx5g8OiLzHsGOhoCsbSytMwyTwFF7BVzvmpq5EYyO2tELqhVsZLRtHX8N60Acgqmf1zqlBfCA=="
+      },
+      "authorization_case": "EA-01",
+      "trust_bundle": "default",
+      "observed": {
+        "action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "wire_bytes_b64": "eyJhbW91bnQiOjkwMDAsImN1cnJlbmN5IjoiSU5SIiwib3JkZXJfaWQiOiJPUkQtNzAzNDAiLCJwYXllZSI6ImthdnlhLm5Ab2theGlzIn0=",
+        "peer_identity_b64": "MCowBQYDK2VwAyEAixMsRez8hqzwOQR6K4rPCPHyNLDN83CoAi5H8MXdrck="
+      },
+      "expect": {
+        "evidence_state": "VERIFIED",
+        "decision_conformance": "NON_CONFORMANT",
+        "reason_code": "DISPATCH_NON_CONFORMANT",
+        "failures": [
+          "observed outbound bytes are not the exact bytes authorized by the permit"
+        ],
+        "accountable_principal": "egress-sidecar@org-vectors"
+      }
+    },
+    {
+      "id": "DW-03",
+      "title": "The witness claims the permitted bytes; different bytes were observed",
+      "witness": {
+        "spec": "pv-dispatch-witness/0.1-experimental",
+        "canonicalization": "RFC8785",
+        "dispatch_witness_id": "dw-vectors-0001",
+        "organisation_id": "org-vectors",
+        "request_id": "req-ORD-70340-refund",
+        "execution_authorization_id": "ea-vectors-0001",
+        "execution_authorization_digest": "sha256:66de0a1a1037dc3712f15b0d2e2abb1b5d63066eb775de207fba8d51868fd56d",
+        "observed_at": "2026-11-25T10:00:31Z",
+        "attempt": 1,
+        "witness_component_id": "egress-sidecar-1",
+        "observed_action_digest": "sha256:362e05d143e1349f503891b299309b0dcfb6c8569f9b8c84a3548e5a5fde1a5e",
+        "observed_dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "wire_content_type": "application/json",
+        "wire_content_encoding": "identity",
+        "wire_bytes_digest": "sha256:c25d261fe5557e362f8a32af0ab6a53b3c23d2339b6e31aaa06b4470d933ddfa",
+        "wire_bytes_length": 80,
+        "peer_identity_digest": "sha256:f1f48343f33d9939a6eeb7150fe2fea8b856840458047b41c47de3bc380a09c4",
+        "trust_bundle_digest": "sha256:e1aaf473a8388e65d6f29b1d5516760bef481e29b035258bd9803afc94cb0b31",
+        "signer_key_id": "witness-1",
+        "signature": "ed25519:LcCaMC+r9+T0NH+wI3fRTLjpTr1waN80WaVAHGcJaiJ3fe+383EDilbste8A/QO2Iey7oSjcKoBRC1o8ibA2Bg=="
+      },
+      "authorization_case": "EA-01",
+      "trust_bundle": "default",
+      "observed": {
+        "action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "wire_bytes_b64": "eyJhbW91bnQiOjkwMDAsImN1cnJlbmN5IjoiSU5SIiwib3JkZXJfaWQiOiJPUkQtNzAzNDAiLCJwYXllZSI6ImthdnlhLm5Ab2theGlzIn0=",
+        "peer_identity_b64": "MCowBQYDK2VwAyEAixMsRez8hqzwOQR6K4rPCPHyNLDN83CoAi5H8MXdrck="
+      },
+      "expect": {
+        "evidence_state": "VERIFIED",
+        "decision_conformance": "NON_CONFORMANT",
+        "reason_code": "DISPATCH_NON_CONFORMANT",
+        "failures": [
+          "dispatch witness wire digest does not match the observed outbound bytes",
+          "observed outbound bytes are not the exact bytes authorized by the permit"
+        ],
+        "accountable_principal": "egress-sidecar@org-vectors"
+      }
+    },
+    {
+      "id": "DW-04",
+      "title": "A retry: attempt 2 of a single-use permit",
+      "witness": {
+        "spec": "pv-dispatch-witness/0.1-experimental",
+        "canonicalization": "RFC8785",
+        "dispatch_witness_id": "dw-vectors-0001",
+        "organisation_id": "org-vectors",
+        "request_id": "req-ORD-70340-refund",
+        "execution_authorization_id": "ea-vectors-0001",
+        "execution_authorization_digest": "sha256:66de0a1a1037dc3712f15b0d2e2abb1b5d63066eb775de207fba8d51868fd56d",
+        "observed_at": "2026-11-25T10:00:31Z",
+        "attempt": 2,
+        "witness_component_id": "egress-sidecar-1",
+        "observed_action_digest": "sha256:362e05d143e1349f503891b299309b0dcfb6c8569f9b8c84a3548e5a5fde1a5e",
+        "observed_dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "wire_content_type": "application/json",
+        "wire_content_encoding": "identity",
+        "wire_bytes_digest": "sha256:c25d261fe5557e362f8a32af0ab6a53b3c23d2339b6e31aaa06b4470d933ddfa",
+        "wire_bytes_length": 80,
+        "peer_identity_digest": "sha256:f1f48343f33d9939a6eeb7150fe2fea8b856840458047b41c47de3bc380a09c4",
+        "trust_bundle_digest": "sha256:e1aaf473a8388e65d6f29b1d5516760bef481e29b035258bd9803afc94cb0b31",
+        "signer_key_id": "witness-1",
+        "signature": "ed25519:BU6ZUU6JlF5/MGyLPbp+sHsSnUe+te0vRB4SeA885FksH0JMH8M2LjUYR1awobtsyuHvEu10l/PYpeuAUgMcDQ=="
+      },
+      "authorization_case": "EA-01",
+      "trust_bundle": "default",
+      "observed": {
+        "action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "wire_bytes_b64": "eyJhbW91bnQiOjMwMDAsImN1cnJlbmN5IjoiSU5SIiwib3JkZXJfaWQiOiJPUkQtNzAzNDAiLCJwYXllZSI6ImthdnlhLm5Ab2theGlzIn0=",
+        "peer_identity_b64": "MCowBQYDK2VwAyEAixMsRez8hqzwOQR6K4rPCPHyNLDN83CoAi5H8MXdrck="
+      },
+      "expect": {
+        "evidence_state": "VERIFIED",
+        "decision_conformance": "NON_CONFORMANT",
+        "reason_code": "DISPATCH_NON_CONFORMANT",
+        "failures": [
+          "single-use authorization cannot witness a retry attempt"
+        ],
+        "accountable_principal": "egress-sidecar@org-vectors"
+      }
+    },
+    {
+      "id": "DW-05",
+      "title": "Sent at expires_at, outside the permit's window",
+      "witness": {
+        "spec": "pv-dispatch-witness/0.1-experimental",
+        "canonicalization": "RFC8785",
+        "dispatch_witness_id": "dw-vectors-0001",
+        "organisation_id": "org-vectors",
+        "request_id": "req-ORD-70340-refund",
+        "execution_authorization_id": "ea-vectors-0001",
+        "execution_authorization_digest": "sha256:66de0a1a1037dc3712f15b0d2e2abb1b5d63066eb775de207fba8d51868fd56d",
+        "observed_at": "2026-11-25T10:01:00Z",
+        "attempt": 1,
+        "witness_component_id": "egress-sidecar-1",
+        "observed_action_digest": "sha256:362e05d143e1349f503891b299309b0dcfb6c8569f9b8c84a3548e5a5fde1a5e",
+        "observed_dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "wire_content_type": "application/json",
+        "wire_content_encoding": "identity",
+        "wire_bytes_digest": "sha256:c25d261fe5557e362f8a32af0ab6a53b3c23d2339b6e31aaa06b4470d933ddfa",
+        "wire_bytes_length": 80,
+        "peer_identity_digest": "sha256:f1f48343f33d9939a6eeb7150fe2fea8b856840458047b41c47de3bc380a09c4",
+        "trust_bundle_digest": "sha256:e1aaf473a8388e65d6f29b1d5516760bef481e29b035258bd9803afc94cb0b31",
+        "signer_key_id": "witness-1",
+        "signature": "ed25519:lTCnsYFc7a9vHVvSZuNxKxrap9ih/sRFfpUZyLgLfrNvPNZ9T03hjhmYWjpkIlN80L+LQ5Fl+ZjJB/UNYYIMAQ=="
+      },
+      "authorization_case": "EA-01",
+      "trust_bundle": "default",
+      "observed": {
+        "action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "wire_bytes_b64": "eyJhbW91bnQiOjMwMDAsImN1cnJlbmN5IjoiSU5SIiwib3JkZXJfaWQiOiJPUkQtNzAzNDAiLCJwYXllZSI6ImthdnlhLm5Ab2theGlzIn0=",
+        "peer_identity_b64": "MCowBQYDK2VwAyEAixMsRez8hqzwOQR6K4rPCPHyNLDN83CoAi5H8MXdrck="
+      },
+      "expect": {
+        "evidence_state": "VERIFIED",
+        "decision_conformance": "NON_CONFORMANT",
+        "reason_code": "DISPATCH_NON_CONFORMANT",
+        "failures": [
+          "dispatch occurred outside the authorization validity window"
+        ],
+        "accountable_principal": "egress-sidecar@org-vectors"
+      }
+    },
+    {
+      "id": "DW-06",
+      "title": "Sent to a different TLS peer",
+      "witness": {
+        "spec": "pv-dispatch-witness/0.1-experimental",
+        "canonicalization": "RFC8785",
+        "dispatch_witness_id": "dw-vectors-0001",
+        "organisation_id": "org-vectors",
+        "request_id": "req-ORD-70340-refund",
+        "execution_authorization_id": "ea-vectors-0001",
+        "execution_authorization_digest": "sha256:66de0a1a1037dc3712f15b0d2e2abb1b5d63066eb775de207fba8d51868fd56d",
+        "observed_at": "2026-11-25T10:00:31Z",
+        "attempt": 1,
+        "witness_component_id": "egress-sidecar-1",
+        "observed_action_digest": "sha256:362e05d143e1349f503891b299309b0dcfb6c8569f9b8c84a3548e5a5fde1a5e",
+        "observed_dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "wire_content_type": "application/json",
+        "wire_content_encoding": "identity",
+        "wire_bytes_digest": "sha256:c25d261fe5557e362f8a32af0ab6a53b3c23d2339b6e31aaa06b4470d933ddfa",
+        "wire_bytes_length": 80,
+        "peer_identity_digest": "sha256:325297cb30d3637a0fd9f8c0ba2378b88a34cbec9d1e8220a26209047c7ae362",
+        "trust_bundle_digest": "sha256:e1aaf473a8388e65d6f29b1d5516760bef481e29b035258bd9803afc94cb0b31",
+        "signer_key_id": "witness-1",
+        "signature": "ed25519:TUtvVGv86eA0n3H+/GYtQJD/Ep6KpSMzS0fkkpnY2dTUpk3dtZddcVxmF7vZrzKb/C0LWuv5RRt0OV8RZ/ZUDg=="
+      },
+      "authorization_case": "EA-01",
+      "trust_bundle": "default",
+      "observed": {
+        "action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "wire_bytes_b64": "eyJhbW91bnQiOjMwMDAsImN1cnJlbmN5IjoiSU5SIiwib3JkZXJfaWQiOiJPUkQtNzAzNDAiLCJwYXllZSI6ImthdnlhLm5Ab2theGlzIn0=",
+        "peer_identity_b64": "MCowBQYDK2VwAyEAAD6dDHi1qFDzRCzExaH7F8KWmRcEBwIe2SrB/Evd+/g="
+      },
+      "expect": {
+        "evidence_state": "VERIFIED",
+        "decision_conformance": "NON_CONFORMANT",
+        "reason_code": "DISPATCH_NON_CONFORMANT",
+        "failures": [
+          "observed peer identity is not the peer authorized by the permit"
+        ],
+        "accountable_principal": "egress-sidecar@org-vectors"
+      }
+    },
+    {
+      "id": "DW-07",
+      "title": "Witness signed by the permit key, which may not sign witnesses",
+      "witness": {
+        "spec": "pv-dispatch-witness/0.1-experimental",
+        "canonicalization": "RFC8785",
+        "dispatch_witness_id": "dw-vectors-0001",
+        "organisation_id": "org-vectors",
+        "request_id": "req-ORD-70340-refund",
+        "execution_authorization_id": "ea-vectors-0001",
+        "execution_authorization_digest": "sha256:66de0a1a1037dc3712f15b0d2e2abb1b5d63066eb775de207fba8d51868fd56d",
+        "observed_at": "2026-11-25T10:00:31Z",
+        "attempt": 1,
+        "witness_component_id": "egress-sidecar-1",
+        "observed_action_digest": "sha256:362e05d143e1349f503891b299309b0dcfb6c8569f9b8c84a3548e5a5fde1a5e",
+        "observed_dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "wire_content_type": "application/json",
+        "wire_content_encoding": "identity",
+        "wire_bytes_digest": "sha256:c25d261fe5557e362f8a32af0ab6a53b3c23d2339b6e31aaa06b4470d933ddfa",
+        "wire_bytes_length": 80,
+        "peer_identity_digest": "sha256:f1f48343f33d9939a6eeb7150fe2fea8b856840458047b41c47de3bc380a09c4",
+        "trust_bundle_digest": "sha256:e1aaf473a8388e65d6f29b1d5516760bef481e29b035258bd9803afc94cb0b31",
+        "signer_key_id": "exec-1",
+        "signature": "ed25519:akFag/QQhux9wjHyhboVRQnD66jcgsf+4gBsTowAlu5pRPJ0O++UsCPWXTy4/3oqTm+dcXj1sY58+l6IiZOMAw=="
+      },
+      "authorization_case": "EA-01",
+      "trust_bundle": "default",
+      "observed": {
+        "action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "wire_bytes_b64": "eyJhbW91bnQiOjMwMDAsImN1cnJlbmN5IjoiSU5SIiwib3JkZXJfaWQiOiJPUkQtNzAzNDAiLCJwYXllZSI6ImthdnlhLm5Ab2theGlzIn0=",
+        "peer_identity_b64": "MCowBQYDK2VwAyEAixMsRez8hqzwOQR6K4rPCPHyNLDN83CoAi5H8MXdrck="
+      },
+      "expect": {
+        "evidence_state": "INVALID",
+        "decision_conformance": "NOT_ASSESSABLE",
+        "reason_code": "WITNESS_KEY_USAGE_INVALID",
+        "failures": [
+          "key 'exec-1' lacks required usage 'dispatch_witness_signer'"
+        ],
+        "accountable_principal": null
+      }
+    },
+    {
+      "id": "DW-08",
+      "title": "observed_at moved earlier after signing",
+      "witness": {
+        "spec": "pv-dispatch-witness/0.1-experimental",
+        "canonicalization": "RFC8785",
+        "dispatch_witness_id": "dw-vectors-0001",
+        "organisation_id": "org-vectors",
+        "request_id": "req-ORD-70340-refund",
+        "execution_authorization_id": "ea-vectors-0001",
+        "execution_authorization_digest": "sha256:66de0a1a1037dc3712f15b0d2e2abb1b5d63066eb775de207fba8d51868fd56d",
+        "observed_at": "2026-11-25T10:00:01Z",
+        "attempt": 1,
+        "witness_component_id": "egress-sidecar-1",
+        "observed_action_digest": "sha256:362e05d143e1349f503891b299309b0dcfb6c8569f9b8c84a3548e5a5fde1a5e",
+        "observed_dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "wire_content_type": "application/json",
+        "wire_content_encoding": "identity",
+        "wire_bytes_digest": "sha256:c25d261fe5557e362f8a32af0ab6a53b3c23d2339b6e31aaa06b4470d933ddfa",
+        "wire_bytes_length": 80,
+        "peer_identity_digest": "sha256:f1f48343f33d9939a6eeb7150fe2fea8b856840458047b41c47de3bc380a09c4",
+        "trust_bundle_digest": "sha256:e1aaf473a8388e65d6f29b1d5516760bef481e29b035258bd9803afc94cb0b31",
+        "signer_key_id": "witness-1",
+        "signature": "ed25519:LcCaMC+r9+T0NH+wI3fRTLjpTr1waN80WaVAHGcJaiJ3fe+383EDilbste8A/QO2Iey7oSjcKoBRC1o8ibA2Bg=="
+      },
+      "authorization_case": "EA-01",
+      "trust_bundle": "default",
+      "observed": {
+        "action": {
+          "subject_principal": "refunds-agent@org-vectors",
+          "subject_key_id": "refunds-agent",
+          "action": "payments.refund.issue",
+          "resource": "orders:ORD-70340",
+          "parameters": {
+            "amount": 3000,
+            "currency": "INR",
+            "order_id": "ORD-70340",
+            "payee": "kavya.n@okaxis"
+          }
+        },
+        "dispatch": {
+          "transport": "https",
+          "destination": "payments.example",
+          "operation": "POST /v1/refunds",
+          "wire_content_type": "application/json",
+          "wire_content_encoding": "identity",
+          "tool_id": "payments.refund.issue.v1",
+          "tool_schema_digest": "sha256:b41c12821a2a516fb83dcb7e1cee3f05735bb48f8e60206f850d7cb893961a72",
+          "tool_artifact_digest": "sha256:aa75fde7990dc768eea50b775d4608700a637d568350009dac86a6a630b55d17",
+          "credential_audience": "payments.example",
+          "idempotency_key_digest": "sha256:9a6be6e7f528f6299ecaa02aed9af125925f64045205db0c98b72cbefdecab3f",
+          "retry_policy_digest": "sha256:f6961cdd822525a4ead6e5de637dc1d903751f22a8840f172b8e72c460dff67f",
+          "serialization": "pv-json-parameters/0.1"
+        },
+        "wire_bytes_b64": "eyJhbW91bnQiOjMwMDAsImN1cnJlbmN5IjoiSU5SIiwib3JkZXJfaWQiOiJPUkQtNzAzNDAiLCJwYXllZSI6ImthdnlhLm5Ab2theGlzIn0=",
+        "peer_identity_b64": "MCowBQYDK2VwAyEAixMsRez8hqzwOQR6K4rPCPHyNLDN83CoAi5H8MXdrck="
+      },
+      "expect": {
+        "evidence_state": "INVALID",
+        "decision_conformance": "NOT_ASSESSABLE",
+        "reason_code": "DISPATCH_WITNESS_SIGNATURE_INVALID",
+        "failures": [
+          "dispatch witness signature is invalid"
+        ],
+        "accountable_principal": null
+      }
+    }
+  ],
+  "wire_binding_cases": [
+    {
+      "id": "WB-01",
+      "title": "Digest and length of the action's own serialization",
+      "action": {
+        "subject_principal": "refunds-agent@org-vectors",
+        "subject_key_id": "refunds-agent",
+        "action": "payments.refund.issue",
+        "resource": "orders:ORD-70340",
+        "parameters": {
+          "amount": 3000,
+          "currency": "INR",
+          "order_id": "ORD-70340",
+          "payee": "kavya.n@okaxis"
+        }
+      },
+      "serialization": "pv-json-parameters/0.1",
+      "expected_wire_bytes_digest": "sha256:c25d261fe5557e362f8a32af0ab6a53b3c23d2339b6e31aaa06b4470d933ddfa",
+      "expected_wire_bytes_length": 80,
+      "expect": {
+        "reason_code": null
+      }
+    },
+    {
+      "id": "WB-02",
+      "title": "Digest of other bytes of the same length",
+      "action": {
+        "subject_principal": "refunds-agent@org-vectors",
+        "subject_key_id": "refunds-agent",
+        "action": "payments.refund.issue",
+        "resource": "orders:ORD-70340",
+        "parameters": {
+          "amount": 3000,
+          "currency": "INR",
+          "order_id": "ORD-70340",
+          "payee": "kavya.n@okaxis"
+        }
+      },
+      "serialization": "pv-json-parameters/0.1",
+      "expected_wire_bytes_digest": "sha256:45ee48d53c8ec5593f5e92569106094ccb60da4c12ff14e209876887fd68b3c3",
+      "expected_wire_bytes_length": 80,
+      "expect": {
+        "reason_code": "AUTHORIZE_WIRE_ACTION_MISMATCH"
+      }
+    },
+    {
+      "id": "WB-03",
+      "title": "Right digest, wrong length",
+      "action": {
+        "subject_principal": "refunds-agent@org-vectors",
+        "subject_key_id": "refunds-agent",
+        "action": "payments.refund.issue",
+        "resource": "orders:ORD-70340",
+        "parameters": {
+          "amount": 3000,
+          "currency": "INR",
+          "order_id": "ORD-70340",
+          "payee": "kavya.n@okaxis"
+        }
+      },
+      "serialization": "pv-json-parameters/0.1",
+      "expected_wire_bytes_digest": "sha256:c25d261fe5557e362f8a32af0ab6a53b3c23d2339b6e31aaa06b4470d933ddfa",
+      "expected_wire_bytes_length": 81,
+      "expect": {
+        "reason_code": "AUTHORIZE_WIRE_ACTION_MISMATCH"
+      }
+    },
+    {
+      "id": "WB-04",
+      "title": "A serialization the verifier does not know",
+      "action": {
+        "subject_principal": "refunds-agent@org-vectors",
+        "subject_key_id": "refunds-agent",
+        "action": "payments.refund.issue",
+        "resource": "orders:ORD-70340",
+        "parameters": {
+          "amount": 3000,
+          "currency": "INR",
+          "order_id": "ORD-70340",
+          "payee": "kavya.n@okaxis"
+        }
+      },
+      "serialization": "pv-json-parameters/9.9",
+      "expected_wire_bytes_digest": "sha256:c25d261fe5557e362f8a32af0ab6a53b3c23d2339b6e31aaa06b4470d933ddfa",
+      "expected_wire_bytes_length": 80,
+      "expect": {
+        "reason_code": "AUTHORIZE_WIRE_SERIALIZATION_UNKNOWN"
+      }
+    },
+    {
+      "id": "WB-05",
+      "title": "No serialization named",
+      "action": {
+        "subject_principal": "refunds-agent@org-vectors",
+        "subject_key_id": "refunds-agent",
+        "action": "payments.refund.issue",
+        "resource": "orders:ORD-70340",
+        "parameters": {
+          "amount": 3000,
+          "currency": "INR",
+          "order_id": "ORD-70340",
+          "payee": "kavya.n@okaxis"
+        }
+      },
+      "serialization": null,
+      "expected_wire_bytes_digest": "sha256:c25d261fe5557e362f8a32af0ab6a53b3c23d2339b6e31aaa06b4470d933ddfa",
+      "expected_wire_bytes_length": 80,
+      "expect": {
+        "reason_code": "AUTHORIZE_WIRE_SERIALIZATION_REQUIRED"
+      }
+    }
+  ]
+}
