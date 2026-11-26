@@ -5207,6 +5207,10 @@
    "group": "tools",
    "path": "tools/check_aat02_analogues.py"
   },
+  "tools.check_execution_vectors": {
+   "group": "tools",
+   "path": "tools/check_execution_vectors.py"
+  },
   "tools.depmap": {
    "group": "tools",
    "path": "tools/depmap.py"

@@ -100,6 +100,8 @@ KEY_LABELS = {
     "exec-1": "execution-authorization-signer",
     "witness-1": "dispatch-witness-signer",
     "stranger-1": "key-not-in-any-trust-bundle",
+    "dual-1": "key-that-may-sign-permits-and-witnesses",
+    "twin-witness-1": "witness-key-held-by-the-permit-signer",
 }
 KEYS = {key_id: SigningKey(_seed(label)) for key_id, label in KEY_LABELS.items()}
 
@@ -203,10 +205,34 @@ def _trust_bundle(*, organisation: str = ORG, version: int = 1) -> dict[str, Any
     }
 
 
+def _not_independent_bundle() -> dict[str, Any]:
+    """Two ways a witness can fail to be independent of the permit signer."""
+    bundle = _trust_bundle()
+    bundle["keys"] = [
+        *bundle["keys"],
+        {
+            "key_id": "dual-1",
+            "principal": f"dual-role@{ORG}",
+            "algorithm": "ed25519",
+            "public_key": encode_public_key(KEYS["dual-1"]),
+            "usages": ["execution_authorization_signer", "dispatch_witness_signer"],
+        },
+        {
+            "key_id": "twin-witness-1",
+            "principal": f"execution-runtime@{ORG}",
+            "algorithm": "ed25519",
+            "public_key": encode_public_key(KEYS["twin-witness-1"]),
+            "usages": ["dispatch_witness_signer"],
+        },
+    ]
+    return bundle
+
+
 TRUST_BUNDLES = {
     "default": _trust_bundle(),
     "rotated": _trust_bundle(version=2),
     "other-organisation": _trust_bundle(organisation="org-elsewhere"),
+    "not-independent": _not_independent_bundle(),
 }
 
 
@@ -250,6 +276,9 @@ def _signed(*, key_id: str = "exec-1", **overrides: Any) -> dict[str, Any]:
 
 V01 = _signed()
 V02 = _signed(spec=EXECUTION_AUTHORIZATION_SPEC_V02)
+_NOT_INDEPENDENT = sha256_digest(TRUST_BUNDLES["not-independent"])
+V01_DUAL = _signed(key_id="dual-1", trust_bundle_digest=_NOT_INDEPENDENT)
+V01_TWINNED = _signed(trust_bundle_digest=_NOT_INDEPENDENT)
 
 
 def _context(**overrides: Any) -> dict[str, Any]:
@@ -506,6 +535,22 @@ AUTHORIZATION_CASES: list[tuple[str, str, dict, str | None, dict, dict]] = [
             "no out-of-band trust bundle was supplied",
         ),
     ),
+    (
+        "EA-20",
+        "A permit from a key that may also sign witnesses verifies on its own (DW-09 refuses its witness)",
+        V01_DUAL,
+        "not-independent",
+        _context(),
+        _ok(),
+    ),
+    (
+        "EA-21",
+        "A permit whose signer's principal also holds a witness key verifies on its own (DW-10)",
+        V01_TWINNED,
+        "not-independent",
+        _context(),
+        _ok(),
+    ),
 ]
 
 PRESENTER_CASES: list[tuple[str, str, str, bool, bytes | None, dict]] = [
@@ -575,12 +620,14 @@ def _witness(
     wire: bytes = WIRE,
     peer: bytes = PEER,
     key_id: str = "witness-1",
+    authorization: dict[str, Any] = V01,
+    bundle: str = "default",
     **metadata: Any,
 ) -> dict[str, Any]:
     return create_dispatch_witness(
         {**_WITNESS_METADATA, "signer_key_id": key_id, **metadata},
-        authorization=V01,
-        trust_bundle=TRUST_BUNDLES["default"],
+        authorization=authorization,
+        trust_bundle=TRUST_BUNDLES[bundle],
         observed_action=ACTION,
         observed_dispatch=DISPATCH,
         wire_bytes=wire,
@@ -594,11 +641,19 @@ def _w_off(*failures: str) -> dict[str, Any]:
 
 
 _W_VALID = _witness()
-WITNESS_CASES: list[tuple[str, str, dict, bytes, bytes, dict]] = [
+_NOT_INDEPENDENT_EXPECTED = _expect(
+    INVALID,
+    NOT_ASSESSABLE,
+    "WITNESS_NOT_INDEPENDENT",
+    "execution authorization and dispatch witness must use distinct keys and principals",
+)
+WITNESS_CASES: list[tuple[str, str, dict, str, str, bytes, bytes, dict]] = [
     (
         "DW-01",
         "The sidecar sent exactly the permitted bytes to the permitted peer",
         _W_VALID,
+        "EA-01",
+        "default",
         WIRE,
         PEER,
         _ok(),
@@ -607,6 +662,8 @@ WITNESS_CASES: list[tuple[str, str, dict, bytes, bytes, dict]] = [
         "DW-02",
         "The sidecar honestly witnesses different bytes",
         _witness(wire=WIRE_SAME_LENGTH),
+        "EA-01",
+        "default",
         WIRE_SAME_LENGTH,
         PEER,
         _w_off(
@@ -617,6 +674,8 @@ WITNESS_CASES: list[tuple[str, str, dict, bytes, bytes, dict]] = [
         "DW-03",
         "The witness claims the permitted bytes; different bytes were observed",
         _W_VALID,
+        "EA-01",
+        "default",
         WIRE_SAME_LENGTH,
         PEER,
         _w_off(
@@ -628,6 +687,8 @@ WITNESS_CASES: list[tuple[str, str, dict, bytes, bytes, dict]] = [
         "DW-04",
         "A retry: attempt 2 of a single-use permit",
         _witness(attempt=2),
+        "EA-01",
+        "default",
         WIRE,
         PEER,
         _w_off("single-use authorization cannot witness a retry attempt"),
@@ -636,6 +697,8 @@ WITNESS_CASES: list[tuple[str, str, dict, bytes, bytes, dict]] = [
         "DW-05",
         "Sent at expires_at, outside the permit's window",
         _witness(observed_at=EXPIRES),
+        "EA-01",
+        "default",
         WIRE,
         PEER,
         _w_off("dispatch occurred outside the authorization validity window"),
@@ -644,6 +707,8 @@ WITNESS_CASES: list[tuple[str, str, dict, bytes, bytes, dict]] = [
         "DW-06",
         "Sent to a different TLS peer",
         _witness(peer=OTHER_PEER),
+        "EA-01",
+        "default",
         WIRE,
         OTHER_PEER,
         _w_off("observed peer identity is not the peer authorized by the permit"),
@@ -652,6 +717,8 @@ WITNESS_CASES: list[tuple[str, str, dict, bytes, bytes, dict]] = [
         "DW-07",
         "Witness signed by the permit key, which may not sign witnesses",
         _witness(key_id="exec-1"),
+        "EA-01",
+        "default",
         WIRE,
         PEER,
         _expect(
@@ -665,6 +732,8 @@ WITNESS_CASES: list[tuple[str, str, dict, bytes, bytes, dict]] = [
         "DW-08",
         "observed_at moved earlier after signing",
         dict(_W_VALID, observed_at="2026-11-25T10:00:01Z"),
+        "EA-01",
+        "default",
         WIRE,
         PEER,
         _expect(
@@ -673,6 +742,28 @@ WITNESS_CASES: list[tuple[str, str, dict, bytes, bytes, dict]] = [
             "DISPATCH_WITNESS_SIGNATURE_INVALID",
             "dispatch witness signature is invalid",
         ),
+    ),
+    (
+        "DW-09",
+        "Permit and witness signed by the same key",
+        _witness(key_id="dual-1", authorization=V01_DUAL, bundle="not-independent"),
+        "EA-20",
+        "not-independent",
+        WIRE,
+        PEER,
+        _NOT_INDEPENDENT_EXPECTED,
+    ),
+    (
+        "DW-10",
+        "Different keys, but the witness key belongs to the permit signer's principal",
+        _witness(
+            key_id="twin-witness-1", authorization=V01_TWINNED, bundle="not-independent"
+        ),
+        "EA-21",
+        "not-independent",
+        WIRE,
+        PEER,
+        _NOT_INDEPENDENT_EXPECTED,
     ),
 ]
 
@@ -888,8 +979,19 @@ def build() -> dict[str, Any]:
         )
 
     witness_cases = []
-    for case_id, title, witness, wire, peer, intended in WITNESS_CASES:
-        actual = run_witness(witness, V01, TRUST_BUNDLES["default"], wire, peer)
+    for (
+        case_id,
+        title,
+        witness,
+        ref,
+        bundle_name,
+        wire,
+        peer,
+        intended,
+    ) in WITNESS_CASES:
+        actual = run_witness(
+            witness, by_id[ref], TRUST_BUNDLES[bundle_name], wire, peer
+        )
         if not _matches(intended, actual):
             disagreements.append(
                 f"{case_id}: intended {intended}, verifier said {actual}"
@@ -899,8 +1001,8 @@ def build() -> dict[str, Any]:
                 "id": case_id,
                 "title": title,
                 "witness": witness,
-                "authorization_case": "EA-01",
-                "trust_bundle": "default",
+                "authorization_case": ref,
+                "trust_bundle": bundle_name,
                 "observed": {
                     "action": ACTION,
                     "dispatch": DISPATCH,

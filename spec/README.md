@@ -78,10 +78,12 @@ Verify any of them:
 A conformant implementation of this format MUST produce files that
 pass, and MUST NOT produce files whose tampering evades these checks.
 
-`execution-v01/vectors/` holds 38 conformance cases for the path from a
+`execution-v01/vectors/` holds 42 conformance cases for the path from a
 permit to the bytes that leave: the execution authorization, the receiver
 gate's presenter check, the dispatch witness and the authorize-time
 wire binding. Its README says how to replay them in another implementation.
+`tools/check_execution_vectors.py`, a second implementation written with the
+standard library only, agrees with all of them.
 
 ## Scope honesty
 

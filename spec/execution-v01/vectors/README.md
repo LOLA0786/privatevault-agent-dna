@@ -9,7 +9,7 @@ hardware logic driven by cocotb.
 |---|---|---|
 | `authorization_cases` (EA) | A permit against the exact request, action, dispatch, bytes, TLS peer, validity window and single use | `verify_execution_authorization` |
 | `presenter_cases` (PR) | The presenter a 0.2 permit names against the TLS client certificate | the receiver gate (`ReceiverGate._verify_presenter`, ADR 0022) |
-| `witness_cases` (DW) | A dispatch witness against the permit and what was observed on the wire | `verify_dispatch_witness` (ADR 0008) |
+| `witness_cases` (DW) | A dispatch witness against the permit and what was observed on the wire; its key and principal must be independent of the permit signer's | `verify_dispatch_witness` (ADR 0008) |
 | `wire_binding_cases` (WB) | The permit's byte digest against its own action | authorize (`wire_action_binding_reason`, ADR 0017) |
 
 ## Reproducing the bytes
@@ -41,14 +41,28 @@ hardware logic driven by cocotb.
 - **PR:** present the permit from `authorization_case` with
   `client_certificate_der_b64` (null: no certificate) to a gate whose
   `gate_requires_presenter` is as given.
-- **DW:** verify `witness` against EA-01's permit and the `observed` action,
-  dispatch, bytes and peer.
+- **DW:** verify `witness` against the permit named by `authorization_case`,
+  under `trust_bundles[trust_bundle]`, and the `observed` action, dispatch,
+  bytes and peer.
 - **WB:** check `expected_wire_bytes_digest` and `expected_wire_bytes_length`
   against `action` under `serialization`.
 
 Match `evidence_state`, `decision_conformance` and `reason_code`. The
 `failures` texts are PrivateVault's wording; another implementation should
 reach the same outcome and reason code and may word its failures differently.
+
+## A second implementation
+
+`tools/check_execution_vectors.py` implements every check above from this
+README and the published standards, with Python's standard library alone: no
+PrivateVault code, PyNaCl or cryptography. It agrees with every case and both
+canonicalization fixtures. Its Ed25519 is checked against RFC 8032's Test 1
+and against libsodium on random keys, messages and tampered signatures
+(`tests/test_execution_vectors_independent.py`). Read it as reference logic:
+it applies the checks in the order a verifier must, because the order decides
+which reason code a request gets.
+
+    python3 tools/check_execution_vectors.py
 
 ## Regenerating
 
@@ -68,3 +82,5 @@ it is stale. The keys are test-only: `seed_derivation` and each key's
 - Single use is shown against one ledger. Claims racing across hosts are not
   represented; the receiver's ledger is single-host today.
 - Presenter cases call the gate's check directly, not a live mTLS handshake.
+- Each case carries one fault. Which reason code wins when a request has
+  several is fixed by check order (see the checker), not by these vectors.
