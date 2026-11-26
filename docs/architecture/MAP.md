@@ -30,7 +30,7 @@ flowchart LR
   n21["examples<br/>30 modules"]
   n22["experimental<br/>62 modules"]
   n23["rust/pv_runtime (PyO3)"]
-  n24["tools<br/>40 modules"]
+  n24["tools<br/>42 modules"]
   n0 -.->|1| n2
   n0 -->|5| n4
   n0 -->|1| n5
@@ -78,11 +78,11 @@ flowchart LR
   n21 -->|1| n22
   n22 -->|15| n0
   n22 -->|1| n5
-  n24 -->|43| n0
+  n24 -->|49| n0
   n24 -->|3| n4
   n24 -->|3| n11
   n24 -->|1| n13
-  n24 -->|2| n15
+  n24 -->|3| n15
   n24 -->|3| n16
   n24 -.->|3| n20
   n24 -->|1| n22
@@ -95,7 +95,7 @@ flowchart LR
 |---|---:|---:|
 | `agent_dna (core modules)` | 84 |
 | `experimental` | 62 |
-| `tools` | 40 |
+| `tools` | 42 |
 | `examples` | 30 |
 | `agent_dna/multi_agent` | 16 |
 | `agent_dna/gateway` | 14 |
@@ -122,12 +122,12 @@ flowchart LR
 
 | Module | Imported by | Imports |
 |---|---:|---:|
-| `agent_dna.authority_v01` | 46 | 1 |
+| `agent_dna.authority_v01` | 47 | 1 |
 | `agent_dna.decision` | 29 | 6 |
 | `agent_dna.trace` | 28 | 0 |
 | `agent_dna` | 21 | 21 |
 | `agent_dna.advisory` | 16 | 0 |
-| `agent_dna.execution_v01` | 14 | 5 |
+| `agent_dna.execution_v01` | 15 | 5 |
 | `agent_dna.multi_agent.interaction_graph` | 14 | 1 |
 | `agent_dna.multi_agent.base` | 13 | 1 |
 | `agent_dna.gateway.errors` | 12 | 0 |

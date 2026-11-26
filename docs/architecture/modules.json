@@ -3380,6 +3380,41 @@
    "top"
   ],
   [
+   "tools.gen_execution_vectors",
+   "agent_dna.action_v01",
+   "top"
+  ],
+  [
+   "tools.gen_execution_vectors",
+   "agent_dna.authority_v01",
+   "top"
+  ],
+  [
+   "tools.gen_execution_vectors",
+   "agent_dna.dispatch_v01",
+   "top"
+  ],
+  [
+   "tools.gen_execution_vectors",
+   "agent_dna.execution_v01",
+   "top"
+  ],
+  [
+   "tools.gen_execution_vectors",
+   "agent_dna.presenter_identity",
+   "top"
+  ],
+  [
+   "tools.gen_execution_vectors",
+   "agent_dna.receiver.gate",
+   "top"
+  ],
+  [
+   "tools.gen_execution_vectors",
+   "agent_dna.wire_serialization_v01",
+   "top"
+  ],
+  [
    "tools.generate_api_key",
    "agent_dna.apikeys",
    "top"
@@ -3612,7 +3647,7 @@
  ],
  "fan_in": {
   "agent_dna": 21,
-  "agent_dna.action_v01": 6,
+  "agent_dna.action_v01": 7,
   "agent_dna.adapters": 11,
   "agent_dna.adapters_framework.base": 1,
   "agent_dna.adapters_policy.local": 2,
@@ -3629,7 +3664,7 @@
   "agent_dna.audit_connector.oauth": 1,
   "agent_dna.audit_connector.server": 2,
   "agent_dna.authority_deadline": 1,
-  "agent_dna.authority_v01": 46,
+  "agent_dna.authority_v01": 47,
   "agent_dna.authorization": 3,
   "agent_dna.authorize_binding": 7,
   "agent_dna.change_management": 1,
@@ -3663,7 +3698,7 @@
   "agent_dna.diff": 1,
   "agent_dna.discovery": 2,
   "agent_dna.dispatch_context_v01": 4,
-  "agent_dna.dispatch_v01": 5,
+  "agent_dna.dispatch_v01": 6,
   "agent_dna.dynamics": 5,
   "agent_dna.eav": 1,
   "agent_dna.eav.invariant_engine": 1,
@@ -3671,7 +3706,7 @@
   "agent_dna.economics.cost_check": 1,
   "agent_dna.evidence": 3,
   "agent_dna.execution_record": 6,
-  "agent_dna.execution_v01": 14,
+  "agent_dna.execution_v01": 15,
   "agent_dna.fact_sources": 1,
   "agent_dna.fingerprint": 5,
   "agent_dna.gateway": 1,
@@ -3739,7 +3774,7 @@
   "agent_dna.policy_gate": 2,
   "agent_dna.policy_miner": 2,
   "agent_dna.policy_replay": 3,
-  "agent_dna.presenter_identity": 5,
+  "agent_dna.presenter_identity": 6,
   "agent_dna.profile_store": 1,
   "agent_dna.quickstart": 4,
   "agent_dna.quickstart.approvals": 2,
@@ -3748,7 +3783,7 @@
   "agent_dna.rate": 1,
   "agent_dna.rate_limit": 1,
   "agent_dna.receiver.asgi": 1,
-  "agent_dna.receiver.gate": 2,
+  "agent_dna.receiver.gate": 3,
   "agent_dna.receiver.ledger": 3,
   "agent_dna.receiver.permit_header": 4,
   "agent_dna.receiver.receipts": 3,
@@ -3779,7 +3814,7 @@
   "agent_dna.validation.guard": 1,
   "agent_dna.validation.metrics": 4,
   "agent_dna.validation.report": 1,
-  "agent_dna.wire_serialization_v01": 7,
+  "agent_dna.wire_serialization_v01": 8,
   "api.server": 3,
   "experimental.adapters.git_bundle": 1,
   "experimental.authority_reachability_v01": 2,
@@ -4002,6 +4037,7 @@
   "tools.benchmark": 4,
   "tools.check_aat02_analogues": 1,
   "tools.gen_aat02_vectors": 2,
+  "tools.gen_execution_vectors": 7,
   "tools.generate_api_key": 1,
   "tools.generate_authority_reachability_vectors": 1,
   "tools.generate_authority_vectors": 1,
@@ -5171,6 +5207,10 @@
    "group": "tools",
    "path": "tools/check_aat02_analogues.py"
   },
+  "tools.check_execution_vectors": {
+   "group": "tools",
+   "path": "tools/check_execution_vectors.py"
+  },
   "tools.depmap": {
    "group": "tools",
    "path": "tools/depmap.py"
@@ -5182,6 +5222,10 @@
   "tools.gen_architecture": {
    "group": "tools",
    "path": "tools/gen_architecture.py"
+  },
+  "tools.gen_execution_vectors": {
+   "group": "tools",
+   "path": "tools/gen_execution_vectors.py"
   },
   "tools.gen_meeting_dashboard": {
    "group": "tools",
