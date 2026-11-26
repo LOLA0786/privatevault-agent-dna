@@ -13,6 +13,7 @@ Claims -> tests:
 from __future__ import annotations
 
 import json
+import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -63,12 +64,26 @@ class _Stub(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
 
+class _QuietServer(ThreadingHTTPServer):
+    """The "slow" stub answers after the client's 1 s timeout has closed the
+    socket. That broken pipe is the scenario under test, so it is not
+    reported; any other server error still is."""
+
+    daemon_threads = True
+
+    def handle_error(self, request, client_address):
+        if isinstance(sys.exc_info()[1], (BrokenPipeError, ConnectionResetError)):
+            return
+        super().handle_error(request, client_address)
+
+
 @pytest.fixture(scope="module")
 def url():
-    server = ThreadingHTTPServer(("127.0.0.1", 0), _Stub)
+    server = _QuietServer(("127.0.0.1", 0), _Stub)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     yield f"http://127.0.0.1:{server.server_address[1]}"
     server.shutdown()
+    server.server_close()
 
 
 def _source(url, **kw):
