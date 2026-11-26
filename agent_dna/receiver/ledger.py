@@ -13,8 +13,16 @@ One SQLite transaction (``BEGIN IMMEDIATE``) does both things atomically:
 A claim that loses the race produces a REFUSED receipt in the same
 transaction. Receipt sequence and linkage are allocated inside the lock, so
 concurrent workers and separate processes sharing the file cannot fork the
-chain. Multi-host deployments need a store with the same exclusive-claim
-guarantee; this module does not claim one.
+chain.
+
+Given a PostgreSQL URL instead of a file path, the same code runs on one
+database shared by every receiver host (ADR 0049). ``pg_compat`` takes a
+transaction advisory lock named after this ledger where SQLite takes the
+file's write lock, so the claims and the receipt linkage are allocated by
+one writer at a time across all hosts. PostgreSQL aborts a transaction on
+any failed statement, so the claims below never rely on catching one: a
+permit already consumed is detected by ``ON CONFLICT DO NOTHING`` and the
+row count, and the refusal receipt is written in the same transaction.
 
 The same transaction also claims the decision and the approval the permit
 was minted from (ADR 0039): ``(organisation_id, "decision",
@@ -38,11 +46,12 @@ from __future__ import annotations
 import json
 import sqlite3
 from collections.abc import Callable, Iterator, Mapping, Sequence
-from contextlib import closing
+from contextlib import AbstractContextManager, closing, nullcontext
 from pathlib import Path
 from typing import Any
 
 from agent_dna.authority_v01 import sha256_digest, strict_json_loads
+from agent_dna.pg_compat import PgCompatConnection, connect_url, is_database_url
 from agent_dna.receiver.receipts import GENESIS_DIGEST
 from agent_dna.receiver.transactions import (
     CLAIMED,
@@ -141,15 +150,44 @@ class TransactionStateError(ValueError):
 
 
 class ReceiverLedger:
-    """SQLite-backed consume ledger and receipt chain for one receiver."""
+    """Consume ledger and receipt chain: a SQLite file for one receiver host,
+    or a PostgreSQL database shared by several (ADR 0049)."""
 
-    def __init__(self, path: str | Path, *, timeout_s: float = 5.0) -> None:
-        self.path = str(path)
+    def __init__(
+        self,
+        path: str | Path | PgCompatConnection,
+        *,
+        timeout_s: float = 5.0,
+    ) -> None:
         self.timeout_s = timeout_s
-        with closing(self._connect()) as conn:
+        self._pg: PgCompatConnection | None = None
+        if isinstance(path, PgCompatConnection):
+            self._pg = path
+        elif is_database_url(path):
+            self._pg = connect_url(str(path), "receiver")
+        self.path = "postgresql" if self._pg is not None else str(path)
+        with self._session() as conn:
             conn.execute("PRAGMA journal_mode=WAL")
             for statement in _SCHEMA:
                 conn.execute(statement)
+            conn.commit()
+
+    def close(self) -> None:
+        """Release the shared database's connection pool (no-op for SQLite)."""
+        if self._pg is not None:
+            self._pg.close()
+
+    @property
+    def shared(self) -> bool:
+        """True when every receiver host sharing the database shares this ledger."""
+        return self._pg is not None
+
+    def _session(self) -> AbstractContextManager[Any]:
+        """A connection for one operation: a fresh SQLite connection, closed
+        afterwards, or the shared PostgreSQL one, which stays open."""
+        if self._pg is not None:
+            return nullcontext(self._pg)
+        return closing(self._connect())
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.path, timeout=self.timeout_s, isolation_level=None)
@@ -178,7 +216,7 @@ class ReceiverLedger:
             if kind not in _SOURCE_CLAIMS or not isinstance(digest, str) or not digest:
                 raise ValueError(f"invalid source claim {kind!r}")
 
-        with closing(self._connect()) as conn:
+        with self._session() as conn:
             conn.execute("BEGIN IMMEDIATE")
             try:
                 claimed: ClaimResult = None
@@ -207,22 +245,21 @@ class ReceiverLedger:
                     ) is not None:
                         claimed = source
                     else:
-                        try:
-                            conn.execute(
-                                "INSERT INTO receiver_consume (organisation_id, "
-                                "execution_authorization_id, consumed_at, "
-                                "receipt_sequence) VALUES (?, ?, ?, ?)",
-                                (organisation_id, ea_id, consumed_at, sequence),
-                            )
-                            claimed = True
-                        except sqlite3.IntegrityError:
-                            claimed = False
+                        inserted = conn.execute(
+                            "INSERT INTO receiver_consume (organisation_id, "
+                            "execution_authorization_id, consumed_at, "
+                            "receipt_sequence) VALUES (?, ?, ?, ?) ON CONFLICT "
+                            "(organisation_id, execution_authorization_id) DO NOTHING",
+                            (organisation_id, ea_id, consumed_at, sequence),
+                        )
+                        claimed = inserted.rowcount == 1
                     if claimed is True:
-                        conn.executemany(
-                            "INSERT INTO receiver_sources (organisation_id, kind, "
-                            "digest, execution_authorization_id, claimed_at, "
-                            "receipt_sequence) VALUES (?, ?, ?, ?, ?, ?)",
-                            [
+                        for kind, digest in sources:
+                            conn.execute(
+                                "INSERT INTO receiver_sources (organisation_id, "
+                                "kind, digest, execution_authorization_id, "
+                                "claimed_at, receipt_sequence) "
+                                "VALUES (?, ?, ?, ?, ?, ?)",
                                 (
                                     organisation_id,
                                     kind,
@@ -230,10 +267,8 @@ class ReceiverLedger:
                                     ea_id,
                                     consumed_at,
                                     sequence,
-                                )
-                                for kind, digest in sources
-                            ],
-                        )
+                                ),
+                            )
                     if claimed is True and transaction is not None:
                         conn.execute(
                             "INSERT INTO receiver_transactions (organisation_id, "
@@ -280,9 +315,9 @@ class ReceiverLedger:
                     "receipt_json) VALUES (?, ?, ?)",
                     (sequence, digest, json.dumps(receipt, sort_keys=True)),
                 )
-                conn.execute("COMMIT")
+                conn.commit()
             except BaseException:
-                conn.execute("ROLLBACK")
+                conn.rollback()
                 raise
         return claimed, receipt
 
@@ -337,7 +372,7 @@ class ReceiverLedger:
 
     def source_holder(self, organisation_id: str, kind: str, digest: str) -> str | None:
         """The permit admitted for this decision or approval, if any."""
-        with closing(self._connect()) as conn:
+        with self._session() as conn:
             row = conn.execute(
                 "SELECT execution_authorization_id FROM receiver_sources WHERE "
                 "organisation_id = ? AND kind = ? AND digest = ?",
@@ -360,7 +395,7 @@ class ReceiverLedger:
         permit claimed no transaction key or its claim already left CLAIMED.
         """
         state = classify_upstream(upstream_status)
-        with closing(self._connect()) as conn:
+        with self._session() as conn:
             conn.execute("BEGIN IMMEDIATE")
             try:
                 row = conn.execute(
@@ -370,7 +405,7 @@ class ReceiverLedger:
                     (organisation_id, execution_authorization_id, CLAIMED),
                 ).fetchone()
                 if row is None:
-                    conn.execute("COMMIT")
+                    conn.commit()
                     return None
                 transaction = (str(row[0]), str(row[1]))
                 conn.execute(
@@ -390,9 +425,9 @@ class ReceiverLedger:
                     actor="upstream",
                     upstream_status=upstream_status,
                 )
-                conn.execute("COMMIT")
+                conn.commit()
             except BaseException:
-                conn.execute("ROLLBACK")
+                conn.rollback()
                 raise
         return state
 
@@ -417,7 +452,7 @@ class ReceiverLedger:
         if not actor.strip() or not note.strip():
             raise TransactionStateError("a reconciliation names who and why")
         transaction = (operation, transaction_key)
-        with closing(self._connect()) as conn:
+        with self._session() as conn:
             conn.execute("BEGIN IMMEDIATE")
             try:
                 row = conn.execute(
@@ -450,9 +485,9 @@ class ReceiverLedger:
                     actor=actor,
                     note=note,
                 )
-                conn.execute("COMMIT")
+                conn.commit()
             except BaseException:
-                conn.execute("ROLLBACK")
+                conn.rollback()
                 raise
         return previous
 
@@ -480,7 +515,7 @@ class ReceiverLedger:
             "updated_at",
             "upstream_status",
         )
-        with closing(self._connect()) as conn:
+        with self._session() as conn:
             rows = conn.execute(sql, params).fetchall()
         return [dict(zip(names, row, strict=True)) for row in rows]
 
@@ -496,7 +531,7 @@ class ReceiverLedger:
             "actor",
             "note",
         )
-        with closing(self._connect()) as conn:
+        with self._session() as conn:
             rows = conn.execute(
                 "SELECT at, from_state, to_state, execution_authorization_id, "
                 "upstream_status, actor, note FROM receiver_transaction_events "
@@ -509,7 +544,7 @@ class ReceiverLedger:
     def is_consumed(
         self, organisation_id: str, execution_authorization_id: str
     ) -> bool:
-        with closing(self._connect()) as conn:
+        with self._session() as conn:
             row = conn.execute(
                 "SELECT 1 FROM receiver_consume WHERE organisation_id = ? AND "
                 "execution_authorization_id = ?",
@@ -518,7 +553,7 @@ class ReceiverLedger:
         return row is not None
 
     def iter_receipts(self) -> Iterator[dict[str, Any]]:
-        with closing(self._connect()) as conn:
+        with self._session() as conn:
             rows = conn.execute(
                 "SELECT receipt_json FROM receiver_receipts ORDER BY sequence ASC"
             ).fetchall()

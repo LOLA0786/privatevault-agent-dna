@@ -190,6 +190,18 @@ def test_config_refuses_malformed(tmp_path, override, match):
         config.settings_from_env(env)
 
 
+def test_config_refuses_a_database_url_as_ledger_path_without_echoing_it(tmp_path):
+    url = "postgresql://pv:s3cret@db.example:5432/receiver"
+    env = _env(
+        tmp_path, SigningKey.generate(), SigningKey.generate(), PV_LEDGER_PATH=url
+    )
+    with pytest.raises(
+        config.ConfigError, match="PV_LEDGER_PATH is a file path"
+    ) as refused:
+        config.settings_from_env(env)
+    assert "s3cret" not in str(refused.value)
+
+
 def test_config_refuses_duplicate_issuer_key_id(tmp_path):
     a, b = SigningKey.generate(), SigningKey.generate()
     env = _env(

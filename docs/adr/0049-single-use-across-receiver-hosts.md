@@ -1,10 +1,14 @@
 # 0049: Single use across more than one receiver host
 
-Status:     proposed (2026-11-26). The owner chooses; option A is recommended.
+Status:     proposed (2026-11-26). The owner left the choice to engineering,
+            which is building option A in two steps. Step 1, the ledger on
+            PostgreSQL, is built; step 2 wires the receiver kit to it, checks
+            replication and adds the two-process race test under "Proof".
 Date:       2026-11-26
-Pinned by:  no test yet. The accepted option ships with the two-host race
-            test described under "Proof", beside
-            tests/multi_instance/test_two_processes.py.
+Pinned by:  tests/receiver/test_receiver_ledger_shared.py (step 1: parity
+            with SQLite, and two ledger instances racing on one permit,
+            decision, approval and business key). Step 2 adds the two-process
+            test beside tests/multi_instance/test_two_processes.py.
 
 ## What forced the decision
 ADR 0039 put "at most once" in the receiver's own ledger. That ledger is one
@@ -27,10 +31,12 @@ must consult one source of truth inside the transaction that admits.
 ## Options
 
 ### A. One shared PostgreSQL ledger (recommended)
-Every host admits in one PostgreSQL transaction: the four claims as
-`INSERT … ON CONFLICT DO NOTHING` on today's keys, and the receipt appended
-under a lock on a one-row chain head (`SELECT … FOR UPDATE`), so sequence
-and linkage cannot fork. SQLite stays the store for a single host.
+Every host admits in one PostgreSQL transaction: the four claims on
+today's keys, and the receipt appended under the ledger's single-writer
+lock, so sequence and linkage cannot fork. The lock is a transaction
+advisory lock named after the ledger, the one `pg_compat` already gives the
+repository's other shared ledgers in place of SQLite's file lock. SQLite
+stays the store for a single host.
 
 - It holds for any number of active hosts, with today's semantics, receipts
   and verifier (`tools/verify_receiver_receipts.py`).
