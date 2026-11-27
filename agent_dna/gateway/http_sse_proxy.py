@@ -6,6 +6,7 @@ import json
 from collections.abc import Callable
 from typing import Any
 
+import agent_dna.gateway.inbound as inbound
 from agent_dna.gateway.errors import FramingProtocolError
 from agent_dna.gateway.framing import encode_jsonrpc_message, parse_jsonrpc
 from agent_dna.gateway.mediator import GatewayMediator
@@ -62,6 +63,16 @@ def build_asgi_app(gateway: McpGateway) -> Callable[..., Any]:
             return
         path = scope.get("path", "/")
         method = scope.get("method", "GET")
+        refused = inbound.refusal(scope, require_json=method == "POST")
+        if refused is not None:
+            status, reason = refused
+            await _send_http(
+                send,
+                status,
+                json.dumps({"error": reason}).encode("utf-8"),
+                "application/json",
+            )
+            return
 
         if method == "GET" and path in {"/ops", "/v1/gateway/ops"}:
             body = json.dumps(gateway.ops_summary()).encode("utf-8")
@@ -69,14 +80,14 @@ def build_asgi_app(gateway: McpGateway) -> Callable[..., Any]:
             return
 
         if method == "POST" and path in {"/mcp", "/"}:
-            chunks: list[bytes] = []
-            while True:
-                event = await receive()
-                if event["type"] == "http.request":
-                    chunks.append(event.get("body", b""))
-                    if not event.get("more_body"):
-                        break
-            status, body, headers = handle_http_jsonrpc(gateway, b"".join(chunks))
+            try:
+                raw = await inbound.read_body(receive, inbound.max_body_bytes())
+            except inbound.BodyTooLargeError:
+                await _send_http(
+                    send, 413, b'{"error":"request body too large"}', "application/json"
+                )
+                return
+            status, body, headers = handle_http_jsonrpc(gateway, raw)
             await _send_http(
                 send,
                 status,

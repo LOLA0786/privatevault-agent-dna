@@ -16,6 +16,7 @@ from urllib import error as urlerror
 from urllib import request as urlrequest
 from urllib.parse import urlparse
 
+import agent_dna.gateway.inbound as inbound
 from agent_dna.connector.middleware import ConnectorMiddleware
 from agent_dna.connector.models import ToolCallRequest
 from agent_dna.execution_v01 import sha256_bytes_digest
@@ -519,21 +520,34 @@ def build_https_egress_asgi_app(gateway: Any) -> Callable[..., Any]:
             return
         path = scope.get("path", "/")
         method = scope.get("method", "GET")
+        refused = inbound.refusal(scope)
+        if refused is not None:
+            status, reason = refused
+            await _send_http(
+                send,
+                status,
+                json.dumps({"error": reason}).encode("utf-8"),
+                {"content-type": "application/json"},
+            )
+            return
         if method == "GET" and path in {"/ops", "/v1/gateway/ops"}:
             body = json.dumps(gateway.ops_summary()).encode("utf-8")
             await _send_http(send, 200, body, {"content-type": "application/json"})
             return
         if method == "POST" and path in {"/egress", "/"}:
-            chunks: list[bytes] = []
-            while True:
-                event = await receive()
-                if event["type"] == "http.request":
-                    chunks.append(event.get("body", b""))
-                    if not event.get("more_body"):
-                        break
+            try:
+                raw = await inbound.read_body(receive, inbound.max_body_bytes())
+            except inbound.BodyTooLargeError:
+                await _send_http(
+                    send,
+                    413,
+                    b'{"error":"request body too large"}',
+                    {"content-type": "application/json"},
+                )
+                return
             http_method = _header(scope, b"x-pv-http-method") or "POST"
             status, body, headers = handle_https_egress_http(
-                gateway, b"".join(chunks), method=http_method
+                gateway, raw, method=http_method
             )
             await _send_http(send, status, body, headers)
             return
