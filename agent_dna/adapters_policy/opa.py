@@ -368,27 +368,35 @@ class OPAPolicyAdapter:
                 f"policy backend returned fired={result['fired']!r}; it must be "
                 f"true or false -- refusing to interpret"
             )
-        outcome = result.get("outcome")
-        if outcome is not None and outcome not in (
+        declared = result.get("outcome")
+        if declared is not None and declared not in (
             "allow",
             "block",
             "require_approval",
         ):
             raise PolicyUnavailableError(
-                f"policy backend returned an unknown outcome {outcome!r} -- "
+                f"policy backend returned an unknown outcome {declared!r} -- "
                 f"refusing to interpret"
             )
+        outcome: str
         if "fired" not in result:
+            # Refused above when neither key is present; checked again so the
+            # outcome is provably a string here.
+            if declared is None:
+                raise PolicyUnavailableError("policy backend returned no verdict")
+            outcome = declared
             fired = outcome != "allow"
         else:
             fired = result["fired"]
-            if outcome is None:
+            if declared is None:
                 outcome = "require_approval" if fired else "allow"
-            elif fired != (outcome != "allow"):
+            elif fired != (declared != "allow"):
                 raise PolicyUnavailableError(
                     f"policy backend returned fired={fired} with outcome "
-                    f"{outcome!r}, which contradict each other -- refusing to interpret"
+                    f"{declared!r}, which contradict each other -- refusing to interpret"
                 )
+            else:
+                outcome = declared
         reason = result.get("reason", "opa_evaluated")
         # Rule identity: whichever key the customer's Rego uses. Absent
         # -> None, and DecisionRecord.policy_id stays honestly null.
