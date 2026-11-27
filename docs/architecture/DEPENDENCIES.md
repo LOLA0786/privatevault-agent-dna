@@ -15,7 +15,7 @@ flowchart BT
   L2["L2 Evidence: records, permits, signatures<br/>15 modules"]
   L3["L3 Ledgers: SQLite and PostgreSQL<br/>16 modules"]
   L4["L4 Decision engine: the precedence ladder and what it consults<br/>81 modules"]
-  L5["L5 Enforcement runtime: monitor, breaker, recorder, gates, sidecar<br/>33 modules"]
+  L5["L5 Enforcement runtime: monitor, breaker, recorder, gates, sidecar<br/>34 modules"]
   L6["L6 Composition and entry points<br/>22 modules"]
   L2 -->|23| L1
   L3 -->|11| L1
@@ -88,8 +88,9 @@ flowchart BT
 | `agent_dna.gateway` | Inline MCP gateway — mediated egress with detectable bypass | `agent_dna.gateway.errors`, `agent_dna.gateway.framing`, `agent_dna.gateway.runtime` | 1: `agent_dna.quickstart.wrap` |
 | `agent_dna.gateway.credentials` | Upstream credential isolation | `agent_dna.gateway.errors` | 6: `agent_dna.gateway.__main__`, `agent_dna.gateway.https_egress`, `agent_dna.gateway.mediator`, `agent_dna.gateway.runtime`, `agent_dna.gateway.upstream`, ... |
 | `agent_dna.gateway.framing` | MCP JSON-RPC framing and exact-byte serialization | `agent_dna.authority_v01`, `agent_dna.execution_v01`, `agent_dna.gateway.errors`, `agent_dna.gateway.protocol` | 9: `agent_dna.gateway`, `agent_dna.gateway.__main__`, `agent_dna.gateway.http_sse_proxy`, `agent_dna.gateway.https_egress`, `agent_dna.gateway.mediator`, ... |
-| `agent_dna.gateway.http_sse_proxy` | HTTP/SSE MCP proxy — same mediation semantics as stdio | `agent_dna.gateway.errors`, `agent_dna.gateway.framing`, `agent_dna.gateway.mediator`, `agent_dna.gateway.runtime` | 1: `agent_dna.gateway.__main__` |
-| `agent_dna.gateway.https_egress` | Named HTTPS egress — same freeze/decide/verify story as MCP | `agent_dna.connector.middleware`, `agent_dna.connector.models`, `agent_dna.execution_v01`, `agent_dna.gateway.credentials`, `agent_dna.gateway.errors`, `agent_dna.gateway.framing`, `agent_dna.gateway.upstream` | 2: `agent_dna.gateway.__main__`, `agent_dna.gateway.runtime` |
+| `agent_dna.gateway.http_sse_proxy` | HTTP/SSE MCP proxy — same mediation semantics as stdio | `agent_dna.gateway.errors`, `agent_dna.gateway.framing`, `agent_dna.gateway.inbound`, `agent_dna.gateway.mediator`, `agent_dna.gateway.runtime` | 1: `agent_dna.gateway.__main__` |
+| `agent_dna.gateway.https_egress` | Named HTTPS egress — same freeze/decide/verify story as MCP | `agent_dna.connector.middleware`, `agent_dna.connector.models`, `agent_dna.execution_v01`, `agent_dna.gateway.credentials`, `agent_dna.gateway.errors`, `agent_dna.gateway.framing`, `agent_dna.gateway.inbound`, `agent_dna.gateway.upstream` | 2: `agent_dna.gateway.__main__`, `agent_dna.gateway.runtime` |
+| `agent_dna.gateway.inbound` | What a gateway listener accepts before it acts | nothing in the core | 2: `agent_dna.gateway.http_sse_proxy`, `agent_dna.gateway.https_egress` |
 | `agent_dna.gateway.mediator` | Tool-call mediation: decide → freeze bytes → forward → outcome | `agent_dna.connector.middleware`, `agent_dna.connector.models`, `agent_dna.execution_v01`, `agent_dna.gateway.credentials`, `agent_dna.gateway.errors`, `agent_dna.gateway.framing`, `agent_dna.gateway.metrics`, `agent_dna.gateway.protocol`, `agent_dna.gateway.session`, `agent_dna.gateway.upstream` | 2: `agent_dna.gateway.http_sse_proxy`, `agent_dna.gateway.runtime` |
 | `agent_dna.gateway.metrics` | Gateway metrics — never authorize; labels must never carry secrets | nothing in the core | 2: `agent_dna.gateway.mediator`, `agent_dna.gateway.runtime` |
 | `agent_dna.gateway.protocol` | MCP method classification and JSON-RPC id correlation | `agent_dna.gateway.errors` | 2: `agent_dna.gateway.framing`, `agent_dna.gateway.mediator` |
