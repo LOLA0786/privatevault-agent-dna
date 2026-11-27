@@ -498,6 +498,19 @@ def _clock_skew(env: Mapping[str, str]) -> int:
     return int(raw)
 
 
+def _ledger_path(env: Mapping[str, str]) -> Path:
+    raw = _require(env, "PV_LEDGER_PATH")
+    if "://" in raw:
+        # Path() would fold the URL into a local file name and the gate would
+        # run on a private SQLite ledger while the operator believed it shared.
+        # The value is not echoed: a database URL usually carries a password.
+        raise ConfigError(
+            "PV_LEDGER_PATH is a file path; it looks like a database URL, which "
+            "would be read as a local file name rather than a shared ledger"
+        )
+    return Path(raw)
+
+
 def settings_from_env(env: Mapping[str, str] | None = None) -> GateSettings:
     source = os.environ if env is None else env
     bundle_file = source.get("PV_TRUST_BUNDLE_FILE", "").strip()
@@ -519,7 +532,7 @@ def settings_from_env(env: Mapping[str, str] | None = None) -> GateSettings:
         receipt_key_file=_key_ref(_require(source, "PV_RECEIPT_KEY_FILE")),
         receipt_key_id=_require(source, "PV_RECEIPT_KEY_ID"),
         upstream=_require(source, "PV_UPSTREAM"),
-        ledger_path=Path(_require(source, "PV_LEDGER_PATH")),
+        ledger_path=_ledger_path(source),
         allow_http_upstream=_flag(source, "PV_ALLOW_HTTP_UPSTREAM"),
         unprotected_operations=tuple(
             part.strip()

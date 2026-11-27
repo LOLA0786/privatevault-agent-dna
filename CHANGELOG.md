@@ -5,6 +5,24 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### The receiver ledger runs on PostgreSQL (ADR 0049, step 1)
+- `ReceiverLedger` accepts a PostgreSQL URL as well as a file path. Receiver
+  hosts on one database share the permit, decision, approval and
+  business-key claims and one receipt chain; `pg_compat`'s transaction
+  advisory lock is the single writer that SQLite's file lock is today. A
+  replayed permit is now detected with `ON CONFLICT DO NOTHING` instead of a
+  caught error: PostgreSQL aborts a transaction on any failed statement, so
+  the refusal receipt would otherwise have been written in a second
+  transaction, outside the lock.
+- `tests/receiver/test_receiver_ledger_shared.py`: the PostgreSQL ledger
+  matches SQLite operation for operation, and two instances with separate
+  connection pools admit one permit, decision, approval and business key
+  exactly once under 8 to 16 simultaneous attempts, with one unforked
+  receipt chain. A failed receipt leaves no claim behind.
+- The receiver kit refuses a database URL in `PV_LEDGER_PATH` instead of
+  reading it as a file name, without echoing the URL. Configuring a shared
+  ledger, with the synchronous-replication check it requires, is step 2.
+
 ### Conformance vectors for the permit-to-wire path
 - `spec/execution-v01/vectors/execution-v01.json`: 42 cases another
   implementation can be held to: 21 execution-authorization cases (bytes,

@@ -2091,6 +2091,11 @@
   ],
   [
    "agent_dna.receiver.ledger",
+   "agent_dna.pg_compat",
+   "top"
+  ],
+  [
+   "agent_dna.receiver.ledger",
    "agent_dna.receiver.receipts",
    "top"
   ],
@@ -3765,7 +3770,7 @@
   "agent_dna.open_authorizer": 3,
   "agent_dna.operation_registry": 2,
   "agent_dna.permit_evidence": 1,
-  "agent_dna.pg_compat": 8,
+  "agent_dna.pg_compat": 9,
   "agent_dna.pg_shared_state": 1,
   "agent_dna.pg_store": 3,
   "agent_dna.policy.checker": 6,
@@ -3953,7 +3958,7 @@
   "agent_dna.receiver": 5,
   "agent_dna.receiver.asgi": 4,
   "agent_dna.receiver.gate": 10,
-  "agent_dna.receiver.ledger": 3,
+  "agent_dna.receiver.ledger": 4,
   "agent_dna.receiver.permit_header": 1,
   "agent_dna.receiver.receipts": 2,
   "agent_dna.receiver.tls": 1,
