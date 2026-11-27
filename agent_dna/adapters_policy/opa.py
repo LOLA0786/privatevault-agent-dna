@@ -256,9 +256,10 @@ class OPAPolicyAdapter:
                 "evidence": evidence or {},
             }
         }
-        key = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()[
-            :16
-        ]
+        # The full digest. The cache holds only no-objection results, so a key
+        # cut to 64 bits let a chosen-collision payload reuse another payload's
+        # cached ALLOW; a birthday search over 64 bits is an afternoon's work.
+        key = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
 
         cached = self._cache_get(key)
         if cached is not None:
@@ -357,8 +358,45 @@ class OPAPolicyAdapter:
                 f"('fired' or 'outcome') -- refusing to read it as no "
                 f"objection.{hint}"
             )
-        fired = bool(result.get("fired", False))
-        outcome = result.get("outcome", "allow")
+        # "fired" and "outcome" must agree, and either alone must be read the
+        # strict way. {"outcome": "block"} without "fired" used to normalize
+        # to fired=False, which the engine skips: the policy layer failed
+        # open. A missing "fired" now follows the outcome, and a verdict that
+        # contradicts itself is refused rather than guessed at.
+        if "fired" in result and not isinstance(result["fired"], bool):
+            raise PolicyUnavailableError(
+                f"policy backend returned fired={result['fired']!r}; it must be "
+                f"true or false -- refusing to interpret"
+            )
+        declared = result.get("outcome")
+        if declared is not None and declared not in (
+            "allow",
+            "block",
+            "require_approval",
+        ):
+            raise PolicyUnavailableError(
+                f"policy backend returned an unknown outcome {declared!r} -- "
+                f"refusing to interpret"
+            )
+        outcome: str
+        if "fired" not in result:
+            # Refused above when neither key is present; checked again so the
+            # outcome is provably a string here.
+            if declared is None:
+                raise PolicyUnavailableError("policy backend returned no verdict")
+            outcome = declared
+            fired = outcome != "allow"
+        else:
+            fired = result["fired"]
+            if declared is None:
+                outcome = "require_approval" if fired else "allow"
+            elif fired != (declared != "allow"):
+                raise PolicyUnavailableError(
+                    f"policy backend returned fired={fired} with outcome "
+                    f"{declared!r}, which contradict each other -- refusing to interpret"
+                )
+            else:
+                outcome = declared
         reason = result.get("reason", "opa_evaluated")
         # Rule identity: whichever key the customer's Rego uses. Absent
         # -> None, and DecisionRecord.policy_id stays honestly null.
@@ -367,11 +405,6 @@ class OPAPolicyAdapter:
             or result.get("policy_id")
             or result.get("matched_rule_id")
         )
-        if fired and outcome not in ("block", "require_approval"):
-            raise PolicyUnavailableError(
-                f"policy backend returned an unknown outcome "
-                f"{outcome!r} for a fired rule -- refusing to interpret"
-            )
         return PolicyResult(fired, outcome, reason, rule_id)
 
     # ------------------------------------------------------------------

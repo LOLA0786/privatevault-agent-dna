@@ -16,6 +16,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The gate diffs against the base branch. A shallow clone has no
+          # merge base, the diff fails, and the gate used to check nothing.
+          fetch-depth: 0
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
@@ -26,10 +30,21 @@ jobs:
       - name: Gate changed policy files
         id: gate
         run: |
-          set +e
+          # No "set -e": every changed rule is checked and reported. But the
+          # list of changed rules must be computed, and must not be empty:
+          # with "set +e" a failed diff yielded no files, no rule was checked
+          # and the gate passed (audit finding, infra).
+          set -uo pipefail
           STATUS=0
           : > gate_report.md
-          for rule in $(git diff --name-only origin/${{ github.base_ref }}... -- 'policies/*.json'); do
+          if ! changed=$(git diff --name-only "origin/${BASE_REF}..." -- 'policies/*.json'); then
+            echo "The gate could not diff against origin/${BASE_REF}, so it checked nothing." | tee -a gate_report.md
+            STATUS=1
+          elif [ -z "$changed" ]; then
+            echo "The gate was triggered by a policy change but found no changed policy file." | tee -a gate_report.md
+            STATUS=1
+          fi
+          for rule in $changed; do
             echo "### \`$rule\`" >> gate_report.md
             echo '```' >> gate_report.md
             pv policy check \
@@ -46,6 +61,8 @@ jobs:
           echo "status=$STATUS" >> "$GITHUB_OUTPUT"
           exit 0
         env:
+          # Passed through the environment, never interpolated into the script.
+          BASE_REF: ${{ github.base_ref }}
           # Raise in the PR (or repo settings) to acknowledge a change
           # that newly blocks previously-allowed decisions.
           MAX_NEW_BLOCKS: ${{ vars.MAX_NEW_BLOCKS || 0 }}

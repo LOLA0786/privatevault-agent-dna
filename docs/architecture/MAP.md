@@ -14,7 +14,7 @@ flowchart LR
   n5["agent_dna/consensus<br/>6 modules"]
   n6["agent_dna/eav<br/>2 modules"]
   n7["agent_dna/economics<br/>2 modules"]
-  n8["agent_dna/gateway<br/>14 modules"]
+  n8["agent_dna/gateway<br/>15 modules"]
   n9["agent_dna/governance<br/>3 modules"]
   n10["agent_dna/multi_agent<br/>16 modules"]
   n11["agent_dna/multi_agent_security<br/>8 modules"]
@@ -98,7 +98,7 @@ flowchart LR
 | `tools` | 42 |
 | `examples` | 30 |
 | `agent_dna/multi_agent` | 16 |
-| `agent_dna/gateway` | 14 |
+| `agent_dna/gateway` | 15 |
 | `agent_dna/connector` | 10 |
 | `agent_dna/multi_agent_security` | 8 |
 | `agent_dna/receiver` | 8 |

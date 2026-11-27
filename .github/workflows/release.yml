@@ -6,12 +6,17 @@ name: release
 # (GitHub OIDC, keyless). Verify with:
 #   gh attestation verify dist/<file> --repo LOLA0786/privatevault-agent-dna
 #   cosign verify ghcr.io/lola0786/privatevault-agent-dna:<tag> \
-#     --certificate-identity-regexp 'https://github.com/LOLA0786/privatevault-agent-dna/.github/workflows/release.yml@.*' \
+#     --certificate-identity 'https://github.com/LOLA0786/privatevault-agent-dna/.github/workflows/release.yml@refs/tags/<tag>' \
 #     --certificate-oidc-issuer https://token.actions.githubusercontent.com
 #   gh attestation verify oci://ghcr.io/lola0786/privatevault-agent-dna:<tag> \
 #     --repo LOLA0786/privatevault-agent-dna
 #
-# Dry run (no tag, no GitHub release): run the workflow by hand.
+# Pin the identity to the tag, not to "release.yml@.*": a dry run signs
+# its dryrun-<sha> image as release.yml@refs/heads/master, and a loose
+# pattern would accept that image as a release.
+#
+# Dry run (no tag, no GitHub release): run the workflow by hand, from master
+# only; the job refuses any other branch.
 #   gh workflow run release.yml --ref master
 # It runs every step except publishing the release: tests, build, SBOM,
 # provenance and SBOM attestations, the image pushed as dryrun-<sha> and
@@ -29,6 +34,9 @@ permissions:
 
 jobs:
   build:
+    # A tag push, or a dry run from master. A dry run from any other branch
+    # would sign a dryrun image with this workflow's identity.
+    if: github.event_name == 'push' || github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -38,21 +46,30 @@ jobs:
       packages: write        # push the image to GHCR
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0   # the tag's commit must be shown to be on master
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
       # A release tag is SSH-signed by a release manager listed in
-      # .github/allowed_signers (in the tagged commit, so changing the list
-      # goes through review). git only checks that the key is listed; the
-      # principal it is listed for must also be the tagger's email, or any
-      # listed key could sign as anyone.
+      # .github/allowed_signers as it stands on master. Reading the list from
+      # the tagged commit let anyone who can push add their own key on a
+      # branch, tag that branch and get a signed release (audit finding,
+      # infra), so the tagged commit must also be on master. git only checks
+      # that the key is listed; the principal it is listed for must also be
+      # the tagger's email, or any listed key could sign as anyone.
       - name: Tag is signed by a release manager
         if: github.event_name == 'push'
         env:
           TAG: ${{ github.ref_name }}
         run: |
-          git fetch --force --no-tags origin "refs/tags/$TAG:refs/tags/$TAG"
+          git fetch --force --no-tags origin "refs/tags/$TAG:refs/tags/$TAG" "refs/heads/master:refs/remotes/origin/master"
           test "$(git cat-file -t "$TAG")" = tag || { echo "::error::$TAG is not an annotated tag"; exit 1; }
-          out=$(git -c gpg.ssh.program=ssh-keygen -c gpg.ssh.allowedSignersFile=.github/allowed_signers verify-tag "$TAG" 2>&1) \
-            || { echo "$out"; echo "::error::$TAG is not signed by a key in .github/allowed_signers"; exit 1; }
+          commit=$(git rev-parse "$TAG^{commit}")
+          git merge-base --is-ancestor "$commit" origin/master \
+            || { echo "::error::$TAG points at $commit, which is not on master"; exit 1; }
+          signers="${RUNNER_TEMP:-/tmp}/allowed_signers"
+          git show origin/master:.github/allowed_signers > "$signers"
+          out=$(git -c gpg.ssh.program=ssh-keygen -c gpg.ssh.allowedSignersFile="$signers" verify-tag "$TAG" 2>&1) \
+            || { echo "$out"; echo "::error::$TAG is not signed by a key in master's .github/allowed_signers"; exit 1; }
           signer=$(printf '%s\n' "$out" | sed -n 's/^Good "git" signature for \(.*\) with .* key .*/\1/p')
           tagger=$(git for-each-ref --format='%(taggeremail:trim)' "refs/tags/$TAG")
           test -n "$signer" && test "$signer" = "$tagger" \
@@ -93,12 +110,20 @@ jobs:
           subject-path: "dist/*.whl"
           sbom-path: dist/sbom.cdx.json
       - name: Log in to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+        run: echo "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
       - name: Build and push image
         id: image
+        env:
+          # Through the environment: a tag name may contain $(...).
+          REPOSITORY: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
-          IMAGE=ghcr.io/$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
-          if [ "${{ github.event_name }}" = push ]; then TAG="${{ github.ref_name }}"; else TAG="dryrun-${GITHUB_SHA::12}"; fi
+          IMAGE=ghcr.io/$(echo "$REPOSITORY" | tr '[:upper:]' '[:lower:]')
+          if [ "$EVENT" = push ]; then TAG="$REF_NAME"; else TAG="dryrun-${GITHUB_SHA::12}"; fi
           docker build -t "$IMAGE:$TAG" .
           docker push "$IMAGE:$TAG"
           REF=$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE:$TAG")
@@ -116,7 +141,9 @@ jobs:
           push-to-registry: true
       - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
       - name: Sign the image (keyless)
-        run: cosign sign --yes "${{ steps.image.outputs.ref }}"
+        env:
+          REF: ${{ steps.image.outputs.ref }}
+        run: cosign sign --yes "$REF"
       # Verify as a consumer would, before anything is published: the
       # signature must name this workflow and GitHub's OIDC issuer, and the
       # provenance must verify against this repository.
@@ -124,12 +151,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REF: ${{ steps.image.outputs.ref }}
+          REPOSITORY: ${{ github.repository }}
+          # The exact ref this run signs from: refs/tags/<tag>, or master for
+          # a dry run. A consumer pins refs/tags/<tag> and so rejects dry runs.
+          SIGNED_REF: ${{ github.ref }}
         run: |
           cosign verify "$REF" \
-            --certificate-identity-regexp "^https://github.com/${{ github.repository }}/.github/workflows/release.yml@" \
+            --certificate-identity "https://github.com/$REPOSITORY/.github/workflows/release.yml@$SIGNED_REF" \
             --certificate-oidc-issuer https://token.actions.githubusercontent.com > /dev/null
-          gh attestation verify "oci://$REF" --repo "${{ github.repository }}" \
-            --signer-workflow "${{ github.repository }}/.github/workflows/release.yml"
+          gh attestation verify "oci://$REF" --repo "$REPOSITORY" \
+            --signer-workflow "$REPOSITORY/.github/workflows/release.yml"
           echo "Image signature and provenance verified: $REF" >> "$GITHUB_STEP_SUMMARY"
       - name: Keep dist/ for verification
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

@@ -5,6 +5,33 @@ and a named test that runs in CI.
 
 ## Unreleased
 
+### Security fixes from the November 2026 audit (first batch)
+Each finding was reproduced against master before it was fixed, and each
+fix ships with a test that fails on the old code.
+- **The policy layer could fail open.** A Rego result of
+  `{"outcome": "block"}` without `"fired"` was skipped, so the policy's
+  block was lost. A missing `"fired"` now follows the outcome, and an
+  unknown or self-contradictory verdict fails closed. The OPA cache, which
+  holds only no-objection results, now keys on the full SHA-256 instead of
+  64 bits, which a chosen collision could have reused.
+- **Release signing trusted the tagged commit's own signer list.** A tag
+  on an unmerged branch that added its own key got a signed, published
+  release. The tagged commit must now be on master and the signer list is
+  read from master; dry runs only run from master; signatures are verified
+  against `refs/tags/<tag>`, never a pattern; no step interpolates a value
+  into its script.
+- **The policy-gate template passed without checking anything** when its
+  shallow checkout could not diff against the base branch. It now fetches
+  full history and fails when the changed rules cannot be listed.
+- **The gateway's listeners acted for any web page.** The MCP proxy and
+  HTTPS egress refuse a foreign Host (DNS rebinding), any Origin (cross-site
+  requests), an oversized body and, on `/mcp`, a non-JSON body. Deployments
+  reached through another name list it in `PV_GATEWAY_ALLOWED_HOSTS`.
+- **coding-eval could install code from whoever registers a name on PyPI.**
+  It pinned `privatevault-agent-dna==0.3.0`, a name not on PyPI and a
+  version never tagged; it now depends on this repository by URL and
+  commit, and a test refuses any bare `privatevault-*` pin.
+
 ### The receiver ledger runs on PostgreSQL (ADR 0049, step 1)
 - `ReceiverLedger` accepts a PostgreSQL URL as well as a file path. Receiver
   hosts on one database share the permit, decision, approval and

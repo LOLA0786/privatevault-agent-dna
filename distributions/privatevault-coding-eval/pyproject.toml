@@ -10,7 +10,10 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = "LicenseRef-Proprietary"
 dependencies = [
-    "privatevault-agent-dna==0.3.0",
+    # By URL and full commit: privatevault-agent-dna is not published on PyPI,
+    # so a bare ==0.3.0 could only be satisfied by whoever registers the name
+    # first. This is the last commit at package version 0.3.0.
+    "privatevault-agent-dna @ git+https://github.com/LOLA0786/privatevault-agent-dna@ed653b999ee088eb549f826c40c269134d2cfae6",
 ]
 
 [project.scripts]

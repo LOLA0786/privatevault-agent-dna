@@ -211,28 +211,28 @@ footer {
 }
 </style>
 </head>
-<body data-pytest-collected="3345">
+<body data-pytest-collected="3395">
 <script type="application/json" id="map-data">{
-  "generatedAt": "2026-11-26T04:49:55Z",
-  "generatorSeconds": 4.64,
+  "generatedAt": "2026-11-27T02:36:15Z",
+  "generatorSeconds": 4.41,
   "pytest": {
-    "collected": 3345,
+    "collected": 3395,
     "ok": true,
-    "lastLine": "3345 tests collected in 3.03s",
-    "collectSeconds": 3.03
+    "lastLine": "3395 tests collected in 2.72s",
+    "collectSeconds": 2.72
   },
   "suite": {
     "passRatePercent": 100,
     "source": "configured",
     "note": "Pass rate is configured until live pytest JSON is wired. Not measured by this generator."
   },
-  "astTestNames": 2336,
-  "testFiles": 299,
-  "modules": 189,
-  "zeroImportModules": 42,
+  "astTestNames": 2365,
+  "testFiles": 304,
+  "modules": 190,
+  "zeroImportModules": 43,
   "spineCoverage": {
     "imported": 67,
-    "total": 89,
+    "total": 90,
     "definition": "Spine modules imported by at least one test file, excluding other/supporting."
   },
   "spine": [
@@ -336,7 +336,7 @@ footer {
     },
     {
       "id": "policy",
-      "tests": 332,
+      "tests": 346,
       "files": 23,
       "modules": [
         {
@@ -492,13 +492,13 @@ footer {
     },
     {
       "id": "anomaly",
-      "tests": 796,
-      "files": 52,
+      "tests": 816,
+      "files": 53,
       "modules": [
         {
           "name": "agent_dna.advisory",
           "path": "agent_dna/advisory.py",
-          "testFileImports": 47
+          "testFileImports": 48
         },
         {
           "name": "agent_dna.runtime",
@@ -581,13 +581,13 @@ footer {
     },
     {
       "id": "permit mint",
-      "tests": 860,
-      "files": 63,
+      "tests": 872,
+      "files": 64,
       "modules": [
         {
           "name": "agent_dna.authority_v01",
           "path": "agent_dna/authority_v01.py",
-          "testFileImports": 49
+          "testFileImports": 50
         },
         {
           "name": "agent_dna.execution_v01",
@@ -625,8 +625,8 @@ footer {
     },
     {
       "id": "dispatch",
-      "tests": 441,
-      "files": 37,
+      "tests": 457,
+      "files": 38,
       "modules": [
         {
           "name": "agent_dna.connector",
@@ -679,6 +679,11 @@ footer {
           "testFileImports": 3
         },
         {
+          "name": "agent_dna.gateway.https_egress",
+          "path": "agent_dna/gateway/https_egress.py",
+          "testFileImports": 3
+        },
+        {
           "name": "agent_dna.connector.adapters.sidecar_transport",
           "path": "agent_dna/connector/adapters/sidecar_transport.py",
           "testFileImports": 2
@@ -689,8 +694,8 @@ footer {
           "testFileImports": 2
         },
         {
-          "name": "agent_dna.gateway.https_egress",
-          "path": "agent_dna/gateway/https_egress.py",
+          "name": "agent_dna.gateway.http_sse_proxy",
+          "path": "agent_dna/gateway/http_sse_proxy.py",
           "testFileImports": 2
         },
         {
@@ -724,11 +729,6 @@ footer {
           "testFileImports": 1
         },
         {
-          "name": "agent_dna.gateway.http_sse_proxy",
-          "path": "agent_dna/gateway/http_sse_proxy.py",
-          "testFileImports": 1
-        },
-        {
           "name": "agent_dna.gateway.protocol",
           "path": "agent_dna/gateway/protocol.py",
           "testFileImports": 1
@@ -757,26 +757,31 @@ footer {
           "name": "agent_dna.gateway",
           "path": "agent_dna/gateway/__init__.py",
           "testFileImports": 0
+        },
+        {
+          "name": "agent_dna.gateway.inbound",
+          "path": "agent_dna/gateway/inbound.py",
+          "testFileImports": 0
         }
       ],
-      "moduleCount": 26,
-      "zeroImportCount": 5
+      "moduleCount": 27,
+      "zeroImportCount": 6
     }
   ],
   "other": {
     "id": "other / supporting",
-    "tests": 2613,
-    "files": 191,
+    "tests": 2645,
+    "files": 193,
     "modules": [
       {
         "name": "agent_dna.decision",
         "path": "agent_dna/decision.py",
-        "testFileImports": 60
+        "testFileImports": 61
       },
       {
         "name": "agent_dna.trace",
         "path": "agent_dna/trace.py",
-        "testFileImports": 60
+        "testFileImports": 61
       },
       {
         "name": "api.server",
@@ -819,13 +824,13 @@ footer {
         "testFileImports": 13
       },
       {
-        "name": "agent_dna.cli",
-        "path": "agent_dna/cli.py",
-        "testFileImports": 9
-      },
-      {
         "name": "agent_dna.receiver.ledger",
         "path": "agent_dna/receiver/ledger.py",
+        "testFileImports": 10
+      },
+      {
+        "name": "agent_dna.cli",
+        "path": "agent_dna/cli.py",
         "testFileImports": 9
       },
       {
@@ -904,6 +909,11 @@ footer {
         "testFileImports": 4
       },
       {
+        "name": "agent_dna.receiver.receipts",
+        "path": "agent_dna/receiver/receipts.py",
+        "testFileImports": 4
+      },
+      {
         "name": "agent_dna.scan.ingest",
         "path": "agent_dna/scan/ingest.py",
         "testFileImports": 4
@@ -951,11 +961,6 @@ footer {
       {
         "name": "agent_dna.quickstart.wrap",
         "path": "agent_dna/quickstart/wrap.py",
-        "testFileImports": 3
-      },
-      {
-        "name": "agent_dna.receiver.receipts",
-        "path": "agent_dna/receiver/receipts.py",
         "testFileImports": 3
       },
       {
@@ -1026,6 +1031,11 @@ footer {
       {
         "name": "agent_dna.quickstart.sandbox",
         "path": "agent_dna/quickstart/sandbox.py",
+        "testFileImports": 2
+      },
+      {
+        "name": "agent_dna.receiver.transactions",
+        "path": "agent_dna/receiver/transactions.py",
         "testFileImports": 2
       },
       {
@@ -1154,11 +1164,6 @@ footer {
         "testFileImports": 1
       },
       {
-        "name": "agent_dna.receiver.transactions",
-        "path": "agent_dna/receiver/transactions.py",
-        "testFileImports": 1
-      },
-      {
         "name": "agent_dna.request_bounds",
         "path": "agent_dna/request_bounds.py",
         "testFileImports": 1
@@ -1276,12 +1281,12 @@ footer {
     {
       "name": "agent_dna.decision",
       "path": "agent_dna/decision.py",
-      "testFileImports": 60
+      "testFileImports": 61
     },
     {
       "name": "agent_dna.trace",
       "path": "agent_dna/trace.py",
-      "testFileImports": 60
+      "testFileImports": 61
     },
     {
       "name": "api.server",
@@ -1291,12 +1296,12 @@ footer {
     {
       "name": "agent_dna.authority_v01",
       "path": "agent_dna/authority_v01.py",
-      "testFileImports": 49
+      "testFileImports": 50
     },
     {
       "name": "agent_dna.advisory",
       "path": "agent_dna/advisory.py",
-      "testFileImports": 47
+      "testFileImports": 48
     },
     {
       "name": "agent_dna.apikeys",
@@ -1374,6 +1379,11 @@ footer {
       "testFileImports": 11
     },
     {
+      "name": "agent_dna.receiver.ledger",
+      "path": "agent_dna/receiver/ledger.py",
+      "testFileImports": 10
+    },
+    {
       "name": "agent_dna.approval_v01",
       "path": "agent_dna/approval_v01.py",
       "testFileImports": 9
@@ -1391,11 +1401,6 @@ footer {
     {
       "name": "agent_dna.connector.adapters.exact_byte_http",
       "path": "agent_dna/connector/adapters/exact_byte_http.py",
-      "testFileImports": 9
-    },
-    {
-      "name": "agent_dna.receiver.ledger",
-      "path": "agent_dna/receiver/ledger.py",
       "testFileImports": 9
     },
     {
@@ -1554,6 +1559,11 @@ footer {
       "testFileImports": 4
     },
     {
+      "name": "agent_dna.receiver.receipts",
+      "path": "agent_dna/receiver/receipts.py",
+      "testFileImports": 4
+    },
+    {
       "name": "agent_dna.scan.ingest",
       "path": "agent_dna/scan/ingest.py",
       "testFileImports": 4
@@ -1589,6 +1599,11 @@ footer {
       "testFileImports": 3
     },
     {
+      "name": "agent_dna.gateway.https_egress",
+      "path": "agent_dna/gateway/https_egress.py",
+      "testFileImports": 3
+    },
+    {
       "name": "agent_dna.intent_adapter",
       "path": "agent_dna/intent_adapter.py",
       "testFileImports": 3
@@ -1621,11 +1636,6 @@ footer {
     {
       "name": "agent_dna.quickstart.wrap",
       "path": "agent_dna/quickstart/wrap.py",
-      "testFileImports": 3
-    },
-    {
-      "name": "agent_dna.receiver.receipts",
-      "path": "agent_dna/receiver/receipts.py",
       "testFileImports": 3
     },
     {
@@ -1684,8 +1694,8 @@ footer {
       "testFileImports": 2
     },
     {
-      "name": "agent_dna.gateway.https_egress",
-      "path": "agent_dna/gateway/https_egress.py",
+      "name": "agent_dna.gateway.http_sse_proxy",
+      "path": "agent_dna/gateway/http_sse_proxy.py",
       "testFileImports": 2
     },
     {
@@ -1741,6 +1751,11 @@ footer {
     {
       "name": "agent_dna.quickstart.sandbox",
       "path": "agent_dna/quickstart/sandbox.py",
+      "testFileImports": 2
+    },
+    {
+      "name": "agent_dna.receiver.transactions",
+      "path": "agent_dna/receiver/transactions.py",
       "testFileImports": 2
     },
     {
@@ -1869,11 +1884,6 @@ footer {
       "testFileImports": 1
     },
     {
-      "name": "agent_dna.gateway.http_sse_proxy",
-      "path": "agent_dna/gateway/http_sse_proxy.py",
-      "testFileImports": 1
-    },
-    {
       "name": "agent_dna.gateway.protocol",
       "path": "agent_dna/gateway/protocol.py",
       "testFileImports": 1
@@ -1976,11 +1986,6 @@ footer {
     {
       "name": "agent_dna.receiver.tls",
       "path": "agent_dna/receiver/tls.py",
-      "testFileImports": 1
-    },
-    {
-      "name": "agent_dna.receiver.transactions",
-      "path": "agent_dna/receiver/transactions.py",
       "testFileImports": 1
     },
     {
@@ -2088,6 +2093,11 @@ footer {
     {
       "name": "agent_dna.gateway",
       "path": "agent_dna/gateway/__init__.py",
+      "testFileImports": 0
+    },
+    {
+      "name": "agent_dna.gateway.inbound",
+      "path": "agent_dna/gateway/inbound.py",
       "testFileImports": 0
     },
     {
@@ -2546,10 +2556,22 @@ footer {
           "astNames": 4
         },
         {
+          "path": "tests/test_distribution_pins.py",
+          "doc": "Distributions depend on PrivateVault packages by URL and commit, never by bare name.",
+          "collected": 1,
+          "astNames": 1
+        },
+        {
           "path": "tests/test_docs_structure.py",
           "doc": "The structured docs (docs/README.md, docs/architecture/) stay true.",
           "collected": 47,
           "astNames": 20
+        },
+        {
+          "path": "tests/test_execution_vectors_independent.py",
+          "doc": "A second implementation, sharing no code with PrivateVault, agrees with every vector.",
+          "collected": 5,
+          "astNames": 5
         },
         {
           "path": "tests/test_executive_acceptance.py",
@@ -2594,6 +2616,12 @@ footer {
           "astNames": 3
         },
         {
+          "path": "tests/test_policy_gate_workflow.py",
+          "doc": "The policy-gate workflow fails closed when it cannot see what changed.",
+          "collected": 5,
+          "astNames": 5
+        },
+        {
           "path": "tests/test_precedence_contract.py",
           "doc": "Precedence-order integrity: decision.py's actual evaluation order",
           "collected": 6,
@@ -2619,9 +2647,9 @@ footer {
         },
         {
           "path": "tests/test_release_workflow.py",
-          "doc": "The release workflow can be rehearsed without publishing, and a real",
-          "collected": 7,
-          "astNames": 7
+          "doc": "A signed release must come from master, signed by a key master lists.",
+          "collected": 8,
+          "astNames": 8
         },
         {
           "path": "tests/test_schema_conformance.py",
@@ -2971,27 +2999,6 @@ footer {
       "label": "",
       "isolated": false,
       "imports": [
-        "agent_dna.adapters_policy.opa"
-      ],
-      "files": [
-        {
-          "path": "tests/test_opa_verdict_contract.py",
-          "doc": "A policy result with no verdict key must not read as 'no objection'.",
-          "collected": 6,
-          "astNames": 3
-        },
-        {
-          "path": "tests/test_quarantine.py",
-          "doc": "Quarantine enforcement (audit cleanup, Commit set 5 area).",
-          "collected": 13,
-          "astNames": 2
-        }
-      ]
-    },
-    {
-      "label": "",
-      "isolated": false,
-      "imports": [
         "agent_dna.advisory",
         "agent_dna.composition",
         "agent_dna.decision",
@@ -3154,8 +3161,8 @@ footer {
         {
           "path": "tests/network/test_receiver_kit.py",
           "doc": "Receiver kit: a partner-operated gate refuses altered and replayed actions.",
-          "collected": 35,
-          "astNames": 23
+          "collected": 36,
+          "astNames": 24
         },
         {
           "path": "tests/receiver/test_receiver_independent_verifier.py",
@@ -3467,6 +3474,21 @@ footer {
       ]
     },
     {
+      "label": "",
+      "isolated": false,
+      "imports": [
+        "agent_dna.adapters_policy.opa"
+      ],
+      "files": [
+        {
+          "path": "tests/test_quarantine.py",
+          "doc": "Quarantine enforcement (audit cleanup, Commit set 5 area).",
+          "collected": 13,
+          "astNames": 2
+        }
+      ]
+    },
+    {
       "label": "Decision-record family",
       "isolated": false,
       "imports": [
@@ -3489,6 +3511,24 @@ footer {
           "doc": "P0 audit findings -- failing contract tests (Commit set 1).",
           "collected": 15,
           "astNames": 15
+        }
+      ]
+    },
+    {
+      "label": "",
+      "isolated": false,
+      "imports": [
+        "agent_dna.adapters_policy.opa",
+        "agent_dna.advisory",
+        "agent_dna.decision",
+        "agent_dna.trace"
+      ],
+      "files": [
+        {
+          "path": "tests/test_opa_verdict_contract.py",
+          "doc": "A policy result with no verdict key must not read as 'no objection'.",
+          "collected": 20,
+          "astNames": 7
         }
       ]
     },
@@ -4920,7 +4960,7 @@ footer {
         {
           "path": "tests/test_execution_vectors.py",
           "doc": "execution-v01 conformance vectors: current, and decided as recorded.",
-          "collected": 41,
+          "collected": 45,
           "astNames": 7
         }
       ]
@@ -5066,6 +5106,24 @@ footer {
           "doc": "Authority artifacts have a bounded nesting depth (R1 #7).",
           "collected": 3,
           "astNames": 3
+        }
+      ]
+    },
+    {
+      "label": "",
+      "isolated": false,
+      "imports": [
+        "agent_dna.authority_v01",
+        "agent_dna.receiver.ledger",
+        "agent_dna.receiver.receipts",
+        "agent_dna.receiver.transactions"
+      ],
+      "files": [
+        {
+          "path": "tests/receiver/test_receiver_ledger_shared.py",
+          "doc": "The receiver ledger on PostgreSQL: the same claims, shared by every host (ADR 0049).",
+          "collected": 7,
+          "astNames": 5
         }
       ]
     },
@@ -5949,6 +6007,22 @@ footer {
       ]
     },
     {
+      "label": "Gateway adversarial",
+      "isolated": false,
+      "imports": [
+        "agent_dna.gateway.http_sse_proxy",
+        "agent_dna.gateway.https_egress"
+      ],
+      "files": [
+        {
+          "path": "tests/gateway/test_inbound_guard.py",
+          "doc": "The gateway's listeners refuse what a web page or a rebound name could send.",
+          "collected": 12,
+          "astNames": 7
+        }
+      ]
+    },
+    {
       "label": "",
       "isolated": false,
       "imports": [
@@ -6407,7 +6481,7 @@ footer {
         "permit mint",
         "dispatch"
       ],
-      "collected": 41
+      "collected": 45
     },
     {
       "path": "tests/test_closure_v01.py",
@@ -6557,6 +6631,15 @@ footer {
       "stages": [
         "permit mint",
         "dispatch"
+      ],
+      "collected": 20
+    },
+    {
+      "path": "tests/test_opa_verdict_contract.py",
+      "doc": "A policy result with no verdict key must not read as 'no objection'.",
+      "stages": [
+        "policy",
+        "anomaly"
       ],
       "collected": 20
     },

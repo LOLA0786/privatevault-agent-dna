@@ -1,123 +1,186 @@
-"""The release workflow can be rehearsed without publishing, and a real
-release cannot ship under the wrong version.
+"""A signed release must come from master, signed by a key master lists.
 
-Before this, release.yml had never run (no tag had been cut with it) and
-its first real run would also have been its first test.
-
-Claims -> tests:
-  - A manual run rehearses every step but publishing the release
-    -> test_dry_run_skips_only_the_release
-  - A tag must equal the package version -> test_tag_must_match_the_version
-  - A tag with a pre-release part is published as a pre-release
-    -> test_rc_tags_are_prereleases
-  - The image is signed and its provenance pushed to the registry by digest
-    -> test_image_is_attested_and_signed_by_digest
-  - The run verifies both, as a consumer would, before publishing
-    -> test_image_is_verified_before_publishing
-  - A release tag is SSH-signed by a key listed for the tagger's email in
-    .github/allowed_signers, checked before anything is built
-    -> test_tag_signature_is_checked_first, test_release_managers_are_listed
+The release workflow checked a tag's SSH signature against
+.github/allowed_signers read from the tagged commit itself, and never
+checked that the commit was on master. Anyone who could push could add
+their own key on a branch, tag that branch and get a release built,
+attested, signed and published (audit finding, infra). These tests run the
+workflow's own signature step against real SSH-signed tags.
 """
 
 from __future__ import annotations
 
-import re
+import os
+import shutil
+import subprocess
 from pathlib import Path
 
+import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "release.yml"
-SIGNERS = ROOT / ".github" / "allowed_signers"
-RELEASE_MANAGER = "chandan.galani@privatevault.ai"
-DOC = yaml.safe_load(WORKFLOW.read_text())
-TRIGGERS = DOC[True]  # YAML 1.1 reads the key "on" as True
-STEPS = DOC["jobs"]["build"]["steps"]
+STEP = "Tag is signed by a release manager"
+
+needs_ssh_keygen = pytest.mark.skipif(
+    shutil.which("ssh-keygen") is None, reason="needs ssh-keygen for SSH-signed tags"
+)
 
 
-def _step(name: str) -> dict:
-    (step,) = [s for s in STEPS if s.get("name") == name]
-    return step
+def _job() -> dict:
+    return yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))["jobs"]["build"]
 
 
-def test_dry_run_skips_only_the_release():
-    assert set(TRIGGERS) == {"push", "workflow_dispatch"}
-    assert TRIGGERS["push"]["tags"] == ["v*"]
-    gated = [s.get("name") for s in STEPS if "if" in s]
-    assert gated == [
-        "Tag is signed by a release manager",
-        "Tag matches the package version",
-        "Publish the GitHub release",
-    ]
-    assert all(s["if"] == "github.event_name == 'push'" for s in STEPS if "if" in s)
-    assert "dryrun-" in _step("Build and push image")["run"]
-    assert _step("Keep dist/ for verification")["with"]["path"] == "dist/"
+def _signature_script(text: str | None = None) -> str:
+    job = yaml.safe_load(text)["jobs"]["build"] if text else _job()
+    return next(step for step in job["steps"] if step.get("name") == STEP)["run"]
 
 
-def test_tag_must_match_the_version():
-    run = _step("Tag matches the package version")["run"]
-    assert "Version(tag[1:]) != Version(pkg)" in run
-    names = [s.get("name") for s in STEPS]
-    assert names.index("Tag matches the package version") < names.index(
-        "Tests must pass on the tagged commit"
+def _git(cwd: Path, *args: str) -> str:
+    return subprocess.run(
+        ["git", *args], cwd=cwd, check=True, capture_output=True, text=True
+    ).stdout
+
+
+def _key(tmp: Path, who: str) -> Path:
+    key = tmp / who
+    subprocess.run(
+        [
+            "ssh-keygen",
+            "-q",
+            "-t",
+            "ed25519",
+            "-N",
+            "",
+            "-C",
+            f"{who}@example.test",
+            "-f",
+            str(key),
+        ],
+        check=True,
+    )
+    return key
+
+
+def _as(repo: Path, who: str, key: Path) -> None:
+    for name, value in (
+        ("user.name", who),
+        ("user.email", f"{who}@example.test"),
+        ("gpg.format", "ssh"),
+        ("user.signingkey", f"{key}.pub"),
+    ):
+        _git(repo, "config", name, value)
+
+
+def _signers(*entries: tuple[str, Path]) -> str:
+    return "".join(
+        f"{who}@example.test {Path(f'{key}.pub').read_text().strip()}\n"
+        for who, key in entries
     )
 
 
-def test_rc_tags_are_prereleases():
-    run = _step("Publish the GitHub release")["run"]
-    assert '*-*) PRE="--prerelease"' in run
-    assert "--verify-tag" in run
+@pytest.fixture
+def world(tmp_path: Path) -> dict:
+    """master lists alice; mallory can push but is not listed."""
+    alice, mallory = _key(tmp_path, "alice"), _key(tmp_path, "mallory")
+    origin = tmp_path / "origin"
+    (origin / ".github").mkdir(parents=True)
+    _git(origin, "init", "-q", "-b", "master")
+    _as(origin, "alice", alice)
+    (origin / ".github" / "allowed_signers").write_text(_signers(("alice", alice)))
+    _git(origin, "add", ".")
+    _git(origin, "commit", "-qm", "release managers")
+    _git(origin, "tag", "-s", "-m", "release", "v1.0.0")
+    _git(origin, "checkout", "-qb", "evil")
+    _as(origin, "mallory", mallory)
+    (origin / ".github" / "allowed_signers").write_text(
+        _signers(("alice", alice), ("mallory", mallory))
+    )
+    _git(origin, "commit", "-qam", "add a release manager")
+    _git(origin, "tag", "-s", "-m", "release", "v6.6.6")
+    _git(origin, "checkout", "-q", "master")
+    _git(
+        origin, "tag", "-s", "-m", "release", "v1.0.1"
+    )  # mallory's key, a master commit
+    _as(origin, "alice", alice)
+    _git(origin, "config", "user.email", "bob@example.test")
+    _git(origin, "tag", "-s", "-m", "release", "v1.0.2")  # alice's key, tagger bob
+    return {"origin": origin, "tmp": tmp_path}
 
 
-def test_image_is_attested_and_signed_by_digest():
-    attest = _step("Image build provenance (pushed to the registry)")["with"]
-    assert attest["subject-digest"] == "${{ steps.image.outputs.sha }}"
-    assert attest["push-to-registry"] is True
-    sign = _step("Sign the image (keyless)")["run"]
-    assert sign == 'cosign sign --yes "${{ steps.image.outputs.ref }}"'
-    perms = DOC["jobs"]["build"]["permissions"]
-    assert perms["id-token"] == "write" and perms["attestations"] == "write"
+def _release(world: dict, tag: str, script: str) -> subprocess.CompletedProcess[str]:
+    runner = world["tmp"] / f"runner-{tag}"
+    _git(world["tmp"], "clone", "-q", f"file://{world['origin']}", runner.name)
+    _git(runner, "checkout", "-q", tag)
+    env = {
+        **os.environ,
+        "TAG": tag,
+        "RUNNER_TEMP": str(world["tmp"]),
+        "GITHUB_STEP_SUMMARY": str(world["tmp"] / "summary"),
+    }
+    return subprocess.run(
+        ["bash", "-e", "-c", script],
+        cwd=runner,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
 
 
-def test_image_is_verified_before_publishing():
-    names = [s.get("name") for s in STEPS]
-    verify = names.index("Verify the image signature and provenance")
-    assert names.index("Sign the image (keyless)") < verify
-    assert verify < names.index("Publish the GitHub release")
-    run = _step("Verify the image signature and provenance")["run"]
-    assert 'cosign verify "$REF"' in run
+@needs_ssh_keygen
+def test_a_release_managers_tag_on_master_is_accepted(world):
+    assert _release(world, "v1.0.0", _signature_script()).returncode == 0
+
+
+@needs_ssh_keygen
+def test_a_tag_on_a_branch_that_lists_its_own_signer_is_refused(world):
+    result = _release(world, "v6.6.6", _signature_script())
+    assert result.returncode != 0
+    assert "not on master" in result.stdout + result.stderr
+
+
+@needs_ssh_keygen
+def test_a_tag_signed_by_a_key_master_does_not_list_is_refused(world):
+    result = _release(world, "v1.0.1", _signature_script())
+    assert result.returncode != 0
+    assert "not signed by a key" in result.stdout + result.stderr
+
+
+@needs_ssh_keygen
+def test_a_listed_key_cannot_sign_as_someone_else(world):
+    result = _release(world, "v1.0.2", _signature_script())
+    assert result.returncode != 0
+    assert "but the tagger is" in result.stdout + result.stderr
+
+
+def test_dry_runs_only_run_from_master():
     assert (
-        "--certificate-oidc-issuer https://token.actions.githubusercontent.com" in run
+        _job()["if"]
+        == "github.event_name == 'push' || github.ref == 'refs/heads/master'"
     )
-    assert 'gh attestation verify "oci://$REF"' in run
-    assert "--signer-workflow" in run
 
 
-def test_tag_signature_is_checked_first():
-    names = [s.get("name") for s in STEPS]
-    assert names.index("Tag is signed by a release manager") < names.index(
-        "Tag matches the package version"
+def test_the_checkout_has_the_history_to_check_the_tag_is_on_master():
+    checkout = next(
+        step
+        for step in _job()["steps"]
+        if str(step.get("uses", "")).startswith("actions/checkout@")
     )
-    run = _step("Tag is signed by a release manager")["run"]
-    assert "-c gpg.ssh.allowedSignersFile=.github/allowed_signers verify-tag" in run
-    assert 'git cat-file -t "$TAG")" = tag' in run  # lightweight tags refused
-    assert 'test "$signer" = "$tagger"' in run  # the key is the tagger's
+    assert checkout["with"]["fetch-depth"] == 0
 
 
-def test_release_managers_are_listed():
-    entries = [
-        line.split()
-        for line in SIGNERS.read_text().splitlines()
-        if line.strip() and not line.startswith("#")
+def test_no_step_interpolates_a_value_into_its_script():
+    assert not [
+        step.get("name") for step in _job()["steps"] if "${{" in step.get("run", "")
     ]
-    assert entries, "no release manager can sign a tag"
-    for principal, *rest in entries:
-        assert re.fullmatch(r"[\w.+-]+@[\w-]+(\.[\w-]+)+", principal), principal
-        key = [w for w in rest if not w.startswith("namespaces=")]
-        assert key[0] in {
-            "ssh-ed25519",
-            "ecdsa-sha2-nistp256",
-            "sk-ssh-ed25519@openssh.com",
-        }
-        assert re.fullmatch(r"AAAA[\w+/=]+", key[1]), "public key body"
-    assert RELEASE_MANAGER in {e[0] for e in entries}
+
+
+def test_signatures_are_verified_against_the_exact_ref_not_a_pattern():
+    text = WORKFLOW.read_text(encoding="utf-8")
+    assert (
+        "--certificate-identity-regexp" not in text
+    )  # neither in the steps nor in the documented command
+    assert (
+        "--certificate-identity 'https://github.com/LOLA0786/privatevault-agent-dna/.github/workflows/release.yml@refs/tags/<tag>'"
+        in text
+    )
