@@ -61,3 +61,7 @@ demos/treasury/runs/*.jsonl
 
 # continuous challenger runs (demos/live_checkout/challenger.py)
 demos/live_checkout/.challenger/
+
+# Local run output
+ablation-*/
+demos/live_checkout/runs/*.jsonl
